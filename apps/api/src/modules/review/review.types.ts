@@ -52,7 +52,7 @@ export interface K1ReviewSession {
   status: K1Status
   partnership: { id: string | null; name: string | null; rawName: string | null }
   entity: { id: string | null; name: string | null }
-  taxYear: number
+  taxYear: number | null
   uploadedAt: string
   approvedByUserId: string | null
   finalizedByUserId: string | null

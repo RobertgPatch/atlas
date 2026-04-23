@@ -59,7 +59,7 @@ export const approveHandler = async (request: FastifyRequest, reply: FastifyRepl
   if (fields.some((f) => f.required && !(f.reviewerCorrectedValue ?? f.normalizedValue ?? f.rawValue))) {
     return reply.code(409).send({ error: 'APPROVE_PRECONDITION_FAILED', cause: 'empty_required' })
   }
-  if (!k.entityId || !k.partnershipId) {
+  if (!k.entityId || !k.partnershipId || k.taxYear == null) {
     return reply.code(409).send({ error: 'APPROVE_PRECONDITION_FAILED', cause: 'unmapped' })
   }
 
@@ -119,11 +119,13 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
   if (fields.some((f) => f.required && !(f.reviewerCorrectedValue ?? f.normalizedValue ?? f.rawValue))) {
     return reply.code(409).send({ error: 'FINALIZE_PRECONDITION_FAILED', cause: 'empty_required' })
   }
-  if (!k.entityId || !k.partnershipId) {
+  if (!k.entityId || !k.partnershipId || k.taxYear == null) {
     return reply.code(409).send({ error: 'FINALIZE_PRECONDITION_FAILED', cause: 'unmapped' })
   }
   const reported = reviewRepository.getEffectiveReportedDistribution(k.id)
   const reportedDistributionAmount = reported?.reportedDistributionAmount ?? '0'
+  const partnershipId = k.partnershipId
+  const taxYear = k.taxYear
 
   // Snapshot current state for rollback on simulated failure.
   const prevK = { ...k }
@@ -149,8 +151,8 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
     fail('annual_activity_upsert')
     const paa = reviewRepository.upsertPartnershipAnnualActivity({
       entityId: updated.entityId,
-      partnershipId: updated.partnershipId,
-      taxYear: updated.taxYear,
+      partnershipId,
+      taxYear,
       reportedDistributionAmount,
       finalizedFromK1DocumentId: updated.id,
     })
@@ -186,14 +188,14 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
     k1Repository._debugSetK1(prevK)
     const maybe = reviewRepository.getPartnershipAnnualActivity(
       prevK.entityId,
-      prevK.partnershipId,
-      prevK.taxYear,
+      partnershipId,
+      taxYear,
     )
     if (maybe && maybe.finalizedFromK1DocumentId === prevK.id) {
       reviewRepository._debugDeletePartnershipAnnualActivity(
         prevK.entityId,
-        prevK.partnershipId,
-        prevK.taxYear,
+        partnershipId,
+        taxYear,
       )
     }
     request.log?.error({ err }, 'finalize rolled back due to injected failure')

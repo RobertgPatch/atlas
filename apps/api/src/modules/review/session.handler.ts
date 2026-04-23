@@ -148,7 +148,7 @@ export const sessionHandler = async (
     partnership: {
       id: partnership?.id ?? null,
       name: partnership?.name ?? null,
-      rawName: partnership?.name ?? null,
+      rawName: k.partnershipNameRaw ?? partnership?.name ?? null,
     },
     entity: { id: entity?.id ?? null, name: entity?.name ?? null },
     taxYear: k.taxYear,

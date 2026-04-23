@@ -77,6 +77,19 @@ const activityKey = (entityId: string, partnershipId: string, taxYear: number) =
 const fieldValueFor = (field: K1FieldValueRecord): string | null =>
   field.reviewerCorrectedValue ?? field.normalizedValue ?? field.rawValue
 
+// Canonical "reported distribution" field names. The stub extractor emits
+// `box_19a_distribution`; the real Azure Document Intelligence pipeline emits
+// `box_19_distributions` (per Schedule K-1 Box 19 — distributions). Both are
+// treated as the same semantic value so downstream KPI rollups match either.
+export const REPORTED_DISTRIBUTION_FIELD_NAMES = [
+  'box_19a_distribution',
+  'box_19_distributions',
+] as const
+
+export const isReportedDistributionField = (fieldName: string | null | undefined): boolean =>
+  fieldName != null &&
+  (REPORTED_DISTRIBUTION_FIELD_NAMES as readonly string[]).includes(fieldName)
+
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
@@ -128,6 +141,23 @@ export const reviewRepository = {
       throw new Error('raw_value / original_value is immutable')
     }
     fieldValues.set(id, next)
+
+    // Keep the per-K-1 reportedDistributions map in sync when the Box 19 field
+    // is corrected, so any legacy readers (and finalize's snapshot) see the
+    // reviewer-corrected amount rather than the original parse.
+    if (isReportedDistributionField(next.fieldName)) {
+      const effective = fieldValueFor(next)
+      const existing = reportedDistributions.get(next.k1DocumentId)
+      if (existing) {
+        existing.reportedDistributionAmount = effective
+      } else {
+        reportedDistributions.set(next.k1DocumentId, {
+          id: randomUUID(),
+          k1DocumentId: next.k1DocumentId,
+          reportedDistributionAmount: effective,
+        })
+      }
+    }
     return next
   },
 
@@ -138,19 +168,26 @@ export const reviewRepository = {
   },
 
   getEffectiveReportedDistribution(k1DocumentId: string): K1ReportedDistributionRecord | undefined {
-    const stored = reportedDistributions.get(k1DocumentId)
-    if (stored) return stored
-
+    // Source of truth is the Box 19 distribution row in `k1_field_values`, because that
+    // row carries reviewer corrections (via `updateFieldCorrection`) whereas the legacy
+    // `reportedDistributions` map is only written at parse time and never re-synced.
+    // Reading the field first means reviewer-corrected amounts flow to the Partnership /
+    // Entity / Entities rollups and to finalize's `partnership_annual_activity`.
+    // Two canonical names exist: stub extractor emits `box_19a_distribution`; Azure DI
+    // emits `box_19_distributions`. See `REPORTED_DISTRIBUTION_FIELD_NAMES`.
     const distributionField = [...fieldValues.values()].find(
-      (field) => field.k1DocumentId === k1DocumentId && field.fieldName === 'box_19a_distribution',
+      (field) => field.k1DocumentId === k1DocumentId && isReportedDistributionField(field.fieldName),
     )
-    if (!distributionField) return undefined
-
-    return {
-      id: `derived:${k1DocumentId}`,
-      k1DocumentId,
-      reportedDistributionAmount: fieldValueFor(distributionField),
+    if (distributionField) {
+      return {
+        id: `derived:${k1DocumentId}`,
+        k1DocumentId,
+        reportedDistributionAmount: fieldValueFor(distributionField),
+      }
     }
+
+    // Fallback to the legacy per-K-1 map (seed fixtures, K-1s missing a field row).
+    return reportedDistributions.get(k1DocumentId)
   },
 
   upsertReportedDistribution(

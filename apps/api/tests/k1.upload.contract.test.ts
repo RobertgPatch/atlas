@@ -17,22 +17,16 @@ describe('POST /v1/k1-documents — upload contract', () => {
     await f.app.close()
   })
 
-  const newPartnership = () => {
-    const p = f.partnerships.find((x) => x.name === 'Sequoia Heritage Fund')!
-    return { partnership: p, entity: f.entities.find((e) => e.id === p.entityId)! }
+  const uploadTarget = () => {
+    const entity = f.entities.find((e) => e.name === 'Whitfield Holdings LLC')!
+    return { entity }
   }
 
   it('201 happy-path: creates k1_documents row, emits k1.uploaded audit, initial status UPLOADED', async () => {
-    // Pick a (partnership, entity, taxYear) tuple that the demo seed did not use.
-    const { partnership, entity } = newPartnership()
-    const taxYear = 2023 // seed uses 2024
+    const { entity } = uploadTarget()
 
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [
         {
           name: 'file',
@@ -61,16 +55,10 @@ describe('POST /v1/k1-documents — upload contract', () => {
     expect(events.length).toBe(1)
   })
 
-  it('409 DUPLICATE_K1 on repeat (partnership, entity, taxYear) without replaceDocumentId', async () => {
-    const { partnership, entity } = newPartnership()
-    const taxYear = 2023
-
+  it('accepts repeat uploads and defers duplicate detection to the parse step', async () => {
+    const { entity } = uploadTarget()
     const first = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'a.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const ok = await f.app.inject({
@@ -82,11 +70,7 @@ describe('POST /v1/k1-documents — upload contract', () => {
     expect(ok.statusCode).toBe(201)
 
     const second = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'b.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const dup = await f.app.inject({
@@ -95,22 +79,12 @@ describe('POST /v1/k1-documents — upload contract', () => {
       headers: { cookie: f.cookie, 'content-type': second.contentType },
       payload: second.body,
     })
-    expect(dup.statusCode).toBe(409)
-    const body = dup.json()
-    expect(body.error).toBe('DUPLICATE_K1')
-    expect(body.existing).toHaveProperty('k1DocumentId')
-    expect(body.existing).toHaveProperty('documentId')
-    expect(body.existing).toHaveProperty('uploadedAt')
-    expect(body.existing).toHaveProperty('status')
+    expect(dup.statusCode).toBe(201)
   })
 
-  it('400 on missing taxYear field', async () => {
-    const { partnership, entity } = newPartnership()
+  it('400 on missing entityId field', async () => {
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-      ],
+      [],
       [{ name: 'file', filename: 'a.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const res = await f.app.inject({
@@ -122,13 +96,10 @@ describe('POST /v1/k1-documents — upload contract', () => {
     expect(res.statusCode).toBe(400)
   })
 
-  it('400 on invalid taxYear (below 2000)', async () => {
-    const { partnership, entity } = newPartnership()
+  it('400 on invalid entityId', async () => {
     const { body, contentType } = buildMultipart(
       [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: '1980' },
+        { name: 'entityId', value: 'not-a-uuid' },
       ],
       [{ name: 'file', filename: 'a.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
@@ -142,17 +113,13 @@ describe('POST /v1/k1-documents — upload contract', () => {
   })
 
   it('403 FORBIDDEN_ENTITY when target entity is outside the caller scope', async () => {
-    const { partnership, entity } = newPartnership()
+    const { entity } = uploadTarget()
     k1Repository._debugSetMemberships(
       f.admin.id,
       f.entityIds.filter((id) => id !== entity.id),
     )
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: '2023' },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'a.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const res = await f.app.inject({
@@ -166,13 +133,9 @@ describe('POST /v1/k1-documents — upload contract', () => {
   })
 
   it('415 when uploaded file is not application/pdf', async () => {
-    const { partnership, entity } = newPartnership()
+    const { entity } = uploadTarget()
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: '2023' },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'note.txt', contentType: 'text/plain', data: Buffer.from('not a pdf') }],
     )
     const res = await f.app.inject({
@@ -185,13 +148,9 @@ describe('POST /v1/k1-documents — upload contract', () => {
   })
 
   it('400 on missing file part', async () => {
-    const { partnership, entity } = newPartnership()
+    const { entity } = uploadTarget()
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: '2023' },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [],
     )
     const res = await f.app.inject({

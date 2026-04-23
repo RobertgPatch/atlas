@@ -21,3 +21,7 @@ export function getExtractor(): K1Extractor {
 
   return cached
 }
+
+export function setExtractorForTests(extractor: K1Extractor | undefined): void {
+  cached = extractor
+}

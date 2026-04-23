@@ -3,35 +3,32 @@ import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 import { buildMultipart, fakePdfBytes } from './helpers/multipart.js'
 import { k1Repository } from '../src/modules/k1/k1.repository.js'
 import { auditRepository } from '../src/modules/audit/audit.repository.js'
+import { reviewRepository } from '../src/modules/review/review.repository.js'
+import { setExtractorForTests } from '../src/modules/k1/extraction/index.js'
+import { stubExtractor } from '../src/modules/k1/extraction/stubExtractor.js'
 
-// T036 — Integration: replace-upload supersession transaction
-// After a duplicate upload with replaceDocumentId:
-// - prior row's supersededByDocumentId is set
-// - document_versions row is inserted
-// - k1.superseded audit event is written
-describe('replace-upload supersession (FR-021, Data-Model §3.4)', () => {
+// T036 — Integration: duplicate detection during async parse
+// After a duplicate upload resolves to the same (entity, partnership, taxYear):
+// - upload is still accepted
+// - parser opens a DUPLICATE_K1 issue on the later document
+describe('async duplicate detection during parse', () => {
   let f: TestFixture
 
   beforeEach(async () => {
+    setExtractorForTests(stubExtractor)
     f = await createTestFixture()
   })
 
   afterEach(async () => {
     await f.app.close()
+    setExtractorForTests(undefined)
   })
 
-  it('all four effects commit together on Replace', async () => {
-    const partnership = f.partnerships.find((p) => p.name === 'Sequoia Heritage Fund')!
-    const entity = f.entities.find((e) => e.id === partnership.entityId)!
-    const taxYear = 2023
+  it('creates a duplicate issue on the later document instead of rejecting upload', async () => {
+    const entity = f.entities.find((e) => e.name === 'Whitfield Holdings LLC')!
 
-    // First upload
     const first = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'orig.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const a = await f.app.inject({
@@ -42,16 +39,9 @@ describe('replace-upload supersession (FR-021, Data-Model §3.4)', () => {
     })
     expect(a.statusCode).toBe(201)
     const originalK1Id: string = a.json().k1DocumentId
-    const originalDocumentId: string = a.json().documentId
 
-    // Replace
     const second = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-        { name: 'replaceDocumentId', value: originalDocumentId },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [{ name: 'file', filename: 'replacement.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
     )
     const b = await f.app.inject({
@@ -61,80 +51,25 @@ describe('replace-upload supersession (FR-021, Data-Model §3.4)', () => {
       payload: second.body,
     })
     expect(b.statusCode).toBe(201)
-    const replacementDocumentId: string = b.json().documentId
+    const duplicateK1Id: string = b.json().k1DocumentId
 
-    // Effect 1: prior k1_documents.supersededByDocumentId is set
+    await new Promise((r) => setTimeout(r, 900))
+
     const original = k1Repository.getK1Document(originalK1Id)
-    expect(original?.supersededByDocumentId).toBe(replacementDocumentId)
+    const duplicate = k1Repository.getK1Document(duplicateK1Id)
+    expect(original?.supersededByDocumentId).toBeNull()
+    expect(duplicate?.processingStatus).toBe('NEEDS_REVIEW')
 
-    // Effect 2: document_versions row inserted pointing orig → replacement
-    const versions = k1Repository._debugListDocumentVersions()
-    const match = versions.find(
-      (v) =>
-        v.originalDocumentId === originalDocumentId &&
-        v.supersededById === replacementDocumentId,
-    )
-    expect(match).toBeDefined()
-    expect(match!.partnershipId).toBe(partnership.id)
-    expect(match!.entityId).toBe(entity.id)
-    expect(match!.taxYear).toBe(taxYear)
-    expect(match!.supersededByUserId).toBe(f.admin.id)
+    const duplicateIssue = k1Repository
+      .listIssuesForK1(duplicateK1Id)
+      .find((issue) => issue.issueType === 'DUPLICATE_K1')
+    expect(duplicateIssue).toBeDefined()
 
-    // Effect 3: k1.superseded audit event written against the original k1 id
-    const superseded = auditRepository
+    const parseCompleted = auditRepository
       .getInMemoryEvents()
-      .find((e) => e.eventName === 'k1.superseded' && e.objectId === originalK1Id)
-    expect(superseded).toBeDefined()
-    expect(superseded!.actorUserId).toBe(f.admin.id)
+      .find((event) => event.eventName === 'k1.parse_completed' && event.objectId === duplicateK1Id)
+    expect(parseCompleted).toBeDefined()
 
-    // Effect 4: default listing hides the superseded row
-    const list = await f.app.inject({
-      method: 'GET',
-      url: '/v1/k1-documents',
-      headers: { cookie: f.cookie },
-    })
-    const ids: string[] = (list.json().items as Array<{ id: string }>).map((i) => i.id)
-    expect(ids).not.toContain(originalK1Id)
-  })
-
-  it('rejects replaceDocumentId that does not match the duplicate', async () => {
-    const partnership = f.partnerships.find((p) => p.name === 'Sequoia Heritage Fund')!
-    const entity = f.entities.find((e) => e.id === partnership.entityId)!
-    const taxYear = 2023
-
-    // Plant an initial upload
-    const first = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-      ],
-      [{ name: 'file', filename: 'a.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
-    )
-    await f.app.inject({
-      method: 'POST',
-      url: '/v1/k1-documents',
-      headers: { cookie: f.cookie, 'content-type': first.contentType },
-      payload: first.body,
-    })
-
-    // Attempt replace with a wrong documentId
-    const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: String(taxYear) },
-        { name: 'replaceDocumentId', value: '00000000-0000-0000-0000-000000000000' },
-      ],
-      [{ name: 'file', filename: 'b.pdf', contentType: 'application/pdf', data: fakePdfBytes() }],
-    )
-    const res = await f.app.inject({
-      method: 'POST',
-      url: '/v1/k1-documents',
-      headers: { cookie: f.cookie, 'content-type': contentType },
-      payload: body,
-    })
-    expect(res.statusCode).toBe(409)
-    expect(res.json().error).toBe('REPLACE_DOCUMENT_MISMATCH')
+    expect(reviewRepository.getReportedDistribution(duplicateK1Id)).toBeDefined()
   })
 })

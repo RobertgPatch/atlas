@@ -1,6 +1,5 @@
 import type {
   K1DocumentSummary,
-  K1DuplicateResponse,
   K1Kpis,
   K1ListResponse,
   K1Status,
@@ -107,7 +106,6 @@ const toQuery = (f: K1Filters) => {
 // --- Endpoints ---------------------------------------------------------------
 
 export interface EntityLookup { id: string; name: string }
-export interface PartnershipLookup { id: string; name: string; entityId: string }
 
 export const k1Client = {
   listDocuments: (f: K1Filters = {}): Promise<K1ListResponse> =>
@@ -125,15 +123,11 @@ export const k1Client = {
 
   upload: async (args: {
     file: File
-    partnershipId: string
     entityId: string
-    taxYear: number
     replaceDocumentId?: string
   }): Promise<K1UploadResponse> => {
     const form = new FormData()
-    form.append('partnershipId', args.partnershipId)
     form.append('entityId', args.entityId)
-    form.append('taxYear', String(args.taxYear))
     if (args.replaceDocumentId) form.append('replaceDocumentId', args.replaceDocumentId)
     form.append('file', args.file)
 
@@ -142,10 +136,6 @@ export const k1Client = {
       credentials: 'include',
       body: form,
     })
-    if (res.status === 409) {
-      const payload = (await res.json()) as K1DuplicateResponse
-      throw new K1ApiError('DUPLICATE_K1', 409, payload)
-    }
     if (!res.ok) {
       let payload: unknown = undefined
       try { payload = await res.json() } catch { /* ignore */ }
@@ -161,7 +151,4 @@ export const k1Client = {
 
   listEntities: (): Promise<{ items: EntityLookup[] }> =>
     request('/k1/lookups/entities'),
-
-  listPartnerships: (): Promise<{ items: PartnershipLookup[] }> =>
-    request('/k1/lookups/partnerships'),
 }

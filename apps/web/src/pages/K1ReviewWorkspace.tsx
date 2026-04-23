@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, ShieldCheck, Save, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, CheckCircle2, ShieldCheck, Save, X } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
 import { PageHeader } from '../components/shared/PageHeader'
 import { StatusBadge } from '../components/shared/StatusBadge'
@@ -184,7 +184,7 @@ export const K1ReviewWorkspace = () => {
         title="Review K-1"
         subtitle={
           sessionData
-            ? `${sessionData.partnership.name ?? '(unmapped)'} · ${sessionData.entity.name ?? '(unmapped)'} · Tax year ${sessionData.taxYear}`
+            ? `${sessionData.partnership.name ?? '(unmapped)'} · ${sessionData.entity.name ?? '(unmapped)'} · Tax year ${sessionData.taxYear ?? 'pending extraction'}`
             : undefined
         }
       />
@@ -235,7 +235,16 @@ export const K1ReviewWorkspace = () => {
       {sessionData && (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4 h-[calc(100vh-14rem)]">
           <div className="flex flex-col gap-4 overflow-y-auto pr-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate('/k1')}
+                className="inline-flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to K-1 Dashboard
+              </button>
+              <span className="text-gray-300">|</span>
               <StatusBadge status={statusToBadge[sessionData.status]} />
               <span className="text-xs text-gray-500" data-testid="review-version">
                 v{sessionData.version}

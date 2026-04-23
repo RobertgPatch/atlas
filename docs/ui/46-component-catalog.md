@@ -122,3 +122,29 @@ Composes — and MUST only compose — these catalog pieces:
 
 ### PdfPreview (planned, Feature 003)
 `packages/ui/src/components/PdfPreview/PdfPreview.tsx` — the single owner of `pdfjs-dist`; props `{ url, page, onPageChange, zoom, onZoomChange, highlight }` where `highlight` is a normalized 0–100 bbox overlay. No consumer may import `pdfjs-dist` directly. Currently scaffolded via `<iframe>` in `apps/web/src/features/review/components/PdfPanel.tsx`; upgrade path is to swap the iframe body with the `PdfPreview` component once T002 is delivered, with no changes to `PdfPanel`'s public props.
+
+### Partnership Directory (Feature 004)
+Composes — and MUST only compose — these catalog pieces:
+`AppShell` → `PageHeader` (primary: Add Partnership — Admin only) → (`KpiCard` × 4) → `FilterToolbar` → `DataTable` (+ `StatusBadge`, `RowActionMenu`) with `LoadingState` / `EmptyState` / `ErrorState` for all six required UI states. Local additions: `AddPartnershipDialog` (Headless UI) composes existing primitives. Export CSV is a plain anchor link. Hard boundary: no `@mui/*`. Enforced by `scripts/ci/guard-partnerships-imports.mjs`. See [40-screen-map.md](40-screen-map.md) §10.
+
+### Partnership Detail (Feature 004)
+Composes — and MUST only compose — these catalog pieces:
+`AppShell` → `PageHeader` (+ `StatusBadge`; primary: Edit — Admin only) → (`KpiCard` × 4) → `SectionCard` × 5 (Entity Info, K-1 History, Expected Distributions, FMV Snapshots, Activity). FMV Snapshots section has an Admin-only "Record FMV" header action slot. Local additions: `EditPartnershipDialog` + `RecordFmvDialog` (both Headless UI, Admin-only, compose existing primitives). Hard boundary: same guard as Partnership Directory. See [40-screen-map.md](40-screen-map.md) §11.
+
+### Entity Detail (Feature 004)
+Composes — and MUST only compose — these catalog pieces:
+`AppShell` → `PageHeader` → (`KpiCard` × 4) → embedded `PartnershipDirectoryTable` (reuses `DataTable` + `StatusBadge` scoped to entity) → `EntityReportsPreviewSection` (placeholder for Feature 006). Hard boundary: same guard. See [40-screen-map.md](40-screen-map.md) §9.
+
+#### New components introduced in Feature 004
+| Component | Package | Description |
+|---|---|---|
+| `PartnershipDirectoryTable` | `apps/web/src/features/partnerships/components/` | DataTable variant for partnership rows |
+| `PartnershipFiltersBar` | `apps/web/src/features/partnerships/components/` | Feature-scoped filter toolbar |
+| `K1HistorySection` | `apps/web/src/features/partnerships/components/` | SectionCard wrapping finalized K-1 rows |
+| `ExpectedDistributionSection` | `apps/web/src/features/partnerships/components/` | SectionCard wrapping expected distribution rows |
+| `FmvSnapshotsSection` | `apps/web/src/features/partnerships/components/` | SectionCard wrapping append-only FMV snapshot table |
+| `ActivityDetailPreview` | `apps/web/src/features/partnerships/components/` | SectionCard wrapping recent audit events |
+| `AddPartnershipDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin partnership creation |
+| `EditPartnershipDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin partnership updates |
+| `RecordFmvDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin FMV snapshot recording |
+| `EntityReportsPreviewSection` | `apps/web/src/features/partnerships/components/` | Placeholder section for Feature 006 reports |

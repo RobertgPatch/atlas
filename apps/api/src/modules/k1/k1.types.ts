@@ -11,8 +11,8 @@ export const K1_STATUSES = [
 export type K1Status = (typeof K1_STATUSES)[number]
 
 export interface K1PartnershipRef {
-  id: string
-  name: string
+  id: string | null
+  name: string | null
 }
 export interface K1EntityRef {
   id: string
@@ -29,7 +29,7 @@ export interface K1DocumentSummary {
   documentName: string
   partnership: K1PartnershipRef
   entity: K1EntityRef
-  taxYear: number
+  taxYear: number | null
   status: K1Status
   issuesOpenCount: number
   uploadedAt: string

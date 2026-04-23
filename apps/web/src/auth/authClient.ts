@@ -8,6 +8,27 @@ export interface UserSummary {
   status: UserStatus
 }
 
+export interface UserDetailResponse {
+  user: {
+    id: string
+    email: string
+    role: AtlasRole
+    status: UserStatus
+    mfaEnabled: boolean
+    createdAt: string
+    lastLoginAt: string | null
+    loginCount: number
+  }
+  assignedEntities: Array<{ id: string; name: string }>
+  activity: Array<{
+    id: string
+    date: string
+    action: string
+    detail: string
+    eventName: string
+  }>
+}
+
 export interface SessionResponse {
   user: UserSummary
   role: AtlasRole
@@ -111,6 +132,10 @@ export const authClient = {
     return request<{ items: UserSummary[] }>('/admin/users', { method: 'GET' })
   },
 
+  getUserDetail(userId: string) {
+    return request<UserDetailResponse>(`/admin/users/${userId}`, { method: 'GET' })
+  },
+
   inviteUser(email: string, role: AtlasRole) {
     return request<{
       id: string
@@ -147,5 +172,13 @@ export const authClient = {
     return request<UserSummary>(`/admin/users/${userId}/mfa-reset`, {
       method: 'POST',
     })
+  },
+
+  devClearData() {
+    return request<{ ok: true; action: 'cleared' }>('/admin/dev/clear', { method: 'POST' })
+  },
+
+  devSeedData() {
+    return request<{ ok: true; action: 'seeded' }>('/admin/dev/seed', { method: 'POST' })
   },
 }

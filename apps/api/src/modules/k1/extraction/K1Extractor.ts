@@ -21,6 +21,8 @@ export interface ExtractSuccess {
   nextStatus: Extract<K1Status, 'NEEDS_REVIEW' | 'READY_FOR_APPROVAL'>
   issues: ExtractIssue[]
   fieldValues: ExtractFieldValue[]
+  extractedPartnershipName?: string | null
+  extractedTaxYear?: number | null
 }
 
 export interface ExtractFailure {

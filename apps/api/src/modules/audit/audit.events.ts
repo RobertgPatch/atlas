@@ -11,3 +11,13 @@ export const K1_AUDIT_EVENTS = {
 } as const
 
 export type K1AuditEventName = (typeof K1_AUDIT_EVENTS)[keyof typeof K1_AUDIT_EVENTS]
+
+// Feature 004 audit event names (Partnership Management).
+export const PARTNERSHIP_AUDIT_EVENTS = {
+  CREATED: 'partnership.created',
+  UPDATED: 'partnership.updated',
+  FMV_RECORDED: 'partnership.fmv_recorded',
+} as const
+
+export type PartnershipAuditEventName =
+  (typeof PARTNERSHIP_AUDIT_EVENTS)[keyof typeof PARTNERSHIP_AUDIT_EVENTS]

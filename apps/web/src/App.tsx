@@ -13,10 +13,16 @@ import { MFAPage } from './pages/MFAPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
+import { UserDetailPage } from './pages/UserDetailPage'
 import { K1Dashboard } from './pages/K1Dashboard'
 import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
+import { PartnershipDirectory } from './pages/PartnershipDirectory'
+import { PartnershipDetail } from './pages/PartnershipDetail'
+import { EntityDetail } from './pages/EntityDetail'
+import { EntitiesPage } from './pages/EntitiesPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
+import { GlobalLoadingBar } from './components/GlobalLoadingBar'
 
 const PlaceholderPage = ({ title }: { title: string }) => {
   const { session } = useSession()
@@ -93,6 +99,7 @@ export function App() {
   return (
     <Router>
       <SessionBootstrap>
+        <GlobalLoadingBar />
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/mfa/setup" element={<MFASetupPage />} />
@@ -135,7 +142,31 @@ export function App() {
             path="/partnerships"
             element={
               <ProtectedRoute>
-                <PlaceholderPage title="Partnerships" />
+                <PartnershipDirectory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/partnerships/:id"
+            element={
+              <ProtectedRoute>
+                <PartnershipDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/entities/:id"
+            element={
+              <ProtectedRoute>
+                <EntityDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/entities"
+            element={
+              <ProtectedRoute>
+                <EntitiesPage />
               </ProtectedRoute>
             }
           />
@@ -152,6 +183,14 @@ export function App() {
             element={
               <AdminRoute>
                 <UserManagementPage />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users/:id"
+            element={
+              <AdminRoute>
+                <UserDetailPage />
               </AdminRoute>
             }
           />

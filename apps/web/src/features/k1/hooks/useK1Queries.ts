@@ -47,16 +47,9 @@ export const useK1Kpis = (scope: { taxYear?: number; entityId?: string }) =>
 export const useK1Lookups = () =>
   useQuery({
     queryKey: k1Keys.lookups(),
-    queryFn: async () => {
-      const [entities, partnerships] = await Promise.all([
-        k1Client.listEntities(),
-        k1Client.listPartnerships(),
-      ])
-      return {
-        entities: entities.items,
-        partnerships: partnerships.items,
-      }
-    },
+    queryFn: async () => ({
+      entities: (await k1Client.listEntities()).items,
+    }),
     staleTime: 60_000,
   })
 
@@ -66,6 +59,7 @@ export const useK1Upload = () => {
     mutationFn: k1Client.upload,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: k1Keys.all })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }
@@ -76,6 +70,7 @@ export const useK1Reparse = () => {
     mutationFn: (id: string) => k1Client.reparse(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: k1Keys.all })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
   })
 }

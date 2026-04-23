@@ -1,0 +1,487 @@
+openapi: 3.1.0
+info:
+  title: Atlas Partnership Management API
+  version: 0.1.0
+  description: |
+    Feature 004 (Partnership Management) — Screens #9 (Entity Detail), #10 (Partnership Directory),
+    #11 (Partnership Detail). All endpoints are authenticated via the existing session cookie
+    (Feature 001) and scoped to the caller's `entity_memberships` rows (Feature 002). Admins
+    bypass the scope filter but still receive authoritative, server-computed data.
+
+    Write endpoints require the Admin role and emit an `audit_events` row in the same transaction.
+    FMV snapshots are append-only — no PATCH, no DELETE.
+
+servers:
+  - url: /v1
+    description: Versioned API prefix
+
+tags:
+  - name: Partnerships
+  - name: Entities
+  - name: FMV
+
+paths:
+  /partnerships:
+    get:
+      tags: [Partnerships]
+      operationId: listPartnerships
+      summary: List partnerships (directory view) with KPIs computed over the filtered set
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 200 }
+          description: Case-insensitive substring match against partnership name or entity name
+        - in: query
+          name: entityId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: assetClass
+          schema: { type: string }
+        - in: query
+          name: status
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/PartnershipStatus' }
+          style: form
+          explode: true
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum:
+              - name
+              - -name
+              - entity
+              - -entity
+              - assetClass
+              - -assetClass
+              - latestK1Year
+              - -latestK1Year
+              - latestDistributionUsd
+              - -latestDistributionUsd
+              - latestFmvAmountUsd
+              - -latestFmvAmountUsd
+              - status
+              - -status
+          description: Sort field; `-` prefix for descending. Default `name`.
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: pageSize
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Directory page + filtered KPIs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipDirectoryResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Out-of-scope `entityId` requested (not 404)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      tags: [Partnerships]
+      operationId: createPartnership
+      summary: Create a partnership (Admin only)
+      description: Emits `partnership.created` audit event. Returns 409 on `(entity_id, lower(name))` conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePartnershipRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Partnership' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not Admin OR target `entityId` is not in caller's scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: A partnership with the same `(entityId, name)` already exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnerships/export.csv:
+    get:
+      tags: [Partnerships]
+      operationId: exportPartnershipsCsv
+      summary: Export the filtered directory as CSV
+      description: |
+        Same filter semantics as `GET /partnerships`. Returns a streamed CSV body with columns:
+        Partnership Name, Entity, Asset Class, Latest K-1 Year, Distribution (USD), FMV (USD), Status.
+        Hard cap: 5000 rows (returns 413 if exceeded).
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: entityId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: assetClass
+          schema: { type: string }
+        - in: query
+          name: status
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/PartnershipStatus' }
+      responses:
+        '200':
+          description: CSV stream
+          content:
+            text/csv:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: Filtered set exceeds the 5000-row export cap
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnerships/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Partnerships]
+      operationId: getPartnership
+      summary: Partnership Detail (KPIs, K-1 history, expected distributions, FMV snapshots)
+      responses:
+        '200':
+          description: Partnership detail payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Partnership's `entity_id` is outside the caller's scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Partnership does not exist (only returned when the caller has scope; out-of-scope ids return 403 per FR-061)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    patch:
+      tags: [Partnerships]
+      operationId: updatePartnership
+      summary: Update name / asset_class / notes / status (Admin only)
+      description: Emits `partnership.updated` audit event. `entityId` is NOT editable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePartnershipRequest' }
+      responses:
+        '200':
+          description: Updated partnership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Partnership' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not Admin OR partnership is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { description: Partnership does not exist }
+        '409':
+          description: Renaming would collide with an existing `(entityId, name)`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnerships/{id}/fmv-snapshots:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [FMV]
+      operationId: listFmvSnapshots
+      summary: List FMV snapshots for a partnership (newest first)
+      responses:
+        '200':
+          description: Snapshots ordered by `(created_at DESC, valuation_date DESC, id DESC)`
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FmvSnapshot' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Partnership is out of scope }
+        '404': { description: Partnership does not exist }
+    post:
+      tags: [FMV]
+      operationId: createFmvSnapshot
+      summary: Record a new FMV snapshot (Admin only)
+      description: |
+        Append-only. Multiple snapshots per `asOfDate` are allowed — corrections are made by
+        recording a newer snapshot. Emits `partnership.fmv_recorded` audit event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateFmvSnapshotRequest' }
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FmvSnapshot' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not Admin OR partnership is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { description: Partnership does not exist }
+
+  /entities/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Entities]
+      operationId: getEntityDetail
+      summary: Entity detail with partnership rollup
+      responses:
+        '200':
+          description: Entity detail payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntityDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Entity is out of scope }
+        '404': { description: Entity does not exist }
+
+components:
+  schemas:
+    PartnershipStatus:
+      type: string
+      enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED]
+
+    FmvSource:
+      type: string
+      enum: [manager_statement, valuation_409a, k1, manual]
+
+    Partnership:
+      type: object
+      required: [id, entity, name, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        entity: { $ref: '#/components/schemas/EntitySummary' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        assetClass: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        notes: { type: string, nullable: true, maxLength: 10000 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    EntitySummary:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    EntityDetail:
+      type: object
+      required: [entity, partnerships, rollup]
+      properties:
+        entity:
+          type: object
+          required: [id, name, entityType, status]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+            entityType: { type: string }
+            status: { type: string }
+            notes: { type: string, nullable: true }
+        partnerships:
+          type: array
+          items: { $ref: '#/components/schemas/PartnershipDirectoryRow' }
+        rollup:
+          type: object
+          required: [partnershipCount, totalDistributionsUsd, totalFmvUsd, latestK1Year]
+          properties:
+            partnershipCount: { type: integer, minimum: 0 }
+            totalDistributionsUsd: { type: number }
+            totalFmvUsd: { type: number }
+            latestK1Year:
+              type: integer
+              nullable: true
+              description: MAX tax_year across scoped partnerships with a FINALIZED K-1; null if none.
+
+    PartnershipDirectoryRow:
+      type: object
+      required: [id, name, entity, status, latestK1Year, latestDistributionUsd, latestFmv]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        entity: { $ref: '#/components/schemas/EntitySummary' }
+        assetClass: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        latestK1Year:
+          type: integer
+          nullable: true
+          description: Tax year of the most recently finalized K-1 for this partnership; null if none.
+        latestDistributionUsd:
+          type: number
+          nullable: true
+          description: Reported distribution on the most recently finalized K-1; null when `latestK1Year` is null.
+        latestFmv:
+          nullable: true
+          oneOf:
+            - type: object
+              required: [amountUsd, asOfDate, createdAt]
+              properties:
+                amountUsd: { type: number }
+                asOfDate: { type: string, format: date }
+                createdAt: { type: string, format: date-time }
+
+    PartnershipDirectoryResponse:
+      type: object
+      required: [rows, totals, page]
+      properties:
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/PartnershipDirectoryRow' }
+        totals:
+          type: object
+          required: [partnershipCount, totalDistributionsUsd, totalFmvUsd]
+          properties:
+            partnershipCount: { type: integer, minimum: 0 }
+            totalDistributionsUsd: { type: number }
+            totalFmvUsd: { type: number }
+        page:
+          type: object
+          required: [size, offset, total]
+          properties:
+            size: { type: integer }
+            offset: { type: integer }
+            total: { type: integer }
+
+    PartnershipDetail:
+      type: object
+      required: [partnership, kpis, k1History, expectedDistributionHistory, fmvSnapshots]
+      properties:
+        partnership: { $ref: '#/components/schemas/Partnership' }
+        kpis:
+          type: object
+          required: [latestK1Year, latestDistributionUsd, latestFmvUsd, cumulativeReportedDistributionsUsd]
+          properties:
+            latestK1Year: { type: integer, nullable: true }
+            latestDistributionUsd: { type: number, nullable: true }
+            latestFmvUsd: { type: number, nullable: true }
+            cumulativeReportedDistributionsUsd: { type: number }
+        k1History:
+          type: array
+          items:
+            type: object
+            required: [k1DocumentId, taxYear, processingStatus]
+            properties:
+              k1DocumentId: { type: string, format: uuid }
+              taxYear: { type: integer }
+              processingStatus: { type: string }
+              reportedDistributionUsd: { type: number, nullable: true }
+              finalizedAt: { type: string, format: date-time, nullable: true }
+        expectedDistributionHistory:
+          type: array
+          items:
+            type: object
+            required: [taxYear]
+            properties:
+              taxYear: { type: integer }
+              reportedDistributionUsd: { type: number, nullable: true }
+              finalizedFromK1DocumentId: { type: string, format: uuid, nullable: true }
+        fmvSnapshots:
+          type: array
+          items: { $ref: '#/components/schemas/FmvSnapshot' }
+
+    FmvSnapshot:
+      type: object
+      required: [id, partnershipId, asOfDate, amountUsd, source, recordedByUserId, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        asOfDate: { type: string, format: date }
+        amountUsd: { type: number }
+        source: { $ref: '#/components/schemas/FmvSource' }
+        note: { type: string, nullable: true, maxLength: 2000 }
+        recordedByUserId: { type: string, format: uuid }
+        recordedByEmail: { type: string, format: email }
+        createdAt: { type: string, format: date-time }
+
+    CreatePartnershipRequest:
+      type: object
+      required: [entityId, name]
+      properties:
+        entityId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        assetClass: { type: string, nullable: true }
+        status:
+          $ref: '#/components/schemas/PartnershipStatus'
+          default: ACTIVE
+        notes: { type: string, nullable: true, maxLength: 10000 }
+
+    UpdatePartnershipRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        assetClass: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        notes: { type: string, nullable: true, maxLength: 10000 }
+
+    CreateFmvSnapshotRequest:
+      type: object
+      required: [asOfDate, amountUsd, source]
+      properties:
+        asOfDate: { type: string, format: date }
+        amountUsd:
+          type: number
+          description: >
+            Must be > 0, except when the partnership's current status is `LIQUIDATED`, in which case 0 is allowed.
+        source: { $ref: '#/components/schemas/FmvSource' }
+        note: { type: string, nullable: true, maxLength: 2000 }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items: { type: object, additionalProperties: true }
+
+  responses:
+    Unauthorized:
+      description: No session or session expired
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Zod / schema validation failure
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

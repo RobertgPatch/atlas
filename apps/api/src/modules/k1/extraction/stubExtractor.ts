@@ -22,6 +22,8 @@ export const stubExtractor: K1Extractor = {
     }
 
     const openIssueCount = ctx.pdfSizeBytes % 3 // 0, 1, or 2
+    const extractedPartnershipName = `Imported Partnership ${String((ctx.pdfSizeBytes % 97) + 1).padStart(2, '0')}`
+    const extractedTaxYear = new Date().getFullYear() - 1
     const issues = Array.from({ length: openIssueCount }, (_, i) => ({
       issueType: 'MISSING_FIELD',
       severity: 'MEDIUM' as const,
@@ -45,7 +47,7 @@ export const stubExtractor: K1Extractor = {
         label: 'Partnership Name',
         section: 'partnershipMapping',
         required: true,
-        rawValue: null, // Needs manual partnership mapping — left empty to prompt reviewer
+        rawValue: extractedPartnershipName,
         confidenceScore: 0.45 + (s % 15) * 0.01,
         sourceLocation: { page: 1, bbox: [10, 50, 300, 80] },
       },
@@ -110,6 +112,8 @@ export const stubExtractor: K1Extractor = {
       nextStatus: openIssueCount > 0 ? 'NEEDS_REVIEW' : 'READY_FOR_APPROVAL',
       issues,
       fieldValues,
+      extractedPartnershipName,
+      extractedTaxYear,
     }
   },
 }
