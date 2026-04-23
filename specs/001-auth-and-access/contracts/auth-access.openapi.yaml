@@ -1,0 +1,418 @@
+openapi: 3.1.0
+info:
+  title: Atlas Auth & Access API
+  version: 0.1.0
+  description: Contract for login, MFA verification, session lifecycle, and admin user access controls.
+servers:
+  - url: /v1
+security:
+  - sessionCookie: []
+paths:
+  /auth/login:
+    post:
+      summary: Validate email/password and either start MFA challenge or require MFA enrollment
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Password accepted, MFA challenge required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaChallengeResponse'
+        '401':
+          description: Password accepted, MFA challenge or MFA enrollment required
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MfaChallengeResponse'
+                  - $ref: '#/components/schemas/MfaEnrollmentResponse'
+
+  /auth/mfa/enroll/complete:
+    post:
+      summary: Verify first authenticator code, complete MFA enrollment, and create authenticated session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaEnrollmentCompleteRequest'
+      responses:
+        '200':
+          description: MFA enrollment verified and session established
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly Secure session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Generic authentication failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '423':
+          description: Account temporarily locked due to failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockoutResponse'
+        '423':
+          description: Account temporarily locked due to failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockoutResponse'
+
+  /auth/mfa/verify:
+    post:
+      summary: Verify TOTP and create authenticated session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: MFA verified and session established
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: HttpOnly Secure session cookie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: Generic authentication failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthErrorResponse'
+        '423':
+          description: Account temporarily locked due to failed attempts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockoutResponse'
+
+  /auth/session:
+    get:
+      summary: Return current authenticated session and effective role
+      responses:
+        '200':
+          description: Active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '401':
+          description: No valid session
+
+  /auth/logout:
+    post:
+      summary: Revoke current session
+      responses:
+        '204':
+          description: Logged out
+
+  /admin/users:
+    get:
+      summary: List users for admin user management
+      responses:
+        '200':
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserSummary'
+        '403':
+          description: Forbidden (non-admin)
+
+  /admin/users/invitations:
+    post:
+      summary: Invite a new user with initial role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InviteUserRequest'
+      responses:
+        '201':
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationResponse'
+        '403':
+          description: Forbidden
+
+  /admin/users/{userId}/role:
+    patch:
+      summary: Change a user's role and revoke active sessions
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleChangeRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+
+  /admin/users/{userId}/deactivate:
+    post:
+      summary: Deactivate user and revoke all active sessions
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User deactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+
+  /admin/users/{userId}/reactivate:
+    post:
+      summary: Reactivate user account
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User reactivated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+
+  /admin/users/{userId}/mfa-reset:
+    post:
+      summary: Reset user's MFA enrollment and revoke sessions
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: MFA reset required for user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSummary'
+        '403':
+          description: Forbidden
+        '404':
+          description: User not found
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    MfaChallengeResponse:
+      type: object
+      required: [challengeId, status]
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [MFA_REQUIRED]
+
+    MfaEnrollmentResponse:
+      type: object
+      required: [enrollmentToken, status, otpAuthUrl, qrCodeDataUrl, manualEntryKey]
+      properties:
+        enrollmentToken:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [MFA_ENROLL_REQUIRED]
+        otpAuthUrl:
+          type: string
+        qrCodeDataUrl:
+          type: string
+        manualEntryKey:
+          type: string
+
+    MfaEnrollmentCompleteRequest:
+      type: object
+      required: [enrollmentToken, code]
+      properties:
+        enrollmentToken:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+
+    MfaVerifyRequest:
+      type: object
+      required: [challengeId, code]
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+
+    SessionResponse:
+      type: object
+      required: [user, role, session]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        role:
+          type: string
+          enum: [Admin, User]
+        session:
+          type: object
+          required: [issuedAt, idleTimeoutSeconds, absoluteTimeoutSeconds]
+          properties:
+            issuedAt:
+              type: string
+              format: date-time
+            idleTimeoutSeconds:
+              type: integer
+              const: 900
+            absoluteTimeoutSeconds:
+              type: integer
+              const: 28800
+
+    AuthErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          const: SIGN_IN_FAILED
+
+    LockoutResponse:
+      type: object
+      required: [error, lockoutUntil]
+      properties:
+        error:
+          type: string
+          const: ACCOUNT_LOCKED
+        lockoutUntil:
+          type: string
+          format: date-time
+
+    UserSummary:
+      type: object
+      required: [id, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Admin, User]
+        status:
+          type: string
+          enum: [Invited, Active, Inactive]
+
+    InviteUserRequest:
+      type: object
+      required: [email, role]
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Admin, User]
+
+    InvitationResponse:
+      type: object
+      required: [id, email, role, expiresAt, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [Admin, User]
+        expiresAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [Invited]
+
+    RoleChangeRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [Admin, User]
