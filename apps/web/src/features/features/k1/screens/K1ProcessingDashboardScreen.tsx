@@ -2,7 +2,7 @@ import React from 'react';
 import {
   K1ProcessingDashboard,
   type K1ProcessingDashboardProps,
-} from '../../../../../../../packages/ui/src';
+} from 'packages/ui';
 
 export type K1ProcessingDashboardScreenProps = K1ProcessingDashboardProps;
 

@@ -11,6 +11,10 @@ import {
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useNavigate } from 'react-router-dom';
 
+const DEV_MFA_STUB_ENABLED =
+  import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_MFA_STUB === 'true';
+const DEV_MFA_STUB_CODE = import.meta.env.VITE_DEV_MFA_STUB_CODE ?? '123456';
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export const MfaScreen: React.FC = () => {
@@ -25,13 +29,18 @@ export const MfaScreen: React.FC = () => {
     setError(null);
     setLoading(true);
 
-    // TODO: replace with real MFA verification call
+    if (!DEV_MFA_STUB_ENABLED) {
+      setError('MFA verification is unavailable in this build.');
+      setLoading(false);
+      return;
+    }
+
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    if (code === '123456') {
+    if (code === DEV_MFA_STUB_CODE) {
       navigate('/dashboard');
     } else {
-      setError('Incorrect code. Try 123456 for now.');
+      setError('Incorrect verification code.');
       setLoading(false);
     }
   };
@@ -113,7 +122,7 @@ export const MfaScreen: React.FC = () => {
         </Box>
 
         {/* Dev hint */}
-        {import.meta.env.DEV && (
+        {DEV_MFA_STUB_ENABLED && (
           <Box
             sx={{
               mt: 3,
@@ -124,7 +133,7 @@ export const MfaScreen: React.FC = () => {
             }}
           >
             <Typography variant="caption" color="text.secondary">
-              <strong>Dev:</strong> use code <code>123456</code>
+              <strong>Dev:</strong> use code <code>{DEV_MFA_STUB_CODE}</code>
             </Typography>
           </Box>
         )}
