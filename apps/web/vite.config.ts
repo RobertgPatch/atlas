@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      'packages/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+      '@ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
     },
   },
   server: {

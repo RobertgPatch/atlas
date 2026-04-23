@@ -15,7 +15,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "paths": {
-      "packages/ui": ["../../packages/ui/src/index.ts"]
+      "@ui": ["../../packages/ui/src/index.ts"]
     },
 
     /* Linting */
