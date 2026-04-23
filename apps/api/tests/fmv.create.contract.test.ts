@@ -69,4 +69,29 @@ describe('POST /v1/partnerships/:id/fmv-snapshots — create FMV contract (T057)
     // Zero on active partnership → 400 (or 404 since no DB); either way not 200
     expect(res.statusCode).not.toBe(200)
   })
+
+  it('creates snapshot for an existing in-memory partnership when DB is unavailable', async () => {
+    const partnershipId = f.partnerships[0]?.id
+    expect(partnershipId).toBeTruthy()
+
+    const res = await f.app.inject({
+      method: 'POST',
+      url: `/v1/partnerships/${partnershipId}/fmv-snapshots`,
+      headers: { cookie: f.cookie },
+      payload: {
+        asOfDate: '2024-01-01',
+        amountUsd: 1250000,
+        source: 'manual',
+        note: 'initial snapshot',
+      },
+    })
+
+    expect(res.statusCode).toBe(201)
+    const body = res.json()
+    expect(body.partnershipId).toBe(partnershipId)
+    expect(body.amountUsd).toBe(1250000)
+    expect(body.source).toBe('manual')
+    expect(body.note).toBe('initial snapshot')
+    expect(typeof body.id).toBe('string')
+  })
 })

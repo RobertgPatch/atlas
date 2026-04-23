@@ -223,12 +223,13 @@ const seedMinimal = () => {
   }
 }
 
-// Auto-seed demo K-1s/partnerships is gated so a fresh dev instance starts clean.
-// Set SEED_DEMO_DATA=true in env to preload the dashboard with demo rows, or
-// call POST /v1/admin/dev/seed at runtime from the Admin page.
+// Auto-seed is opt-in only.
+// - SEED_DEMO_DATA=true: full demo entities/partnerships/K-1 rows.
+// - SEED_MINIMAL_DATA=true: minimal entities + memberships only.
+// Default behavior: start with no entities so Admins can create their own.
 if ((process.env.SEED_DEMO_DATA ?? 'false') === 'true') {
   seed()
-} else {
+} else if ((process.env.SEED_MINIMAL_DATA ?? 'false') === 'true') {
   seedMinimal()
 }
 
