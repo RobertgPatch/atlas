@@ -48,6 +48,8 @@ export const auditRepository = {
       return
     }
 
-    throw new Error('Audit persistence is required but no database connection is configured')
+    throw new Error(
+      `Audit persistence is required but no database connection is configured for event "${input.eventName}"`,
+    )
   },
 }

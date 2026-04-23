@@ -9,7 +9,7 @@ export interface LoadingStateProps {
   className?: string
 }
 
-const detailLineWidths = ['70%', '64%', '82%', '58%', '76%', '68%']
+const DETAIL_SKELETON_LINE_WIDTHS = ['70%', '64%', '82%', '58%', '76%', '68%']
 
 const TableSkeleton: React.FC<{ count: number }> = ({ count }) => (
   <div>
@@ -51,7 +51,7 @@ const DetailSkeleton: React.FC = () => (
   <div>
     <div className="mb-2 h-7 w-2/5 animate-pulse rounded bg-gray-200" />
     <div className="mb-3 h-5 w-3/5 animate-pulse rounded bg-gray-100" />
-    {detailLineWidths.map((width, index) => (
+    {DETAIL_SKELETON_LINE_WIDTHS.map((width, index) => (
       <div
         key={index}
         className="mb-2 h-7 animate-pulse rounded bg-gray-100"

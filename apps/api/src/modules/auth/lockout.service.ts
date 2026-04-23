@@ -26,6 +26,7 @@ export const lockoutService = {
 
   async recordFailure(identifier: string, type: 'PASSWORD' | 'MFA'): Promise<Date | null> {
     const key = keyOf(identifier, type)
+    const failureThreshold = Math.max(config.authLockoutThreshold, 1)
     return withTransaction(async (client) => {
       const existing = await client.query<{ lockout_until: Date }>(
         `select lockout_until
@@ -43,24 +44,26 @@ export const lockoutService = {
         return existing.rows[0].lockout_until
       }
 
-      const recentAttempts = await client.query<{ success: boolean }>(
-        `select success
-         from auth_attempts
-         where user_identifier = $1
-           and attempt_type = $2
-         order by attempted_at desc
-         limit $3`,
-        [key.identifier, key.type, Math.max(config.authLockoutThreshold - 1, 0)],
-      )
-
       let consecutiveFailures = 1
-      for (const row of recentAttempts.rows) {
-        if (row.success) break
-        consecutiveFailures += 1
+      if (failureThreshold > 1) {
+        const recentAttempts = await client.query<{ success: boolean }>(
+          `select success
+           from auth_attempts
+           where user_identifier = $1
+             and attempt_type = $2
+           order by attempted_at desc
+           limit $3`,
+          [key.identifier, key.type, failureThreshold - 1],
+        )
+
+        for (const row of recentAttempts.rows) {
+          if (row.success) break
+          consecutiveFailures += 1
+        }
       }
 
       const lockoutUntil =
-        consecutiveFailures >= config.authLockoutThreshold
+        consecutiveFailures >= failureThreshold
           ? new Date(Date.now() + config.authLockoutMinutes * 60 * 1000)
           : null
 
