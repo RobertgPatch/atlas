@@ -109,3 +109,16 @@ Reusable chart card wrapper for FMV bubble visualization.
 
 ### TrendChartCard
 Reusable chart card wrapper for line/bar trend visualizations.
+
+## Screen compositions (reference)
+
+### K-1 Processing Dashboard (Feature 002)
+Composes — and MUST only compose — these catalog pieces:
+`AppShell` → `PageHeader` → (`KpiCard` × 5) → `FilterToolbar` → `DataTable` (+ `StatusBadge`, `RowActionMenu`) with `LoadingState` / `EmptyState` / `ErrorState` for the six required UI states. Local additions (`K1UploadDialog`, duplicate-replace prompt) compose existing primitives — they do not re-implement them. See [40-screen-map.md](40-screen-map.md) §5.
+
+### K-1 Review Workspace (Feature 003)
+Composes — and MUST only compose — these catalog pieces:
+`AppShell` → `PageHeader` (+ `StatusBadge`) → two-pane body: (left) grouped `SectionCard` × 3 containing `ParsedFieldRow` rows, (right) `PdfPanel` (wraps the future `PdfPreview` catalog primitive; today `<iframe>` with `#page=N`) → sticky action bar → inline issues list. Cross-cutting: `StaleVersionBanner` on optimistic-concurrency conflict, `LoadingState` / `EmptyState` / `ErrorState` per pane. Every mutation auto-injects `If-Match` and surfaces `STALE_K1_VERSION` as a typed client error. Enforced boundary: `pdfjs-dist` is only permitted inside `packages/ui/src/components/PdfPreview/**` (guard: `scripts/ci/guard-k1-imports.mjs`). See [40-screen-map.md](40-screen-map.md) §7.
+
+### PdfPreview (planned, Feature 003)
+`packages/ui/src/components/PdfPreview/PdfPreview.tsx` — the single owner of `pdfjs-dist`; props `{ url, page, onPageChange, zoom, onZoomChange, highlight }` where `highlight` is a normalized 0–100 bbox overlay. No consumer may import `pdfjs-dist` directly. Currently scaffolded via `<iframe>` in `apps/web/src/features/review/components/PdfPanel.tsx`; upgrade path is to swap the iframe body with the `PdfPreview` component once T002 is delivered, with no changes to `PdfPanel`'s public props.

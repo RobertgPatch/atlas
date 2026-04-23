@@ -7,6 +7,8 @@ import autoprefixer from 'autoprefixer'
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5173,
+    strictPort: true,
     proxy: {
       '/v1': 'http://localhost:3000',
     },

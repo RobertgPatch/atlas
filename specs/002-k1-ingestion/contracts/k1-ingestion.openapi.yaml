@@ -1,0 +1,331 @@
+openapi: 3.1.0
+info:
+  title: Atlas K-1 Ingestion API
+  version: 1.0.0
+  description: |
+    Wire contract for the K-1 Processing Dashboard (Screen #5) and its upload /
+    lifecycle operations. All endpoints require an authenticated two-factor
+    session cookie issued by Feature 001 and enforce entity scope via
+    `entity_memberships`. Every lifecycle-changing mutation writes an
+    `audit_events` row in the same transaction.
+servers:
+  - url: /v1
+paths:
+
+  /k1:
+    get:
+      summary: List active K-1 documents visible to the caller
+      description: |
+        Returns a page of K-1 documents the caller is entitled to see, filtered
+        by the provided query params and sorted by `sort`/`direction`. Superseded
+        K-1s are excluded. Supports keyset pagination via `cursor` / `next_cursor`.
+      parameters:
+        - in: query
+          name: tax_year
+          schema: { type: integer, minimum: 2000 }
+        - in: query
+          name: entity_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [UPLOADED, PROCESSING, NEEDS_REVIEW, READY_FOR_APPROVAL, FINALIZED]
+        - in: query
+          name: q
+          description: Case-insensitive substring match on Document Name or Partnership.
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: sort
+          schema:
+            type: string
+            enum: [uploaded_at, partnership, entity, tax_year, status, issues]
+            default: uploaded_at
+        - in: query
+          name: direction
+          schema: { type: string, enum: [asc, desc], default: desc }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string, maxLength: 512 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/K1ListResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /k1/kpis:
+    get:
+      summary: Lifecycle KPI counts, scoped to Tax Year and Entity only
+      description: |
+        Deliberately does NOT accept `status` or `q` so that finding-level
+        filters cannot distort the lifecycle snapshot (FR-004).
+      parameters:
+        - in: query
+          name: tax_year
+          schema: { type: integer, minimum: 2000 }
+        - in: query
+          name: entity_id
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/K1Kpis' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /k1/upload:
+    post:
+      summary: Upload a new K-1 PDF (or replace an existing one)
+      description: |
+        Creates `documents` and `k1_documents` rows and queues extraction.
+        Returns `409 DUPLICATE_K1` if an active K-1 already exists for
+        `(partnership_id, entity_id, tax_year)` and `replace_document_id` is
+        absent. Submit the same request with `replace_document_id` set to
+        supersede the existing record.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/K1UploadRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/K1UploadResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Duplicate K-1 exists; caller must choose Replace or Cancel.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/K1DuplicateResponse' }
+        '413':
+          description: File too large
+
+  /k1/{k1DocumentId}:
+    get:
+      summary: Get a single K-1 document summary
+      parameters:
+        - in: path
+          name: k1DocumentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/K1DocumentSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /k1/{k1DocumentId}/reparse:
+    post:
+      summary: Request a re-parse of a K-1 whose last attempt failed
+      description: |
+        Clears `parse_error_*`, increments `parse_attempts`, sets
+        `processing_status = 'PROCESSING'`, and kicks the extractor.
+        Writes `k1.reparse_requested` audit event. Only allowed when the
+        current row is in `PROCESSING` with a non-null `parse_error_code`.
+      parameters:
+        - in: path
+          name: k1DocumentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Accepted; parse in progress.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: K-1 is not in a re-parseable state.
+
+  /k1/export.csv:
+    get:
+      summary: Stream a CSV of the filtered K-1 listing
+      description: |
+        Accepts the same filters as `GET /k1`. Streams UTF-8 CSV (with BOM).
+        Caps output at 50,000 rows; entitlement scope is enforced server-side.
+      parameters:
+        - in: query
+          name: tax_year
+          schema: { type: integer }
+        - in: query
+          name: entity_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [UPLOADED, PROCESSING, NEEDS_REVIEW, READY_FOR_APPROVAL, FINALIZED]
+        - in: query
+          name: q
+          schema: { type: string, maxLength: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            text/csv:
+              schema:
+                type: string
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+  responses:
+    Unauthorized:
+      description: Not authenticated or session expired.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Authenticated but not entitled to the target entity.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: K-1 document does not exist or is not visible.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ValidationError:
+      description: Request failed schema validation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    K1Status:
+      type: string
+      enum: [UPLOADED, PROCESSING, NEEDS_REVIEW, READY_FOR_APPROVAL, FINALIZED]
+    K1DocumentSummary:
+      type: object
+      required: [id, documentId, documentName, partnership, entity, taxYear, status, issuesOpenCount, uploadedAt, uploaderUserId, parseError, supersededByDocumentId]
+      properties:
+        id: { type: string, format: uuid }
+        documentId: { type: string, format: uuid }
+        documentName: { type: string }
+        partnership:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        entity:
+          type: object
+          required: [id, name]
+          properties:
+            id: { type: string, format: uuid }
+            name: { type: string }
+        taxYear: { type: integer }
+        status: { $ref: '#/components/schemas/K1Status' }
+        issuesOpenCount: { type: integer, minimum: 0 }
+        uploadedAt: { type: string, format: date-time }
+        uploaderUserId: { type: string, format: uuid }
+        parseError:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [code, message, lastAttemptAt]
+              properties:
+                code: { type: string }
+                message: { type: string }
+                lastAttemptAt: { type: string, format: date-time }
+        supersededByDocumentId:
+          oneOf:
+            - type: 'null'
+            - type: string
+              format: uuid
+    K1ListResponse:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/K1DocumentSummary' }
+        nextCursor:
+          oneOf:
+            - type: 'null'
+            - type: string
+    K1Kpis:
+      type: object
+      required: [scope, counts, processingWithErrors]
+      properties:
+        scope:
+          type: object
+          required: [taxYear, entityId]
+          properties:
+            taxYear:
+              oneOf: [{ type: integer }, { type: 'null' }]
+            entityId:
+              oneOf: [{ type: string, format: uuid }, { type: 'null' }]
+        counts:
+          type: object
+          required: [UPLOADED, PROCESSING, NEEDS_REVIEW, READY_FOR_APPROVAL, FINALIZED]
+          properties:
+            UPLOADED:           { type: integer, minimum: 0 }
+            PROCESSING:         { type: integer, minimum: 0 }
+            NEEDS_REVIEW:       { type: integer, minimum: 0 }
+            READY_FOR_APPROVAL: { type: integer, minimum: 0 }
+            FINALIZED:          { type: integer, minimum: 0 }
+        processingWithErrors: { type: integer, minimum: 0 }
+    K1UploadRequest:
+      type: object
+      required: [file, partnershipId, entityId, taxYear]
+      properties:
+        file:
+          type: string
+          format: binary
+        partnershipId: { type: string, format: uuid }
+        entityId:      { type: string, format: uuid }
+        taxYear:       { type: integer }
+        replaceDocumentId:
+          type: string
+          format: uuid
+          description: Required to supersede an existing active K-1 with the same (partnership, entity, tax_year) tuple.
+    K1UploadResponse:
+      type: object
+      required: [k1DocumentId, documentId, status]
+      properties:
+        k1DocumentId: { type: string, format: uuid }
+        documentId:   { type: string, format: uuid }
+        status:
+          type: string
+          enum: [UPLOADED]
+    K1DuplicateResponse:
+      type: object
+      required: [error, existing]
+      properties:
+        error:
+          type: string
+          enum: [DUPLICATE_K1]
+        existing:
+          type: object
+          required: [k1DocumentId, documentId, uploadedAt, status]
+          properties:
+            k1DocumentId: { type: string, format: uuid }
+            documentId:   { type: string, format: uuid }
+            uploadedAt:   { type: string, format: date-time }
+            status:       { $ref: '#/components/schemas/K1Status' }
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+security:
+  - sessionCookie: []
