@@ -16,7 +16,7 @@ export const loginHandler = async (
   }
 
   const { email, password } = payload.data
-  const lockout = lockoutService.getLockout(email, 'PASSWORD')
+  const lockout = await lockoutService.getLockout(email, 'PASSWORD')
   if (lockout) {
     reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
     return
@@ -24,7 +24,7 @@ export const loginHandler = async (
 
   const user = authRepository.findUserByEmail(email)
   if (!user || user.status === 'Inactive' || !authRepository.verifyPassword(user, password)) {
-    const lockoutUntil = lockoutService.recordFailure(email, 'PASSWORD')
+    const lockoutUntil = await lockoutService.recordFailure(email, 'PASSWORD')
     await auditRepository.record({
       eventName: 'auth.login.failed',
       objectType: 'user',
@@ -41,7 +41,7 @@ export const loginHandler = async (
     return
   }
 
-  lockoutService.clear(email, 'PASSWORD')
+  await lockoutService.clear(email, 'PASSWORD')
 
   if (authRepository.isMfaEnrollmentRequired(user)) {
     const secret = totpService.generateSecret()

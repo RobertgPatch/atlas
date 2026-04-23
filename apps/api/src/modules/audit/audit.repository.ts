@@ -11,8 +11,6 @@ export interface AuditInput {
   after?: unknown
 }
 
-const inMemoryAudit: AuditInput[] = []
-
 export const auditRepository = {
   async record(input: AuditInput, client?: PoolClient): Promise<void> {
     const db = client ?? null
@@ -50,10 +48,8 @@ export const auditRepository = {
       return
     }
 
-    inMemoryAudit.push(input)
-  },
-
-  getInMemoryEvents() {
-    return inMemoryAudit
+    throw new Error(
+      `Audit persistence is required but no database connection is configured for event "${input.eventName}"`,
+    )
   },
 }
