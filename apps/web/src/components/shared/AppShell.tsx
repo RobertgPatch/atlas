@@ -3,7 +3,6 @@ import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
   FileText,
-  UploadCloud,
   Building2,
   Briefcase,
   BarChart3,
@@ -35,7 +34,6 @@ export function AppShell({
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'K-1 Processing', href: '/k1', icon: FileText },
-    { name: 'Upload Center', href: '/upload', icon: UploadCloud },
     { name: 'Entities', href: '/entities', icon: Building2 },
     { name: 'Partnerships', href: '/partnerships', icon: Briefcase },
     { name: 'Reports', href: '/reports', icon: BarChart3 },

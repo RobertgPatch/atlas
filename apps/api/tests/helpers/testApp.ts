@@ -2,6 +2,9 @@ import { buildApp } from '../../src/app.js'
 import { authRepository } from '../../src/modules/auth/auth.repository.js'
 import { k1Repository } from '../../src/modules/k1/k1.repository.js'
 import { auditRepository } from '../../src/modules/audit/audit.repository.js'
+import { assetsRepository } from '../../src/modules/partnerships/assets.repository.js'
+import { fmvRepository } from '../../src/modules/partnerships/fmv.repository.js'
+import { capitalRepository } from '../../src/modules/partnerships/capital.repository.js'
 import { config } from '../../src/config.js'
 import type { FastifyInstance } from 'fastify'
 
@@ -11,6 +14,7 @@ export interface TestFixture {
   admin: { id: string; email: string; role: 'Admin' | 'User' }
   token: string
   cookie: string
+  userCookie: string
   entityIds: string[]
   entities: Array<{ id: string; name: string }>
   partnerships: Array<{ id: string; name: string; entityId: string }>
@@ -22,6 +26,9 @@ export interface TestFixture {
  */
 export const createTestFixture = async (): Promise<TestFixture> => {
   k1Repository._debugReset()
+  assetsRepository._debugReset()
+  fmvRepository._debugReset()
+  capitalRepository._debugReset()
   // Clear in-memory audit buffer between tests so each test can assert a
   // clean slate of events it caused.
   const inMemory = auditRepository.getInMemoryEvents()
@@ -33,6 +40,7 @@ export const createTestFixture = async (): Promise<TestFixture> => {
 
   const { token } = authRepository.createSession(admin.id)
   const cookie = `${config.sessionCookieName}=${token}`
+  const userCookie = sessionCookieFor(user.id)
 
   const entities = k1Repository.listEntities().map((e) => ({ id: e.id, name: e.name }))
   const partnerships = k1Repository
@@ -48,6 +56,7 @@ export const createTestFixture = async (): Promise<TestFixture> => {
     admin: { id: admin.id, email: admin.email, role: admin.role },
     token,
     cookie,
+    userCookie,
     entityIds: entities.map((e) => e.id),
     entities,
     partnerships,

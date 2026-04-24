@@ -15,6 +15,7 @@ import type { DashboardSummaryResponse } from '../features/dashboard/api/dashboa
 
 type RecentK1Record = DashboardSummaryResponse['recentK1Activity'][number]
 type OpenIssue = DashboardSummaryResponse['openIssues'][number]
+type AssetClassSummaryRow = DashboardSummaryResponse['assetClassSummary'][number] & { id: string }
 
 const formatCount = (value: number) => value.toLocaleString()
 
@@ -24,6 +25,11 @@ const formatUsd = (value: number | null | undefined) => {
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
   return `$${value.toLocaleString()}`
+}
+
+const formatMultiple = (value: number | null | undefined) => {
+  if (value == null) return '—'
+  return `${value.toFixed(2)}x`
 }
 
 const formatDate = (value: string) =>
@@ -92,6 +98,44 @@ const priorityColors: Record<OpenIssue['severity'], string> = {
   LOW: 'bg-gray-100 text-gray-600',
 }
 
+const assetClassColumns: Column<AssetClassSummaryRow>[] = [
+  {
+    key: 'assetClass',
+    header: 'Asset Class',
+    accessor: (row) => row.assetClass,
+  },
+  {
+    key: 'partnershipCount',
+    header: 'Partnerships',
+    align: 'center',
+    accessor: (row) => row.partnershipCount,
+  },
+  {
+    key: 'commitmentUsd',
+    header: 'Commitment',
+    align: 'right',
+    accessor: (row) => formatUsd(row.commitmentUsd),
+  },
+  {
+    key: 'paidInUsd',
+    header: 'Paid-In',
+    align: 'right',
+    accessor: (row) => formatUsd(row.paidInUsd),
+  },
+  {
+    key: 'unfundedUsd',
+    header: 'Unfunded',
+    align: 'right',
+    accessor: (row) => formatUsd(row.unfundedUsd),
+  },
+  {
+    key: 'tvpi',
+    header: 'TVPI',
+    align: 'right',
+    accessor: (row) => formatMultiple(row.tvpi),
+  },
+]
+
 export function DashboardPage() {
   const { session } = useSession()
   const dashboard = useDashboardSummary()
@@ -103,6 +147,11 @@ export function DashboardPage() {
   const finalizedK1Documents = dashboard.data?.kpis.finalizedK1Documents ?? 0
   const finalizedPercent =
     totalK1Documents > 0 ? Math.round((finalizedK1Documents / totalK1Documents) * 100) : 0
+  const assetClassRows: AssetClassSummaryRow[] =
+    dashboard.data?.assetClassSummary.map((row) => ({
+      id: row.assetClass,
+      ...row,
+    })) ?? []
 
   return (
     <AppShell
@@ -205,6 +254,59 @@ export function DashboardPage() {
                     }
                   : undefined
               }
+            />
+          </div>
+
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900">Portfolio Summary</h2>
+              <span className="text-xs text-gray-500">
+                Commitment and activity driven rollup
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+              <KPICard
+                label="Original Commitment"
+                value={formatUsd(dashboard.data.kpis.totalCommitmentUsd)}
+                icon={TrendingUp}
+                change={{
+                  value: formatUsd(dashboard.data.kpis.totalUnfundedUsd),
+                  trend: 'neutral',
+                  timeframe: 'unfunded',
+                }}
+              />
+              <KPICard
+                label="Paid-In"
+                value={formatUsd(dashboard.data.kpis.totalPaidInUsd)}
+                icon={FileText}
+                change={{
+                  value: formatUsd(dashboard.data.kpis.totalDistributionsUsd),
+                  trend: 'neutral',
+                  timeframe: 'reported distributions',
+                }}
+              />
+              <KPICard
+                label="Unfunded"
+                value={formatUsd(dashboard.data.kpis.totalUnfundedUsd)}
+                icon={AlertCircle}
+              />
+              <KPICard
+                label="Portfolio TVPI"
+                value={formatMultiple(dashboard.data.kpis.portfolioTvpi)}
+                icon={TrendingUp}
+              />
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-900">Asset Class Summary</h2>
+              <span className="text-xs text-gray-500">Grouped by partnership asset class</span>
+            </div>
+            <DataTable
+              columns={assetClassColumns}
+              data={assetClassRows}
+              emptyMessage="No partnerships available for asset-class summary."
             />
           </div>
 

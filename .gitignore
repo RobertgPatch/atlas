@@ -143,3 +143,12 @@ vite.config.ts.timestamp-*
 
 # K-1 local storage
 .storage/
+
+# Workspace / OS noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.idea/
+
+.playwright-mcp

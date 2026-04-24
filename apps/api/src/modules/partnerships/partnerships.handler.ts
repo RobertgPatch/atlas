@@ -144,9 +144,9 @@ export const createPartnershipHandler = async (
   try {
     const partnership = pool
       ? await withTransaction((client) =>
-          partnershipsRepository.insertPartnership(body, request.authUser!.id, client),
+          partnershipsRepository.insertPartnership(body, request.authUser!.userId, client),
         )
-      : await partnershipsRepository.insertPartnership(body, request.authUser!.id, null)
+      : await partnershipsRepository.insertPartnership(body, request.authUser!.userId, null)
     return reply.status(201).send(partnership)
   } catch (err: unknown) {
     // withTransaction throws if pool is undefined or entity doesn't exist
@@ -219,9 +219,9 @@ export const updatePartnershipHandler = async (
   try {
     const updated = pool
       ? await withTransaction((client) =>
-          partnershipsRepository.updatePartnership(params.id, body, request.authUser!.id, client),
+          partnershipsRepository.updatePartnership(params.id, body, request.authUser!.userId, client),
         )
-      : await partnershipsRepository.updatePartnership(params.id, body, request.authUser!.id, null)
+      : await partnershipsRepository.updatePartnership(params.id, body, request.authUser!.userId, null)
     if (!updated) return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
     return reply.send(updated)
   } catch (err: unknown) {

@@ -1,10 +1,16 @@
 import type {
+  CapitalActivityEvent,
+  CreateCapitalActivityEventRequest,
+  CreatePartnershipCommitmentRequest,
   PartnershipDirectoryResponse,
   PartnershipDetail,
   Partnership,
   CreatePartnershipRequest,
   UpdatePartnershipRequest,
   DuplicatePartnershipNameError,
+  PartnershipCommitment,
+  UpdateCapitalActivityEventRequest,
+  UpdatePartnershipCommitmentRequest,
 } from '../../../../../../packages/types/src/partnership-management'
 
 const API_BASE =
@@ -106,5 +112,61 @@ export const partnershipsClient = {
       }
       throw err
     }
+  },
+
+  listCommitments(partnershipId: string): Promise<PartnershipCommitment[]> {
+    return request<PartnershipCommitment[]>(`/partnerships/${partnershipId}/commitments`)
+  },
+
+  createCommitment(
+    partnershipId: string,
+    body: CreatePartnershipCommitmentRequest,
+  ): Promise<PartnershipCommitment> {
+    return request<PartnershipCommitment>(`/partnerships/${partnershipId}/commitments`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+
+  updateCommitment(
+    partnershipId: string,
+    commitmentId: string,
+    body: UpdatePartnershipCommitmentRequest,
+  ): Promise<PartnershipCommitment> {
+    return request<PartnershipCommitment>(
+      `/partnerships/${partnershipId}/commitments/${commitmentId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      },
+    )
+  },
+
+  listCapitalActivity(partnershipId: string): Promise<CapitalActivityEvent[]> {
+    return request<CapitalActivityEvent[]>(`/partnerships/${partnershipId}/capital-activity`)
+  },
+
+  createCapitalActivity(
+    partnershipId: string,
+    body: CreateCapitalActivityEventRequest,
+  ): Promise<CapitalActivityEvent> {
+    return request<CapitalActivityEvent>(`/partnerships/${partnershipId}/capital-activity`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  },
+
+  updateCapitalActivity(
+    partnershipId: string,
+    eventId: string,
+    body: UpdateCapitalActivityEventRequest,
+  ): Promise<CapitalActivityEvent> {
+    return request<CapitalActivityEvent>(
+      `/partnerships/${partnershipId}/capital-activity/${eventId}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      },
+    )
   },
 }

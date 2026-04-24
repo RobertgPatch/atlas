@@ -47,7 +47,24 @@ export interface PartnershipAnnualActivityRecord {
   partnershipId: string
   taxYear: number
   reportedDistributionAmount: string | null
-  finalizedFromK1DocumentId: string
+  originalCommitmentAmount: string | null
+  percentCalled: string | null
+  unfundedAmount: string | null
+  paidInAmount: string | null
+  residualValueAmount: string | null
+  dpi: string | null
+  rvpi: string | null
+  tvpi: string | null
+  sourceHasK1: boolean
+  sourceHasCapitalActivity: boolean
+  sourceHasFmv: boolean
+  sourceHasManualInput: boolean
+  commitmentSourceType: string | null
+  paidInSourceType: string | null
+  distributionSourceType: string | null
+  residualValueSourceType: string | null
+  returnMetricsSourceType: string | null
+  finalizedFromK1DocumentId: string | null
   createdAt: Date
   updatedAt: Date
 }
@@ -216,14 +233,50 @@ export const reviewRepository = {
     partnershipId: string
     taxYear: number
     reportedDistributionAmount: string | null
-    finalizedFromK1DocumentId: string
+    originalCommitmentAmount?: string | null
+    percentCalled?: string | null
+    unfundedAmount?: string | null
+    paidInAmount?: string | null
+    residualValueAmount?: string | null
+    dpi?: string | null
+    rvpi?: string | null
+    tvpi?: string | null
+    sourceHasK1?: boolean
+    sourceHasCapitalActivity?: boolean
+    sourceHasFmv?: boolean
+    sourceHasManualInput?: boolean
+    commitmentSourceType?: string | null
+    paidInSourceType?: string | null
+    distributionSourceType?: string | null
+    residualValueSourceType?: string | null
+    returnMetricsSourceType?: string | null
+    finalizedFromK1DocumentId?: string | null
   }): PartnershipAnnualActivityRecord {
     const key = activityKey(args.entityId, args.partnershipId, args.taxYear)
     const existing = partnershipAnnualActivity.get(key)
     const now = new Date()
     if (existing) {
       existing.reportedDistributionAmount = args.reportedDistributionAmount
-      existing.finalizedFromK1DocumentId = args.finalizedFromK1DocumentId
+      if ('originalCommitmentAmount' in args) existing.originalCommitmentAmount = args.originalCommitmentAmount ?? null
+      if ('percentCalled' in args) existing.percentCalled = args.percentCalled ?? null
+      if ('unfundedAmount' in args) existing.unfundedAmount = args.unfundedAmount ?? null
+      if ('paidInAmount' in args) existing.paidInAmount = args.paidInAmount ?? null
+      if ('residualValueAmount' in args) existing.residualValueAmount = args.residualValueAmount ?? null
+      if ('dpi' in args) existing.dpi = args.dpi ?? null
+      if ('rvpi' in args) existing.rvpi = args.rvpi ?? null
+      if ('tvpi' in args) existing.tvpi = args.tvpi ?? null
+      existing.sourceHasK1 = args.sourceHasK1 ?? existing.sourceHasK1
+      existing.sourceHasCapitalActivity = args.sourceHasCapitalActivity ?? existing.sourceHasCapitalActivity
+      existing.sourceHasFmv = args.sourceHasFmv ?? existing.sourceHasFmv
+      existing.sourceHasManualInput = args.sourceHasManualInput ?? existing.sourceHasManualInput
+      if ('commitmentSourceType' in args) existing.commitmentSourceType = args.commitmentSourceType ?? null
+      if ('paidInSourceType' in args) existing.paidInSourceType = args.paidInSourceType ?? null
+      if ('distributionSourceType' in args) existing.distributionSourceType = args.distributionSourceType ?? null
+      if ('residualValueSourceType' in args) existing.residualValueSourceType = args.residualValueSourceType ?? null
+      if ('returnMetricsSourceType' in args) existing.returnMetricsSourceType = args.returnMetricsSourceType ?? null
+      if ('finalizedFromK1DocumentId' in args) {
+        existing.finalizedFromK1DocumentId = args.finalizedFromK1DocumentId ?? null
+      }
       existing.updatedAt = now
       partnershipAnnualActivity.set(key, existing)
       return existing
@@ -234,7 +287,24 @@ export const reviewRepository = {
       partnershipId: args.partnershipId,
       taxYear: args.taxYear,
       reportedDistributionAmount: args.reportedDistributionAmount,
-      finalizedFromK1DocumentId: args.finalizedFromK1DocumentId,
+      originalCommitmentAmount: args.originalCommitmentAmount ?? null,
+      percentCalled: args.percentCalled ?? null,
+      unfundedAmount: args.unfundedAmount ?? null,
+      paidInAmount: args.paidInAmount ?? null,
+      residualValueAmount: args.residualValueAmount ?? null,
+      dpi: args.dpi ?? null,
+      rvpi: args.rvpi ?? null,
+      tvpi: args.tvpi ?? null,
+      sourceHasK1: args.sourceHasK1 ?? false,
+      sourceHasCapitalActivity: args.sourceHasCapitalActivity ?? false,
+      sourceHasFmv: args.sourceHasFmv ?? false,
+      sourceHasManualInput: args.sourceHasManualInput ?? false,
+      commitmentSourceType: args.commitmentSourceType ?? null,
+      paidInSourceType: args.paidInSourceType ?? null,
+      distributionSourceType: args.distributionSourceType ?? null,
+      residualValueSourceType: args.residualValueSourceType ?? null,
+      returnMetricsSourceType: args.returnMetricsSourceType ?? null,
+      finalizedFromK1DocumentId: args.finalizedFromK1DocumentId ?? null,
       createdAt: now,
       updatedAt: now,
     }

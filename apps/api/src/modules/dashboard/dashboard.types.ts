@@ -10,7 +10,21 @@ export interface DashboardSummaryResponse {
     highSeverityOpenIssues: number
     totalDistributionsUsd: number
     portfolioValueUsd: number | null
+    totalCommitmentUsd: number
+    totalPaidInUsd: number
+    totalUnfundedUsd: number
+    portfolioTvpi: number | null
   }
+  assetClassSummary: Array<{
+    assetClass: string
+    partnershipCount: number
+    commitmentUsd: number
+    paidInUsd: number
+    unfundedUsd: number
+    reportedDistributionsUsd: number
+    residualValueUsd: number
+    tvpi: number | null
+  }>
   statusCounts: Record<K1Status, number>
   recentK1Activity: Array<{
     id: string

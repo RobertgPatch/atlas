@@ -7,6 +7,7 @@ import {
   partnershipParamsSchema,
   createFmvSnapshotBodySchema,
 } from './partnerships.zod.js'
+import { capitalRepository } from './capital.repository.js'
 
 // ---------------------------------------------------------------------------
 // GET /v1/partnerships/:id/fmv-snapshots — list (T059)
@@ -106,10 +107,27 @@ export const createFmvSnapshotHandler = async (
 
   try {
     const snapshot = pool
-      ? await withTransaction((client) =>
-          fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.id, client),
-        )
-      : await fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.id, null)
+      ? await withTransaction(async (client) => {
+          const created = await fmvRepository.insertFmvSnapshot(
+            params.id,
+            body,
+            request.authUser!.userId,
+            client,
+          )
+          await capitalRepository.syncActivityDetail(params.id, partnership.entity.id, {
+            client,
+            preferredYear: Number(body.asOfDate.slice(0, 4)),
+          })
+          return created
+        })
+      : await fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.userId, null)
+
+    if (!pool) {
+      await capitalRepository.syncActivityDetail(params.id, partnership.entity.id, {
+        preferredYear: Number(body.asOfDate.slice(0, 4)),
+      })
+    }
+
     return reply.status(201).send(snapshot)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
