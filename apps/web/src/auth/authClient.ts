@@ -45,14 +45,15 @@ const request = async <T>(
   init?: RequestInit,
 ): Promise<T> => {
   let response: Response
+  const headers = new Headers(init?.headers ?? {})
+  if (init?.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init?.headers ?? {}),
-      },
+      headers,
       ...init,
     })
   } catch {

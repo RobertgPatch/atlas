@@ -14,6 +14,8 @@ import { MFAPage } from './pages/MFAPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
+import { K1Dashboard } from './pages/K1Dashboard'
+import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 
@@ -110,7 +112,15 @@ export function App() {
             path="/k1"
             element={
               <ProtectedRoute>
-                <PlaceholderPage title="K-1 Processing" />
+                <K1Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/k1/:id/review"
+            element={
+              <ProtectedRoute>
+                <K1ReviewWorkspace />
               </ProtectedRoute>
             }
           />

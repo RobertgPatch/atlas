@@ -1,5 +1,6 @@
 import Fastify from 'fastify'
 import cookie from '@fastify/cookie'
+import multipart from '@fastify/multipart'
 import { config } from './config.js'
 import { registerRoutes } from './routes/index.js'
 
@@ -9,6 +10,12 @@ export const buildApp = () => {
   })
 
   app.register(cookie)
+  app.register(multipart, {
+    limits: {
+      fileSize: config.k1UploadMaxBytes,
+      files: 1,
+    },
+  })
 
   app.get('/health', async () => ({ status: 'ok' }))
 

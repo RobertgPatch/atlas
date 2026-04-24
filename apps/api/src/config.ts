@@ -21,4 +21,13 @@ export const config = {
   authLockoutThreshold: asNumber(process.env.AUTH_LOCKOUT_THRESHOLD, 3),
   authLockoutMinutes: asNumber(process.env.AUTH_LOCKOUT_MINUTES, 30),
   totpIssuer: process.env.TOTP_ISSUER ?? 'Atlas',
+  storageRoot: process.env.STORAGE_ROOT ?? './.storage',
+  k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
+  k1ExtractorBackend: (process.env.K1_EXTRACTOR ?? 'stub') as 'stub' | 'azure',
+  azureDocumentIntelligence: {
+    endpoint: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ?? '',
+    key: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ?? '',
+    apiVersion: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION ?? '2024-11-30',
+    modelId: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ?? 'prebuilt-layout',
+  },
 }
