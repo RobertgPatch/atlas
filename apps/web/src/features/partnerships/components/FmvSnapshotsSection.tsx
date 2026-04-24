@@ -12,7 +12,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const COLUMNS: Column<FmvSnapshot>[] = [
   {
-    key: 'valuation_date',
+    key: 'asOfDate',
     header: 'As-of Date',
     sortable: true,
     render: (row) => (

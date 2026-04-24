@@ -110,7 +110,11 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
     return reply.code(409).send({ error: 'STALE_K1_VERSION', currentVersion: k.version })
   }
 
-  // Finalize preconditions (single-admin workflow: missing Box 19A defaults to $0).
+  // Finalize preconditions (missing Box 19A defaults to $0).
+  // Two-person rule: the admin who approved must not be the same admin who finalizes.
+  if (k.approvedByUserId && k.approvedByUserId === actor) {
+    return reply.code(409).send({ error: 'SAME_ACTOR_FINALIZE_FORBIDDEN' })
+  }
   const fields = reviewRepository.listFieldValuesForK1(k.id)
   const issues = k1Repository.listIssuesForK1(k.id)
   if (issues.some((i) => i.status === 'OPEN')) {
