@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ZodError } from 'zod'
 import { fmvRepository } from './fmv.repository.js'
 import { partnershipsRepository } from './partnerships.repository.js'
-import { withTransaction } from '../../infra/db/client.js'
+import { pool, withTransaction } from '../../infra/db/client.js'
 import {
   partnershipParamsSchema,
   createFmvSnapshotBodySchema,
@@ -105,9 +105,11 @@ export const createFmvSnapshotHandler = async (
   }
 
   try {
-    const snapshot = await withTransaction((client) =>
-      fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.id, client),
-    )
+    const snapshot = pool
+      ? await withTransaction((client) =>
+          fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.id, client),
+        )
+      : await fmvRepository.insertFmvSnapshot(params.id, body, request.authUser!.id, null)
     return reply.status(201).send(snapshot)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
