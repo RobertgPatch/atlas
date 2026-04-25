@@ -35,7 +35,9 @@ const formatActivity = (eventName: string): { action: string; detail: string } =
     case 'user.mfa_reset':
       return { action: 'MFA Reset', detail: 'MFA enrollment was reset' }
     case 'k1.approved':
-      return { action: 'Approved K-1', detail: 'Finalized a K-1 document' }
+      return { action: 'Approved K-1', detail: 'Approved a K-1 document' }
+    case 'k1.finalized':
+      return { action: 'Finalized K-1', detail: 'Finalized a K-1 document' }
     case 'k1.issue_opened':
       return { action: 'Opened Issue', detail: 'Flagged a K-1 issue for review' }
     case 'k1.issue_resolved':
@@ -67,9 +69,10 @@ export const getUserDetailHandler = async (
     return
   }
 
+  const assignedEntityIds = new Set(k1Repository.listEntitiesForUser(user.id))
   const assignedEntities = k1Repository
     .listEntities()
-    .filter((entity) => k1Repository.listEntitiesForUser(user.id).includes(entity.id))
+    .filter((entity) => assignedEntityIds.has(entity.id))
     .map((entity) => ({ id: entity.id, name: entity.name }))
     .sort((a, b) => a.name.localeCompare(b.name))
 

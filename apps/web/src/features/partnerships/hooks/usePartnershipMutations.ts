@@ -20,15 +20,9 @@ export function useCreatePartnership() {
   const qc = useQueryClient()
   return useMutation<CreateResult, Error, CreatePartnershipRequest>({
     mutationFn: async (body) => {
-      try {
-        const p = await partnershipsClient.create(body)
-        return { ok: true as const, id: p.id }
-      } catch (err) {
-        if (err instanceof PartnershipsApiError && err.status === 409) {
-          return { kind: 'duplicate-name' as const }
-        }
-        throw err
-      }
+      const result = await partnershipsClient.create(body)
+      if (result.kind === 'duplicate-name') return result
+      return { ok: true as const, id: result.id }
     },
     onSuccess: (result, vars) => {
       if ('ok' in result && result.ok) {
@@ -53,15 +47,9 @@ export function useUpdatePartnership() {
   const qc = useQueryClient()
   return useMutation<UpdateResult, Error, UpdateVars>({
     mutationFn: async ({ id, body }) => {
-      try {
-        await partnershipsClient.update(id, body)
-        return { ok: true as const }
-      } catch (err) {
-        if (err instanceof PartnershipsApiError && err.status === 409) {
-          return { kind: 'duplicate-name' as const }
-        }
-        throw err
-      }
+      const result = await partnershipsClient.update(id, body)
+      if (result.kind === 'duplicate-name') return result
+      return { ok: true as const }
     },
     onSuccess: (result, vars) => {
       if ('ok' in result && result.ok) {

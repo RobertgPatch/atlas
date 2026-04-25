@@ -128,16 +128,18 @@ export const getDashboardSummaryHandler = async (
       uploadedAt: item.uploadedAt,
     }))
 
+  const entityMap = new Map(allEntities.map((e) => [e.id, e]))
+  const visibleEntityIdSet = new Set(visibleEntityIds)
+  const partnershipMap = new Map(k1Repository.listPartnerships().map((p) => [p.id, p]))
+
   const openIssues = k1Repository
     .listIssues()
     .filter((issue) => issue.status === 'OPEN')
     .map((issue) => {
       const k1 = k1Repository.getK1Document(issue.k1DocumentId)
-      if (!k1 || !visibleEntityIds.includes(k1.entityId)) return null
-      const entity = allEntities.find((row) => row.id === k1.entityId)
-      const partnership = k1.partnershipId
-        ? k1Repository.listPartnerships().find((row) => row.id === k1.partnershipId)
-        : null
+      if (!k1 || !visibleEntityIdSet.has(k1.entityId)) return null
+      const entity = entityMap.get(k1.entityId)
+      const partnership = k1.partnershipId ? partnershipMap.get(k1.partnershipId) : null
       return {
         id: issue.id,
         entity: entity?.name ?? 'Unknown Entity',

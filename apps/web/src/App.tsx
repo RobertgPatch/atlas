@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from 'react-router-dom'
 import { authClient } from './auth/authClient'
 import { sessionStore, useSession } from './auth/sessionStore'
@@ -26,10 +27,10 @@ import { GlobalLoadingBar } from './components/GlobalLoadingBar'
 
 const PlaceholderPage = ({ title }: { title: string }) => {
   const { session } = useSession()
-  const path = window.location.pathname
+  const location = useLocation()
   return (
     <AppShell
-      currentPath={path}
+      currentPath={location.pathname}
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
       onSignOut={() => {

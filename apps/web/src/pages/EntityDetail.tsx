@@ -49,7 +49,7 @@ export function EntityDetail() {
           <>
             <PageHeader
               title={data.entity.name}
-              subtitle={data.entity.type ?? undefined}
+              subtitle={data.entity.entityType ?? undefined}
               secondaryActions={[
                 {
                   label: 'Back to Directory',

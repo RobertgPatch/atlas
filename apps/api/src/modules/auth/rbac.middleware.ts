@@ -6,6 +6,7 @@ export const requireAuthenticated = async (
 ): Promise<void> => {
   if (!request.authUser) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
   }
 }
 
@@ -20,5 +21,6 @@ export const requireAdmin = async (
 
   if (request.authUser.role !== 'Admin') {
     reply.status(403).send({ error: 'FORBIDDEN' })
+    return
   }
 }
