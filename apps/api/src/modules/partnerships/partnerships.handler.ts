@@ -73,6 +73,8 @@ export const exportPartnershipsHandler = async (
     return reply.status(413).send({ error: 'EXPORT_ROW_LIMIT_EXCEEDED', limit: 5000 })
   }
 
+  // CSV is intentionally built in memory: the 5 000-row cap above ensures
+  // the payload stays bounded. If the cap is ever raised, revisit streaming.
   const csv = buildCsv(rows)
   const filename = `partnerships-${new Date().toISOString().slice(0, 10)}.csv`
   void reply.header('Content-Type', 'text/csv; charset=utf-8')

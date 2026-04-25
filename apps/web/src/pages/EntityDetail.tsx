@@ -107,7 +107,7 @@ export function EntityDetail() {
             {/* Embedded partnership table */}
             <PartnershipDirectoryTable
               rows={data.partnerships}
-              isLoading={false}
+              state={data.partnerships.length === 0 ? 'empty' : 'populated'}
               onRowClick={(row) => navigate(`/partnerships/${row.id}`)}
             />
 

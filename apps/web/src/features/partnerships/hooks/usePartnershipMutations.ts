@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { partnershipsClient, PartnershipsApiError } from '../api/partnershipsClient'
+import { partnershipsClient } from '../api/partnershipsClient'
 import type {
   CreatePartnershipRequest,
   UpdatePartnershipRequest,
