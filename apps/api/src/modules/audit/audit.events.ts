@@ -17,6 +17,12 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   CREATED: 'partnership.created',
   UPDATED: 'partnership.updated',
   FMV_RECORDED: 'partnership.fmv_recorded',
+  COMMITMENT_CREATED: 'partnership.commitment.created',
+  COMMITMENT_UPDATED: 'partnership.commitment.updated',
+  CAPITAL_ACTIVITY_CREATED: 'partnership.capital_activity.created',
+  CAPITAL_ACTIVITY_UPDATED: 'partnership.capital_activity.updated',
+  ASSET_CREATED: 'partnership.asset.created',
+  ASSET_FMV_RECORDED: 'partnership.asset.fmv_recorded',
 } as const
 
 export type PartnershipAuditEventName =

@@ -130,7 +130,7 @@ export function RecordFmvDialog({ open, onClose, partnershipId, partnershipStatu
                       max={today}
                       value={asOfDate}
                       onChange={(e) => { setAsOfDate(e.target.value); setErrors((p) => ({ ...p, asOfDate: undefined })) }}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${errors.asOfDate ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${errors.asOfDate ? 'border-red-500' : 'border-gray-300'}`}
                     />
                     {errors.asOfDate && <p className="mt-1 text-xs text-red-600">{errors.asOfDate}</p>}
                   </div>
@@ -148,7 +148,7 @@ export function RecordFmvDialog({ open, onClose, partnershipId, partnershipStatu
                       placeholder="0.00"
                       value={amountUsd}
                       onChange={(e) => { setAmountUsd(e.target.value); setErrors((p) => ({ ...p, amountUsd: undefined })) }}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${errors.amountUsd ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${errors.amountUsd ? 'border-red-500' : 'border-gray-300'}`}
                     />
                     {errors.amountUsd && <p className="mt-1 text-xs text-red-600">{errors.amountUsd}</p>}
                   </div>
@@ -159,7 +159,7 @@ export function RecordFmvDialog({ open, onClose, partnershipId, partnershipStatu
                     <select
                       value={source}
                       onChange={(e) => setSource(e.target.value as FmvSource)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     >
                       {SOURCE_OPTIONS.map((s) => (
                         <option key={s.value} value={s.value}>{s.label}</option>
@@ -175,7 +175,7 @@ export function RecordFmvDialog({ open, onClose, partnershipId, partnershipStatu
                       maxLength={2000}
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     />
                   </div>
 
@@ -192,7 +192,7 @@ export function RecordFmvDialog({ open, onClose, partnershipId, partnershipStatu
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
+                      className="px-4 py-2 text-sm rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Record FMV'}
                     </button>

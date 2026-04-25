@@ -12,6 +12,23 @@ import {
 import { getEntityDetailHandler } from './entities.handler.js'
 import { registerEntityAdminRoutes } from './entities.admin.routes.js'
 import { listFmvSnapshotsHandler, createFmvSnapshotHandler } from './fmv.handler.js'
+import {
+  listPartnershipAssetsHandler,
+  getPartnershipAssetHandler,
+  createPartnershipAssetHandler,
+} from './assets.handler.js'
+import {
+  listAssetFmvSnapshotsHandler,
+  createAssetFmvSnapshotHandler,
+} from './assetFmv.handler.js'
+import {
+  listCommitmentsHandler,
+  createCommitmentHandler,
+  updateCommitmentHandler,
+  listCapitalActivityHandler,
+  createCapitalActivityHandler,
+  updateCapitalActivityHandler,
+} from './capital.handler.js'
 
 /**
  * Partnership Management routes registration.
@@ -33,6 +50,37 @@ export const registerPartnershipRoutes = async (app: FastifyInstance): Promise<v
   // ── US5: FMV snapshots ─────────────────────────────────────────────────
   app.get('/partnerships/:id/fmv-snapshots', gated, listFmvSnapshotsHandler)
   app.post('/partnerships/:id/fmv-snapshots', gated, createFmvSnapshotHandler)
+
+  // ── Feature 009: partnership assets ────────────────────────────────────
+  app.get('/partnerships/:partnershipId/assets', gated, listPartnershipAssetsHandler)
+  app.get('/partnerships/:partnershipId/assets/:assetId', gated, getPartnershipAssetHandler)
+  app.post('/partnerships/:partnershipId/assets', gated, createPartnershipAssetHandler)
+  app.get(
+    '/partnerships/:partnershipId/assets/:assetId/fmv-snapshots',
+    gated,
+    listAssetFmvSnapshotsHandler,
+  )
+  app.post(
+    '/partnerships/:partnershipId/assets/:assetId/fmv-snapshots',
+    gated,
+    createAssetFmvSnapshotHandler,
+  )
+
+  // ── Feature 010: commitments + capital activity ────────────────────────
+  app.get('/partnerships/:partnershipId/commitments', gated, listCommitmentsHandler)
+  app.post('/partnerships/:partnershipId/commitments', gated, createCommitmentHandler)
+  app.patch(
+    '/partnerships/:partnershipId/commitments/:commitmentId',
+    gated,
+    updateCommitmentHandler,
+  )
+  app.get('/partnerships/:partnershipId/capital-activity', gated, listCapitalActivityHandler)
+  app.post('/partnerships/:partnershipId/capital-activity', gated, createCapitalActivityHandler)
+  app.patch(
+    '/partnerships/:partnershipId/capital-activity/:eventId',
+    gated,
+    updateCapitalActivityHandler,
+  )
 
   // ── Entity management (list + admin CRUD) ──────────────────────────────
   await registerEntityAdminRoutes(app)

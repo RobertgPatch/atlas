@@ -36,7 +36,7 @@ export function PageHeader({ title, subtitle, primaryAction, secondaryActions }:
         {primaryAction && (
           <button
             onClick={primaryAction.onClick}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-accent rounded-card hover:bg-accent-hover transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-atlas-gold rounded-card hover:bg-atlas-hover transition-colors"
           >
             {primaryAction.icon}
             {primaryAction.label}

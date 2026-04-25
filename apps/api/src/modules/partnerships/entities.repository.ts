@@ -1,6 +1,7 @@
 import { pool } from '../../infra/db/client.js'
 import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
+import { capitalRepository } from './capital.repository.js'
 import type { EntityDetail } from '../../../../../packages/types/src/partnership-management.js'
 
 export const entitiesRepository = {
@@ -61,6 +62,22 @@ export const entitiesRepository = {
         0,
       )
 
+      const capitalOverviews = await Promise.all(
+        partnerships.map(async (row) => capitalRepository.calculateCapitalOverview(row.id)),
+      )
+      const totalCommitmentUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + (overview.originalCommitmentUsd ?? 0),
+        0,
+      )
+      const totalPaidInUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + overview.paidInUsd,
+        0,
+      )
+      const totalUnfundedUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + (overview.unfundedUsd ?? 0),
+        0,
+      )
+
       return {
         entity: {
           id: entity.id,
@@ -74,6 +91,9 @@ export const entitiesRepository = {
           partnershipCount: partnerships.length,
           totalDistributionsUsd,
           totalFmvUsd: 0,
+          totalCommitmentUsd,
+          totalPaidInUsd,
+          totalUnfundedUsd,
           latestK1Year,
         },
       }
@@ -109,6 +129,29 @@ export const entitiesRepository = {
           fmv.created_at
         from partnership_fmv_snapshots fmv
         order by fmv.partnership_id, fmv.created_at desc, fmv.valuation_date desc, fmv.id desc
+      ),
+      latest_commitment as (
+        select distinct on (c.partnership_id)
+          c.partnership_id,
+          c.commitment_amount
+        from partnership_commitments c
+        where c.status = 'ACTIVE'
+        order by c.partnership_id, c.created_at desc, c.id desc
+      ),
+      paid_in_totals as (
+        select
+          e.partnership_id,
+          coalesce(
+            sum(
+              case
+                when e.event_type in ('funded_contribution', 'other_adjustment') then e.amount
+                else 0
+              end
+            ),
+            0
+          ) as paid_in_usd
+        from capital_activity_events e
+        group by e.partnership_id
       )
       select
         p.id, p.name, p.asset_class, p.status,
@@ -116,10 +159,14 @@ export const entitiesRepository = {
         kpi.latest_distribution_usd,
         fmv.fmv_amount          as fmv_amount_usd,
         fmv.as_of_date          as fmv_as_of_date,
-        fmv.created_at          as fmv_created_at
+        fmv.created_at          as fmv_created_at,
+        lc.commitment_amount    as commitment_amount,
+        pit.paid_in_usd         as paid_in_usd
       from partnerships p
       left join latest_k1 kpi on kpi.partnership_id = p.id
       left join latest_fmv fmv on fmv.partnership_id = p.id
+      left join latest_commitment lc on lc.partnership_id = p.id
+      left join paid_in_totals pit on pit.partnership_id = p.id
       where p.entity_id = $1
       order by p.name asc, p.id asc
     `
@@ -129,12 +176,20 @@ export const entitiesRepository = {
     let partnershipCount = 0
     let totalDistributionsUsd = 0
     let totalFmvUsd = 0
+    let totalCommitmentUsd = 0
+    let totalPaidInUsd = 0
+    let totalUnfundedUsd = 0
     let latestK1Year: number | null = null
 
     const partnerships = partnershipsResult.rows.map((r) => {
       partnershipCount++
       if (r.latest_distribution_usd != null) totalDistributionsUsd += Number(r.latest_distribution_usd)
       if (r.fmv_amount_usd != null) totalFmvUsd += Number(r.fmv_amount_usd)
+      const commitmentAmount = r.commitment_amount != null ? Number(r.commitment_amount) : 0
+      const paidInAmount = r.paid_in_usd != null ? Number(r.paid_in_usd) : 0
+      totalCommitmentUsd += commitmentAmount
+      totalPaidInUsd += paidInAmount
+      totalUnfundedUsd += commitmentAmount - paidInAmount
       if (r.latest_k1_year != null) {
         const year = Number(r.latest_k1_year)
         if (latestK1Year === null || year > latestK1Year) latestK1Year = year
@@ -166,6 +221,9 @@ export const entitiesRepository = {
         partnershipCount,
         totalDistributionsUsd,
         totalFmvUsd,
+        totalCommitmentUsd,
+        totalPaidInUsd,
+        totalUnfundedUsd,
         latestK1Year,
       },
     }

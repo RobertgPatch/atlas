@@ -58,7 +58,7 @@ const COLUMNS: Column<K1Row>[] = [
     key: 'review',
     header: '',
     render: (row) => (
-      <span className="flex items-center gap-1 text-accent text-xs font-medium">
+      <span className="flex items-center gap-1 text-atlas-gold text-xs font-medium">
         Review <ExternalLinkIcon className="w-3 h-3" />
       </span>
     ),

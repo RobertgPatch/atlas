@@ -3,6 +3,7 @@ import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from './review.repository.js'
 import { auditRepository } from '../audit/audit.repository.js'
+import { capitalRepository } from '../partnerships/capital.repository.js'
 import { k1ReviewParamsSchema } from './review.schemas.js'
 import type {
   K1ApproveResponse,
@@ -159,6 +160,8 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
       taxYear,
       reportedDistributionAmount,
       finalizedFromK1DocumentId: updated.id,
+      sourceHasK1: true,
+      distributionSourceType: 'parsed',
     })
 
     fail('audit_write')
@@ -178,6 +181,10 @@ export const finalizeHandler = async (request: FastifyRequest, reply: FastifyRep
         finalized_by_user_id: actor,
         partnership_annual_activity_id: paa.id,
       },
+    })
+
+    await capitalRepository.syncActivityDetail(partnershipId, updated.entityId, {
+      preferredYear: taxYear,
     })
 
     const res: K1FinalizeResponse = {

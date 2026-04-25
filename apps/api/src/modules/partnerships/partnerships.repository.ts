@@ -5,6 +5,8 @@ import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
+import { capitalRepository } from './capital.repository.js'
+import { fmvRepository } from './fmv.repository.js'
 import type {
   PartnershipDirectoryRow,
   PartnershipDirectoryResponse,
@@ -141,6 +143,30 @@ const BASE_CTE = `
       fmv.created_at
     from partnership_fmv_snapshots fmv
     order by fmv.partnership_id, fmv.created_at desc, fmv.valuation_date desc, fmv.id desc
+  ),
+  latest_commitment as (
+    select distinct on (c.partnership_id)
+      c.partnership_id,
+      c.commitment_amount,
+      c.source_type
+    from partnership_commitments c
+    where c.status = 'ACTIVE'
+    order by c.partnership_id, c.created_at desc, c.id desc
+  ),
+  paid_in_totals as (
+    select
+      e.partnership_id,
+      coalesce(
+        sum(
+          case
+            when e.event_type in ('funded_contribution', 'other_adjustment') then e.amount
+            else 0
+          end
+        ),
+        0
+      ) as paid_in_usd
+    from capital_activity_events e
+    group by e.partnership_id
   )
 `
 
@@ -181,12 +207,13 @@ const latestFinalizedK1 = (partnershipId: string) => {
 const buildInMemoryDirectoryRow = (p: { id: string; name: string; entityId: string }): PartnershipDirectoryRow => {
   const entity = k1Repository.listEntities().find((e) => e.id === p.entityId)
   const latest = latestFinalizedK1(p.id)
+  const overlay = getOrCreateOverlay(p.id)
   return {
     id: p.id,
     name: p.name,
     entity: { id: p.entityId, name: entity?.name ?? 'Unknown Entity' },
-    assetClass: null,
-    status: 'ACTIVE',
+    assetClass: overlay.assetClass,
+    status: overlay.status,
     latestK1Year: latest?.k1.taxYear ?? null,
     latestDistributionUsd: latest?.distributionUsd ?? null,
     latestFmv: null,
@@ -213,7 +240,7 @@ export const partnershipsRepository = {
       }
       if (filters.entityId) rows = rows.filter((r) => r.entity.id === filters.entityId)
       if (filters.assetClass) rows = rows.filter((r) => r.assetClass === filters.assetClass)
-      if (filters.status) rows = rows.filter((r) => r.status === filters.status)
+      if (filters.status?.length) rows = rows.filter((r) => filters.status.includes(r.status))
 
       const total = rows.length
       const offset = (filters.page - 1) * filters.pageSize
@@ -222,9 +249,31 @@ export const partnershipsRepository = {
         (sum, r) => sum + (r.latestDistributionUsd ?? 0),
         0,
       )
+      const capitalOverviews = await Promise.all(
+        rows.map(async (row) => capitalRepository.calculateCapitalOverview(row.id)),
+      )
+      const totalCommitmentUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + (overview.originalCommitmentUsd ?? 0),
+        0,
+      )
+      const totalPaidInUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + overview.paidInUsd,
+        0,
+      )
+      const totalUnfundedUsd = capitalOverviews.reduce(
+        (sum, overview) => sum + (overview.unfundedUsd ?? 0),
+        0,
+      )
       return {
         rows: pageRows,
-        totals: { partnershipCount: total, totalDistributionsUsd, totalFmvUsd: 0 },
+        totals: {
+          partnershipCount: total,
+          totalDistributionsUsd,
+          totalFmvUsd: 0,
+          totalCommitmentUsd,
+          totalPaidInUsd,
+          totalUnfundedUsd,
+        },
         page: { size: filters.pageSize, offset, total },
       }
     }
@@ -281,11 +330,19 @@ export const partnershipsRepository = {
       select
         count(*)::int                              as partnership_count,
         coalesce(sum(kpi.latest_distribution_usd), 0)::numeric as total_distributions_usd,
-        coalesce(sum(fmv.fmv_amount), 0)::numeric  as total_fmv_usd
+        coalesce(sum(fmv.fmv_amount), 0)::numeric  as total_fmv_usd,
+        coalesce(sum(latest_commitment.commitment_amount), 0)::numeric as total_commitment_usd,
+        coalesce(sum(paid_in_totals.paid_in_usd), 0)::numeric as total_paid_in_usd,
+        coalesce(
+          sum(coalesce(latest_commitment.commitment_amount, 0) - coalesce(paid_in_totals.paid_in_usd, 0)),
+          0
+        )::numeric as total_unfunded_usd
       from partnerships p
       join entities e on e.id = p.entity_id
       left join latest_k1 kpi on kpi.partnership_id = p.id
       left join latest_fmv fmv on fmv.partnership_id = p.id
+      left join latest_commitment on latest_commitment.partnership_id = p.id
+      left join paid_in_totals on paid_in_totals.partnership_id = p.id
       ${whereClause}
     `
 
@@ -315,6 +372,9 @@ export const partnershipsRepository = {
         partnershipCount: Number(t.partnership_count),
         totalDistributionsUsd: Number(t.total_distributions_usd),
         totalFmvUsd: Number(t.total_fmv_usd),
+        totalCommitmentUsd: Number(t.total_commitment_usd),
+        totalPaidInUsd: Number(t.total_paid_in_usd),
+        totalUnfundedUsd: Number(t.total_unfunded_usd),
       },
       page: { size: filters.pageSize, offset, total: Number(total) },
     }
@@ -426,6 +486,8 @@ export const partnershipsRepository = {
       const partnership = await this.getPartnershipById(id, scope)
       if (!partnership) return null
 
+      await capitalRepository.syncActivityDetail(id, partnership.entity.id)
+
       const k1s = k1Repository.listK1sForPartnership(id)
 
       const withDistribution = k1s.map((k) => {
@@ -477,17 +539,30 @@ export const partnershipsRepository = {
         0,
       )
 
+      const fmvSnapshots = (await fmvRepository.listFmvSnapshots(id, scope)) ?? []
+
+      const [commitments, capitalActivity, capitalOverview, activityDetail] = await Promise.all([
+        capitalRepository.listCommitments(id),
+        capitalRepository.listCapitalActivity(id),
+        capitalRepository.calculateCapitalOverview(id),
+        capitalRepository.listActivityDetail(id),
+      ])
+
       return {
         partnership,
         kpis: {
           latestK1Year: latestForKpi?.record.taxYear ?? null,
           latestDistributionUsd: latestForKpi?.reportedDistributionUsd ?? null,
-          latestFmvUsd: null,
+          latestFmvUsd: fmvSnapshots[0]?.amountUsd ?? null,
           cumulativeReportedDistributionsUsd,
         },
         k1History,
         expectedDistributionHistory,
-        fmvSnapshots: [],
+        fmvSnapshots,
+        commitments,
+        capitalActivity,
+        capitalOverview,
+        activityDetail,
       }
     }
 
@@ -506,28 +581,49 @@ export const partnershipsRepository = {
     if (!partnershipResult.rows[0]) return null
     const pr = partnershipResult.rows[0]
 
-    const [kpisResult, k1HistResult, expDistResult, fmvResult] = await Promise.all([
+    await capitalRepository.syncActivityDetail(id, pr.entity_id)
+
+    const [
+      kpisResult,
+      k1HistResult,
+      expDistResult,
+      fmvResult,
+      commitments,
+      capitalActivity,
+      capitalOverview,
+      activityDetail,
+    ] = await Promise.all([
       // KPIs
       pool.query(
         `
         select
-          max(kd.tax_year)                           as latest_k1_year,
-          (select krd.reported_distribution_amount
-           from k1_reported_distributions krd
-           join k1_documents kd2 on kd2.id = krd.k1_document_id and kd2.processing_status = 'FINALIZED'
-           where krd.partnership_id = $1
-           order by kd2.tax_year desc, kd2.finalized_at desc nulls last
+          (select max(kd.tax_year)
+           from k1_documents kd
+           where kd.partnership_id = $1
+             and kd.tax_year is not null)           as latest_k1_year,
+          (select coalesce(
+             krd.reported_distribution_amount,
+             (select coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)
+                from k1_field_values fv
+               where fv.k1_document_id = kd2.id
+                 and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
+               limit 1)
+           )
+           from k1_documents kd2
+           left join k1_reported_distributions krd on krd.k1_document_id = kd2.id
+           where kd2.partnership_id = $1
+             and kd2.tax_year is not null
+             and kd2.superseded_by_document_id is null
+           order by kd2.tax_year desc, kd2.finalized_at desc nulls last, kd2.uploaded_at desc
            limit 1)                                  as latest_distribution_usd,
           (select fmv.fmv_amount
            from partnership_fmv_snapshots fmv
            where fmv.partnership_id = $1
            order by fmv.created_at desc, fmv.valuation_date desc, fmv.id desc
            limit 1)                                  as latest_fmv_usd,
-          coalesce(sum(paa.reported_distribution_amount), 0) as cumulative_usd
-        from k1_documents kd
-        join k1_reported_distributions krd on krd.k1_document_id = kd.id
-        full outer join partnership_annual_activity paa on paa.partnership_id = $1
-        where kd.partnership_id = $1 and kd.processing_status = 'FINALIZED'
+          (select coalesce(sum(paa.reported_distribution_amount), 0)
+           from partnership_annual_activity paa
+           where paa.partnership_id = $1)           as cumulative_usd
         `,
         [id],
       ),
@@ -551,6 +647,11 @@ export const partnershipsRepository = {
                finalized_from_k1_document_id
         from partnership_annual_activity
         where partnership_id = $1
+          and (
+            source_has_k1 = true
+            or reported_distribution_amount is not null
+            or finalized_from_k1_document_id is not null
+          )
         order by tax_year desc
         `,
         [id],
@@ -569,6 +670,10 @@ export const partnershipsRepository = {
         `,
         [id],
       ),
+      capitalRepository.listCommitments(id),
+      capitalRepository.listCapitalActivity(id),
+      capitalRepository.calculateCapitalOverview(id),
+      capitalRepository.listActivityDetail(id),
     ])
 
     const k = kpisResult.rows[0] ?? {}
@@ -612,6 +717,10 @@ export const partnershipsRepository = {
         recordedByEmail: r.recorded_by_email ?? '',
         createdAt: r.created_at,
       })),
+      commitments,
+      capitalActivity,
+      capitalOverview,
+      activityDetail,
     }
   },
 

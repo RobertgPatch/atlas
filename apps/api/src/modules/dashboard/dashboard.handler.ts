@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { k1Repository } from '../k1/k1.repository.js'
 import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
+import { capitalRepository } from '../partnerships/capital.repository.js'
 import type { DashboardSummaryResponse } from './dashboard.types.js'
 
 const issueSeverityRank: Record<'HIGH' | 'MEDIUM' | 'LOW', number> = {
@@ -34,11 +35,80 @@ export const getDashboardSummaryHandler = async (
   const partnershipDirectory = await partnershipsRepository.listPartnerships(
     {
       page: 1,
-      pageSize: 1,
+      pageSize: 200,
       sort: 'name',
     },
     partnershipScope,
   )
+
+  const allPartnershipRows = [...partnershipDirectory.rows]
+  if (allPartnershipRows.length < partnershipDirectory.page.total) {
+    let page = 2
+    while (allPartnershipRows.length < partnershipDirectory.page.total) {
+      const next = await partnershipsRepository.listPartnerships(
+        {
+          page,
+          pageSize: 200,
+          sort: 'name',
+        },
+        partnershipScope,
+      )
+      allPartnershipRows.push(...next.rows)
+      if (next.rows.length === 0) break
+      page += 1
+    }
+  }
+
+  const rowMetrics = await Promise.all(
+    allPartnershipRows.map(async (row) => ({
+      row,
+      overview: await capitalRepository.calculateCapitalOverview(row.id),
+    })),
+  )
+
+  const assetClassSummaryMap = new Map<
+    string,
+    {
+      assetClass: string
+      partnershipCount: number
+      commitmentUsd: number
+      paidInUsd: number
+      unfundedUsd: number
+      reportedDistributionsUsd: number
+      residualValueUsd: number
+    }
+  >()
+
+  for (const item of rowMetrics) {
+    const assetClass = item.row.assetClass ?? 'Unclassified'
+    const existing = assetClassSummaryMap.get(assetClass) ?? {
+      assetClass,
+      partnershipCount: 0,
+      commitmentUsd: 0,
+      paidInUsd: 0,
+      unfundedUsd: 0,
+      reportedDistributionsUsd: 0,
+      residualValueUsd: 0,
+    }
+
+    existing.partnershipCount += 1
+    existing.commitmentUsd += item.overview.originalCommitmentUsd ?? 0
+    existing.paidInUsd += item.overview.paidInUsd
+    existing.unfundedUsd += item.overview.unfundedUsd ?? 0
+    existing.reportedDistributionsUsd += item.overview.reportedDistributionsUsd
+    existing.residualValueUsd += item.overview.residualValueUsd ?? 0
+    assetClassSummaryMap.set(assetClass, existing)
+  }
+
+  const assetClassSummary = [...assetClassSummaryMap.values()]
+    .map((row) => ({
+      ...row,
+      tvpi:
+        row.paidInUsd > 0
+          ? (row.reportedDistributionsUsd + row.residualValueUsd) / row.paidInUsd
+          : null,
+    }))
+    .sort((left, right) => right.commitmentUsd - left.commitmentUsd || left.assetClass.localeCompare(right.assetClass))
 
   const k1Kpis = k1Repository.getKpis(authUser.userId, {})
   const totalK1Documents = Object.values(k1Kpis.counts).reduce((sum, count) => sum + count, 0)
@@ -100,7 +170,18 @@ export const getDashboardSummaryHandler = async (
         partnershipDirectory.totals.totalFmvUsd > 0
           ? partnershipDirectory.totals.totalFmvUsd
           : null,
+      totalCommitmentUsd: partnershipDirectory.totals.totalCommitmentUsd,
+      totalPaidInUsd: partnershipDirectory.totals.totalPaidInUsd,
+      totalUnfundedUsd: partnershipDirectory.totals.totalUnfundedUsd,
+      portfolioTvpi:
+        partnershipDirectory.totals.totalPaidInUsd > 0
+          ? (
+              partnershipDirectory.totals.totalDistributionsUsd +
+              partnershipDirectory.totals.totalFmvUsd
+            ) / partnershipDirectory.totals.totalPaidInUsd
+          : null,
     },
+    assetClassSummary,
     statusCounts: k1Kpis.counts,
     recentK1Activity,
     openIssues: openIssues.slice(0, 5),

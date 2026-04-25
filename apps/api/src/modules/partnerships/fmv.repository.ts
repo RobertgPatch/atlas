@@ -3,15 +3,53 @@ import type { PoolClient } from 'pg'
 import { pool } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
+import { authRepository } from '../auth/auth.repository.js'
 import type { FmvSnapshot } from '../../../../../packages/types/src/partnership-management.js'
 import type { CreateFmvSnapshotBody } from './partnerships.zod.js'
+
+interface InMemoryFmvSnapshotRecord {
+  id: string
+  partnershipId: string
+  asOfDate: string
+  amountUsd: number
+  source: CreateFmvSnapshotBody['source']
+  note: string | null
+  recordedByUserId: string
+  recordedByEmail: string
+  createdAt: string
+}
+
+const inMemoryFmvSnapshots = new Map<string, InMemoryFmvSnapshotRecord[]>()
+
+const snapshotSort = (a: InMemoryFmvSnapshotRecord, b: InMemoryFmvSnapshotRecord) => {
+  const byCreated = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  if (byCreated !== 0) return byCreated
+  const byAsOfDate = b.asOfDate.localeCompare(a.asOfDate)
+  if (byAsOfDate !== 0) return byAsOfDate
+  return b.id.localeCompare(a.id)
+}
+
+const mapToApiSnapshot = (row: InMemoryFmvSnapshotRecord): FmvSnapshot => ({
+  id: row.id,
+  partnershipId: row.partnershipId,
+  asOfDate: row.asOfDate,
+  amountUsd: row.amountUsd,
+  source: row.source,
+  note: row.note,
+  recordedByUserId: row.recordedByUserId,
+  recordedByEmail: row.recordedByEmail,
+  createdAt: row.createdAt,
+})
 
 export const fmvRepository = {
   async listFmvSnapshots(
     partnershipId: string,
     scope: { isAdmin: boolean; entityIds: string[] },
   ): Promise<FmvSnapshot[] | null> {
-    if (!pool) return []
+    if (!pool) {
+      const rows = inMemoryFmvSnapshots.get(partnershipId) ?? []
+      return rows.slice().sort(snapshotSort).map(mapToApiSnapshot)
+    }
 
     // Scope check via partnership → entity
     if (!scope.isAdmin) {
@@ -54,8 +92,39 @@ export const fmvRepository = {
     partnershipId: string,
     body: CreateFmvSnapshotBody,
     actorUserId: string,
-    client: PoolClient,
+    client: PoolClient | null,
   ): Promise<FmvSnapshot> {
+    if (!pool || !client) {
+      const actor = authRepository.listUsers().find((user) => user.id === actorUserId)
+      const next: InMemoryFmvSnapshotRecord = {
+        id: randomUUID(),
+        partnershipId,
+        asOfDate: body.asOfDate,
+        amountUsd: body.amountUsd,
+        source: body.source,
+        note: body.note ?? null,
+        recordedByUserId: actorUserId,
+        recordedByEmail: actor?.email ?? '',
+        createdAt: new Date().toISOString(),
+      }
+
+      const current = inMemoryFmvSnapshots.get(partnershipId) ?? []
+      const prior = current.slice().sort(snapshotSort)[0] ?? null
+      current.push(next)
+      inMemoryFmvSnapshots.set(partnershipId, current)
+
+      await auditRepository.record({
+        actorUserId,
+        eventName: PARTNERSHIP_AUDIT_EVENTS.FMV_RECORDED,
+        objectType: 'partnership',
+        objectId: partnershipId,
+        before: prior,
+        after: next,
+      })
+
+      return mapToApiSnapshot(next)
+    }
+
     // Capture prior-latest for before_json
     const priorResult = await client.query(
       `select * from partnership_fmv_snapshots
@@ -105,5 +174,9 @@ export const fmvRepository = {
       recordedByEmail: actorResult.rows[0]?.email ?? '',
       createdAt: row.created_at,
     }
+  },
+
+  _debugReset(): void {
+    inMemoryFmvSnapshots.clear()
   },
 }
