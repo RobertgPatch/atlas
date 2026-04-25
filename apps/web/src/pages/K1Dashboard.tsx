@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   FileText,
   Loader2,
@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   Upload,
+  UploadCloud,
   Download,
   RefreshCw,
 } from 'lucide-react'
@@ -25,8 +26,9 @@ import {
   useK1List,
   useK1Lookups,
   useK1Reparse,
+  useK1Upload,
 } from '../features/k1/hooks/useK1Queries'
-import { k1Client } from '../features/k1/api/k1Client'
+import { K1ApiError, k1Client } from '../features/k1/api/k1Client'
 import { K1UploadDialog } from '../features/k1/components/K1UploadDialog'
 import type {
   K1DocumentSummary,
@@ -65,8 +67,14 @@ export function K1Dashboard() {
   const [sortColumn, setSortColumn] = useState<string>('uploadedAt')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [quickUploadEntityId, setQuickUploadEntityId] = useState('')
+  const [quickUploadFile, setQuickUploadFile] = useState<File | null>(null)
+  const [quickUploadError, setQuickUploadError] = useState<string | null>(null)
+  const [isDragActive, setIsDragActive] = useState(false)
+  const quickUploadInputRef = useRef<HTMLInputElement | null>(null)
 
   const lookups = useK1Lookups()
+  const upload = useK1Upload()
   const reparse = useK1Reparse()
   const navigate = useNavigate()
 
@@ -104,6 +112,57 @@ export function K1Dashboard() {
     READY_FOR_APPROVAL: 0,
     FINALIZED: 0,
   }
+
+  const hasEntities = (lookups.data?.entities.length ?? 0) > 0
+
+  const setPickedFile = (nextFile: File | null) => {
+    if (!nextFile) {
+      setQuickUploadFile(null)
+      return
+    }
+
+    const isPdf =
+      nextFile.type === 'application/pdf' ||
+      nextFile.name.toLowerCase().endsWith('.pdf')
+
+    if (!isPdf) {
+      setQuickUploadError('Only PDF files are supported for K-1 upload.')
+      setQuickUploadFile(null)
+      return
+    }
+
+    setQuickUploadError(null)
+    setQuickUploadFile(nextFile)
+  }
+
+  const handleQuickUpload = async () => {
+    if (!quickUploadEntityId) {
+      setQuickUploadError('Choose an entity before uploading a file.')
+      return
+    }
+
+    if (!quickUploadFile) {
+      setQuickUploadError('Select a PDF file to upload.')
+      return
+    }
+
+    setQuickUploadError(null)
+
+    try {
+      await upload.mutateAsync({
+        file: quickUploadFile,
+        entityId: quickUploadEntityId,
+      })
+      setQuickUploadFile(null)
+      void listQuery.refetch()
+      void kpiQuery.refetch()
+    } catch (err) {
+      setQuickUploadError(err instanceof K1ApiError ? err.code : 'Upload failed. Try again.')
+    }
+  }
+
+  const tableData = listQuery.data?.items ?? []
+  const processingRows = tableData.filter((row) => row.status === 'PROCESSING')
 
   const columns: Column<TableRow>[] = [
     {
@@ -147,6 +206,12 @@ export function K1Dashboard() {
             status={STATUS_BADGE_LABEL[row.status]}
             type={STATUS_BADGE_TYPE[row.status]}
           />
+          {row.status === 'PROCESSING' && (
+            <span className="inline-flex items-center gap-1 text-xs text-atlas-gold font-medium">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Parsing…
+            </span>
+          )}
           {row.parseError && (
             <button
               title={`${row.parseError.code}: ${row.parseError.message}`}
@@ -190,8 +255,6 @@ export function K1Dashboard() {
       accessor: (row) => new Date(row.uploadedAt).toLocaleDateString(),
     },
   ]
-
-  const tableData = listQuery.data?.items ?? []
 
   const handleSort = (columnKey: string) => {
     if (sortColumn === columnKey) {
@@ -259,6 +322,143 @@ export function K1Dashboard() {
         <KPICard label="Ready for Approval" value={counts.READY_FOR_APPROVAL} icon={CheckCircle2} />
         <KPICard label="Finalized" value={counts.FINALIZED} icon={ShieldCheck} />
       </div>
+
+      <section className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Quick K-1 Upload</h2>
+            <p className="text-sm text-gray-500">Drag and drop a PDF to upload directly from this page.</p>
+          </div>
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Upload className="w-4 h-4" />
+            Open Upload Dialog
+          </button>
+        </div>
+
+        {!lookups.isLoading && !hasEntities ? (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Create an entity first before uploading K-1 files.
+          </div>
+        ) : (
+          <>
+            <div className="mb-3">
+              <label className="text-sm font-medium text-gray-700">Entity</label>
+              <select
+                value={quickUploadEntityId}
+                onChange={(e) => {
+                  setQuickUploadEntityId(e.target.value)
+                  setQuickUploadError(null)
+                }}
+                className="mt-1 block w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                disabled={lookups.isLoading || upload.isPending}
+              >
+                <option value="">Select entity…</option>
+                {lookups.data?.entities.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div
+              className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+                isDragActive
+                  ? 'border-atlas-gold bg-atlas-light/20'
+                  : 'border-gray-300 bg-gray-50'
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (!upload.isPending) setIsDragActive(true)
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault()
+                setIsDragActive(false)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragActive(false)
+                if (upload.isPending) return
+                setPickedFile(e.dataTransfer.files?.[0] ?? null)
+              }}
+            >
+              <UploadCloud className={`mx-auto mb-3 h-8 w-8 ${isDragActive ? 'text-atlas-gold' : 'text-gray-400'}`} />
+              <p className="text-sm font-medium text-gray-900">Drag and drop a K-1 PDF here</p>
+              <p className="mt-1 text-sm text-gray-500">or choose a file from your computer</p>
+              <button
+                type="button"
+                onClick={() => quickUploadInputRef.current?.click()}
+                disabled={upload.isPending}
+                className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                Choose PDF
+              </button>
+              <input
+                ref={quickUploadInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => setPickedFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+
+            {quickUploadFile && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                <p className="text-sm text-gray-700">
+                  Selected: <span className="font-medium text-gray-900">{quickUploadFile.name}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={handleQuickUpload}
+                  disabled={upload.isPending || !quickUploadEntityId}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-atlas-gold hover:bg-atlas-hover disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {upload.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {upload.isPending ? 'Uploading…' : 'Upload PDF'}
+                </button>
+              </div>
+            )}
+
+            {quickUploadError && (
+              <div className="mt-3 rounded-md border border-error/30 bg-error-light p-3 text-sm text-error">
+                {quickUploadError}
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {processingRows.length > 0 && (
+        <section className="bg-white border border-atlas-gold/30 rounded-lg shadow-sm p-4 mb-4">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 text-atlas-gold animate-spin" />
+            <h3 className="text-sm font-semibold text-gray-900">
+              {processingRows.length} {processingRows.length === 1 ? 'document is' : 'documents are'} processing
+            </h3>
+          </div>
+          <p className="mt-1 text-sm text-gray-600">
+            Parsing is running in the background. This page refreshes automatically every few seconds.
+          </p>
+          <div className="mt-3 space-y-2">
+            {processingRows.slice(0, 3).map((row) => (
+              <div key={row.id} className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-gray-900 truncate">{row.documentName}</span>
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-atlas-gold">
+                    <span className="h-2 w-2 rounded-full bg-atlas-gold animate-pulse" />
+                    Processing
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+                  <div className="h-full w-1/3 rounded-full bg-atlas-gold animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
         <input

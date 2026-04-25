@@ -127,9 +127,9 @@ Composes — and MUST only compose — these catalog pieces:
 Composes — and MUST only compose — these catalog pieces:
 `AppShell` → `PageHeader` (primary: Add Partnership — Admin only) → (`KpiCard` × 4) → `FilterToolbar` → `DataTable` (+ `StatusBadge`, `RowActionMenu`) with `LoadingState` / `EmptyState` / `ErrorState` for all six required UI states. Local additions: `AddPartnershipDialog` (Headless UI) composes existing primitives. Export CSV is a plain anchor link. Hard boundary: no `@mui/*`. Enforced by `scripts/ci/guard-partnerships-imports.mjs`. See [40-screen-map.md](40-screen-map.md) §10.
 
-### Partnership Detail (Feature 004)
+### Partnership Detail (Feature 009 redesign over Feature 004)
 Composes — and MUST only compose — these catalog pieces:
-`AppShell` → `PageHeader` (+ `StatusBadge`; primary: Edit — Admin only) → (`KpiCard` × 4) → `SectionCard` × 5 (Entity Info, K-1 History, Expected Distributions, FMV Snapshots, Activity). FMV Snapshots section has an Admin-only "Record FMV" header action slot. Local additions: `EditPartnershipDialog` + `RecordFmvDialog` (both Headless UI, Admin-only, compose existing primitives). Hard boundary: same guard as Partnership Directory. See [40-screen-map.md](40-screen-map.md) §11.
+`AppShell` → `PageHeader` → (`KpiCard` × 5) → `SectionCard` × 5+ (Partnership Details, Assets, K-1 History, Expected Distributions, FMV Snapshots, Activity). The Assets section composes `DataTable`, `EmptyState`, `ErrorState`, and `LoadingState` with Admin-only header actions. Local additions: `AssetDetailDrawer`, `AssetValuationHistory`, `AddAssetDialog`, and `RecordAssetFmvDialog`; these all compose existing primitives and stay inside the partnership-first route. Hard boundary: same guard as Partnership Directory. See [40-screen-map.md](40-screen-map.md) §11.
 
 ### Entity Detail (Feature 004)
 Composes — and MUST only compose — these catalog pieces:
@@ -148,3 +148,12 @@ Composes — and MUST only compose — these catalog pieces:
 | `EditPartnershipDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin partnership updates |
 | `RecordFmvDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin FMV snapshot recording |
 | `EntityReportsPreviewSection` | `apps/web/src/features/partnerships/components/` | Placeholder section for Feature 006 reports |
+
+#### New components introduced in Feature 009
+| Component | Package | Description |
+|---|---|---|
+| `AssetsSection` | `apps/web/src/features/partnerships/components/` | SectionCard wrapper for partnership-scoped asset summary, list, and future link-account placeholder |
+| `AssetDetailDrawer` | `apps/web/src/features/partnerships/components/` | In-page drawer for asset metadata, latest FMV summary, and localized retry handling |
+| `AssetValuationHistory` | `apps/web/src/features/partnerships/components/` | Append-only asset FMV history table used inside the asset drawer |
+| `AddAssetDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin partnership-asset creation with optional initial valuation |
+| `RecordAssetFmvDialog` | `apps/web/src/features/partnerships/components/` | Headless UI dialog for Admin asset FMV snapshot recording from the section or drawer |

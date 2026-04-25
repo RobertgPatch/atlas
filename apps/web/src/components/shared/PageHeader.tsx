@@ -1,5 +1,6 @@
 import React, { Fragment } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 
 export interface PageHeaderProps {
   title: string
@@ -9,6 +10,8 @@ export interface PageHeaderProps {
 }
 
 export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeaderProps) {
+  const isExternalUrl = (href: string) => /^([a-z][a-z\d+\-.]*:)?\/\//i.test(href)
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
@@ -22,9 +25,15 @@ export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeader
               <Fragment key={idx}>
                 {idx > 0 && <span>/</span>}
                 {crumb.href ? (
-                  <a href={crumb.href} className="hover:text-gray-900 transition-colors">
-                    {crumb.label}
-                  </a>
+                  isExternalUrl(crumb.href) ? (
+                    <a href={crumb.href} className="hover:text-gray-900 transition-colors">
+                      {crumb.label}
+                    </a>
+                  ) : (
+                    <Link to={crumb.href} className="hover:text-gray-900 transition-colors">
+                      {crumb.label}
+                    </Link>
+                  )
                 ) : (
                   <span className="text-gray-900 font-medium">{crumb.label}</span>
                 )}

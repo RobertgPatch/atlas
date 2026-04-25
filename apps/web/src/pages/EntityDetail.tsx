@@ -59,13 +59,30 @@ export function EntityDetail() {
               ]}
             />
 
-            {/* Four-card KPI strip */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-4">
               <KpiCard
                 label="Partnerships"
                 value={data.rollup.partnershipCount}
                 icon={<Building2Icon className="w-4 h-4 text-accent" />}
                 accentColor="#2563EB"
+              />
+              <KpiCard
+                label="Commitment"
+                value={formatUsd(data.rollup.totalCommitmentUsd)}
+                icon={<TrendingUpIcon className="w-4 h-4 text-atlas-gold" />}
+                accentColor="#C9A96E"
+              />
+              <KpiCard
+                label="Paid-In"
+                value={formatUsd(data.rollup.totalPaidInUsd)}
+                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                accentColor="#C9A96E"
+              />
+              <KpiCard
+                label="Unfunded"
+                value={formatUsd(data.rollup.totalUnfundedUsd)}
+                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                accentColor="#C9A96E"
               />
               <KpiCard
                 label="Total Distributions"

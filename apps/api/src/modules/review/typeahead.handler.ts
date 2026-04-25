@@ -55,7 +55,7 @@ export const partnershipTypeaheadHandler = async (
   // Scope to entity_id if provided; verify the user has access to it.
   if (entity_id) {
     if (!allowedEntities.includes(entity_id)) {
-      return reply.send({ items: [] })
+      return reply.code(403).send({ error: 'FORBIDDEN_ENTITY' })
     }
     allPartnerships = allPartnerships.filter((p) => p.entityId === entity_id)
   } else {

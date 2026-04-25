@@ -73,6 +73,9 @@ export function PartnershipDirectory() {
           partnershipCount={data?.totals.partnershipCount ?? 0}
           totalDistributionsUsd={data?.totals.totalDistributionsUsd ?? 0}
           totalFmvUsd={data?.totals.totalFmvUsd ?? 0}
+          totalCommitmentUsd={data?.totals.totalCommitmentUsd ?? 0}
+          totalPaidInUsd={data?.totals.totalPaidInUsd ?? 0}
+          totalUnfundedUsd={data?.totals.totalUnfundedUsd ?? 0}
           loading={query.isLoading}
         />
 

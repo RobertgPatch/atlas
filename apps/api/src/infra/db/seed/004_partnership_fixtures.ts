@@ -15,6 +15,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit']
 const STATUSES = ['ACTIVE', 'ACTIVE', 'ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED']
 const FMV_SOURCES = ['manager_statement', 'valuation_409a', 'k1', 'manual']
+const ASSET_SOURCES = ['manual', 'imported', 'plaid']
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
@@ -134,6 +135,89 @@ async function main() {
             randomAmount(500_000, 5_000_000),
             'manual',
             `Same-day snapshot ${k + 1}`,
+            adminId,
+          ],
+        )
+      }
+    }
+
+    const assetSeedTargets = [partnerships[1], partnerships[2], partnerships[3]].filter(Boolean)
+
+    for (const [index, partnership] of assetSeedTargets.entries()) {
+      if (!partnership) continue
+
+      const primaryAssetId = randomUUID()
+      const secondaryAssetId = randomUUID()
+
+      await client.query(
+        `insert into partnership_assets
+           (id, partnership_id, name, asset_type, source_type, status, description, notes, created_at, updated_at)
+         values
+           ($1, $2, $3, $4, $5, 'ACTIVE', $6, $7, now(), now()),
+           ($8, $2, $9, $10, $11, 'ACTIVE', $12, $13, now(), now())`,
+        [
+          primaryAssetId,
+          partnership.id,
+          `${partnership.name} Primary Asset`,
+          pick(ASSET_CLASSES),
+          pick(ASSET_SOURCES),
+          `Seeded primary asset for ${partnership.name}`,
+          null,
+          secondaryAssetId,
+          `${partnership.name} Secondary Asset`,
+          pick(ASSET_CLASSES),
+          pick(ASSET_SOURCES),
+          `Seeded secondary asset for ${partnership.name}`,
+          index === 0 ? 'Intentionally unvalued for mixed coverage.' : null,
+        ],
+      )
+
+      const firstAssetDate = new Date(Date.now() - (index + 14) * 86_400_000).toISOString().slice(0, 10)
+      await client.query(
+        `insert into partnership_asset_fmv_snapshots
+           (id, asset_id, valuation_date, fmv_amount, source_type, confidence_label, notes, recorded_by_user_id, created_at, updated_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, now(), now())`,
+        [
+          randomUUID(),
+          primaryAssetId,
+          firstAssetDate,
+          randomAmount(250_000, 2_000_000),
+          pick(FMV_SOURCES),
+          index === 1 ? 'Reviewed' : null,
+          `Seeded asset FMV for ${partnership.name}`,
+          adminId,
+        ],
+      )
+
+      if (index === 1) {
+        await client.query(
+          `insert into partnership_asset_fmv_snapshots
+             (id, asset_id, valuation_date, fmv_amount, source_type, confidence_label, notes, recorded_by_user_id, created_at, updated_at)
+           values
+             ($1, $2, $3, $4, 'manual', null, 'Same-day correction 1', $5, now(), now()),
+             ($6, $2, $3, $7, 'manual', null, 'Same-day correction 2', $5, now(), now())`,
+          [
+            randomUUID(),
+            primaryAssetId,
+            firstAssetDate,
+            randomAmount(700_000, 900_000),
+            adminId,
+            randomUUID(),
+            randomAmount(900_001, 1_100_000),
+          ],
+        )
+      }
+
+      if (index === 2) {
+        await client.query(
+          `insert into partnership_asset_fmv_snapshots
+             (id, asset_id, valuation_date, fmv_amount, source_type, confidence_label, notes, recorded_by_user_id, created_at, updated_at)
+           values ($1, $2, $3, $4, 'manual', null, 'Secondary asset valuation', $5, now(), now())`,
+          [
+            randomUUID(),
+            secondaryAssetId,
+            new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10),
+            randomAmount(150_000, 250_000),
             adminId,
           ],
         )

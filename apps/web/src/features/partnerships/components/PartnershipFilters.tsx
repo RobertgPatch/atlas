@@ -22,7 +22,7 @@ const ASSET_CLASS_OPTIONS = [
 interface PartnershipFiltersProps {
   filters: PartnershipFilters
   onSearchChange: (value: string) => void
-  onFilterChange: (key: keyof Omit<PartnershipFilters, 'search'>, value: PartnershipFilters[typeof key]) => void
+  onFilterChange: <K extends keyof Omit<PartnershipFilters, 'search'>>(key: K, value: PartnershipFilters[K]) => void
   onClear: () => void
   resultCount?: number
 }

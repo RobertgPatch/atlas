@@ -28,7 +28,7 @@ export const mfaEnrollCompleteHandler = async (
     return
   }
 
-  const lockout = lockoutService.getLockout(user.email, 'MFA')
+  const lockout = await lockoutService.getLockout(user.email, 'MFA')
   if (lockout) {
     reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
     return
@@ -36,7 +36,7 @@ export const mfaEnrollCompleteHandler = async (
 
   const valid = totpService.verify(payload.data.code, enrollment.secret)
   if (!valid) {
-    const lockoutUntil = lockoutService.recordFailure(user.email, 'MFA')
+    const lockoutUntil = await lockoutService.recordFailure(user.email, 'MFA')
 
     await auditRepository.record({
       actorUserId: user.id,
@@ -54,7 +54,7 @@ export const mfaEnrollCompleteHandler = async (
     return
   }
 
-  lockoutService.clear(user.email, 'MFA')
+  await lockoutService.clear(user.email, 'MFA')
   const enrolledUser = authRepository.completeMfaEnrollment(user.id, enrollment.secret)
   if (!enrolledUser) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
@@ -68,19 +68,19 @@ export const mfaEnrollCompleteHandler = async (
 
   const { token, session } = authRepository.createSession(user.id)
 
+  await auditRepository.record({
+    actorUserId: user.id,
+    eventName: 'auth.mfa.enroll.succeeded',
+    objectType: 'user',
+    objectId: user.id,
+  })
+
   reply.setCookie(config.sessionCookieName, token, {
     httpOnly: true,
     secure: config.sessionCookieSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: config.sessionAbsoluteTimeoutSeconds,
-  })
-
-  await auditRepository.record({
-    actorUserId: user.id,
-    eventName: 'auth.mfa.enroll.succeeded',
-    objectType: 'user',
-    objectId: user.id,
   })
 
   reply.send({

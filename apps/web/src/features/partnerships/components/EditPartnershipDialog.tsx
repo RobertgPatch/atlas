@@ -122,7 +122,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                       maxLength={120}
                       value={name}
                       onChange={(e) => { setName(e.target.value); setNameError(null) }}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent ${nameError ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${nameError ? 'border-red-500' : 'border-gray-300'}`}
                     />
                     {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
                   </div>
@@ -133,7 +133,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <select
                       value={assetClass}
                       onChange={(e) => setAssetClass(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     >
                       <option value="">— None —</option>
                       {ASSET_CLASSES.map((ac) => (
@@ -148,7 +148,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as PartnershipStatus)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     >
                       {STATUS_OPTIONS.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -164,7 +164,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                       maxLength={10000}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     />
                   </div>
 
@@ -179,7 +179,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-50"
+                      className="px-4 py-2 text-sm rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Save Changes'}
                     </button>

@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  title: Atlas Partnership Assets API
+  version: 0.1.0
+  description: |
+    Feature 009 extends the existing Partnership Detail workflow with partnership-scoped
+    asset records and append-only asset FMV history. These interfaces are authenticated
+    with the existing session cookie, inherit parent partnership entity scope, and keep
+    whole-partnership FMV separate from asset rollup values.
+
+servers:
+  - url: /v1
+    description: Versioned API prefix
+
+tags:
+  - name: Partnership Assets
+  - name: Asset FMV
+
+paths:
+  /partnerships/{partnershipId}/assets:
+    parameters:
+      - in: path
+        name: partnershipId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Partnership Assets]
+      operationId: listPartnershipAssets
+      summary: List partnership-scoped asset rows and the asset-rollup summary
+      description: |
+        Called as part of Partnership Detail page load. Returns the asset rows used by the
+        Assets section plus the total-latest-asset-FMV summary.
+      responses:
+        '200':
+          description: Asset section payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipAssetsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Partnership is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Partnership does not exist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      tags: [Partnership Assets]
+      operationId: createPartnershipAsset
+      summary: Create a new asset under a partnership (Admin only)
+      description: |
+        Creates an asset subordinate to the specified partnership. If `initialValuation`
+        is present, Atlas creates the asset and its first asset-FMV snapshot in one workflow.
+        Emits `partnership.asset.created` and, when applicable, `partnership.asset.fmv_recorded`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePartnershipAssetRequest' }
+      responses:
+        '201':
+          description: Asset created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipAssetDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not Admin or partnership is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Partnership does not exist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Duplicate asset name plus type under the same partnership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnerships/{partnershipId}/assets/{assetId}:
+    parameters:
+      - in: path
+        name: partnershipId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: assetId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Partnership Assets]
+      operationId: getPartnershipAsset
+      summary: Get asset metadata for the Partnership Detail drawer
+      description: |
+        Returns metadata and latest-FMV summary for a single asset. Full valuation history is
+        retrieved through the dedicated FMV history endpoint.
+      responses:
+        '200':
+          description: Asset drawer payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipAssetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Partnership or asset is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Asset does not exist under the partnership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnerships/{partnershipId}/assets/{assetId}/fmv-snapshots:
+    parameters:
+      - in: path
+        name: partnershipId
+        required: true
+        schema: { type: string, format: uuid }
+      - in: path
+        name: assetId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Asset FMV]
+      operationId: listAssetFmvSnapshots
+      summary: List append-only valuation history for an asset
+      responses:
+        '200':
+          description: Snapshots ordered by created_at descending, then valuation_date descending
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AssetFmvSnapshot' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Partnership or asset is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Asset does not exist under the partnership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    post:
+      tags: [Asset FMV]
+      operationId: createAssetFmvSnapshot
+      summary: Record a new FMV snapshot for an asset (Admin only)
+      description: |
+        Append-only. Multiple snapshots per valuation date are allowed. Emits
+        `partnership.asset.fmv_recorded`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAssetFmvSnapshotRequest' }
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssetFmvSnapshot' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not Admin or partnership is out of scope
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: Asset does not exist under the partnership
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    PartnershipAssetSource:
+      type: string
+      enum: [manual, imported, plaid]
+
+    AssetFmvSource:
+      type: string
+      enum: [manual, manager_statement, valuation_409a, k1, imported, plaid]
+
+    PartnershipAsset:
+      type: object
+      required:
+        - id
+        - partnershipId
+        - name
+        - assetType
+        - sourceType
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        name: { type: string }
+        assetType: { type: string }
+        sourceType: { $ref: '#/components/schemas/PartnershipAssetSource' }
+        status: { type: string }
+        description:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AssetFmvSnapshot:
+      type: object
+      required:
+        - id
+        - assetId
+        - valuationDate
+        - amountUsd
+        - source
+        - createdAt
+      properties:
+        id: { type: string, format: uuid }
+        assetId: { type: string, format: uuid }
+        valuationDate:
+          type: string
+          format: date
+        amountUsd:
+          type: number
+        source:
+          $ref: '#/components/schemas/AssetFmvSource'
+        confidenceLabel:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        recordedByUserId:
+          type: string
+          format: uuid
+          nullable: true
+        recordedByEmail:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    PartnershipAssetRow:
+      allOf:
+        - $ref: '#/components/schemas/PartnershipAsset'
+        - type: object
+          required: [latestFmv]
+          properties:
+            latestFmv:
+              anyOf:
+                - $ref: '#/components/schemas/AssetFmvSnapshotPreview'
+                - type: 'null'
+
+    AssetFmvSnapshotPreview:
+      type: object
+      required: [amountUsd, valuationDate, source, createdAt]
+      properties:
+        amountUsd:
+          type: number
+        valuationDate:
+          type: string
+          format: date
+        source:
+          $ref: '#/components/schemas/AssetFmvSource'
+        confidenceLabel:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    PartnershipAssetsResponse:
+      type: object
+      required: [summary, rows]
+      properties:
+        summary:
+          type: object
+          required: [assetCount, valuedAssetCount, totalLatestAssetFmvUsd]
+          properties:
+            assetCount:
+              type: integer
+              minimum: 0
+            valuedAssetCount:
+              type: integer
+              minimum: 0
+            totalLatestAssetFmvUsd:
+              type: number
+              nullable: true
+        rows:
+          type: array
+          items: { $ref: '#/components/schemas/PartnershipAssetRow' }
+
+    PartnershipAssetDetail:
+      type: object
+      required: [asset, latestFmv]
+      properties:
+        asset:
+          $ref: '#/components/schemas/PartnershipAsset'
+        latestFmv:
+          anyOf:
+            - $ref: '#/components/schemas/AssetFmvSnapshot'
+            - type: 'null'
+
+    CreatePartnershipAssetRequest:
+      type: object
+      required: [name, assetType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+        assetType:
+          type: string
+          minLength: 1
+          maxLength: 80
+        description:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        initialValuation:
+          anyOf:
+            - $ref: '#/components/schemas/CreateAssetFmvSnapshotRequest'
+            - type: 'null'
+
+    CreateAssetFmvSnapshotRequest:
+      type: object
+      required: [valuationDate, amountUsd, source]
+      properties:
+        valuationDate:
+          type: string
+          format: date
+        amountUsd:
+          type: number
+          minimum: 0
+        source:
+          $ref: '#/components/schemas/AssetFmvSource'
+        confidenceLabel:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authenticated session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

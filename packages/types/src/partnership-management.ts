@@ -5,6 +5,25 @@ export type PartnershipStatus = 'ACTIVE' | 'PENDING' | 'LIQUIDATED' | 'CLOSED'
 
 export type FmvSource = 'manager_statement' | 'valuation_409a' | 'k1' | 'manual'
 
+export type CommitmentStatus = 'ACTIVE' | 'INACTIVE'
+
+export type CapitalDataSource = 'manual' | 'parsed' | 'calculated'
+
+export type CapitalActivityEventType =
+  | 'capital_call'
+  | 'funded_contribution'
+  | 'other_adjustment'
+
+export type PartnershipAssetSource = 'manual' | 'imported' | 'plaid'
+
+export type AssetFmvSource =
+  | 'manual'
+  | 'manager_statement'
+  | 'valuation_409a'
+  | 'k1'
+  | 'imported'
+  | 'plaid'
+
 export interface EntitySummary {
   id: string
   name: string
@@ -41,6 +60,9 @@ export interface PartnershipDirectoryResponse {
     partnershipCount: number
     totalDistributionsUsd: number
     totalFmvUsd: number
+    totalCommitmentUsd: number
+    totalPaidInUsd: number
+    totalUnfundedUsd: number
   }
   page: { size: number; offset: number; total: number }
 }
@@ -55,6 +77,82 @@ export interface FmvSnapshot {
   recordedByUserId: string
   recordedByEmail: string
   createdAt: string
+}
+
+export interface PartnershipCommitment {
+  id: string
+  entityId: string
+  partnershipId: string
+  commitmentAmountUsd: number
+  commitmentDate: string | null
+  commitmentStartDate: string | null
+  commitmentEndDate: string | null
+  status: CommitmentStatus
+  sourceType: Exclude<CapitalDataSource, 'calculated'>
+  notes: string | null
+  createdByUserId: string | null
+  createdByEmail: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CapitalActivityEvent {
+  id: string
+  entityId: string
+  partnershipId: string
+  activityDate: string
+  eventType: CapitalActivityEventType
+  amountUsd: number
+  sourceType: Exclude<CapitalDataSource, 'calculated'>
+  notes: string | null
+  createdByUserId: string | null
+  createdByEmail: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PartnershipCapitalOverview {
+  originalCommitmentUsd: number | null
+  paidInUsd: number
+  percentCalled: number | null
+  unfundedUsd: number | null
+  reportedDistributionsUsd: number
+  residualValueUsd: number | null
+  dpi: number | null
+  rvpi: number | null
+  tvpi: number | null
+  valueSources: {
+    originalCommitment: Exclude<CapitalDataSource, 'calculated'> | 'none'
+    paidIn: 'calculated'
+    reportedDistributions: 'parsed'
+    residualValue: Exclude<CapitalDataSource, 'calculated'> | 'none'
+    performanceMultiples: 'calculated'
+  }
+}
+
+export interface ActivityDetailRow {
+  id: string
+  entityId: string
+  partnershipId: string
+  taxYear: number
+  reportedDistributionUsd: number | null
+  originalCommitmentUsd: number | null
+  paidInUsd: number | null
+  percentCalled: number | null
+  unfundedUsd: number | null
+  residualValueUsd: number | null
+  dpi: number | null
+  rvpi: number | null
+  tvpi: number | null
+  sourceSignals: {
+    hasK1: boolean
+    hasCapitalActivity: boolean
+    hasFmv: boolean
+    hasManualInput: boolean
+  }
+  finalizedFromK1DocumentId: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface PartnershipDetail {
@@ -78,6 +176,10 @@ export interface PartnershipDetail {
     finalizedFromK1DocumentId: string | null
   }>
   fmvSnapshots: FmvSnapshot[]
+  commitments: PartnershipCommitment[]
+  capitalActivity: CapitalActivityEvent[]
+  capitalOverview: PartnershipCapitalOverview
+  activityDetail: ActivityDetailRow[]
 }
 
 export interface EntityDetail {
@@ -93,6 +195,9 @@ export interface EntityDetail {
     partnershipCount: number
     totalDistributionsUsd: number
     totalFmvUsd: number
+    totalCommitmentUsd: number
+    totalPaidInUsd: number
+    totalUnfundedUsd: number
     /** MAX tax_year across scoped partnerships with a FINALIZED K-1; null if none */
     latestK1Year: number | null
   }
@@ -118,6 +223,112 @@ export interface CreateFmvSnapshotRequest {
   amountUsd: number
   source: FmvSource
   note?: string | null
+}
+
+export interface CreatePartnershipCommitmentRequest {
+  commitmentAmountUsd: number
+  commitmentDate?: string | null
+  commitmentStartDate?: string | null
+  commitmentEndDate?: string | null
+  status?: CommitmentStatus
+  sourceType?: Exclude<CapitalDataSource, 'calculated'>
+  notes?: string | null
+}
+
+export interface UpdatePartnershipCommitmentRequest {
+  commitmentAmountUsd?: number
+  commitmentDate?: string | null
+  commitmentStartDate?: string | null
+  commitmentEndDate?: string | null
+  status?: CommitmentStatus
+  sourceType?: Exclude<CapitalDataSource, 'calculated'>
+  notes?: string | null
+}
+
+export interface CreateCapitalActivityEventRequest {
+  activityDate: string
+  eventType: CapitalActivityEventType
+  amountUsd: number
+  sourceType?: Exclude<CapitalDataSource, 'calculated'>
+  notes?: string | null
+}
+
+export interface UpdateCapitalActivityEventRequest {
+  activityDate?: string
+  eventType?: CapitalActivityEventType
+  amountUsd?: number
+  sourceType?: Exclude<CapitalDataSource, 'calculated'>
+  notes?: string | null
+}
+
+export interface AssetFmvSnapshotPreview {
+  amountUsd: number
+  valuationDate: string
+  source: AssetFmvSource
+  confidenceLabel: string | null
+  createdAt: string
+}
+
+export interface PartnershipAssetRow {
+  id: string
+  partnershipId: string
+  name: string
+  assetType: string
+  sourceType: PartnershipAssetSource
+  status: string
+  description: string | null
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+  latestFmv: AssetFmvSnapshotPreview | null
+}
+
+export interface PartnershipAssetsResponse {
+  summary: {
+    assetCount: number
+    valuedAssetCount: number
+    totalLatestAssetFmvUsd: number | null
+  }
+  rows: PartnershipAssetRow[]
+}
+
+export interface AssetFmvSnapshot {
+  id: string
+  assetId: string
+  valuationDate: string
+  amountUsd: number
+  source: AssetFmvSource
+  confidenceLabel: string | null
+  note: string | null
+  recordedByUserId: string | null
+  recordedByEmail: string | null
+  createdAt: string
+}
+
+export interface PartnershipAssetDetail {
+  asset: PartnershipAssetRow
+  latestFmv: AssetFmvSnapshot | null
+}
+
+export interface CreateAssetFmvSnapshotRequest {
+  valuationDate: string
+  amountUsd: number
+  source: AssetFmvSource
+  confidenceLabel?: string | null
+  note?: string | null
+}
+
+export interface CreatePartnershipAssetRequest {
+  name: string
+  assetType: string
+  description?: string | null
+  notes?: string | null
+  initialValuation?: CreateAssetFmvSnapshotRequest | null
+}
+
+export interface DuplicatePartnershipAssetError {
+  kind: 'duplicate-asset'
+  error: 'DUPLICATE_PARTNERSHIP_ASSET'
 }
 
 /** Discriminated error shape for 409 duplicate-name responses */

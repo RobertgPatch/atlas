@@ -3,12 +3,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
 
 /* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED */
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   body {
     @apply bg-gray-50 text-gray-900 font-sans antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-md border border-transparent bg-atlas-gold px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-atlas-hover focus:outline-none focus:ring-2 focus:ring-atlas-gold focus:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-atlas-gold focus:ring-offset-2;
+  }
+
+  .input-field {
+    @apply block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-atlas-gold focus:outline-none focus:ring-2 focus:ring-atlas-gold;
+  }
+
+  .label-text {
+    @apply mb-1 block text-sm font-medium text-gray-700;
   }
 }

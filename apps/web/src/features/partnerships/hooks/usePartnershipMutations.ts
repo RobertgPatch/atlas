@@ -1,6 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { partnershipsClient } from '../api/partnershipsClient'
-import type { CreatePartnershipRequest, UpdatePartnershipRequest, DuplicatePartnershipNameError } from 'packages/types/src'
+import type {
+  CreatePartnershipRequest,
+  UpdatePartnershipRequest,
+  DuplicatePartnershipNameError,
+  CreatePartnershipCommitmentRequest,
+  CreateCapitalActivityEventRequest,
+} from 'packages/types/src'
 
 // ---------------------------------------------------------------------------
 // Create Partnership
@@ -15,7 +21,7 @@ export function useCreatePartnership() {
   return useMutation<CreateResult, Error, CreatePartnershipRequest>({
     mutationFn: async (body) => {
       const result = await partnershipsClient.create(body)
-      if ('kind' in result) return result
+      if (result.kind === 'duplicate-name') return result
       return { ok: true as const, id: result.id }
     },
     onSuccess: (result, vars) => {
@@ -42,7 +48,7 @@ export function useUpdatePartnership() {
   return useMutation<UpdateResult, Error, UpdateVars>({
     mutationFn: async ({ id, body }) => {
       const result = await partnershipsClient.update(id, body)
-      if ('kind' in result) return result
+      if (result.kind === 'duplicate-name') return result
       return { ok: true as const }
     },
     onSuccess: (result, vars) => {
@@ -53,4 +59,44 @@ export function useUpdatePartnership() {
       }
     },
   })
+}
+
+// ---------------------------------------------------------------------------
+// Create Commitment
+// ---------------------------------------------------------------------------
+
+export function useCreateCommitment() {
+  const qc = useQueryClient()
+  return useMutation<unknown, Error, { partnershipId: string; body: CreatePartnershipCommitmentRequest }>(
+    {
+      mutationFn: async ({ partnershipId, body }) => {
+        return partnershipsClient.createCommitment(partnershipId, body)
+      },
+      onSuccess: (_result, vars) => {
+        void qc.invalidateQueries({ queryKey: ['partnership', vars.partnershipId] })
+        void qc.invalidateQueries({ queryKey: ['partnerships-list'] })
+        void qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+      },
+    },
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Create Capital Activity
+// ---------------------------------------------------------------------------
+
+export function useCreateCapitalActivity() {
+  const qc = useQueryClient()
+  return useMutation<unknown, Error, { partnershipId: string; body: CreateCapitalActivityEventRequest }>(
+    {
+      mutationFn: async ({ partnershipId, body }) => {
+        return partnershipsClient.createCapitalActivity(partnershipId, body)
+      },
+      onSuccess: (_result, vars) => {
+        void qc.invalidateQueries({ queryKey: ['partnership', vars.partnershipId] })
+        void qc.invalidateQueries({ queryKey: ['partnerships-list'] })
+        void qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+      },
+    },
+  )
 }

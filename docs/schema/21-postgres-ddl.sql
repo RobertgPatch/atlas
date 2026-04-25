@@ -107,6 +107,36 @@ create table partnership_fmv_snapshots (
   unique (partnership_id, valuation_date)
 );
 
+create table partnership_commitments (
+  id uuid primary key,
+  entity_id uuid not null references entities(id),
+  partnership_id uuid not null references partnerships(id),
+  commitment_amount numeric(18,2) not null,
+  commitment_date date,
+  commitment_start_date date,
+  commitment_end_date date,
+  status text not null default 'ACTIVE',
+  source_type text not null default 'manual',
+  notes text,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table capital_activity_events (
+  id uuid primary key,
+  entity_id uuid not null references entities(id),
+  partnership_id uuid not null references partnerships(id),
+  activity_date date not null,
+  event_type text not null,
+  amount numeric(18,2) not null,
+  source_type text not null default 'manual',
+  notes text,
+  created_by_user_id uuid references users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table k1_issues (
   id uuid primary key,
   k1_document_id uuid not null references k1_documents(id),
@@ -139,6 +169,15 @@ create table partnership_annual_activity (
   tvpi numeric(10,4),
   irr numeric(10,4),
   ending_gl_balance numeric(18,2),
+  source_has_k1 boolean not null default false,
+  source_has_capital_activity boolean not null default false,
+  source_has_fmv boolean not null default false,
+  source_has_manual_input boolean not null default false,
+  commitment_source_type text,
+  paid_in_source_type text,
+  distribution_source_type text,
+  residual_value_source_type text,
+  return_metrics_source_type text,
   notes text,
   finalized_from_k1_document_id uuid references k1_documents(id),
   created_at timestamptz not null default now(),

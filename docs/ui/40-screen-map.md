@@ -60,19 +60,20 @@ Listed at screen #10 in the navigation map; shows the full partnership list filt
 
 Hard rules: no `@mui/*` anywhere in this screen or in `features/partnerships/**`. Enforced by `scripts/ci/guard-partnerships-imports.mjs`.
 
-### 11. Partnership Detail (Feature 004)
-Detail view for a single partnership; Admin can edit metadata and record FMV snapshots.
+### 11. Partnership Detail (Feature 009 redesign over Feature 004)
+Detail view for a single partnership; Admin can edit partnership metadata, add partnership-scoped assets, and record both partnership-level and asset-level FMV snapshots without leaving the route.
 
-- `AppShell` + `PageHeader` (title: partnership name · subtitle: entity name + status badge · primary: "Edit" — Admin only)
-- `KpiCard` × 4 (Latest FMV · Total Distributions · Expected Next Distribution · Partnership Age)
-- `SectionCard`: Entity Info — entity name (clickable link to `/entities/:id`), asset class, notes
-- `SectionCard`: K-1 History — `DataTable` of finalized K-1 rows ordered by tax year desc
-- `SectionCard`: Expected Distributions — scheduled distribution rows
-- `SectionCard`: FMV Snapshots — ordered newest first, append-only, header action "Record FMV" (Admin only)
-- `SectionCard`: Activity — audit event preview
-- `EditPartnershipDialog` (Headless UI Dialog — Admin only)
-- `RecordFmvDialog` (Headless UI Dialog — Admin only, opened from FMV Snapshots header action)
-- `LoadingState` / `EmptyState` / `ErrorState` per UI-Constitution §3
+- `AppShell` + `PageHeader` (title: partnership name · subtitle: entity link · primary: "Edit Partnership" — Admin only)
+- `KpiCard` × 5 (Total Latest Asset FMV · Asset Count · Latest Partnership-Level FMV · Latest Reported Distribution · Latest K-1 Year)
+- `SectionCard`: Partnership Details — asset class, status, entity, last updated
+- `SectionCard`: Assets — summary tiles, `DataTable` of partnership-scoped asset rows, Admin-only "Add Asset" + section-level "Record FMV" actions, and non-blocking future Link Account placeholder
+- `AssetDetailDrawer` — in-page side panel with asset metadata, latest FMV summary, localized retry handling, and append-only asset valuation history
+- `K1HistorySection` — `DataTable` of finalized K-1 rows ordered by tax year desc
+- `ExpectedDistributionSection` — scheduled distribution rows
+- `FmvSnapshotsSection` — partnership-level FMV history only, ordered newest first, append-only, header action "Record FMV" (Admin only)
+- `ActivityDetailPreview` — audit event preview
+- `EditPartnershipDialog`, `AddAssetDialog`, `RecordFmvDialog`, and `RecordAssetFmvDialog` (Headless UI dialogs — Admin only)
+- `LoadingState` / `EmptyState` / `ErrorState` per UI-Constitution §3; asset-specific failures stay localized to the Assets section or drawer
 
 Hard rules: same MUI guard as #10.
 

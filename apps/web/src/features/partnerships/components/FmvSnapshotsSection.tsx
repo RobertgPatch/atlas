@@ -12,7 +12,7 @@ const SOURCE_LABEL: Record<string, string> = {
 
 const COLUMNS: Column<FmvSnapshot>[] = [
   {
-    key: 'valuation_date',
+    key: 'asOfDate',
     header: 'As-of Date',
     sortable: true,
     render: (row) => (
@@ -71,16 +71,16 @@ interface FmvSnapshotsSectionProps {
 export function FmvSnapshotsSection({ rows, loading = false, recordFmvAction }: FmvSnapshotsSectionProps) {
   return (
     <SectionCard
-      title="FMV Snapshots"
-      subtitle="Ordered newest first · append-only"
+      title="Partnership FMV Snapshots"
+      subtitle="Whole-partnership valuation context · ordered newest first · append-only"
       headerAction={recordFmvAction}
     >
       <DataTable
         columns={COLUMNS}
         data={rows}
         state={loading ? 'loading' : rows.length ? 'populated' : 'empty'}
-        emptyTitle="No FMV snapshots"
-        emptyDescription="Record the first FMV snapshot to track the fair-market value over time."
+        emptyTitle="No partnership-level FMV snapshots"
+        emptyDescription="Record the first partnership-level FMV snapshot. Asset-level FMV history is tracked separately in the Assets section."
       />
     </SectionCard>
   )
