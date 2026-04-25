@@ -25,6 +25,8 @@ const seedHandler = async (_req: FastifyRequest, reply: FastifyReply) => {
 }
 
 export const registerAdminDevRoutes = async (app: FastifyInstance) => {
+  if (process.env.NODE_ENV === 'production') return
+
   app.post('/admin/dev/clear', { preHandler: [requireAdminAccess] }, clearHandler)
   app.post('/admin/dev/seed', { preHandler: [requireAdminAccess] }, seedHandler)
 }

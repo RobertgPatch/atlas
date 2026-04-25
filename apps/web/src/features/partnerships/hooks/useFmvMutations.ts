@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { fmvClient, FmvApiError } from '../api/fmvClient'
+import { fmvClient } from '../api/fmvClient'
 import type { CreateFmvSnapshotRequest, FmvSnapshot } from 'packages/types/src'
 
 type CreateFmvVars = { partnershipId: string; body: CreateFmvSnapshotRequest }

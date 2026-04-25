@@ -49,7 +49,7 @@ export function EntityDetail() {
           <>
             <PageHeader
               title={data.entity.name}
-              subtitle={data.entity.type ?? undefined}
+              subtitle={data.entity.entityType ?? undefined}
               secondaryActions={[
                 {
                   label: 'Back to Directory',
@@ -90,7 +90,7 @@ export function EntityDetail() {
             {/* Embedded partnership table */}
             <PartnershipDirectoryTable
               rows={data.partnerships}
-              isLoading={false}
+              state={data.partnerships.length === 0 ? 'empty' : 'populated'}
               onRowClick={(row) => navigate(`/partnerships/${row.id}`)}
             />
 

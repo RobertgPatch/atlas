@@ -5,9 +5,15 @@
 begin;
 
 -- 1. Status enum guardrail (partnerships.status must be one of the four canonical values)
-alter table partnerships
-  add constraint partnerships_status_check
-  check (status in ('ACTIVE','PENDING','LIQUIDATED','CLOSED'));
+do $$
+begin
+  alter table partnerships
+    add constraint partnerships_status_check
+    check (status in ('ACTIVE','PENDING','LIQUIDATED','CLOSED'));
+exception
+  when duplicate_object then null;
+end
+$$;
 
 -- 2. FMV append-only — drop the per-date unique constraint so multiple snapshots
 --    per (partnership_id, valuation_date) are legal (Clarification Q3)
