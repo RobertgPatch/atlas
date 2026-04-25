@@ -365,6 +365,16 @@ export const k1Repository = {
     return partnership
   },
 
+  upsertPartnership(args: { id: string; entityId: string; name: string }): PartnershipRecord {
+    const partnership: PartnershipRecord = {
+      id: args.id,
+      entityId: args.entityId,
+      name: args.name.trim(),
+    }
+    partnerships.set(partnership.id, partnership)
+    return partnership
+  },
+
   /** Create a new entity. Grants membership to every existing user so the entity is visible. */
   createEntity(args: { name: string }): EntityRecord {
     const entity: EntityRecord = { id: randomUUID(), name: args.name.trim() }
@@ -746,18 +756,21 @@ export const k1Repository = {
     seed()
   },
 
-  /** Wipe all K-1/partnership/document data but keep entities + memberships (so users can log in). */
+  /**
+   * Wipe the in-memory dataset back to a true "first login" state — no
+   * entities, partnerships, memberships, K-1 documents, issues, or document
+   * versions. Auth users persist so an Admin can still sign in; they will have
+   * an empty entity list and must create one before they can do anything.
+   */
   _debugClearAll(): void {
+    entities.clear()
     partnerships.clear()
     documents.clear()
     k1Documents.clear()
     k1Issues.clear()
     documentVersions.clear()
-    seeded = false
-    // Re-seed empty entities so users still have scope.
-    entities.clear()
     memberships.length = 0
-    seedMinimal()
+    seeded = true // prevent the auto-seed from re-running on next access
   },
 
   /** Force-run the full demo seed (wipes + re-seeds everything). */

@@ -243,6 +243,7 @@ export interface UpdatePartnershipCommitmentRequest {
   status?: CommitmentStatus
   sourceType?: Exclude<CapitalDataSource, 'calculated'>
   notes?: string | null
+  expectedUpdatedAt?: string
 }
 
 export interface CreateCapitalActivityEventRequest {

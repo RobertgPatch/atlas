@@ -1,0 +1,603 @@
+openapi: 3.1.0
+info:
+  title: Atlas Reports API
+  version: 0.1.0
+  description: |
+    Feature 006 adds report-focused interfaces for Portfolio Summary, Asset Class Summary,
+    and Activity Detail. Endpoints are session-authenticated, scope-aware, and aligned to
+    phased delivery (Phase 1: Portfolio Summary, Phase 2: Asset Class Summary, Phase 3:
+    Activity Detail plus CSV/XLSX export).
+
+servers:
+  - url: /v1
+    description: Versioned API prefix
+
+tags:
+  - name: Reports
+  - name: Report Exports
+
+paths:
+  /reports/portfolio-summary:
+    get:
+      tags: [Reports]
+      operationId: getPortfolioSummaryReport
+      summary: Get Portfolio Summary rows, totals, and KPIs
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/DateRange'
+        - $ref: '#/components/parameters/EntityType'
+        - $ref: '#/components/parameters/EntityId'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Direction'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Portfolio summary payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortfolioSummaryResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/asset-class-summary:
+    get:
+      tags: [Reports]
+      operationId: getAssetClassSummaryReport
+      summary: Get Asset Class Summary grouped rows and totals
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/DateRange'
+        - $ref: '#/components/parameters/EntityType'
+        - $ref: '#/components/parameters/EntityId'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Direction'
+      responses:
+        '200':
+          description: Asset class summary payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetClassSummaryResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/activity-detail:
+    get:
+      tags: [Reports]
+      operationId: getActivityDetailReport
+      summary: Get Activity Detail rows keyed by entity, partnership, and tax year
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/EntityId'
+        - $ref: '#/components/parameters/PartnershipId'
+        - $ref: '#/components/parameters/TaxYear'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Direction'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Activity detail payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetailResponse'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/activity-detail/{rowId}:
+    parameters:
+      - in: path
+        name: rowId
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Reports]
+      operationId: patchActivityDetailRow
+      summary: Save inline edits for an activity detail row
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateActivityDetailRowRequest'
+      responses:
+        '200':
+          description: Updated row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetailRow'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Stale row version conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reports/activity-detail/{rowId}/undo:
+    parameters:
+      - in: path
+        name: rowId
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Reports]
+      operationId: undoActivityDetailEdit
+      summary: Undo the latest eligible edit for an activity detail row
+      responses:
+        '200':
+          description: Row after undo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityDetailRow'
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: No eligible undo operation exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /reports/export:
+    get:
+      tags: [Report Exports]
+      operationId: exportReport
+      summary: Export report rows in CSV or XLSX
+      description: |
+        Phase 3 endpoint. Export output must match the same filters and sort order currently
+        applied by the user in the selected report.
+      parameters:
+        - in: query
+          name: reportType
+          required: true
+          schema:
+            $ref: '#/components/schemas/ReportType'
+        - in: query
+          name: format
+          required: true
+          schema:
+            $ref: '#/components/schemas/ExportFormat'
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/DateRange'
+        - $ref: '#/components/parameters/EntityType'
+        - $ref: '#/components/parameters/EntityId'
+        - $ref: '#/components/parameters/PartnershipId'
+        - $ref: '#/components/parameters/TaxYear'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/Direction'
+      responses:
+        '200':
+          description: Export file stream
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422':
+          description: Export cannot be produced for the requested scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  parameters:
+    Search:
+      in: query
+      name: search
+      required: false
+      schema: { type: string }
+    DateRange:
+      in: query
+      name: dateRange
+      required: false
+      schema: { type: string }
+    EntityType:
+      in: query
+      name: entityType
+      required: false
+      schema: { type: string }
+    EntityId:
+      in: query
+      name: entityId
+      required: false
+      schema: { type: string, format: uuid }
+    PartnershipId:
+      in: query
+      name: partnershipId
+      required: false
+      schema: { type: string, format: uuid }
+    TaxYear:
+      in: query
+      name: taxYear
+      required: false
+      schema: { type: integer, minimum: 1900, maximum: 9999 }
+    Sort:
+      in: query
+      name: sort
+      required: false
+      schema: { type: string }
+    Direction:
+      in: query
+      name: direction
+      required: false
+      schema:
+        type: string
+        enum: [asc, desc]
+    Page:
+      in: query
+      name: page
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      in: query
+      name: pageSize
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Caller is out of scope or lacks required role
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Requested row does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Request payload or parameters failed validation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ReportType:
+      type: string
+      enum: [portfolio_summary, asset_class_summary, activity_detail]
+
+    ExportFormat:
+      type: string
+      enum: [csv, xlsx]
+
+    ReportTotals:
+      type: object
+      required:
+        - originalCommitmentUsd
+        - unfundedUsd
+        - paidInUsd
+        - distributionsUsd
+        - residualValueUsd
+      properties:
+        originalCommitmentUsd: { type: number }
+        calledPct:
+          type: number
+          nullable: true
+        unfundedUsd: { type: number }
+        paidInUsd: { type: number }
+        distributionsUsd: { type: number }
+        residualValueUsd: { type: number }
+        dpi:
+          type: number
+          nullable: true
+        rvpi:
+          type: number
+          nullable: true
+        tvpi:
+          type: number
+          nullable: true
+        irr:
+          type: number
+          nullable: true
+
+    PortfolioSummaryKpis:
+      type: object
+      required: [totalCommitmentUsd, totalDistributionsUsd, weightedIrr, weightedTvpi]
+      properties:
+        totalCommitmentUsd: { type: number }
+        totalDistributionsUsd: { type: number }
+        weightedIrr:
+          type: number
+          nullable: true
+        weightedTvpi:
+          type: number
+          nullable: true
+
+    PortfolioSummaryRow:
+      type: object
+      required:
+        - id
+        - entityId
+        - entityName
+        - originalCommitmentUsd
+        - unfundedUsd
+        - paidInUsd
+        - distributionsUsd
+        - residualValueUsd
+        - editability
+      properties:
+        id: { type: string }
+        entityId: { type: string, format: uuid }
+        entityName: { type: string }
+        entityType: { type: string }
+        assetClassSummary:
+          type: string
+          nullable: true
+          description: Aggregated asset class across the entity's partnerships ("Mixed" when partnerships differ; null when none set).
+        partnershipCount: { type: integer, minimum: 0 }
+        originalCommitmentUsd:
+          type: number
+          nullable: true
+        calledPct:
+          type: number
+          nullable: true
+        unfundedUsd:
+          type: number
+          nullable: true
+        paidInUsd:
+          type: number
+          nullable: true
+        distributionsUsd:
+          type: number
+          nullable: true
+        residualValueUsd:
+          type: number
+          nullable: true
+        dpi:
+          type: number
+          nullable: true
+        rvpi:
+          type: number
+          nullable: true
+        tvpi:
+          type: number
+          nullable: true
+        irr:
+          type: number
+          nullable: true
+        editability:
+          type: object
+          required: [originalCommitmentEditable]
+          properties:
+            originalCommitmentEditable: { type: boolean }
+            reason:
+              type: string
+              nullable: true
+            commitmentTarget:
+              anyOf:
+                - type: object
+                  required: [partnershipId, commitmentId]
+                  properties:
+                    partnershipId: { type: string, format: uuid }
+                    commitmentId: { type: string, format: uuid }
+                - type: 'null'
+
+    PortfolioSummaryResponse:
+      type: object
+      required: [kpis, rows, totals, page]
+      properties:
+        kpis:
+          $ref: '#/components/schemas/PortfolioSummaryKpis'
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortfolioSummaryRow'
+        totals:
+          $ref: '#/components/schemas/ReportTotals'
+        page:
+          type: object
+          required: [size, offset, total]
+          properties:
+            size: { type: integer }
+            offset: { type: integer }
+            total: { type: integer }
+
+    AssetClassSummaryRow:
+      type: object
+      required: [id, assetClass, partnershipCount, originalCommitmentUsd, paidInUsd]
+      properties:
+        id: { type: string }
+        assetClass: { type: string }
+        partnershipCount: { type: integer, minimum: 0 }
+        originalCommitmentUsd:
+          type: number
+          nullable: true
+        calledPct:
+          type: number
+          nullable: true
+        unfundedUsd:
+          type: number
+          nullable: true
+        paidInUsd:
+          type: number
+          nullable: true
+        distributionsUsd:
+          type: number
+          nullable: true
+        residualValueUsd:
+          type: number
+          nullable: true
+        dpi:
+          type: number
+          nullable: true
+        rvpi:
+          type: number
+          nullable: true
+        tvpi:
+          type: number
+          nullable: true
+        irr:
+          type: number
+          nullable: true
+
+    AssetClassSummaryResponse:
+      type: object
+      required: [rows, totals]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetClassSummaryRow'
+        totals:
+          $ref: '#/components/schemas/ReportTotals'
+
+    ActivityDetailRow:
+      type: object
+      required:
+        - id
+        - entityId
+        - entityName
+        - partnershipId
+        - partnershipName
+        - taxYear
+        - negativeBasis
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        entityId: { type: string, format: uuid }
+        entityName: { type: string }
+        partnershipId: { type: string, format: uuid }
+        partnershipName: { type: string }
+        taxYear: { type: integer }
+        beginningBasisUsd:
+          type: number
+          nullable: true
+        contributionsUsd:
+          type: number
+          nullable: true
+        interestUsd:
+          type: number
+          nullable: true
+        dividendsUsd:
+          type: number
+          nullable: true
+        capitalGainsUsd:
+          type: number
+          nullable: true
+        remainingK1Usd:
+          type: number
+          nullable: true
+        totalIncomeUsd:
+          type: number
+          nullable: true
+        distributionsUsd:
+          type: number
+          nullable: true
+        otherAdjustmentsUsd:
+          type: number
+          nullable: true
+        endingTaxBasisUsd:
+          type: number
+          nullable: true
+        endingGlBalanceUsd:
+          type: number
+          nullable: true
+        bookToBookAdjustmentUsd:
+          type: number
+          nullable: true
+        k1CapitalAccountUsd:
+          type: number
+          nullable: true
+        k1VsTaxDifferenceUsd:
+          type: number
+          nullable: true
+        excessDistributionUsd:
+          type: number
+          nullable: true
+        negativeBasis: { type: boolean }
+        endingBasisUsd:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        sourceSignals:
+          type: object
+          required: [hasK1, hasCapitalActivity, hasFmv, hasManualInput]
+          properties:
+            hasK1: { type: boolean }
+            hasCapitalActivity: { type: boolean }
+            hasFmv: { type: boolean }
+            hasManualInput: { type: boolean }
+        finalizedFromK1DocumentId:
+          type: string
+          format: uuid
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+
+    ActivityDetailResponse:
+      type: object
+      required: [rows, page]
+      properties:
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityDetailRow'
+        page:
+          type: object
+          required: [size, offset, total]
+          properties:
+            size: { type: integer }
+            offset: { type: integer }
+            total: { type: integer }
+
+    UpdateActivityDetailRowRequest:
+      type: object
+      minProperties: 1
+      properties:
+        beginningBasisUsd:
+          type: number
+          nullable: true
+        contributionsUsd:
+          type: number
+          nullable: true
+        otherAdjustmentsUsd:
+          type: number
+          nullable: true
+        endingGlBalanceUsd:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        expectedUpdatedAt:
+          type: string
+          format: date-time

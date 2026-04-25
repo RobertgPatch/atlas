@@ -2,6 +2,11 @@ import { z } from 'zod'
 
 const uuidSchema = z.string().uuid()
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
+const commitmentAmountSchema = z
+  .number()
+  .finite()
+  .min(0)
+  .max(999_999_999_999.99)
 
 export const commitmentStatusSchema = z.enum(['ACTIVE', 'INACTIVE'])
 export const capitalSourceTypeSchema = z.enum(['manual', 'parsed'])
@@ -31,7 +36,7 @@ export const capitalActivityEventParamsSchema = z.object({
 
 export const createCommitmentBodySchema = z
   .object({
-    commitmentAmountUsd: z.number().min(0),
+    commitmentAmountUsd: commitmentAmountSchema,
     commitmentDate: isoDateSchema.nullish(),
     commitmentStartDate: isoDateSchema.nullish(),
     commitmentEndDate: isoDateSchema.nullish(),
@@ -55,13 +60,14 @@ export const createCommitmentBodySchema = z
 
 export const updateCommitmentBodySchema = z
   .object({
-    commitmentAmountUsd: z.number().min(0).optional(),
+    commitmentAmountUsd: commitmentAmountSchema.optional(),
     commitmentDate: isoDateSchema.nullish(),
     commitmentStartDate: isoDateSchema.nullish(),
     commitmentEndDate: isoDateSchema.nullish(),
     status: commitmentStatusSchema.optional(),
     sourceType: capitalSourceTypeSchema.optional(),
     notes: z.string().max(10_000).nullish(),
+    expectedUpdatedAt: z.string().datetime().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field required',

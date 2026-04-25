@@ -2,6 +2,7 @@ import { pool } from '../../infra/db/client.js'
 import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
 import { capitalRepository } from './capital.repository.js'
+import { getInMemoryPartnershipOverlay } from './partnerships.repository.js'
 import type { EntityDetail } from '../../../../../packages/types/src/partnership-management.js'
 
 export const entitiesRepository = {
@@ -22,6 +23,7 @@ export const entitiesRepository = {
         .filter((p) => p.entityId === entityId)
 
       const partnerships = partnershipRecords.map((p) => {
+        const overlay = getInMemoryPartnershipOverlay(p.id)
         // Latest K-1 (any status) with a distribution value, newest first.
         const candidates = k1Repository
           .listK1sForPartnership(p.id)
@@ -45,8 +47,8 @@ export const entitiesRepository = {
           id: p.id,
           name: p.name,
           entity: { id: entityId, name: entity.name },
-          assetClass: null,
-          status: 'ACTIVE' as const,
+          assetClass: overlay.assetClass,
+          status: overlay.status,
           latestK1Year: latest?.k1.taxYear ?? null,
           latestDistributionUsd: latest?.amount != null ? Number(latest.amount) : null,
           latestFmv: null,

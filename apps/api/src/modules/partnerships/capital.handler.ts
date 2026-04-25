@@ -52,6 +52,13 @@ function sendCapitalValidationError(reply: FastifyReply, error: unknown): void {
     })
     return
   }
+  if (message === 'STALE_COMMITMENT_UPDATE') {
+    void reply.status(409).send({
+      error: 'STALE_COMMITMENT_UPDATE',
+      message: 'The commitment changed since this report was loaded. Refresh and try again.',
+    })
+    return
+  }
   throw error
 }
 

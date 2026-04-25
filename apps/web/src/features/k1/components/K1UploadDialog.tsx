@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, Upload, X } from 'lucide-react'
 import { K1ApiError } from '../api/k1Client'
@@ -8,12 +8,19 @@ interface K1UploadDialogProps {
   open: boolean
   onClose: () => void
   onUploaded: () => void
+  initialFile?: File | null
 }
 
-export function K1UploadDialog({ open, onClose, onUploaded }: K1UploadDialogProps) {
+export function K1UploadDialog({ open, onClose, onUploaded, initialFile }: K1UploadDialogProps) {
   const [entityId, setEntityId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (open && initialFile) {
+      setFile(initialFile)
+    }
+  }, [open, initialFile])
 
   const lookups = useK1Lookups()
   const upload = useK1Upload()

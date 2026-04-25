@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
+import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import {
   k1ReviewParamsSchema,
@@ -90,11 +91,25 @@ export const mapPartnershipHandler = async (
   const v = requireVersion(request, reply, k.version)
   if (v == null) return
 
-  const partnership = k1Repository.getPartnership(body.data.partnershipId)
+  const partnershipScope = {
+    isAdmin: request.authUser!.role === 'Admin',
+    entityIds: k1Repository.listEntitiesForUser(request.authUser!.userId),
+  }
+  const partnership = await partnershipsRepository.getPartnershipById(
+    body.data.partnershipId,
+    partnershipScope,
+  )
   if (!partnership) return reply.code(400).send({ error: 'UNMAPPED_PARTNERSHIP' })
-  if (partnership.entityId !== k.entityId) {
+  if (partnership.entity.id !== k.entityId) {
     return reply.code(400).send({ error: 'PARTNERSHIP_ENTITY_MISMATCH' })
   }
+
+  // Keep K-1 repository partnership cache in sync for summary/listing views.
+  k1Repository.upsertPartnership({
+    id: partnership.id,
+    entityId: partnership.entity.id,
+    name: partnership.name,
+  })
 
   const before = k.partnershipId
   const updated = k1Repository.casUpdateK1(k.id, v, { partnershipId: partnership.id })

@@ -57,15 +57,15 @@ export function UserManagementPage() {
     if (devAction) return
     const confirmMsg =
       action === 'clear'
-        ? 'Remove all K-1 documents, partnerships, and review data? Users and entities will be preserved.'
-        : 'Replace current dataset with the demo K-1/partnership fixtures?'
+        ? 'This will permanently delete every entity, partnership, K-1 document, commitment, capital activity event, and FMV snapshot. Users will remain so you can sign in, but you will need to create a new entity before you can do anything. Continue?'
+        : 'Replace the current dataset with the full demo fixtures (entities, partnerships, K-1s, commitments, capital activity, and FMVs)?'
     if (!window.confirm(confirmMsg)) return
     setDevAction(action)
     setDevMessage(null)
     try {
       if (action === 'clear') {
         await authClient.devClearData()
-        setDevMessage('All K-1 and partnership data cleared.')
+        setDevMessage('All data cleared. Create an entity to begin.')
       } else {
         await authClient.devSeedData()
         setDevMessage('Demo data populated.')
@@ -196,7 +196,10 @@ export function UserManagementPage() {
                 Dev Data
               </h3>
               <p className="text-xs text-text-secondary mt-1">
-                Reset the in-memory dataset or reload demo K-1s and partnerships for UI testing.
+                <strong>Clear all data</strong> wipes every entity, partnership, K-1, commitment,
+                capital activity, and FMV — returning to a first-login state where you must create
+                an entity before doing anything. <strong>Populate demo data</strong> reloads the
+                full demo set including asset classes, commitments, capital activity, and FMVs.
               </p>
               {devMessage && (
                 <p className="text-xs text-atlas-gold mt-2">{devMessage}</p>

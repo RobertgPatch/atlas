@@ -1,19 +1,12 @@
 import React, { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  ArrowLeftIcon,
-  ArrowRightLeftIcon,
   PencilIcon,
   ChevronRightIcon,
   AlertCircleIcon,
-  Building2Icon,
-  DollarSignIcon,
-  TrendingUpIcon,
-  CalendarIcon,
 } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
 import { PageHeader } from '../components/PageHeader'
-import { KpiCard } from '../components/KpiCard'
 import { LoadingState } from '../components/LoadingState'
 import { ErrorState } from '../components/ErrorState'
 import { SectionCard } from '../features/partnerships/components/SectionCard'
@@ -43,13 +36,6 @@ import type {
   CreateCapitalActivityEventRequest,
   CreatePartnershipCommitmentRequest,
 } from 'packages/types/src'
-
-function formatUsd(value: number | null | undefined): string {
-  if (value == null) return '—'
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
-}
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—'
@@ -191,61 +177,27 @@ export function PartnershipDetail() {
                     }
                   : undefined
               }
-              secondaryActions={[
-                ...(isAdmin
-                  ? [
-                      {
-                        label: 'Add Commitment',
-                        icon: <DollarSignIcon className="w-4 h-4" />,
-                        onClick: () => setAddCommitmentOpen(true),
-                      },
-                      {
-                        label: 'Add Capital Activity',
-                        icon: <ArrowRightLeftIcon className="w-4 h-4" />,
-                        onClick: () => setAddCapitalActivityOpen(true),
-                      },
-                    ]
-                  : []),
-                {
-                  label: 'Back to Directory',
-                  icon: <ArrowLeftIcon className="w-4 h-4" />,
-                  onClick: () => navigate('/partnerships'),
-                },
-              ]}
             />
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
-              <KpiCard
-                label="Total Latest Asset FMV"
-                value={assetSummary?.totalLatestAssetFmvUsd == null ? '—' : formatUsd(assetSummary.totalLatestAssetFmvUsd)}
-                icon={<TrendingUpIcon className="w-4 h-4 text-atlas-gold" />}
-                accentColor="#C9A96E"
-              />
-              <KpiCard
-                label="Asset Count"
-                value={assetSummary?.assetCount ?? '—'}
-                subtext={assetSummary ? `${assetSummary.valuedAssetCount} valued` : undefined}
-                icon={<Building2Icon className="w-4 h-4 text-atlas-gold" />}
-                accentColor="#C9A96E"
-              />
-              <KpiCard
-                label="Latest Partnership-Level FMV"
-                value={formatUsd(data.kpis.latestFmvUsd)}
-                icon={<TrendingUpIcon className="w-4 h-4 text-atlas-gold" />}
-                accentColor="#C9A96E"
-              />
-              <KpiCard
-                label="Latest K-1 Year"
-                value={data.kpis.latestK1Year ?? '—'}
-                icon={<CalendarIcon className="w-4 h-4 text-atlas-gold" />}
-                accentColor="#C9A96E"
-              />
-              <KpiCard
-                label="Latest Reported Distribution"
-                value={formatUsd(data.kpis.latestDistributionUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
-                accentColor="#C9A96E"
-              />
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-border bg-white px-4 py-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-text-tertiary">Status</span>
+                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-text-primary">
+                  {data.partnership.status}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-text-tertiary">Asset Class</span>
+                <span className="font-medium text-text-primary">{data.partnership.assetClass ?? '—'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-text-tertiary">Latest K-1</span>
+                <span className="font-medium text-text-primary tabular-nums">{data.kpis.latestK1Year ?? '—'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-text-tertiary">Updated</span>
+                <span className="text-text-secondary">{formatDateTime(data.partnership.updatedAt)}</span>
+              </div>
             </div>
 
             {valuationVariance && (
@@ -287,35 +239,6 @@ export function PartnershipDetail() {
               isAdmin={isAdmin}
               onAddActivity={() => setAddCapitalActivityOpen(true)}
             />
-
-            <SectionCard title="Partnership Details">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 px-5 py-4">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Asset Class</p>
-                  <p className="mt-1 text-sm font-medium text-text-primary">
-                    {data.partnership.assetClass ?? '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Status</p>
-                  <p className="mt-1 text-sm font-medium text-text-primary">
-                    {data.partnership.status}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Entity</p>
-                  <p className="mt-1 text-sm font-medium text-text-primary">
-                    {data.partnership.entity.name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Last Updated</p>
-                  <p className="mt-1 text-sm font-medium text-text-primary">
-                    {formatDateTime(data.partnership.updatedAt)}
-                  </p>
-                </div>
-              </div>
-            </SectionCard>
 
             <AssetsSection
               rows={assetRows}
