@@ -52,7 +52,7 @@ export interface K1ReviewSession {
   status: K1Status
   partnership: { id: string | null; name: string | null; rawName: string | null }
   entity: { id: string | null; name: string | null }
-  taxYear: number
+  taxYear: number | null
   uploadedAt: string
   approvedByUserId: string | null
   finalizedByUserId: string | null
@@ -79,6 +79,7 @@ export type K1ActionBlockingReason =
   | 'UNMAPPED_ENTITY'
   | 'UNMAPPED_PARTNERSHIP'
   | 'MISSING_REPORTED_DISTRIBUTION'
+  | 'SAME_ACTOR_FINALIZE_FORBIDDEN'
 
 export interface K1CorrectionRequestItem {
   fieldId: string

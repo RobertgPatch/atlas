@@ -3,6 +3,7 @@ import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 import { buildMultipart, fakePdfBytes } from './helpers/multipart.js'
 import { k1Repository } from '../src/modules/k1/k1.repository.js'
 import { auditRepository } from '../src/modules/audit/audit.repository.js'
+import { setExtractorForTests } from '../src/modules/k1/extraction/index.js'
 import { stubExtractor } from '../src/modules/k1/extraction/stubExtractor.js'
 
 // T037 — Integration: extraction lifecycle
@@ -12,23 +13,20 @@ describe('extraction pipeline lifecycle (FR-019, FR-024)', () => {
   let f: TestFixture
 
   beforeEach(async () => {
+    setExtractorForTests(stubExtractor)
     f = await createTestFixture()
   })
 
   afterEach(async () => {
     await f.app.close()
+    setExtractorForTests(undefined)
     vi.restoreAllMocks()
   })
 
   const uploadOne = async () => {
-    const partnership = f.partnerships.find((p) => p.name === 'Sequoia Heritage Fund')!
-    const entity = f.entities.find((e) => e.id === partnership.entityId)!
+    const entity = f.entities.find((e) => e.name === 'Whitfield Holdings LLC')!
     const { body, contentType } = buildMultipart(
-      [
-        { name: 'partnershipId', value: partnership.id },
-        { name: 'entityId', value: entity.id },
-        { name: 'taxYear', value: '2023' },
-      ],
+      [{ name: 'entityId', value: entity.id }],
       [
         {
           name: 'file',
@@ -58,6 +56,8 @@ describe('extraction pipeline lifecycle (FR-019, FR-024)', () => {
     const after = k1Repository.getK1Document(id)!
     expect(['NEEDS_REVIEW', 'READY_FOR_APPROVAL']).toContain(after.processingStatus)
     expect(after.parseErrorCode).toBeNull()
+    expect(after.partnershipId).toBeTruthy()
+    expect(after.taxYear).not.toBeNull()
 
     const completed = auditRepository
       .getInMemoryEvents()

@@ -138,7 +138,10 @@ export const sessionHandler = async (
   if (hasEmptyRequired) finalizeBlockingReasons.push('EMPTY_REQUIRED')
   if (!k.entityId) finalizeBlockingReasons.push('UNMAPPED_ENTITY')
   if (!k.partnershipId) finalizeBlockingReasons.push('UNMAPPED_PARTNERSHIP')
-  // Box 19A is no longer a blocker in single-admin mode — missing value defaults to $0 on finalize.
+  // Two-person rule: the admin who approved cannot also finalize.
+  if (k.approvedByUserId && k.approvedByUserId === request.authUser?.userId) {
+    finalizeBlockingReasons.push('SAME_ACTOR_FINALIZE_FORBIDDEN')
+  }
   const canFinalize = finalizeBlockingReasons.length === 0
 
   const body: K1ReviewSession = {
@@ -148,7 +151,7 @@ export const sessionHandler = async (
     partnership: {
       id: partnership?.id ?? null,
       name: partnership?.name ?? null,
-      rawName: partnership?.name ?? null,
+      rawName: k.partnershipNameRaw ?? partnership?.name ?? null,
     },
     entity: { id: entity?.id ?? null, name: entity?.name ?? null },
     taxYear: k.taxYear,

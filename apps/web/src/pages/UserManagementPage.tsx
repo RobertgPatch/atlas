@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Plus, ShieldAlert, UserCog } from 'lucide-react'
+import { Database, Loader2, Plus, ShieldAlert, Trash2, UserCog } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/shared/AppShell'
 import { DataTable, type Column } from '../components/shared/DataTable'
 import { FilterToolbar } from '../components/shared/FilterToolbar'
@@ -14,11 +15,14 @@ import { useSession } from '../auth/sessionStore'
 
 export function UserManagementPage() {
   const { session } = useSession()
+  const navigate = useNavigate()
   const [items, setItems] = useState<UserSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<AtlasRole>('User')
+  const [devAction, setDevAction] = useState<null | 'clear' | 'seed'>(null)
+  const [devMessage, setDevMessage] = useState<string | null>(null)
 
   const loadUsers = async () => {
     try {
@@ -46,6 +50,30 @@ export function UserManagementPage() {
       await loadUsers()
     } catch {
       setError('Invite failed. Please try again.')
+    }
+  }
+
+  const handleDev = async (action: 'clear' | 'seed') => {
+    if (devAction) return
+    const confirmMsg =
+      action === 'clear'
+        ? 'Remove all K-1 documents, partnerships, and review data? Users and entities will be preserved.'
+        : 'Replace current dataset with the demo K-1/partnership fixtures?'
+    if (!window.confirm(confirmMsg)) return
+    setDevAction(action)
+    setDevMessage(null)
+    try {
+      if (action === 'clear') {
+        await authClient.devClearData()
+        setDevMessage('All K-1 and partnership data cleared.')
+      } else {
+        await authClient.devSeedData()
+        setDevMessage('Demo data populated.')
+      }
+    } catch {
+      setDevMessage('Action failed. Please try again.')
+    } finally {
+      setDevAction(null)
     }
   }
 
@@ -159,6 +187,51 @@ export function UserManagementPage() {
         </button>
       </div>
 
+      {session?.role === 'Admin' && (
+        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start justify-between gap-4 flex-col sm:flex-row">
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
+                <Database className="w-4 h-4 text-text-secondary" />
+                Dev Data
+              </h3>
+              <p className="text-xs text-text-secondary mt-1">
+                Reset the in-memory dataset or reload demo K-1s and partnerships for UI testing.
+              </p>
+              {devMessage && (
+                <p className="text-xs text-atlas-gold mt-2">{devMessage}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleDev('clear')}
+                disabled={devAction !== null}
+                className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50 disabled:opacity-60 disabled:cursor-wait"
+              >
+                {devAction === 'clear' ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4 mr-2" />
+                )}
+                Clear all data
+              </button>
+              <button
+                onClick={() => void handleDev('seed')}
+                disabled={devAction !== null}
+                className="inline-flex items-center px-3 py-2 rounded-lg bg-text-primary text-white text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-wait"
+              >
+                {devAction === 'seed' ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Database className="w-4 h-4 mr-2" />
+                )}
+                Populate demo data
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <FilterToolbar />
 
       {isLoading && <LoadingState rows={5} columns={4} />}
@@ -171,7 +244,11 @@ export function UserManagementPage() {
         />
       )}
       {!isLoading && !error && items.length > 0 && (
-        <DataTable columns={columns} data={items} />
+        <DataTable
+          columns={columns}
+          data={items}
+          onRowClick={(row) => navigate(`/admin/users/${row.id}`)}
+        />
       )}
     </AppShell>
   )

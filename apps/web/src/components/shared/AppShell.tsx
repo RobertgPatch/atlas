@@ -5,6 +5,7 @@ import {
   FileText,
   UploadCloud,
   Building2,
+  Briefcase,
   BarChart3,
   Users,
   Bell,
@@ -35,7 +36,8 @@ export function AppShell({
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'K-1 Processing', href: '/k1', icon: FileText },
     { name: 'Upload Center', href: '/upload', icon: UploadCloud },
-    { name: 'Partnerships', href: '/partnerships', icon: Building2 },
+    { name: 'Entities', href: '/entities', icon: Building2 },
+    { name: 'Partnerships', href: '/partnerships', icon: Briefcase },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
   ]
 

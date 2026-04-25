@@ -50,6 +50,28 @@ type AzureErrorCode =
 
 type AzureAnalyzeResult = AnalyzeResult & OcrAnalyzeResult & CustomAnalyzeResult
 
+function extractTaxYearFromContent(content: string | undefined): number | null {
+  if (!content) return null
+  const currentYear = new Date().getFullYear() + 1
+  const patterns = [
+    /tax\s+year\s+(20\d{2})/i,
+    /calendar\s+year\s+(20\d{2})/i,
+    /for\s+calendar\s+year\s+(20\d{2})/i,
+    /ended\s+\w+\s+\d{1,2},\s+(20\d{2})/i,
+  ]
+  for (const pattern of patterns) {
+    const match = pattern.exec(content)
+    if (!match?.[1]) continue
+    const year = Number(match[1])
+    if (year >= 2000 && year <= currentYear) return year
+  }
+  return null
+}
+
+function extractPartnershipNameFromFields(fieldValues: Array<{ fieldName: string; rawValue: string | null }>): string | null {
+  return fieldValues.find((field) => field.fieldName === 'partnership_name')?.rawValue?.trim() ?? null
+}
+
 function classifyHttpError(httpStatus: number): AzureErrorCode {
   if (httpStatus === 401 || httpStatus === 403) return 'PARSE_AUTH'
   if (httpStatus === 400 || httpStatus === 404) return 'PARSE_MODEL_ERROR'
@@ -249,6 +271,8 @@ export function createAzureExtractor(): K1Extractor {
       const durationMs = Date.now() - startMs
 
       if (mapped.outcome === 'SUCCESS') {
+        mapped.extractedPartnershipName = extractPartnershipNameFromFields(mapped.fieldValues)
+        mapped.extractedTaxYear = extractTaxYearFromContent(analyzeResult.content)
         const fieldValues = mapped.fieldValues
         const confidenceScores = fieldValues
           .map((fv) => fv.confidenceScore)

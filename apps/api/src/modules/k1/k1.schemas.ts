@@ -49,9 +49,7 @@ export const detailParamsSchema = z.object({
 // Upload body parser ----------------------------------------------------------
 
 export const uploadBodySchema = z.object({
-  partnershipId: uuidSchema,
   entityId: uuidSchema,
-  taxYear: taxYearSchema,
   replaceDocumentId: uuidSchema.optional(),
 })
 

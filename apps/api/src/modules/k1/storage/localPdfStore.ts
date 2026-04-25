@@ -4,12 +4,12 @@ import type { Readable } from 'node:stream'
 import { config } from '../../../config.js'
 
 export interface PdfStore {
-  put(documentId: string, taxYear: number, buffer: Buffer): Promise<string>
+  put(documentId: string, taxYearOrFolder: number | string, buffer: Buffer): Promise<string>
   get(storagePath: string): Readable
   delete(storagePath: string): Promise<void>
 }
 
-const yearFolder = (taxYear: number) => String(taxYear)
+const yearFolder = (taxYearOrFolder: number | string) => String(taxYearOrFolder)
 const storageRoot = path.resolve(config.storageRoot)
 const storageRootPrefix = `${storageRoot}${path.sep}`
 

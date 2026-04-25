@@ -13,6 +13,9 @@ interface UserRecord {
   status: UserStatus
   mfaSecret: string | null
   mfaEnrollmentState: MfaEnrollmentState
+  createdAt: Date
+  lastLoginAt: Date | null
+  loginCount: number
 }
 
 interface SessionRecord {
@@ -61,6 +64,9 @@ const seedUsers = () => {
     status: 'Active',
     mfaSecret: null,
     mfaEnrollmentState: 'RESET_REQUIRED',
+    createdAt: now(),
+    lastLoginAt: null,
+    loginCount: 0,
   })
 
   const userId = randomUUID()
@@ -72,6 +78,9 @@ const seedUsers = () => {
     status: 'Active',
     mfaSecret: null,
     mfaEnrollmentState: 'RESET_REQUIRED',
+    createdAt: now(),
+    lastLoginAt: null,
+    loginCount: 0,
   })
 }
 
@@ -150,6 +159,14 @@ export const authRepository = {
       ),
     }
     sessions.set(session.id, session)
+
+    const user = users.get(userId)
+    if (user) {
+      user.lastLoginAt = issuedAt
+      user.loginCount += 1
+      users.set(userId, user)
+    }
+
     return { token, session }
   },
 
@@ -255,6 +272,9 @@ export const authRepository = {
       status: 'Invited',
       mfaSecret: null,
       mfaEnrollmentState: 'PENDING',
+      createdAt: now(),
+      lastLoginAt: null,
+      loginCount: 0,
     }
     users.set(user.id, user)
     return user

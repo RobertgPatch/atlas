@@ -33,9 +33,10 @@ export interface DocumentRecord {
 export interface K1DocumentRecord {
   id: string
   documentId: string
-  partnershipId: string
+  partnershipId: string | null
   entityId: string
-  taxYear: number
+  taxYear: number | null
+  partnershipNameRaw: string | null
   processingStatus: K1Status
   parseErrorCode: string | null
   parseErrorMessage: string | null
@@ -171,6 +172,7 @@ const seed = () => {
         partnershipId: p.id,
         entityId: p.entityId,
         taxYear: 2024,
+        partnershipNameRaw: p.name,
         processingStatus: d.status,
         parseErrorCode: d.err?.code ?? null,
         parseErrorMessage: d.err?.message ?? null,
@@ -202,7 +204,33 @@ const seed = () => {
     }
   }
 }
-seed()
+
+/** Always create empty entity/membership skeleton so users can log in and upload K-1s. */
+const seedMinimal = () => {
+  if (entities.size > 0) return
+  const makeEntity = (name: string): EntityRecord => {
+    const e: EntityRecord = { id: randomUUID(), name }
+    entities.set(e.id, e)
+    return e
+  }
+  const trust = makeEntity('Whitfield Family Trust')
+  const holdings = makeEntity('Whitfield Holdings LLC')
+  const realty = makeEntity('Whitfield Realty LLC')
+  for (const user of authRepository.listUsers()) {
+    for (const entity of [trust, holdings, realty]) {
+      memberships.push({ userId: user.id, entityId: entity.id })
+    }
+  }
+}
+
+// Auto-seed demo K-1s/partnerships is gated so a fresh dev instance starts clean.
+// Set SEED_DEMO_DATA=true in env to preload the dashboard with demo rows, or
+// call POST /v1/admin/dev/seed at runtime from the Admin page.
+if ((process.env.SEED_DEMO_DATA ?? 'false') === 'true') {
+  seed()
+} else {
+  seedMinimal()
+}
 
 export interface ListFilters {
   taxYear?: number
@@ -238,18 +266,19 @@ const countOpenIssues = (k1Id: string) =>
   ).length
 
 const toSummary = (k: K1DocumentRecord): K1DocumentSummary => {
-  const partnership = partnerships.get(k.partnershipId)
+  const partnership = k.partnershipId ? partnerships.get(k.partnershipId) : undefined
   const entity = entities.get(k.entityId)
-  if (!partnership || !entity) {
+  if (!entity) {
     throw new Error(
       `K-1 ${k.id} references missing partnership/entity`,
     )
   }
+  const partnershipName = partnership?.name ?? k.partnershipNameRaw ?? null
   return {
     id: k.id,
     documentId: k.documentId,
-    documentName: `K-1 — ${partnership.name}`,
-    partnership: { id: partnership.id, name: partnership.name },
+    documentName: partnershipName ? `K-1 — ${partnershipName}` : 'K-1 — Pending partnership resolution',
+    partnership: { id: partnership?.id ?? null, name: partnershipName },
     entity: { id: entity.id, name: entity.name },
     taxYear: k.taxYear,
     status: k.processingStatus,
@@ -278,11 +307,11 @@ const compareSummaries = (
     case 'uploaded_at':
       return dir * (new Date(a.uploadedAt).getTime() - new Date(b.uploadedAt).getTime())
     case 'partnership':
-      return dir * a.partnership.name.localeCompare(b.partnership.name)
+      return dir * (a.partnership.name ?? '').localeCompare(b.partnership.name ?? '')
     case 'entity':
       return dir * a.entity.name.localeCompare(b.entity.name)
     case 'tax_year':
-      return dir * (a.taxYear - b.taxYear)
+      return dir * ((a.taxYear ?? -1) - (b.taxYear ?? -1))
     case 'status':
       return dir * (statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status))
     case 'issues':
@@ -318,6 +347,67 @@ export const k1Repository = {
     return partnerships.get(id)
   },
 
+  findPartnershipByEntityAndName(entityId: string, name: string): PartnershipRecord | undefined {
+    const needle = name.trim().toLowerCase()
+    return [...partnerships.values()].find(
+      (partnership) => partnership.entityId === entityId && partnership.name.trim().toLowerCase() === needle,
+    )
+  },
+
+  createPartnership(args: { entityId: string; name: string }): PartnershipRecord {
+    const partnership: PartnershipRecord = {
+      id: randomUUID(),
+      entityId: args.entityId,
+      name: args.name.trim(),
+    }
+    partnerships.set(partnership.id, partnership)
+    return partnership
+  },
+
+  /** Create a new entity. Grants membership to every existing user so the entity is visible. */
+  createEntity(args: { name: string }): EntityRecord {
+    const entity: EntityRecord = { id: randomUUID(), name: args.name.trim() }
+    entities.set(entity.id, entity)
+    for (const user of authRepository.listUsers()) {
+      if (!memberships.some((m) => m.userId === user.id && m.entityId === entity.id)) {
+        memberships.push({ userId: user.id, entityId: entity.id })
+      }
+    }
+    return entity
+  },
+
+  updateEntity(id: string, patch: { name?: string }): EntityRecord | undefined {
+    const e = entities.get(id)
+    if (!e) return undefined
+    if (patch.name !== undefined) e.name = patch.name.trim()
+    entities.set(id, e)
+    return e
+  },
+
+  /** Remove an entity. Caller MUST check there are no partnerships attached first. */
+  deleteEntity(id: string): boolean {
+    if (!entities.has(id)) return false
+    entities.delete(id)
+    // Drop memberships for the removed entity.
+    for (let i = memberships.length - 1; i >= 0; i--) {
+      if (memberships[i].entityId === id) memberships.splice(i, 1)
+    }
+    return true
+  },
+
+  countPartnershipsForEntity(entityId: string): number {
+    let n = 0
+    for (const p of partnerships.values()) if (p.entityId === entityId) n++
+    return n
+  },
+
+  /** List all non-superseded K-1 documents for a partnership (unscoped — caller enforces scope). */
+  listK1sForPartnership(partnershipId: string): K1DocumentRecord[] {
+    return [...k1Documents.values()].filter(
+      (k) => !k.supersededByDocumentId && k.partnershipId === partnershipId,
+    )
+  },
+
   getK1Document(id: string): K1DocumentRecord | undefined {
     return k1Documents.get(id)
   },
@@ -348,13 +438,15 @@ export const k1Repository = {
     const all = [...k1Documents.values()]
       .filter((k) => !k.supersededByDocumentId)
       .filter((k) => allowed.includes(k.entityId))
-      .filter((k) => !filters.taxYear || k.taxYear === filters.taxYear)
+      // Always show docs whose tax year hasn't been resolved yet (null) so they
+      // remain visible immediately after upload until async parse fills it in.
+      .filter((k) => !filters.taxYear || k.taxYear === filters.taxYear || k.taxYear === null)
       .filter((k) => !filters.status || k.processingStatus === filters.status)
       .map(toSummary)
       .filter((s) =>
         !q ||
         s.documentName.toLowerCase().includes(q) ||
-        s.partnership.name.toLowerCase().includes(q),
+        (s.partnership.name ?? '').toLowerCase().includes(q),
       )
       .sort((a, b) => compareSummaries(a, b, filters.sort, filters.direction))
 
@@ -395,7 +487,9 @@ export const k1Repository = {
       for (const k of k1Documents.values()) {
         if (k.supersededByDocumentId) continue
         if (!allowed.includes(k.entityId)) continue
-        if (scope.taxYear && k.taxYear !== scope.taxYear) continue
+        // Pending docs (taxYear === null) count toward all year scopes so the
+        // KPI tiles update immediately after upload.
+        if (scope.taxYear && k.taxYear !== null && k.taxYear !== scope.taxYear) continue
         counts[k.processingStatus] += 1
         if (k.processingStatus === 'PROCESSING' && k.parseErrorCode) {
           processingWithErrors += 1
@@ -417,10 +511,12 @@ export const k1Repository = {
     partnershipId: string,
     entityId: string,
     taxYear: number,
+    excludeK1DocumentId?: string,
   ): K1DocumentRecord | undefined {
     return [...k1Documents.values()].find(
       (k) =>
         !k.supersededByDocumentId &&
+        k.id !== excludeK1DocumentId &&
         k.partnershipId === partnershipId &&
         k.entityId === entityId &&
         k.taxYear === taxYear,
@@ -431,9 +527,7 @@ export const k1Repository = {
 
   insertUpload(args: {
     uploaderUserId: string
-    partnershipId: string
     entityId: string
-    taxYear: number
     storagePath: string
     mimeType: string
     sizeBytes: number
@@ -452,9 +546,10 @@ export const k1Repository = {
     const k1: K1DocumentRecord = {
       id: randomUUID(),
       documentId: document.id,
-      partnershipId: args.partnershipId,
+      partnershipId: null,
       entityId: args.entityId,
-      taxYear: args.taxYear,
+      taxYear: null,
+      partnershipNameRaw: null,
       processingStatus: 'UPLOADED',
       parseErrorCode: null,
       parseErrorMessage: null,
@@ -469,6 +564,24 @@ export const k1Repository = {
     }
     k1Documents.set(k1.id, k1)
     return { document, k1 }
+  },
+
+  resolveUploadMetadata(args: {
+    k1DocumentId: string
+    partnershipId: string
+    partnershipNameRaw: string
+    taxYear: number
+  }): K1DocumentRecord | undefined {
+    const k1 = k1Documents.get(args.k1DocumentId)
+    if (!k1) return undefined
+    const next: K1DocumentRecord = {
+      ...k1,
+      partnershipId: args.partnershipId,
+      partnershipNameRaw: args.partnershipNameRaw,
+      taxYear: args.taxYear,
+    }
+    k1Documents.set(next.id, next)
+    return next
   },
 
   supersede(args: {
@@ -555,6 +668,10 @@ export const k1Repository = {
     return issue
   },
 
+  listIssues(): K1IssueRecord[] {
+    return [...k1Issues.values()]
+  },
+
   // ---- Feature 003: review helpers ----
 
   listIssuesForK1(k1DocumentId: string): K1IssueRecord[] {
@@ -628,6 +745,25 @@ export const k1Repository = {
     seed()
   },
 
+  /** Wipe all K-1/partnership/document data but keep entities + memberships (so users can log in). */
+  _debugClearAll(): void {
+    partnerships.clear()
+    documents.clear()
+    k1Documents.clear()
+    k1Issues.clear()
+    documentVersions.clear()
+    seeded = false
+    // Re-seed empty entities so users still have scope.
+    entities.clear()
+    memberships.length = 0
+    seedMinimal()
+  },
+
+  /** Force-run the full demo seed (wipes + re-seeds everything). */
+  _debugSeedAll(): void {
+    this._debugReset()
+  },
+
   _debugSeedK1(args: {
     partnershipName: string
     status: K1Status
@@ -653,6 +789,7 @@ export const k1Repository = {
       partnershipId: p.id,
       entityId: p.entityId,
       taxYear: args.taxYear,
+      partnershipNameRaw: p.name,
       processingStatus: args.status,
       parseErrorCode: args.parseError?.code ?? null,
       parseErrorMessage: args.parseError?.message ?? null,

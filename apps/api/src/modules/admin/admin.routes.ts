@@ -3,6 +3,7 @@ import { requireAdminAccess } from './admin.guard.js'
 import {
   changeRoleHandler,
   deactivateUserHandler,
+  getUserDetailHandler,
   inviteUserHandler,
   listUsersHandler,
   reactivateUserHandler,
@@ -11,6 +12,7 @@ import {
 
 export const registerAdminRoutes = async (app: FastifyInstance) => {
   app.get('/admin/users', { preHandler: [requireAdminAccess] }, listUsersHandler)
+  app.get('/admin/users/:userId', { preHandler: [requireAdminAccess] }, getUserDetailHandler)
   app.post('/admin/users/invitations', { preHandler: [requireAdminAccess] }, inviteUserHandler)
   app.patch('/admin/users/:userId/role', { preHandler: [requireAdminAccess] }, changeRoleHandler)
   app.post('/admin/users/:userId/deactivate', { preHandler: [requireAdminAccess] }, deactivateUserHandler)

@@ -88,12 +88,12 @@ export function MFASetupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 py-10">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-lg"
+        className="w-full max-w-xl"
       >
         <div className="flex items-center gap-2 mb-8 justify-center">
           <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
@@ -104,15 +104,18 @@ export function MFASetupPage() {
           </span>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 sm:p-10">
+          {/* Header */}
+          <div className="flex items-start gap-3 mb-6">
+            <div className="w-10 h-10 flex-shrink-0 rounded-full bg-emerald-50 text-emerald-700 flex items-center justify-center">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900">Set up authenticator MFA</h2>
-              <p className="text-sm text-gray-500">
-                You must register an authenticator app before entering Atlas.
+              <h2 className="text-2xl font-semibold text-gray-900 leading-tight">
+                Set up authenticator MFA
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Register an authenticator app to finish signing in to Atlas.
               </p>
             </div>
           </div>
@@ -123,74 +126,95 @@ export function MFASetupPage() {
             </div>
           )}
 
-          <div className="grid gap-6 md:grid-cols-[240px_1fr] items-start">
-            <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
-              <img
-                src={enrollment.qrCodeDataUrl}
-                alt="Scan this QR code with Google Authenticator"
-                className="w-full rounded-lg bg-white"
-              />
+          {/* Step 1: Scan QR */}
+          <section className="mb-8">
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-semibold">1</span>
+              <h3 className="text-sm font-semibold text-gray-900">Scan the QR code</h3>
             </div>
+            <p className="text-sm text-gray-600 mb-4 ml-8">
+              Open Google Authenticator, 1Password, or any TOTP app, tap "Add account", and scan this code.
+            </p>
+            <div className="ml-8 flex justify-center sm:justify-start">
+              <div className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                <img
+                  src={enrollment.qrCodeDataUrl}
+                  alt="Scan this QR code with your authenticator app"
+                  className="w-48 h-48 block"
+                />
+              </div>
+            </div>
+          </section>
 
-            <div className="space-y-4">
-              <ol className="text-sm text-gray-600 space-y-2 list-decimal pl-5">
-                <li>Open Google Authenticator or another TOTP app.</li>
-                <li>Choose to add an account and scan this QR code.</li>
-                <li>Enter the first 6-digit code below to activate MFA.</li>
-              </ol>
+          {/* Step 2: Manual entry fallback */}
+          <section className="mb-8">
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-semibold">2</span>
+              <h3 className="text-sm font-semibold text-gray-900">Or enter the key manually</h3>
+            </div>
+            <div className="ml-8">
+              <p className="text-sm text-gray-600 mb-3">
+                If your app can't scan the code, add an account manually with this setup key.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <code className="flex-1 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm font-mono text-gray-900 tracking-wide break-all">
+                  {enrollment.manualEntryKey}
+                </code>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
+          </section>
 
-              <div className="rounded-xl border border-gray-200 p-4 bg-gray-50">
-                <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">
-                  Manual entry key
-                </p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 rounded-lg bg-white border border-gray-200 px-3 py-2 text-sm text-gray-900 break-all">
-                    {enrollment.manualEntryKey}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 hover:border-gray-300"
-                  >
-                    <Copy className="w-4 h-4" />
-                    {copied ? 'Copied' : 'Copy'}
-                  </button>
-                </div>
+          {/* Step 3: Verification */}
+          <section>
+            <div className="flex items-baseline gap-2 mb-3">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-900 text-white text-xs font-semibold">3</span>
+              <h3 className="text-sm font-semibold text-gray-900">Enter the 6-digit code</h3>
+            </div>
+            <form onSubmit={handleSubmit} className="ml-8 space-y-4">
+              <p className="text-sm text-gray-600">
+                After adding the account, enter the current code shown in your authenticator app to activate MFA.
+              </p>
+              <div>
+                <label htmlFor="mfa-code" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Verification code
+                </label>
+                <input
+                  id="mfa-code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                  className="block w-full max-w-xs px-4 py-3 border border-gray-200 rounded-lg text-lg font-mono tracking-[0.4em] text-center placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-colors"
+                  placeholder="123456"
+                  maxLength={6}
+                />
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Verification code
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    value={code}
-                    onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="block w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-colors"
-                    placeholder="123456"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-atlas-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Activating MFA...
-                    </>
-                  ) : (
-                    'Activate MFA'
-                  )}
-                </button>
-              </form>
-            </div>
-          </div>
+              <button
+                type="submit"
+                disabled={isLoading || code.length !== 6}
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-atlas-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Activating MFA…
+                  </>
+                ) : (
+                  'Activate MFA'
+                )}
+              </button>
+            </form>
+          </section>
         </div>
 
         <div className="mt-6 text-center">

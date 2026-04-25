@@ -121,7 +121,7 @@ export function K1Dashboard() {
       key: 'partnership',
       header: 'Partnership',
       sortable: true,
-      accessor: (row) => row.partnership.name,
+      accessor: (row) => row.partnership.name ?? 'Resolving partnership…',
     },
     {
       key: 'entity',
@@ -134,7 +134,7 @@ export function K1Dashboard() {
       header: 'Year',
       sortable: true,
       align: 'center',
-      accessor: (row) => row.taxYear,
+      accessor: (row) => row.taxYear ?? '—',
     },
     {
       key: 'status',
@@ -154,10 +154,15 @@ export function K1Dashboard() {
                 e.stopPropagation()
                 reparse.mutate(row.id)
               }}
-              className="inline-flex items-center gap-1 text-error text-xs hover:underline"
+              disabled={reparse.isPending && reparse.variables === row.id}
+              className="inline-flex items-center gap-1 text-error text-xs hover:underline disabled:opacity-50 disabled:cursor-wait"
             >
-              <AlertCircle className="w-3.5 h-3.5" />
-              Re-parse
+              {reparse.isPending && reparse.variables === row.id ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <AlertCircle className="w-3.5 h-3.5" />
+              )}
+              {reparse.isPending && reparse.variables === row.id ? 'Re-parsing…' : 'Re-parse'}
             </button>
           )}
         </div>

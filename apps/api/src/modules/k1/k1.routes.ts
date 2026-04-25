@@ -3,6 +3,8 @@ import { ZodError } from 'zod'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { auditRepository } from '../audit/audit.repository.js'
+import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
+import { withTransaction } from '../../infra/db/client.js'
 import { k1Repository } from './k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
 import { localPdfStore } from './storage/localPdfStore.js'
@@ -16,7 +18,6 @@ import {
   uploadBodySchema,
 } from './k1.schemas.js'
 import type {
-  K1DuplicateResponse,
   K1ListResponse,
   K1Status,
   K1UploadResponse,
@@ -28,6 +29,78 @@ const sendZodError = (reply: FastifyReply, err: ZodError) =>
     error: 'VALIDATION_ERROR',
     issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
   })
+
+const PARSE_MISSING_METADATA = 'PARSE_MISSING_REQUIRED_METADATA'
+
+const ensureDbEntityAndPartnership = async (args: {
+  entityId: string
+  entityName: string
+  entityType: string | null
+  partnershipId: string
+  partnershipName: string
+  actorUserId: string
+}): Promise<void> => {
+  if (!config.databaseUrl) return
+
+  try {
+    await withTransaction(async (client) => {
+      const entityResult = await client.query<{ id: string }>(
+        `select id from entities where id = $1`,
+        [args.entityId],
+      )
+
+      if (!entityResult.rows[0]) {
+        await client.query(
+          `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
+           values ($1, $2, $3, 'ACTIVE', null, now(), now())`,
+          [args.entityId, args.entityName, args.entityType ?? 'UNKNOWN'],
+        )
+      }
+
+      const partnershipResult = await client.query<{ id: string }>(
+        `select id from partnerships where entity_id = $1 and lower(name) = lower($2) limit 1`,
+        [args.entityId, args.partnershipName],
+      )
+
+      if (partnershipResult.rows[0]) return
+
+      await client.query(
+        `insert into partnerships (id, entity_id, name, asset_class, status, notes, created_at, updated_at)
+         values ($1, $2, $3, null, 'ACTIVE', $4, now(), now())`,
+        [
+          args.partnershipId,
+          args.entityId,
+          args.partnershipName,
+          'Auto-created from K-1 upload.',
+        ],
+      )
+
+      await auditRepository.record(
+        {
+          actorUserId: args.actorUserId,
+          eventName: PARTNERSHIP_AUDIT_EVENTS.CREATED,
+          objectType: 'partnership',
+          objectId: args.partnershipId,
+          before: null,
+          after: {
+            id: args.partnershipId,
+            entity_id: args.entityId,
+            name: args.partnershipName,
+            asset_class: null,
+            status: 'ACTIVE',
+            notes: 'Auto-created from K-1 upload.',
+          },
+        },
+        client,
+      )
+    })
+  } catch (error) {
+    console.warn(
+      'Failed to sync K-1 partnership into Postgres:',
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
 
 // --- Async parse pipeline -----------------------------------------------------
 
@@ -48,6 +121,68 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         })
         return
       }
+
+      const k1 = k1Repository.getK1Document(k1DocumentId)
+      if (!k1) return
+
+      const extractedPartnershipName = result.extractedPartnershipName?.trim() ?? ''
+      const extractedTaxYear = result.extractedTaxYear ?? null
+
+      if (!extractedPartnershipName || extractedTaxYear == null) {
+        const errorMessage =
+          'The parser could not derive both partnership name and tax year from the uploaded K-1.'
+        k1Repository.failParse(k1DocumentId, PARSE_MISSING_METADATA, errorMessage)
+        await auditRepository.record({
+          eventName: 'k1.parse_failed',
+          objectType: 'k1_document',
+          objectId: k1DocumentId,
+          after: { code: PARSE_MISSING_METADATA, message: errorMessage },
+        })
+        return
+      }
+
+      let partnership = k1Repository.findPartnershipByEntityAndName(k1.entityId, extractedPartnershipName)
+      let autoCreatedPartnership = false
+      if (!partnership) {
+        partnership = k1Repository.createPartnership({
+          entityId: k1.entityId,
+          name: extractedPartnershipName,
+        })
+        autoCreatedPartnership = true
+        await auditRepository.record({
+          eventName: 'partnership.auto_created_from_k1',
+          objectType: 'partnership',
+          objectId: partnership.id,
+          actorUserId: k1.uploaderUserId,
+          after: {
+            entityId: k1.entityId,
+            name: partnership.name,
+            sourceK1DocumentId: k1DocumentId,
+          },
+        })
+      }
+
+      const entityName = k1Repository.listEntities().find((entity) => entity.id === k1.entityId)?.name ?? 'Unknown Entity'
+      const extractedEntityType =
+        result.fieldValues.find((field) => field.fieldName === 'partner_entity_type')?.rawValue?.trim() ??
+        null
+
+      await ensureDbEntityAndPartnership({
+        entityId: k1.entityId,
+        entityName,
+        entityType: extractedEntityType,
+        partnershipId: partnership.id,
+        partnershipName: partnership.name,
+        actorUserId: k1.uploaderUserId,
+      })
+
+      k1Repository.resolveUploadMetadata({
+        k1DocumentId,
+        partnershipId: partnership.id,
+        partnershipNameRaw: extractedPartnershipName,
+        taxYear: extractedTaxYear,
+      })
+
       for (const fv of result.fieldValues) {
         reviewRepository.insertFieldValue({
           k1DocumentId,
@@ -65,7 +200,11 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         })
       }
       const reportedDistribution =
-        result.fieldValues.find((field) => field.fieldName === 'box_19a_distribution')?.rawValue ?? null
+        result.fieldValues.find(
+          (field) =>
+            field.fieldName === 'box_19a_distribution' ||
+            field.fieldName === 'box_19_distributions',
+        )?.rawValue ?? null
       reviewRepository.upsertReportedDistribution(k1DocumentId, reportedDistribution)
       for (const issue of result.issues) {
         k1Repository.addIssue({
@@ -75,12 +214,36 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
           message: issue.message,
         })
       }
-      k1Repository.completeParse(k1DocumentId, result.nextStatus)
+
+      let nextStatus = result.nextStatus
+      const duplicate = k1Repository.findDuplicate(
+        partnership.id,
+        k1.entityId,
+        extractedTaxYear,
+        k1DocumentId,
+      )
+      if (duplicate) {
+        k1Repository.addIssue({
+          k1DocumentId,
+          issueType: 'DUPLICATE_K1',
+          severity: 'HIGH',
+          message: `A K-1 already exists for ${partnership.name} in tax year ${extractedTaxYear}. Review before approval.`,
+        })
+        nextStatus = 'NEEDS_REVIEW'
+      }
+
+      k1Repository.completeParse(k1DocumentId, nextStatus)
       await auditRepository.record({
         eventName: 'k1.parse_completed',
         objectType: 'k1_document',
         objectId: k1DocumentId,
-        after: { status: result.nextStatus, issues: result.issues.length },
+        after: {
+          status: nextStatus,
+          issues: result.issues.length + (duplicate ? 1 : 0),
+          partnershipId: partnership.id,
+          taxYear: extractedTaxYear,
+          autoCreatedPartnership,
+        },
       })
     } catch (err) {
       k1Repository.failParse(
@@ -164,13 +327,8 @@ const uploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
 
   if (!fileBuffer) return reply.code(400).send({ error: 'FILE_REQUIRED' })
 
-  // Fastify-multipart emits a field.value 'taxYear' as a string, coerce:
-  if (fields.taxYear) fields.taxYear = String(Number.parseInt(fields.taxYear, 10))
-
   const parsed = uploadBodySchema.safeParse({
-    partnershipId: fields.partnershipId,
     entityId: fields.entityId,
-    taxYear: fields.taxYear ? Number(fields.taxYear) : undefined,
     replaceDocumentId: fields.replaceDocumentId || undefined,
   })
   if (!parsed.success) return sendZodError(reply, parsed.error)
@@ -178,66 +336,21 @@ const uploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
 
   if (!assertEntityInScope(request, reply, body.entityId)) return
 
-  const partnership = k1Repository.getPartnership(body.partnershipId)
-  if (!partnership || partnership.entityId !== body.entityId) {
-    return reply.code(400).send({ error: 'INVALID_PARTNERSHIP_FOR_ENTITY' })
-  }
-
   if (fileBuffer.byteLength > config.k1UploadMaxBytes) {
     return reply.code(413).send({ error: 'FILE_TOO_LARGE' })
   }
 
-  const duplicate = k1Repository.findDuplicate(
-    body.partnershipId,
-    body.entityId,
-    body.taxYear,
-  )
-
-  if (duplicate && !body.replaceDocumentId) {
-    const dupBody: K1DuplicateResponse = {
-      error: 'DUPLICATE_K1',
-      existing: {
-        k1DocumentId: duplicate.id,
-        documentId: duplicate.documentId,
-        uploadedAt: duplicate.uploadedAt.toISOString(),
-        status: duplicate.processingStatus,
-      },
-    }
-    return reply.code(409).send(dupBody)
-  }
-
-  if (duplicate && body.replaceDocumentId && duplicate.documentId !== body.replaceDocumentId) {
-    return reply.code(409).send({ error: 'REPLACE_DOCUMENT_MISMATCH' })
-  }
-
   // Persist PDF + K-1 record.
   const documentId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  const storagePath = await localPdfStore.put(documentId, body.taxYear, fileBuffer)
+  const storagePath = await localPdfStore.put(documentId, 'pending', fileBuffer)
 
   const inserted = k1Repository.insertUpload({
     uploaderUserId: request.authUser!.userId,
-    partnershipId: body.partnershipId,
     entityId: body.entityId,
-    taxYear: body.taxYear,
     storagePath,
     mimeType: fileMime,
     sizeBytes: fileBuffer.byteLength,
   })
-
-  if (duplicate && body.replaceDocumentId) {
-    k1Repository.supersede({
-      existing: duplicate,
-      newDocumentId: inserted.document.id,
-      supersededByUserId: request.authUser!.userId,
-    })
-    await auditRepository.record({
-      eventName: 'k1.superseded',
-      objectType: 'k1_document',
-      objectId: duplicate.id,
-      actorUserId: request.authUser!.userId,
-      after: { supersededBy: inserted.k1.id, reason: 'UPLOAD_REPLACE' },
-    })
-  }
 
   await auditRepository.record({
     eventName: 'k1.uploaded',
@@ -245,9 +358,8 @@ const uploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     objectId: inserted.k1.id,
     actorUserId: request.authUser!.userId,
     after: {
-      partnershipId: body.partnershipId,
       entityId: body.entityId,
-      taxYear: body.taxYear,
+      replaceDocumentId: body.replaceDocumentId ?? null,
       fileName,
       sizeBytes: fileBuffer.byteLength,
     },
