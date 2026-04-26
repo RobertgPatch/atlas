@@ -59,6 +59,19 @@ const toNumericString = (value: number | null, scale = 2): string | null => {
   return value.toFixed(scale)
 }
 
+const toIsoDateString = (value: unknown): string | null => {
+  if (value == null) return null
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+  if (typeof value === 'string') return value.length >= 10 ? value.slice(0, 10) : value
+  return String(value)
+}
+
+const toIsoTimestampString = (value: unknown): string => {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'string') return value
+  return new Date(value as string | number).toISOString()
+}
+
 const normalizeResidualSource = (source: string | null | undefined): ResidualSource => {
   if (!source) return 'none'
   return source === 'k1' ? 'parsed' : 'manual'
@@ -165,16 +178,16 @@ function mapCommitmentRow(row: any): PartnershipCommitment {
     entityId: row.entity_id,
     partnershipId: row.partnership_id,
     commitmentAmountUsd: Number(row.commitment_amount),
-    commitmentDate: row.commitment_date ?? null,
-    commitmentStartDate: row.commitment_start_date ?? null,
-    commitmentEndDate: row.commitment_end_date ?? null,
+    commitmentDate: toIsoDateString(row.commitment_date),
+    commitmentStartDate: toIsoDateString(row.commitment_start_date),
+    commitmentEndDate: toIsoDateString(row.commitment_end_date),
     status: row.status,
     sourceType: row.source_type,
     notes: row.notes ?? null,
     createdByUserId: row.created_by_user_id ?? null,
     createdByEmail: row.created_by_email ?? null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: toIsoTimestampString(row.created_at),
+    updatedAt: toIsoTimestampString(row.updated_at),
   }
 }
 
@@ -183,15 +196,15 @@ function mapCapitalActivityRow(row: any): CapitalActivityEvent {
     id: row.id,
     entityId: row.entity_id,
     partnershipId: row.partnership_id,
-    activityDate: row.activity_date,
+    activityDate: toIsoDateString(row.activity_date) ?? '',
     eventType: row.event_type,
     amountUsd: Number(row.amount),
     sourceType: row.source_type,
     notes: row.notes ?? null,
     createdByUserId: row.created_by_user_id ?? null,
     createdByEmail: row.created_by_email ?? null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: toIsoTimestampString(row.created_at),
+    updatedAt: toIsoTimestampString(row.updated_at),
   }
 }
 
