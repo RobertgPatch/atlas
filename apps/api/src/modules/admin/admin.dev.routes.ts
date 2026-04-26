@@ -8,6 +8,7 @@ import { partnershipsRepository } from '../partnerships/partnerships.repository.
 import { capitalRepository } from '../partnerships/capital.repository.js'
 import { fmvRepository } from '../partnerships/fmv.repository.js'
 import { assetsRepository } from '../partnerships/assets.repository.js'
+import { pool } from '../../infra/db/client.js'
 import {
   createInMemoryCommitment,
   createInMemoryCapitalActivity,
@@ -34,8 +35,41 @@ const clearAllInMemoryData = (): void => {
   auditRepository.getInMemoryEvents().length = 0
 }
 
-const clearHandler = async (_req: FastifyRequest, reply: FastifyReply) => {
+/**
+ * When DATABASE_URL is configured, also wipe the persisted business tables so
+ * the Admin "Clear all data" button truly resets the visible state. We keep
+ * users / roles / schema_migrations / dashboards intact so admins can still
+ * sign in and the UI scaffolding survives.
+ */
+const truncateDbBusinessTables = async (): Promise<void> => {
+  if (!pool) return
+  await pool.query(`
+    truncate table
+      partnership_annual_activity,
+      capital_activity_events,
+      partnership_commitments,
+      partnership_asset_fmv_snapshots,
+      partnership_assets,
+      partnership_fmv_snapshots,
+      k1_reported_distributions,
+      k1_field_values,
+      k1_issues,
+      k1_documents,
+      documents,
+      partnerships,
+      entities,
+      audit_events
+    restart identity cascade
+  `)
+}
+
+const clearAllData = async (): Promise<void> => {
   clearAllInMemoryData()
+  await truncateDbBusinessTables()
+}
+
+const clearHandler = async (_req: FastifyRequest, reply: FastifyReply) => {
+  await clearAllData()
   return reply.send({ ok: true, action: 'cleared' })
 }
 
@@ -160,7 +194,7 @@ const seedPartnershipManagementDemo = async (): Promise<void> => {
 const seedHandler = async (_req: FastifyRequest, reply: FastifyReply) => {
   // Wipe first so seeding is idempotent; otherwise repeat presses pile up
   // overlays/commitments/activity rows.
-  clearAllInMemoryData()
+  await clearAllData()
   k1Repository._debugSeedAll()
   await seedPartnershipManagementDemo()
   return reply.send({ ok: true, action: 'seeded' })

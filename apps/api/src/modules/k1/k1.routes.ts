@@ -39,37 +39,59 @@ const ensureDbEntityAndPartnership = async (args: {
   partnershipId: string
   partnershipName: string
   actorUserId: string
-}): Promise<void> => {
-  if (!config.databaseUrl) return
+}): Promise<{ entityId: string; partnershipId: string }> => {
+  if (!config.databaseUrl) {
+    return { entityId: args.entityId, partnershipId: args.partnershipId }
+  }
+
+  let resolvedEntityId = args.entityId
+  let resolvedPartnershipId = args.partnershipId
 
   try {
     await withTransaction(async (client) => {
-      const entityResult = await client.query<{ id: string }>(
+      // Resolve entity: prefer the supplied id; otherwise reuse any row that
+      // already matches by name (case-insensitive). Prevents duplicate
+      // entities when the in-memory store gets reset (UUIDs change) but the
+      // DB still has the same logical entity.
+      const entityById = await client.query<{ id: string }>(
         `select id from entities where id = $1`,
         [args.entityId],
       )
 
-      if (!entityResult.rows[0]) {
-        await client.query(
-          `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
-           values ($1, $2, $3, 'ACTIVE', null, now(), now())`,
-          [args.entityId, args.entityName, args.entityType ?? 'UNKNOWN'],
+      if (!entityById.rows[0]) {
+        const entityByName = await client.query<{ id: string }>(
+          `select id from entities where lower(name) = lower($1) limit 1`,
+          [args.entityName],
         )
+
+        if (entityByName.rows[0]) {
+          resolvedEntityId = entityByName.rows[0].id
+        } else {
+          await client.query(
+            `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
+             values ($1, $2, $3, 'ACTIVE', null, now(), now())`,
+            [args.entityId, args.entityName, args.entityType ?? 'UNKNOWN'],
+          )
+        }
       }
 
-      const partnershipResult = await client.query<{ id: string }>(
+      // Resolve partnership similarly: dedupe by (entity, name).
+      const partnershipByName = await client.query<{ id: string }>(
         `select id from partnerships where entity_id = $1 and lower(name) = lower($2) limit 1`,
-        [args.entityId, args.partnershipName],
+        [resolvedEntityId, args.partnershipName],
       )
 
-      if (partnershipResult.rows[0]) return
+      if (partnershipByName.rows[0]) {
+        resolvedPartnershipId = partnershipByName.rows[0].id
+        return
+      }
 
       await client.query(
         `insert into partnerships (id, entity_id, name, asset_class, status, notes, created_at, updated_at)
          values ($1, $2, $3, null, 'ACTIVE', $4, now(), now())`,
         [
           args.partnershipId,
-          args.entityId,
+          resolvedEntityId,
           args.partnershipName,
           'Auto-created from K-1 upload.',
         ],
@@ -84,7 +106,7 @@ const ensureDbEntityAndPartnership = async (args: {
           before: null,
           after: {
             id: args.partnershipId,
-            entity_id: args.entityId,
+            entity_id: resolvedEntityId,
             name: args.partnershipName,
             asset_class: null,
             status: 'ACTIVE',
@@ -100,6 +122,8 @@ const ensureDbEntityAndPartnership = async (args: {
       error instanceof Error ? error.message : String(error),
     )
   }
+
+  return { entityId: resolvedEntityId, partnershipId: resolvedPartnershipId }
 }
 
 // --- Async parse pipeline -----------------------------------------------------
@@ -167,7 +191,7 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         result.fieldValues.find((field) => field.fieldName === 'partner_entity_type')?.rawValue?.trim() ??
         null
 
-      await ensureDbEntityAndPartnership({
+      const resolved = await ensureDbEntityAndPartnership({
         entityId: k1.entityId,
         entityName,
         entityType: extractedEntityType,
@@ -176,9 +200,21 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         actorUserId: k1.uploaderUserId,
       })
 
+      // If the DB already has this partnership/entity under a different UUID
+      // (e.g. after an admin "Clear all data" wiped the in-memory store but
+      // not the DB), reconcile the in-memory id so subsequent reads resolve.
+      if (resolved.partnershipId !== partnership.id) {
+        k1Repository.upsertPartnership({
+          id: resolved.partnershipId,
+          entityId: resolved.entityId,
+          name: partnership.name,
+        })
+        partnership = k1Repository.getPartnership(resolved.partnershipId) ?? partnership
+      }
+
       k1Repository.resolveUploadMetadata({
         k1DocumentId,
-        partnershipId: partnership.id,
+        partnershipId: resolved.partnershipId,
         partnershipNameRaw: extractedPartnershipName,
         taxYear: extractedTaxYear,
       })
