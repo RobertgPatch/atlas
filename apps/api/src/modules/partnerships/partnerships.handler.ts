@@ -102,6 +102,13 @@ export const getPartnershipDetailHandler = async (
 
   const detail = await partnershipsRepository.getPartnershipDetail(params.id, scope)
   if (!detail) return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
+  // Debug log for reportedDistributionsUsd
+  if (detail.capitalOverview) {
+    console.log('[DEBUG] PartnershipDetail', {
+      id: params.id,
+      reportedDistributionsUsd: detail.capitalOverview.reportedDistributionsUsd,
+    })
+  }
   return reply.send(detail)
 }
 

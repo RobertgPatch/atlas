@@ -289,7 +289,7 @@ async function getReportedDistributionsByYear(partnershipId: string): Promise<{
       from k1_documents kd
       left join k1_reported_distributions krd on krd.k1_document_id = kd.id
       where kd.partnership_id = $1
-        and kd.processing_status = 'FINALIZED'
+        and kd.processing_status in ('FINALIZED', 'READY_FOR_APPROVAL', 'NEEDS_REVIEW')
         and kd.tax_year is not null
       group by kd.tax_year
       `,
@@ -302,7 +302,7 @@ async function getReportedDistributionsByYear(partnershipId: string): Promise<{
         kd.id as finalized_from_k1_document_id
       from k1_documents kd
       where kd.partnership_id = $1
-        and kd.processing_status = 'FINALIZED'
+        and kd.processing_status in ('FINALIZED', 'READY_FOR_APPROVAL', 'NEEDS_REVIEW')
         and kd.tax_year is not null
       order by kd.tax_year, kd.finalized_at desc nulls last, kd.updated_at desc, kd.id desc
       `,
