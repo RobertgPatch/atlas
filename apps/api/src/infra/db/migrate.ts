@@ -42,7 +42,9 @@ export const runMigrations = async (
 
     for (const file of files) {
       if (applied.has(file)) continue
-      const sql = await readFile(join(migrationsDir, file), 'utf8')
+      const raw = await readFile(join(migrationsDir, file), 'utf8')
+      // Strip BOM if present (some Windows tools write UTF-8 with BOM, which Postgres rejects).
+      const sql = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw
       log(`[migrate] applying ${file}`)
       await client.query('BEGIN')
       try {
