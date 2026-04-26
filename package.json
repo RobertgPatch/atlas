@@ -1,0 +1,21 @@
+{
+  "name": "atlas",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Atlas monorepo — Fastify API, Vite/React web, and shared TypeScript packages.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build:api": "npm run --workspace=api build",
+    "start:api": "npm run --workspace=api start",
+    "dev:api": "npm run --workspace=api dev",
+    "build:web": "npm run --workspace=web build",
+    "test:api": "npm run --workspace=api test",
+    "test:web": "npm run --workspace=web test"
+  }
+}
