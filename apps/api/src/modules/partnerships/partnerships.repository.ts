@@ -135,7 +135,7 @@ const BASE_CTE = `
       kd.tax_year as latest_k1_year,
       coalesce(
         krd.reported_distribution_amount,
-        (select coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)
+        (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
            from k1_field_values fv
           where fv.k1_document_id = kd.id
             and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
@@ -620,7 +620,7 @@ export const partnershipsRepository = {
              and kd.tax_year is not null)           as latest_k1_year,
           (select coalesce(
              krd.reported_distribution_amount,
-             (select coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)
+             (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
                 from k1_field_values fv
                where fv.k1_document_id = kd2.id
                  and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
