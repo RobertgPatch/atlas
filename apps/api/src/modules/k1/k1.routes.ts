@@ -7,6 +7,7 @@ import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { withTransaction } from '../../infra/db/client.js'
 import { k1Repository } from './k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
+import { capitalRepository } from '../partnerships/capital.repository.js'
 import { localPdfStore } from './storage/localPdfStore.js'
 import { getExtractor } from './extraction/index.js'
 import { assertEntityInScope, requireK1Scope } from './k1Scope.plugin.js'
@@ -367,6 +368,7 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
 
       k1Repository.completeParse(k1DocumentId, nextStatus)
 
+
       await mirrorK1ToDb({
         documentId: k1.documentId,
         k1DocumentId,
@@ -386,6 +388,15 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
           sourceLocation: fv.sourceLocation ?? null,
         })),
       })
+
+      // Also update partnership_annual_activity so details page KPIs reflect parsed K-1
+      if (config.databaseUrl && resolved.entityId && resolved.partnershipId && extractedTaxYear) {
+        await capitalRepository.syncActivityDetail(
+          resolved.partnershipId,
+          resolved.entityId,
+          { preferredYear: extractedTaxYear }
+        )
+      }
 
       await auditRepository.record({
         eventName: 'k1.parse_completed',
