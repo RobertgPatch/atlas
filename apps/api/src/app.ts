@@ -16,7 +16,21 @@ export const buildApp = () => {
     .filter(Boolean)
 
   app.register(cors, {
-    origin: allowedOrigins.length === 0 ? true : allowedOrigins,
+    // Reflect the request origin instead of using `true`, which can emit `*` and
+    // break credentialed requests. If WEB_ORIGIN is set, only those origins are
+    // allowed; otherwise any origin is reflected (safe-ish for dev/staging since
+    // we always require credentials and only the matched origin gets the cookie).
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true)
+        return
+      }
+      if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        cb(null, origin)
+        return
+      }
+      cb(new Error('Origin not allowed'), false)
+    },
     credentials: true,
   })
 
