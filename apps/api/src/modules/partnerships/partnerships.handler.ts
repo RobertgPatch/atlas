@@ -233,10 +233,16 @@ export const updatePartnershipHandler = async (
     return reply.send(updated)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+    console.error('[ERROR] updatePartnershipHandler', {
+      partnershipId: params.id,
+      userId: request.authUser?.userId,
+      error: msg,
+      stack: err instanceof Error ? err.stack : undefined,
+    })
     if (msg.includes('DATABASE_URL')) {
       return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
     }
-    throw err
+    return reply.status(500).send({ error: 'INTERNAL_ERROR', message: msg })
   }
 }
 
