@@ -11,8 +11,10 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: asNumber(process.env.PORT, 3000),
   databaseUrl: process.env.DATABASE_URL ?? '',
+  webOrigin: process.env.WEB_ORIGIN ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',
   sessionCookieSecure: (process.env.SESSION_COOKIE_SECURE ?? 'false') === 'true',
+  sessionCookieSameSite: (process.env.SESSION_COOKIE_SAMESITE ?? 'lax') as 'lax' | 'strict' | 'none',
   sessionIdleTimeoutSeconds: asNumber(process.env.SESSION_IDLE_TIMEOUT_SECONDS, 900),
   sessionAbsoluteTimeoutSeconds: asNumber(
     process.env.SESSION_ABSOLUTE_TIMEOUT_SECONDS,

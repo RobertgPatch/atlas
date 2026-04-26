@@ -71,7 +71,7 @@ export const mfaEnrollCompleteHandler = async (
   reply.setCookie(config.sessionCookieName, token, {
     httpOnly: true,
     secure: config.sessionCookieSecure,
-    sameSite: 'lax',
+    sameSite: config.sessionCookieSameSite,
     path: '/',
     maxAge: config.sessionAbsoluteTimeoutSeconds,
   })
