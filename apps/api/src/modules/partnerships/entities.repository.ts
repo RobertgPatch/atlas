@@ -106,7 +106,27 @@ export const entitiesRepository = {
       `select id, name, entity_type, status, notes from entities where id = $1`,
       [entityId],
     )
-    if (!entityResult.rows[0]) return null
+    if (!entityResult.rows[0]) {
+      // Backfill: if the entity exists in the in-memory store (created before
+      // we started mirroring writes to Postgres) insert it now so subsequent
+      // joins succeed, then continue.
+      const memEntity = k1Repository.listEntities().find((entry) => entry.id === entityId)
+      if (!memEntity) return null
+
+      await pool.query(
+        `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
+         values ($1, $2, 'UNKNOWN', 'ACTIVE', null, now(), now())
+         on conflict (id) do nothing`,
+        [memEntity.id, memEntity.name],
+      )
+
+      const refetch = await pool.query(
+        `select id, name, entity_type, status, notes from entities where id = $1`,
+        [entityId],
+      )
+      if (!refetch.rows[0]) return null
+      entityResult.rows[0] = refetch.rows[0]
+    }
     const e = entityResult.rows[0]
 
     // Fetch scoped partnerships with derived KPIs (mirrors the list CTE)

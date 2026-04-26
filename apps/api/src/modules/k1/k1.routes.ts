@@ -126,6 +126,103 @@ const ensureDbEntityAndPartnership = async (args: {
   return { entityId: resolvedEntityId, partnershipId: resolvedPartnershipId }
 }
 
+const REPORTED_DISTRIBUTION_FIELD_NAMES = ['box_19a_distribution', 'box_19_distributions'] as const
+
+/**
+ * Mirror the K-1 parse output (document, k1_documents, field values, reported
+ * distribution) to Postgres so PG-backed list/detail/dashboard queries reflect
+ * the freshly ingested K-1. The in-memory store remains the source of truth
+ * for review/finalize today; this writes a parallel snapshot so partnerships
+ * surface the distribution KPI.
+ */
+const mirrorK1ToDb = async (args: {
+  documentId: string
+  k1DocumentId: string
+  storagePath: string
+  mimeType: string
+  sizeBytes: number
+  uploaderUserId: string
+  fileName: string | null
+  entityId: string
+  partnershipId: string
+  taxYear: number
+  processingStatus: string
+  fieldValues: Array<{
+    fieldName: string
+    rawValue: string | null
+    confidenceScore: number | null
+    sourceLocation?: { page: number; bbox: [number, number, number, number] } | null
+  }>
+}): Promise<void> => {
+  if (!config.databaseUrl) return
+
+  try {
+    await withTransaction(async (client) => {
+      // documents row (idempotent)
+      await client.query(
+        `insert into documents (id, document_type, file_name, storage_path, mime_type, uploaded_by, uploaded_at)
+         values ($1, 'K1', $2, $3, $4, $5, now())
+         on conflict (id) do nothing`,
+        [args.documentId, args.fileName, args.storagePath, args.mimeType, args.uploaderUserId],
+      )
+
+      // k1_documents row (idempotent — overwrite parsed fields on re-parse)
+      await client.query(
+        `insert into k1_documents (id, document_id, partnership_id, tax_year, partnership_name_raw, processing_status)
+         values ($1, $2, $3, $4, null, $5)
+         on conflict (id) do update
+           set partnership_id = excluded.partnership_id,
+               tax_year = excluded.tax_year,
+               processing_status = excluded.processing_status,
+               updated_at = now()`,
+        [args.k1DocumentId, args.documentId, args.partnershipId, args.taxYear, args.processingStatus],
+      )
+
+      // Wipe + reinsert field values so re-parses don't accumulate duplicates.
+      await client.query(`delete from k1_field_values where k1_document_id = $1`, [args.k1DocumentId])
+
+      for (const fv of args.fieldValues) {
+        await client.query(
+          `insert into k1_field_values
+             (id, k1_document_id, field_name, raw_value, normalized_value, confidence_score,
+              extraction_method, review_status, page_number)
+           values (gen_random_uuid(), $1, $2, $3, $3, $4, 'AZURE_DI', 'PENDING', $5)`,
+          [args.k1DocumentId, fv.fieldName, fv.rawValue, fv.confidenceScore, fv.sourceLocation?.page ?? null],
+        )
+      }
+
+      // Reported distribution: pull the canonical Box 19 field if present.
+      const distributionRaw = args.fieldValues.find((field) =>
+        (REPORTED_DISTRIBUTION_FIELD_NAMES as readonly string[]).includes(field.fieldName),
+      )?.rawValue
+      const distributionNumeric = parseUsdToNumber(distributionRaw ?? null)
+
+      await client.query(`delete from k1_reported_distributions where k1_document_id = $1`, [args.k1DocumentId])
+      if (distributionNumeric != null) {
+        await client.query(
+          `insert into k1_reported_distributions
+             (id, k1_document_id, entity_id, partnership_id, tax_year, reported_distribution_amount)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5)`,
+          [args.k1DocumentId, args.entityId, args.partnershipId, args.taxYear, distributionNumeric],
+        )
+      }
+    })
+  } catch (error) {
+    console.warn(
+      'Failed to mirror K-1 into Postgres:',
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
+
+const parseUsdToNumber = (raw: string | null): number | null => {
+  if (raw == null) return null
+  const cleaned = raw.replace(/[$,\s]/g, '').replace(/[()]/g, (m) => (m === '(' ? '-' : ''))
+  if (cleaned === '' || cleaned === '-') return null
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : null
+}
+
 // --- Async parse pipeline -----------------------------------------------------
 
 const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: string) => {
@@ -269,6 +366,27 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
       }
 
       k1Repository.completeParse(k1DocumentId, nextStatus)
+
+      await mirrorK1ToDb({
+        documentId: k1.documentId,
+        k1DocumentId,
+        storagePath,
+        mimeType: 'application/pdf',
+        sizeBytes,
+        uploaderUserId: k1.uploaderUserId,
+        fileName: null,
+        entityId: resolved.entityId,
+        partnershipId: resolved.partnershipId,
+        taxYear: extractedTaxYear,
+        processingStatus: nextStatus,
+        fieldValues: result.fieldValues.map((fv) => ({
+          fieldName: fv.fieldName,
+          rawValue: fv.rawValue,
+          confidenceScore: fv.confidenceScore,
+          sourceLocation: fv.sourceLocation ?? null,
+        })),
+      })
+
       await auditRepository.record({
         eventName: 'k1.parse_completed',
         objectType: 'k1_document',
