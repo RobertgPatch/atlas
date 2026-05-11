@@ -87,17 +87,6 @@ export function CapitalActivitySection({
     <SectionCard
       title="Capital Activity"
       subtitle="Calls, funded contributions, and manual adjustments"
-      headerAction={
-        isAdmin ? (
-          <button
-            type="button"
-            onClick={onAddActivity}
-            className="px-3 py-1.5 rounded-lg bg-atlas-gold text-white text-xs font-medium hover:bg-atlas-hover"
-          >
-            Add Activity
-          </button>
-        ) : undefined
-      }
     >
       <DataTable
         columns={COLUMNS}

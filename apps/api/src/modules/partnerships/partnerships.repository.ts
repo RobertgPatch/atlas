@@ -45,6 +45,23 @@ function getOrCreateOverlay(id: string): InMemoryPartnershipOverlay {
   return overlay
 }
 
+export const getInMemoryPartnershipOverlay = (id: string): {
+  assetClass: string | null
+  status: Partnership['status']
+  notes: string | null
+  createdAt: string
+  updatedAt: string
+} => {
+  const overlay = getOrCreateOverlay(id)
+  return {
+    assetClass: overlay.assetClass,
+    status: overlay.status,
+    notes: overlay.notes,
+    createdAt: overlay.createdAt,
+    updatedAt: overlay.updatedAt,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -799,6 +816,14 @@ export const partnershipsRepository = {
     )
     const row = result.rows[0]
 
+    // Keep the K-1 in-memory partnership index in sync so review mapping/typeahead
+    // can reference manually created partnerships in DB-backed environments.
+    k1Repository.upsertPartnership({
+      id: row.id,
+      entityId: row.entity_id,
+      name: row.name,
+    })
+
     // Fetch entity name for the response
     const entityResult = await client.query<{ name: string }>(
       `select name from entities where id = $1`,
@@ -913,6 +938,13 @@ export const partnershipsRepository = {
     )
     const after = result.rows[0]
 
+    // Mirror updates into the in-memory K-1 partnership index used by review flows.
+    k1Repository.upsertPartnership({
+      id: after.id,
+      entityId: after.entity_id,
+      name: after.name,
+    })
+
     await auditRepository.record(
       {
         actorUserId,
@@ -935,5 +967,28 @@ export const partnershipsRepository = {
       createdAt: after.created_at,
       updatedAt: after.updated_at,
     }
+  },
+
+  /**
+   * Test/dev helper: clear the in-memory partnership overlays
+   * (assetClass / status / notes). Called from the Admin "Clear all data" flow.
+   */
+  _debugReset(): void {
+    inMemoryOverlays.clear()
+  },
+
+  /**
+   * Test/dev helper: seed the in-memory overlay for a partnership so demo
+   * data exposes asset class / status / notes alongside the K-1 fixtures.
+   */
+  _debugSetOverlay(
+    partnershipId: string,
+    patch: { assetClass?: string | null; status?: Partnership['status']; notes?: string | null },
+  ): void {
+    const overlay = getOrCreateOverlay(partnershipId)
+    if (patch.assetClass !== undefined) overlay.assetClass = patch.assetClass
+    if (patch.status !== undefined) overlay.status = patch.status
+    if (patch.notes !== undefined) overlay.notes = patch.notes
+    overlay.updatedAt = new Date().toISOString()
   },
 }

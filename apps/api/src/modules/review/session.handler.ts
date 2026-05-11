@@ -3,6 +3,7 @@ import path from 'node:path'
 import { promises as fs } from 'node:fs'
 import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
+import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
 import { reviewRepository, confidenceBandFor } from './review.repository.js'
 import { k1ReviewParamsSchema } from './review.schemas.js'
 import type {
@@ -55,7 +56,13 @@ export const sessionHandler = async (
   const k = loadK1ForReview(request, reply, parsed.data.k1DocumentId)
   if (!k) return
 
-  const partnership = k1Repository.getPartnership(k.partnershipId)
+  const partnershipScope = {
+    isAdmin: request.authUser!.role === 'Admin',
+    entityIds: k1Repository.listEntitiesForUser(request.authUser!.userId),
+  }
+  const partnership = k.partnershipId
+    ? await partnershipsRepository.getPartnershipById(k.partnershipId, partnershipScope)
+    : null
   const entity = k1Repository.listEntities().find((e) => e.id === k.entityId)
   const fieldRecs = reviewRepository.listFieldValuesForK1(k.id)
   const issueRecs = k1Repository.listIssuesForK1(k.id)

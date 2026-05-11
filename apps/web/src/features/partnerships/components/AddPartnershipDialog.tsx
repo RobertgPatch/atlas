@@ -2,6 +2,7 @@ import React, { Fragment, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { XIcon } from 'lucide-react'
 import { useCreatePartnership } from '../hooks/usePartnershipMutations'
+import { useEntityList } from '../hooks/useEntityQueries'
 import type { PartnershipStatus } from 'packages/types/src'
 
 interface AddPartnershipDialogProps {
@@ -14,6 +15,7 @@ const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture C
 
 export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProps) {
   const { mutateAsync, isPending } = useCreatePartnership()
+  const entitiesQuery = useEntityList()
 
   const [entityId, setEntityId] = useState('')
   const [name, setName] = useState('')
@@ -52,9 +54,13 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
       setNameError('Name must be 120 characters or fewer')
       return
     }
+    if (!entityId) {
+      setSubmitError('Entity is required')
+      return
+    }
 
     const result = await mutateAsync({
-      entityId: entityId.trim(),
+      entityId,
       name: trimmedName,
       assetClass: assetClass || null,
       status,
@@ -109,16 +115,23 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                   {/* Entity ID */}
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">
-                      Entity ID <span className="text-red-500">*</span>
+                      Entity <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       required
-                      placeholder="UUID of the entity"
                       value={entityId}
                       onChange={(e) => setEntityId(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
-                    />
+                    >
+                      <option value="">
+                        {entitiesQuery.isLoading ? 'Loading entities…' : 'Select an entity'}
+                      </option>
+                      {(entitiesQuery.data?.items ?? []).map((entity) => (
+                        <option key={entity.id} value={entity.id}>
+                          {entity.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Name */}

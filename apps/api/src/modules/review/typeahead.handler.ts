@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
+import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
 
 const entityQuerySchema = z.object({
   q: z.string().default(''),
@@ -48,9 +49,10 @@ export const partnershipTypeaheadHandler = async (
   const { entity_id, q, limit } = parsed.data
 
   const userId = request.authUser!.userId
-  const allowedEntities = k1Repository.listEntitiesForUser(userId)
-
-  let allPartnerships = k1Repository.listPartnerships()
+  const isAdmin = request.authUser!.role === 'Admin'
+  const allowedEntityIds = isAdmin
+    ? k1Repository.listEntities().map((entity) => entity.id)
+    : k1Repository.listEntitiesForUser(userId)
 
   // Scope to entity_id if provided; verify the user has access to it.
   if (entity_id) {
@@ -62,15 +64,24 @@ export const partnershipTypeaheadHandler = async (
     allPartnerships = allPartnerships.filter((p) => allowedEntities.includes(p.entityId))
   }
 
-  const lower = q.toLowerCase()
-  const filtered = lower
-    ? allPartnerships.filter((p) => p.name.toLowerCase().includes(lower))
-    : allPartnerships
+  const result = await partnershipsRepository.listPartnerships(
+    {
+      search: q || undefined,
+      entityId: entity_id,
+      sort: 'name',
+      page: 1,
+      pageSize: limit,
+    },
+    {
+      isAdmin,
+      entityIds: allowedEntityIds,
+    },
+  )
 
-  const items = filtered.slice(0, limit).map((p) => ({
-    id: p.id,
-    name: p.name,
-    entityId: p.entityId,
+  const items = result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    entityId: row.entity.id,
   }))
   return reply.send({ items })
 }

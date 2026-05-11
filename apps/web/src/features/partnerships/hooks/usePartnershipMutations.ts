@@ -28,6 +28,8 @@ export function useCreatePartnership() {
       if ('ok' in result && result.ok) {
         void qc.invalidateQueries({ queryKey: ['partnerships-list'] })
         void qc.invalidateQueries({ queryKey: ['entity', vars.entityId] })
+        void qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+        void qc.invalidateQueries({ queryKey: ['reports'] })
       }
     },
   })
@@ -56,6 +58,8 @@ export function useUpdatePartnership() {
         void qc.invalidateQueries({ queryKey: ['partnerships-list'] })
         void qc.invalidateQueries({ queryKey: ['partnership', vars.id] })
         void qc.invalidateQueries({ queryKey: ['entity', vars.entityId] })
+        void qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
+        void qc.invalidateQueries({ queryKey: ['reports'] })
       }
     },
   })

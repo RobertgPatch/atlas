@@ -21,6 +21,7 @@ import { PartnershipDirectory } from './pages/PartnershipDirectory'
 import { PartnershipDetail } from './pages/PartnershipDetail'
 import { EntityDetail } from './pages/EntityDetail'
 import { EntitiesPage } from './pages/EntitiesPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -175,7 +176,7 @@ export function App() {
             path="/reports"
             element={
               <ProtectedRoute>
-                <PlaceholderPage title="Reports" />
+                <ReportsPage />
               </ProtectedRoute>
             }
           />

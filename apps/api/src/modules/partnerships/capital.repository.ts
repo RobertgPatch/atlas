@@ -89,6 +89,19 @@ function validateCapitalActivityAmount(eventType: string, amountUsd: number): vo
   }
 }
 
+function assertExpectedUpdatedAt(
+  expectedUpdatedAt: string | undefined,
+  actualUpdatedAt: string | Date | null | undefined,
+): void {
+  if (!expectedUpdatedAt) return
+
+  const expectedTime = new Date(expectedUpdatedAt).getTime()
+  const actualTime = new Date(actualUpdatedAt ?? '').getTime()
+  if (!Number.isFinite(expectedTime) || !Number.isFinite(actualTime) || expectedTime !== actualTime) {
+    throw new Error('STALE_COMMITMENT_UPDATE')
+  }
+}
+
 function computeCapitalOverview(snapshot: CapitalComputationSnapshot): PartnershipCapitalOverview {
   const activeCommitment = snapshot.commitments.find((row) => row.status === 'ACTIVE') ?? null
 
@@ -530,6 +543,8 @@ export const capitalRepository = {
       const before = getInMemoryCommitment(partnershipId, commitmentId)
       if (!before) return null
 
+      assertExpectedUpdatedAt(patch.expectedUpdatedAt, before.updatedAt)
+
       const nextStartDate =
         'commitmentStartDate' in patch ? patch.commitmentStartDate ?? null : before.commitmentStartDate
       const nextEndDate =
@@ -570,6 +585,8 @@ export const capitalRepository = {
     )
     const before = beforeResult.rows[0]
     if (!before) return null
+
+    assertExpectedUpdatedAt(patch.expectedUpdatedAt, before.updated_at)
 
     const next = {
       commitmentAmountUsd:
