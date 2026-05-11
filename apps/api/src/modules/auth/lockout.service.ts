@@ -1,43 +1,90 @@
 import { config } from '../../config.js'
-
-interface LockoutState {
-  failures: number
-  lockoutUntil?: Date
-}
-
-const lockoutMap = new Map<string, LockoutState>()
+import { withTransaction } from '../../infra/db/client.js'
 
 const keyOf = (identifier: string, type: 'PASSWORD' | 'MFA') =>
-  `${identifier.toLowerCase()}:${type}`
+  ({ identifier: identifier.toLowerCase(), type })
 
 export const lockoutService = {
-  getLockout(identifier: string, type: 'PASSWORD' | 'MFA'): Date | null {
-    const state = lockoutMap.get(keyOf(identifier, type))
-    if (!state?.lockoutUntil) return null
-    if (state.lockoutUntil.getTime() <= Date.now()) {
-      lockoutMap.delete(keyOf(identifier, type))
-      return null
-    }
-    return state.lockoutUntil
-  },
-
-  recordFailure(identifier: string, type: 'PASSWORD' | 'MFA'): Date | null {
+  async getLockout(identifier: string, type: 'PASSWORD' | 'MFA'): Promise<Date | null> {
     const key = keyOf(identifier, type)
-    const existing = lockoutMap.get(key) ?? { failures: 0 }
-    existing.failures += 1
-
-    if (existing.failures >= config.authLockoutThreshold) {
-      existing.failures = 0
-      existing.lockoutUntil = new Date(
-        Date.now() + config.authLockoutMinutes * 60 * 1000,
+    return withTransaction(async (client) => {
+      const { rows } = await client.query<{ lockout_until: Date }>(
+        `select lockout_until
+         from auth_attempts
+         where user_identifier = $1
+           and attempt_type = $2
+           and lockout_until is not null
+           and lockout_until > now()
+         order by attempted_at desc
+         limit 1`,
+        [key.identifier, key.type],
       )
-    }
 
-    lockoutMap.set(key, existing)
-    return existing.lockoutUntil ?? null
+      return rows[0]?.lockout_until ?? null
+    })
   },
 
-  clear(identifier: string, type: 'PASSWORD' | 'MFA') {
-    lockoutMap.delete(keyOf(identifier, type))
+  async recordFailure(identifier: string, type: 'PASSWORD' | 'MFA'): Promise<Date | null> {
+    const key = keyOf(identifier, type)
+    const failureThreshold = Math.max(config.authLockoutThreshold, 1)
+    return withTransaction(async (client) => {
+      const existing = await client.query<{ lockout_until: Date }>(
+        `select lockout_until
+         from auth_attempts
+         where user_identifier = $1
+           and attempt_type = $2
+           and lockout_until is not null
+           and lockout_until > now()
+         order by attempted_at desc
+         limit 1`,
+        [key.identifier, key.type],
+      )
+
+      if (existing.rows[0]?.lockout_until) {
+        return existing.rows[0].lockout_until
+      }
+
+      let consecutiveFailures = 1
+      if (failureThreshold > 1) {
+        const recentAttempts = await client.query<{ success: boolean }>(
+          `select success
+           from auth_attempts
+           where user_identifier = $1
+             and attempt_type = $2
+           order by attempted_at desc
+           limit $3`,
+          [key.identifier, key.type, failureThreshold - 1],
+        )
+
+        for (const row of recentAttempts.rows) {
+          if (row.success) break
+          consecutiveFailures += 1
+        }
+      }
+
+      const lockoutUntil =
+        consecutiveFailures >= failureThreshold
+          ? new Date(Date.now() + config.authLockoutMinutes * 60 * 1000)
+          : null
+
+      await client.query(
+        `insert into auth_attempts (user_identifier, attempt_type, success, lockout_until)
+         values ($1, $2, false, $3)`,
+        [key.identifier, key.type, lockoutUntil],
+      )
+
+      return lockoutUntil
+    })
+  },
+
+  async clear(identifier: string, type: 'PASSWORD' | 'MFA'): Promise<void> {
+    const key = keyOf(identifier, type)
+    await withTransaction(async (client) => {
+      await client.query(
+        `insert into auth_attempts (user_identifier, attempt_type, success)
+         values ($1, $2, true)`,
+        [key.identifier, key.type],
+      )
+    })
   },
 }

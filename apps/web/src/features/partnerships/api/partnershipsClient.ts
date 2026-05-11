@@ -31,7 +31,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers, ...init })
+  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
   if (!res.ok) {
     let payload: unknown
     try { payload = await res.json() } catch { /* ignore */ }

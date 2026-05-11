@@ -12,9 +12,11 @@
  */
 
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const ROOT = resolve(import.meta.dirname, '../..')
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ROOT = resolve(HERE, '../..')
 
 const GUARDED_PATHS = [
   'apps/web/src/pages/PartnershipDirectory.tsx',
@@ -38,28 +40,34 @@ function walkDir(dir) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) {
       results.push(...walkDir(full))
-    } else if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+    } else if (entry.isFile() && /\.(ts|tsx|js|jsx|mjs|cjs)$/.test(entry.name)) {
       results.push(full)
     }
   }
   return results
 }
 
-const MUI_IMPORT_RE = /from\s+['"]@mui\//
+const FORBIDDEN = [
+  { pattern: /from\s+['"]@mui\//, label: '@mui/*' },
+  { pattern: /import\s+['"]@mui\//, label: '@mui/*' },
+  { pattern: /require\(\s*['"]@mui\//, label: '@mui/*' },
+]
 
 let violations = 0
 
 for (const target of GUARDED_PATHS) {
   for (const file of collectFiles(target)) {
     const content = readFileSync(file, 'utf8')
-    const lines = content.split('\n')
-    lines.forEach((line, i) => {
-      if (MUI_IMPORT_RE.test(line)) {
-        console.error(`\x1b[31mERROR\x1b[0m  @mui import found in ${file.replace(ROOT + '/', '')}:${i + 1}`)
-        console.error(`       ${line.trim()}`)
-        violations++
-      }
-    })
+    for (const { pattern, label } of FORBIDDEN) {
+      const lines = content.split('\n')
+      lines.forEach((line, i) => {
+        if (pattern.test(line)) {
+          console.error(`\x1b[31mERROR\x1b[0m  ${label} import found in ${file.replace(ROOT + '/', '')}:${i + 1}`)
+          console.error(`       ${line.trim()}`)
+          violations++
+        }
+      })
+    }
   }
 }
 

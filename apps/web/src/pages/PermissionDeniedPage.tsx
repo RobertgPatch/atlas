@@ -1,15 +1,16 @@
-import React from 'react'
 import { ShieldAlert } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { AppShell } from '../components/shared/AppShell'
 import { PageHeader } from '../components/shared/PageHeader'
 import { useSession } from '../auth/sessionStore'
 
 export function PermissionDeniedPage() {
   const { session } = useSession()
+  const location = useLocation()
 
   return (
     <AppShell
-      currentPath={window.location.pathname}
+      currentPath={location.pathname}
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
     >

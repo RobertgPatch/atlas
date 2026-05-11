@@ -79,6 +79,7 @@ export type K1ActionBlockingReason =
   | 'UNMAPPED_ENTITY'
   | 'UNMAPPED_PARTNERSHIP'
   | 'MISSING_REPORTED_DISTRIBUTION'
+  | 'SAME_ACTOR_FINALIZE_FORBIDDEN'
 
 export interface K1CorrectionRequestItem {
   fieldId: string

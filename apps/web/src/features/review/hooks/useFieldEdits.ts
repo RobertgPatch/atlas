@@ -6,7 +6,7 @@ import type {
 
 /**
  * Tracks pending edits keyed by fieldId so multiple fields can be saved together.
- * Exposed as a hook-like pure function returning a tuple of helpers.
+ * Exposed as a hook-like function returning an object of edit state and helpers.
  */
 export interface PendingEdits {
   values: Record<string, string | null>

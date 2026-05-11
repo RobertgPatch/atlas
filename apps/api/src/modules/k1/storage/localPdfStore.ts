@@ -10,24 +10,34 @@ export interface PdfStore {
 }
 
 const yearFolder = (taxYearOrFolder: number | string) => String(taxYearOrFolder)
+const storageRoot = path.resolve(config.storageRoot)
+const storageRootPrefix = `${storageRoot}${path.sep}`
+
+const resolveStoragePath = (storagePath: string) => {
+  const resolvedPath = path.resolve(storageRoot, storagePath)
+  if (!resolvedPath.startsWith(storageRootPrefix)) {
+    throw new Error('Path traversal detected: storage path must be within configured storage root')
+  }
+  return resolvedPath
+}
 
 export const localPdfStore: PdfStore = {
   async put(documentId, taxYear, buffer) {
-    const dir = path.resolve(config.storageRoot, 'k1', yearFolder(taxYear))
+    const dir = path.resolve(storageRoot, 'k1', yearFolder(taxYear))
     await fs.mkdir(dir, { recursive: true })
     const filePath = path.join(dir, `${documentId}.pdf`)
     await fs.writeFile(filePath, buffer)
     // Return a relative-ish path that is stable for audit.
-    return path.relative(path.resolve(config.storageRoot), filePath).replaceAll('\\', '/')
+    return path.relative(storageRoot, filePath).replaceAll('\\', '/')
   },
 
   get(storagePath) {
-    const abs = path.resolve(config.storageRoot, storagePath)
+    const abs = resolveStoragePath(storagePath)
     return createReadStream(abs)
   },
 
   async delete(storagePath) {
-    const abs = path.resolve(config.storageRoot, storagePath)
+    const abs = resolveStoragePath(storagePath)
     await fs.unlink(abs).catch(() => undefined)
   },
 }

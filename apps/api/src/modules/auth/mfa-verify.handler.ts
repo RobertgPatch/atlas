@@ -33,7 +33,7 @@ export const mfaVerifyHandler = async (
     return
   }
 
-  const lockout = lockoutService.getLockout(user.email, 'MFA')
+  const lockout = await lockoutService.getLockout(user.email, 'MFA')
   if (lockout) {
     reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
     return
@@ -41,7 +41,7 @@ export const mfaVerifyHandler = async (
 
   const valid = totpService.verify(payload.data.code, user.mfaSecret)
   if (!valid) {
-    const lockoutUntil = lockoutService.recordFailure(user.email, 'MFA')
+    const lockoutUntil = await lockoutService.recordFailure(user.email, 'MFA')
 
     await auditRepository.record({
       actorUserId: user.id,
@@ -59,9 +59,16 @@ export const mfaVerifyHandler = async (
     return
   }
 
-  lockoutService.clear(user.email, 'MFA')
+  await lockoutService.clear(user.email, 'MFA')
   authRepository.consumeChallenge(payload.data.challengeId)
   const { token, session } = authRepository.createSession(user.id)
+
+  await auditRepository.record({
+    actorUserId: user.id,
+    eventName: 'auth.mfa.verify.succeeded',
+    objectType: 'user',
+    objectId: user.id,
+  })
 
   reply.setCookie(config.sessionCookieName, token, {
     httpOnly: true,
@@ -69,13 +76,6 @@ export const mfaVerifyHandler = async (
     sameSite: 'lax',
     path: '/',
     maxAge: config.sessionAbsoluteTimeoutSeconds,
-  })
-
-  await auditRepository.record({
-    actorUserId: user.id,
-    eventName: 'auth.mfa.verify.succeeded',
-    objectType: 'user',
-    objectId: user.id,
   })
 
   reply.send({
