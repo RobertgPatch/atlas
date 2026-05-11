@@ -1,4 +1,10 @@
-export type ReportView = 'portfolio_summary' | 'asset_class_summary' | 'activity_detail'
+import type { PlaidInvestmentAccount } from './plaid.js'
+
+export type ReportView =
+  | 'portfolio_summary'
+  | 'asset_class_summary'
+  | 'activity_detail'
+  | 'consolidated_holdings'
 
 export type ReportExportFormat = 'csv' | 'xlsx'
 
@@ -17,6 +23,92 @@ export interface ReportsQueryBase {
   direction?: ReportSortDirection
   page?: number
   pageSize?: number
+}
+
+export type HoldingsGainLossState = 'gain' | 'loss' | 'flat' | 'unknown'
+
+export interface ConsolidatedHoldingsQuery {
+  search?: string
+  custodian?: string
+  accountId?: string
+  type?: string
+  gainLossState?: HoldingsGainLossState
+  sort?: 'symbol' | 'type' | 'quantity' | 'costBasis' | 'unrealizedGainLoss' | 'marketValue'
+  direction?: ReportSortDirection
+  page?: number
+  pageSize?: number
+}
+
+export type HoldingsSyncStatus =
+  | 'never_synced'
+  | 'success'
+  | 'partial_success'
+  | 'failed'
+  | 'needs_user_action'
+
+export interface HoldingsSyncSnapshot {
+  id: string
+  status: 'pending' | 'success' | 'partial_success' | 'failed'
+  startedAt: string
+  completedAt: string | null
+  errorMessage: string | null
+}
+
+export interface ConsolidatedHoldingsKpis {
+  totalMarketValue: number | null
+  totalCostBasis: number | null
+  totalUnrealizedGainLoss: number | null
+  gainLossPercent: number | null
+  uniqueAssetCount: number
+  selectedAccountCount: number
+}
+
+export interface CustodianHoldingDetailRow {
+  id: string
+  symbol: string | null
+  description: string
+  type: string
+  custodian: string
+  accountName: string
+  accountMask: string | null
+  quantity: number | null
+  costBasis: number | null
+  averageCostBasis: number | null
+  unrealizedGainLoss: number | null
+  gainLossPercent: number | null
+  marketValue: number | null
+}
+
+export interface ConsolidatedHoldingRow {
+  id: string
+  symbol: string | null
+  description: string
+  type: string
+  custodianSummary: string
+  quantity: number | null
+  costBasis: number | null
+  averageCostBasis: number | null
+  unrealizedGainLoss: number | null
+  gainLossPercent: number | null
+  marketValue: number | null
+  identityConfidence: 'high' | 'medium' | 'low'
+  details: CustodianHoldingDetailRow[]
+}
+
+export interface ConsolidatedHoldingsResponse {
+  kpis: ConsolidatedHoldingsKpis
+  rows: ConsolidatedHoldingRow[]
+  page: {
+    size: number
+    offset: number
+    total: number
+  }
+  selectedAccounts: PlaidInvestmentAccount[]
+  sync: {
+    status: HoldingsSyncStatus
+    lastSuccessfulSyncAt: string | null
+    warnings: string[]
+  }
 }
 
 export interface ReportTotals {

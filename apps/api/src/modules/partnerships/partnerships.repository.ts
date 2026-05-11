@@ -12,7 +12,7 @@ import type {
   PartnershipDirectoryResponse,
   PartnershipDetail,
   Partnership,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 import type {
   ListPartnershipsQuery,
   ExportPartnershipsQuery,
@@ -257,7 +257,8 @@ export const partnershipsRepository = {
       }
       if (filters.entityId) rows = rows.filter((r) => r.entity.id === filters.entityId)
       if (filters.assetClass) rows = rows.filter((r) => r.assetClass === filters.assetClass)
-      if (filters.status?.length) rows = rows.filter((r) => filters.status.includes(r.status))
+      const statuses = filters.status ?? []
+      if (statuses.length) rows = rows.filter((r) => statuses.includes(r.status))
 
       const total = rows.length
       const offset = (filters.page - 1) * filters.pageSize

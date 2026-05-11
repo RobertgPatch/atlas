@@ -3,7 +3,7 @@ import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
 import { capitalRepository } from './capital.repository.js'
 import { getInMemoryPartnershipOverlay } from './partnerships.repository.js'
-import type { EntityDetail } from '../../../../../packages/types/src/partnership-management.js'
+import type { EntityDetail } from './partnerships.types.js'
 
 export const entitiesRepository = {
   async getEntityDetail(

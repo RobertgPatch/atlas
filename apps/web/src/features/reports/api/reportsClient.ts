@@ -2,6 +2,8 @@ import type {
   ActivityDetailRow,
   ActivityDetailResponse,
   AssetClassSummaryResponse,
+  ConsolidatedHoldingsQuery,
+  ConsolidatedHoldingsResponse,
   PortfolioSummaryResponse,
   ReportExportRequest,
   ReportsQueryBase,
@@ -9,6 +11,14 @@ import type {
   UpdateActivityDetailRowRequest,
   UpdatePortfolioOriginalCommitmentRequest,
 } from '../../../../../../packages/types/src/reports'
+import type {
+  PlaidConnectionResponse,
+  PlaidExchangePublicTokenRequest,
+  PlaidInvestmentAccountsResponse,
+  PlaidLinkTokenRequest,
+  PlaidLinkTokenResponse,
+  UpdatePlaidInvestmentAccountsRequest,
+} from '../../../../../../packages/types/src/plaid'
 import type { PartnershipCommitment } from '../../../../../../packages/types/src/partnership-management'
 
 const API_BASE =
@@ -95,7 +105,10 @@ const requestBlob = async (
 }
 
 const toQueryString = (
-  query: ReportsQueryBase & { reportType?: string; format?: string },
+  query: (ReportsQueryBase | ConsolidatedHoldingsQuery) & {
+    reportType?: string
+    format?: string
+  },
 ): string => {
   const params = new URLSearchParams()
 
@@ -105,6 +118,12 @@ const toQueryString = (
   if (query.entityId) params.set('entityId', query.entityId)
   if (query.partnershipId) params.set('partnershipId', query.partnershipId)
   if (query.taxYear != null) params.set('taxYear', String(query.taxYear))
+  if ('custodian' in query && query.custodian) params.set('custodian', query.custodian)
+  if ('accountId' in query && query.accountId) params.set('accountId', query.accountId)
+  if ('type' in query && query.type) params.set('type', query.type)
+  if ('gainLossState' in query && query.gainLossState) {
+    params.set('gainLossState', query.gainLossState)
+  }
   if (query.sort) params.set('sort', query.sort)
   if (query.direction) params.set('direction', query.direction)
   if (query.page != null) params.set('page', String(query.page))
@@ -140,9 +159,64 @@ export const reportsClient = {
     return request<ActivityDetailResponse>(path)
   },
 
+  getConsolidatedHoldings(
+    query: ConsolidatedHoldingsQuery,
+  ): Promise<ConsolidatedHoldingsResponse> {
+    const queryString = toQueryString(query)
+    const path = queryString
+      ? `/reports/consolidated-holdings?${queryString}`
+      : '/reports/consolidated-holdings'
+    return request<ConsolidatedHoldingsResponse>(path)
+  },
+
+  refreshConsolidatedHoldings() {
+    return request('/reports/consolidated-holdings/refresh', { method: 'POST' })
+  },
+
+  createPlaidLinkToken(
+    payload: PlaidLinkTokenRequest = {},
+  ): Promise<PlaidLinkTokenResponse> {
+    return request<PlaidLinkTokenResponse>('/plaid/link-token', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  exchangePlaidPublicToken(
+    payload: PlaidExchangePublicTokenRequest,
+  ): Promise<PlaidConnectionResponse> {
+    return request<PlaidConnectionResponse>('/plaid/exchange-public-token', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  getPlaidInvestmentAccounts(): Promise<PlaidInvestmentAccountsResponse> {
+    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts')
+  },
+
+  updatePlaidInvestmentAccounts(
+    payload: UpdatePlaidInvestmentAccountsRequest,
+  ): Promise<PlaidInvestmentAccountsResponse> {
+    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+
   exportReport(query: ReportExportRequest) {
     const queryString = toQueryString(query)
     const path = queryString ? `/reports/export?${queryString}` : '/reports/export'
+    return requestBlob(path)
+  },
+
+  exportConsolidatedHoldings(
+    query: ConsolidatedHoldingsQuery & { format: 'csv' | 'xlsx' },
+  ) {
+    const queryString = toQueryString(query)
+    const path = queryString
+      ? `/reports/consolidated-holdings/export?${queryString}`
+      : '/reports/consolidated-holdings/export'
     return requestBlob(path)
   },
 

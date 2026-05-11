@@ -9,9 +9,11 @@ import type { PoolClient } from 'pg'
 import type {
   ActivityDetailQuery,
   AssetClassSummaryQuery,
+  ConsolidatedHoldingsQuery,
   PortfolioSummaryQuery,
   UpdateActivityDetailBody,
 } from './reports.zod.js'
+import { buildConsolidatedHoldingsResponse } from './consolidatedHoldings.service.js'
 
 interface ReportTotals {
   originalCommitmentUsd: number
@@ -869,6 +871,10 @@ const applyInMemoryActivityPatch = (
 }
 
 export const reportsRepository = {
+  async getConsolidatedHoldings(query: ConsolidatedHoldingsQuery) {
+    return buildConsolidatedHoldingsResponse(query)
+  },
+
   async getPortfolioSummary(
     query: PortfolioSummaryQuery,
     scope: ReportsScope,

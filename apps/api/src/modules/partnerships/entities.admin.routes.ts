@@ -127,7 +127,7 @@ const createEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
   }
 
   await auditRepository.record({
-    actorUserId: req.authUser?.id,
+    actorUserId: req.authUser?.userId,
     eventName: 'entity.created',
     objectType: 'entity',
     objectId: entity.id,
@@ -183,7 +183,7 @@ const updateEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
   }
 
   await auditRepository.record({
-    actorUserId: req.authUser?.id,
+    actorUserId: req.authUser?.userId,
     eventName: 'entity.updated',
     objectType: 'entity',
     objectId: updated.id,
@@ -219,7 +219,7 @@ const deleteEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
   }
 
   await auditRepository.record({
-    actorUserId: req.authUser?.id,
+    actorUserId: req.authUser?.userId,
     eventName: 'entity.deleted',
     objectType: 'entity',
     objectId: before.id,

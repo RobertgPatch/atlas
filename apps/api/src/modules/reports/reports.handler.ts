@@ -7,10 +7,13 @@ import {
   activityDetailRowParamsSchema,
   activityDetailQuerySchema,
   assetClassSummaryQuerySchema,
+  consolidatedHoldingsExportQuerySchema,
+  consolidatedHoldingsQuerySchema,
   exportReportQuerySchema,
   portfolioSummaryQuerySchema,
   updateActivityDetailBodySchema,
 } from './reports.zod.js'
+import { plaidRepository } from '../plaid/plaid.repository.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -144,6 +147,49 @@ export const getActivityDetailHandler = async (
   reply.send(result)
 }
 
+export const getConsolidatedHoldingsHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  let query: ReturnType<typeof consolidatedHoldingsQuerySchema.parse>
+  try {
+    query = consolidatedHoldingsQuerySchema.parse(request.query)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      sendValidationError(reply, error)
+      return
+    }
+    throw error
+  }
+
+  const result = await reportsRepository.getConsolidatedHoldings(query)
+  reply.send(result)
+}
+
+export const refreshConsolidatedHoldingsHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  const selectedAccounts = plaidRepository.getSelectedInvestmentAccounts()
+  const snapshot = plaidRepository.createSyncSnapshot({
+    requestedByUserId: request.authUser.userId,
+    selectedAccountIds: selectedAccounts.map((account) => account.id),
+    status: 'success',
+  })
+
+  reply.status(202).send(snapshot)
+}
+
 export const getReportsExportHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -176,6 +222,47 @@ export const getReportsExportHandler = async (
   }
 
   const exported = await reportsExport.generateReportExport(query, scope)
+
+  reply
+    .header('Content-Type', exported.contentType)
+    .header('Content-Disposition', `attachment; filename="${exported.fileName}"`)
+    .send(exported.body)
+}
+
+export const getConsolidatedHoldingsExportHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  const scope = request.partnershipScope
+  if (!scope) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  let query: ReturnType<typeof consolidatedHoldingsExportQuerySchema.parse>
+  try {
+    query = consolidatedHoldingsExportQuerySchema.parse(request.query)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      sendValidationError(reply, error)
+      return
+    }
+    throw error
+  }
+
+  const exported = await reportsExport.generateReportExport(
+    {
+      ...query,
+      dateRange: 'all',
+      reportType: 'consolidated_holdings',
+    },
+    scope,
+  )
 
   reply
     .header('Content-Type', exported.contentType)

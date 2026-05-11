@@ -1,0 +1,417 @@
+openapi: 3.1.0
+info:
+  title: Atlas Consolidated Holdings Report API
+  version: 0.1.0
+servers:
+  - url: /v1
+paths:
+  /plaid/link-token:
+    post:
+      summary: Create a Plaid Link token for investment account linking or update mode
+      tags: [Plaid]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [create, update]
+                  default: create
+                connectionId:
+                  type: string
+                  nullable: true
+      responses:
+        "200":
+          description: Link token created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [linkToken, expiration]
+                properties:
+                  linkToken:
+                    type: string
+                  expiration:
+                    type: string
+                    format: date-time
+        "401":
+          description: Unauthorized
+  /plaid/exchange-public-token:
+    post:
+      summary: Exchange a Plaid public token and persist the connected item/accounts
+      tags: [Plaid]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicToken]
+              properties:
+                publicToken:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Connection stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaidConnectionResponse"
+  /plaid/investment-accounts:
+    get:
+      summary: List connected investment accounts available for holdings reports
+      tags: [Plaid]
+      responses:
+        "200":
+          description: Investment accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlaidInvestmentAccount"
+    patch:
+      summary: Update selected accounts for consolidated holdings reports
+      tags: [Plaid]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selectedAccountIds]
+              properties:
+                selectedAccountIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Updated account selection
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlaidInvestmentAccount"
+  /reports/consolidated-holdings/refresh:
+    post:
+      summary: Refresh holdings for selected Plaid investment accounts
+      tags: [Reports]
+      responses:
+        "202":
+          description: Refresh accepted or completed synchronously
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingsSyncSnapshot"
+  /reports/consolidated-holdings:
+    get:
+      summary: Get consolidated holdings report rows
+      tags: [Reports]
+      parameters:
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Custodian"
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/Type"
+        - $ref: "#/components/parameters/GainLossState"
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Direction"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Consolidated holdings report
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsolidatedHoldingsResponse"
+  /reports/consolidated-holdings/export:
+    get:
+      summary: Export consolidated holdings report as CSV or XLSX
+      tags: [Reports]
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [csv, xlsx]
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Custodian"
+        - $ref: "#/components/parameters/AccountId"
+        - $ref: "#/components/parameters/Type"
+        - $ref: "#/components/parameters/GainLossState"
+      responses:
+        "200":
+          description: Export file
+          content:
+            text/csv:
+              schema:
+                type: string
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+components:
+  parameters:
+    Search:
+      name: search
+      in: query
+      schema:
+        type: string
+    Custodian:
+      name: custodian
+      in: query
+      schema:
+        type: string
+    AccountId:
+      name: accountId
+      in: query
+      schema:
+        type: string
+    Type:
+      name: type
+      in: query
+      schema:
+        type: string
+    GainLossState:
+      name: gainLossState
+      in: query
+      schema:
+        type: string
+        enum: [gain, loss, flat, unknown]
+    Sort:
+      name: sort
+      in: query
+      schema:
+        type: string
+        enum: [symbol, type, quantity, costBasis, unrealizedGainLoss, marketValue]
+    Direction:
+      name: direction
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 250
+  schemas:
+    PlaidConnectionResponse:
+      type: object
+      required: [connectionId, institutionName, accounts]
+      properties:
+        connectionId:
+          type: string
+        institutionName:
+          type: string
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaidInvestmentAccount"
+    PlaidInvestmentAccount:
+      type: object
+      required: [id, connectionId, custodianName, name, selectedForHoldingsReport, syncStatus]
+      properties:
+        id:
+          type: string
+        connectionId:
+          type: string
+        custodianName:
+          type: string
+        name:
+          type: string
+        officialName:
+          type: string
+          nullable: true
+        mask:
+          type: string
+          nullable: true
+        type:
+          type: string
+        subtype:
+          type: string
+          nullable: true
+        selectedForHoldingsReport:
+          type: boolean
+        syncStatus:
+          type: string
+          enum: [never_synced, pending, success, failed, needs_user_action]
+        lastSyncedAt:
+          type: string
+          format: date-time
+          nullable: true
+    HoldingsSyncSnapshot:
+      type: object
+      required: [id, status, startedAt]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [pending, success, partial_success, failed]
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+    ConsolidatedHoldingsResponse:
+      type: object
+      required: [kpis, rows, page, selectedAccounts, sync]
+      properties:
+        kpis:
+          $ref: "#/components/schemas/ConsolidatedHoldingsKpis"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConsolidatedHoldingRow"
+        page:
+          type: object
+          required: [size, offset, total]
+          properties:
+            size:
+              type: integer
+            offset:
+              type: integer
+            total:
+              type: integer
+        selectedAccounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaidInvestmentAccount"
+        sync:
+          type: object
+          required: [status, lastSuccessfulSyncAt]
+          properties:
+            status:
+              type: string
+              enum: [never_synced, success, partial_success, failed, needs_user_action]
+            lastSuccessfulSyncAt:
+              type: string
+              format: date-time
+              nullable: true
+            warnings:
+              type: array
+              items:
+                type: string
+    ConsolidatedHoldingsKpis:
+      type: object
+      required: [totalMarketValue, totalCostBasis, totalUnrealizedGainLoss, gainLossPercent, uniqueAssetCount, selectedAccountCount]
+      properties:
+        totalMarketValue:
+          type: number
+          nullable: true
+        totalCostBasis:
+          type: number
+          nullable: true
+        totalUnrealizedGainLoss:
+          type: number
+          nullable: true
+        gainLossPercent:
+          type: number
+          nullable: true
+        uniqueAssetCount:
+          type: integer
+        selectedAccountCount:
+          type: integer
+    ConsolidatedHoldingRow:
+      type: object
+      required: [id, symbol, description, type, custodianSummary, quantity, costBasis, unrealizedGainLoss, marketValue, details]
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+          nullable: true
+        description:
+          type: string
+        type:
+          type: string
+        custodianSummary:
+          type: string
+        quantity:
+          type: number
+          nullable: true
+        costBasis:
+          type: number
+          nullable: true
+        averageCostBasis:
+          type: number
+          nullable: true
+        unrealizedGainLoss:
+          type: number
+          nullable: true
+        gainLossPercent:
+          type: number
+          nullable: true
+        marketValue:
+          type: number
+          nullable: true
+        identityConfidence:
+          type: string
+          enum: [high, medium, low]
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustodianHoldingDetailRow"
+    CustodianHoldingDetailRow:
+      type: object
+      required: [id, symbol, description, type, custodian, quantity, costBasis, unrealizedGainLoss, marketValue]
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+          nullable: true
+        description:
+          type: string
+        type:
+          type: string
+        custodian:
+          type: string
+        accountName:
+          type: string
+        accountMask:
+          type: string
+          nullable: true
+        quantity:
+          type: number
+          nullable: true
+        costBasis:
+          type: number
+          nullable: true
+        unrealizedGainLoss:
+          type: number
+          nullable: true
+        marketValue:
+          type: number
+          nullable: true

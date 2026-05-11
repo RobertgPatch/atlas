@@ -4,7 +4,7 @@ import { pool } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { authRepository } from '../auth/auth.repository.js'
-import type { FmvSnapshot } from '../../../../../packages/types/src/partnership-management.js'
+import type { FmvSnapshot } from './partnerships.types.js'
 import type { CreateFmvSnapshotBody } from './partnerships.zod.js'
 
 interface InMemoryFmvSnapshotRecord {

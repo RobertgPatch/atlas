@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ZodError } from 'zod'
 import { partnershipsRepository } from './partnerships.repository.js'
 import { pool, withTransaction } from '../../infra/db/client.js'
-import type { PartnershipDirectoryRow } from '../../../../../packages/types/src/partnership-management.js'
+import type { PartnershipDirectoryRow } from './partnerships.types.js'
 import {
   listPartnershipsQuerySchema,
   exportPartnershipsQuerySchema,

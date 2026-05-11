@@ -17,5 +17,8 @@
     "build:web": "npm run --workspace=web build",
     "test:api": "npm run --workspace=api test",
     "test:web": "npm run --workspace=web test"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
   }
 }

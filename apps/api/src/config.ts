@@ -32,4 +32,18 @@ export const config = {
     apiVersion: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION ?? '2024-11-30',
     modelId: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ?? 'prebuilt-layout',
   },
+  plaid: {
+    clientId: process.env.PLAID_CLIENT_ID ?? '',
+    secret: process.env.PLAID_SECRET ?? '',
+    env: (process.env.PLAID_ENV ?? 'sandbox') as 'sandbox' | 'development' | 'production',
+    products: (process.env.PLAID_PRODUCTS ?? 'investments')
+      .split(',')
+      .map((product) => product.trim())
+      .filter(Boolean),
+    countryCodes: (process.env.PLAID_COUNTRY_CODES ?? 'US')
+      .split(',')
+      .map((country) => country.trim())
+      .filter(Boolean),
+    redirectUri: process.env.PLAID_REDIRECT_URI ?? '',
+  },
 }

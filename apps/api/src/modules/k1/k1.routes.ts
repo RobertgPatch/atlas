@@ -614,7 +614,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
       i.parseError?.code ?? '',
       i.parseError?.message ?? '',
     ]
-      .map(csvEscape)
+      .map((value) => csvEscape(value ?? ''))
       .join(','),
   )
 

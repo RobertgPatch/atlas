@@ -9,7 +9,7 @@ import type {
   PartnershipAssetDetail,
   PartnershipAssetRow,
   PartnershipAssetsResponse,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 import {
   buildAssetsResponse,
   createInMemoryAsset,

@@ -6,7 +6,7 @@ import type {
   PartnershipCommitment,
   UpdateCapitalActivityEventRequest,
   UpdatePartnershipCommitmentRequest,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 
 interface InMemoryCommitmentRecord extends PartnershipCommitment {}
 interface InMemoryCapitalActivityRecord extends CapitalActivityEvent {}

@@ -5,8 +5,11 @@ import { requirePartnershipScope } from '../partnerships/partnershipScope.plugin
 import {
   getActivityDetailHandler,
   getAssetClassSummaryHandler,
+  getConsolidatedHoldingsExportHandler,
+  getConsolidatedHoldingsHandler,
   getPortfolioSummaryHandler,
   getReportsExportHandler,
+  refreshConsolidatedHoldingsHandler,
   undoActivityDetailHandler,
   updateActivityDetailHandler,
 } from './reports.handler.js'
@@ -17,6 +20,9 @@ export const registerReportsRoutes = async (app: FastifyInstance): Promise<void>
   app.get('/reports/portfolio-summary', gated, getPortfolioSummaryHandler)
   app.get('/reports/asset-class-summary', gated, getAssetClassSummaryHandler)
   app.get('/reports/activity-detail', gated, getActivityDetailHandler)
+  app.get('/reports/consolidated-holdings', gated, getConsolidatedHoldingsHandler)
+  app.get('/reports/consolidated-holdings/export', gated, getConsolidatedHoldingsExportHandler)
+  app.post('/reports/consolidated-holdings/refresh', gated, refreshConsolidatedHoldingsHandler)
   app.patch('/reports/activity-detail/:rowId', gated, updateActivityDetailHandler)
   app.post('/reports/activity-detail/:rowId/undo', gated, undoActivityDetailHandler)
   app.get('/reports/export', gated, getReportsExportHandler)

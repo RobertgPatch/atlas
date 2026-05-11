@@ -30,7 +30,7 @@ import type {
   PartnershipCommitment,
   UpdateCapitalActivityEventRequest,
   UpdatePartnershipCommitmentRequest,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 
 const IN_MEMORY_SCOPE = { isAdmin: true, entityIds: [] as string[] }
 
