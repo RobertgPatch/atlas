@@ -14,6 +14,7 @@ import {
   updateActivityDetailBodySchema,
 } from './reports.zod.js'
 import { plaidRepository } from '../plaid/plaid.repository.js'
+import { plaidHoldingsSync } from '../plaid/plaid.holdings-sync.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -180,12 +181,7 @@ export const refreshConsolidatedHoldingsHandler = async (
     return
   }
 
-  const selectedAccounts = plaidRepository.getSelectedInvestmentAccounts()
-  const snapshot = plaidRepository.createSyncSnapshot({
-    requestedByUserId: request.authUser.userId,
-    selectedAccountIds: selectedAccounts.map((account) => account.id),
-    status: 'success',
-  })
+  const snapshot = await plaidHoldingsSync.syncSelectedHoldings(request.authUser.userId)
 
   reply.status(202).send(snapshot)
 }

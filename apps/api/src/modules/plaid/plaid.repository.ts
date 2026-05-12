@@ -55,7 +55,7 @@ export interface SourceHoldingRecord {
   asOfDate: string | null
 }
 
-interface PlaidConnectionRecord {
+export interface PlaidConnectionRecord {
   id: string
   ownerUserId: string
   plaidItemId: string
@@ -175,6 +175,21 @@ export const plaidRepository = {
     return accounts.filter((account) => account.selectedForHoldingsReport)
   },
 
+  getSelectedInvestmentAccountsByConnection(): Array<{
+    connection: PlaidConnectionRecord
+    accounts: PlaidInvestmentAccount[]
+  }> {
+    const selectedAccounts = this.getSelectedInvestmentAccounts()
+    return connections
+      .map((connection) => ({
+        connection,
+        accounts: selectedAccounts.filter(
+          (account) => account.connectionId === connection.id,
+        ),
+      }))
+      .filter((entry) => entry.accounts.length > 0)
+  },
+
   createSyncSnapshot(input: {
     requestedByUserId: string
     selectedAccountIds: string[]
@@ -204,6 +219,12 @@ export const plaidRepository = {
     syncSnapshotId: string,
     holdings: SourceHoldingRecord[],
   ): SourceHoldingRecord[] {
+    const accountIds = new Set(holdings.map((holding) => holding.accountId))
+    for (let index = sourceHoldings.length - 1; index >= 0; index -= 1) {
+      if (accountIds.has(sourceHoldings[index]!.accountId)) {
+        sourceHoldings.splice(index, 1)
+      }
+    }
     sourceHoldings.push(...holdings.map((holding) => ({ ...holding, syncSnapshotId })))
     return holdings
   },
