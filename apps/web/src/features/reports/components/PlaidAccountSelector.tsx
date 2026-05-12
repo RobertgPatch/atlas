@@ -8,7 +8,9 @@ interface PlaidAccountSelectorProps {
   onClose: () => void
   onConfirm: (selectedAccountIds: string[]) => void
   onConnect: () => void
+  isConnecting?: boolean
   isSaving?: boolean
+  errorMessage?: string | null
 }
 
 export function PlaidAccountSelector({
@@ -17,7 +19,9 @@ export function PlaidAccountSelector({
   onClose,
   onConfirm,
   onConnect,
+  isConnecting = false,
   isSaving = false,
+  errorMessage = null,
 }: PlaidAccountSelectorProps) {
   const [localSelected, setLocalSelected] = useState<Set<string>>(new Set())
 
@@ -96,10 +100,11 @@ export function PlaidAccountSelector({
             <button
               type="button"
               onClick={onConnect}
+              disabled={isConnecting}
               className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
             >
               <BuildingIcon className="h-4 w-4" />
-              Connect
+              {isConnecting ? 'Connecting...' : 'Connect'}
             </button>
             <button
               type="button"
@@ -110,6 +115,12 @@ export function PlaidAccountSelector({
             </button>
           </div>
         </div>
+
+        {errorMessage && (
+          <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {errorMessage}
+          </div>
+        )}
 
         <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
           {grouped.length === 0 ? (
@@ -178,7 +189,7 @@ export function PlaidAccountSelector({
             onClick={() => onConfirm([...localSelected])}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Apply Selection ({localSelected.size})
+            {isSaving ? 'Applying...' : `Apply Selection (${localSelected.size})`}
           </button>
         </div>
       </div>

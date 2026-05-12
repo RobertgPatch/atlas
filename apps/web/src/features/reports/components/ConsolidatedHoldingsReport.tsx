@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LinkIcon, RefreshCwIcon } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorState } from '../../../components/ErrorState'
@@ -16,9 +16,16 @@ import { PlaidAccountSelector } from './PlaidAccountSelector'
 export function ConsolidatedHoldingsReport() {
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [accountSelectorError, setAccountSelectorError] = useState<string | null>(null)
   const holdings = useConsolidatedHoldings()
   const plaidAccounts = usePlaidAccounts()
   const plaidLink = usePlaidLink()
+
+  useEffect(() => {
+    void plaidLink.prepare().catch(() => {
+      // Surface token creation errors only when the user actively opens Link.
+    })
+  }, [plaidLink.prepare])
 
   if (holdings.query.isLoading) {
     return (
@@ -81,7 +88,13 @@ export function ConsolidatedHoldingsReport() {
           </button>
           <button
             type="button"
-            onClick={() => setIsAccountSelectorOpen(true)}
+            onClick={() => {
+              setAccountSelectorError(null)
+              setIsAccountSelectorOpen(true)
+              if (plaidAccounts.accounts.length === 0) {
+                void plaidLink.open()
+              }
+            }}
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
           >
             <LinkIcon className="h-4 w-4" />
@@ -139,11 +152,25 @@ export function ConsolidatedHoldingsReport() {
         isOpen={isAccountSelectorOpen}
         accounts={plaidAccounts.accounts}
         onClose={() => setIsAccountSelectorOpen(false)}
-        onConnect={() => void plaidLink.open()}
+        onConnect={() => {
+          setAccountSelectorError(null)
+          void plaidLink.open()
+        }}
+        isConnecting={plaidLink.isLoading}
         isSaving={plaidAccounts.updateSelection.isPending}
+        errorMessage={accountSelectorError}
         onConfirm={(selectedAccountIds) => {
+          setAccountSelectorError(null)
           plaidAccounts.updateSelection.mutate(selectedAccountIds, {
-            onSuccess: () => setIsAccountSelectorOpen(false),
+            onSuccess: () => {
+              setIsAccountSelectorOpen(false)
+              void holdings.refresh.mutate()
+            },
+            onError: () => {
+              setAccountSelectorError(
+                'Unable to apply account selection. Please try again after the API redeploy finishes.',
+              )
+            },
           })
         }}
       />
