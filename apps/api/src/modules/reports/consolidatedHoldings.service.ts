@@ -26,6 +26,8 @@ interface CustodianHoldingDetailRow {
   accountName: string
   accountMask: string | null
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -40,6 +42,8 @@ interface ConsolidatedHoldingRow {
   type: string
   custodianSummary: string
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -96,6 +100,12 @@ const sumKnown = (values: Array<number | null>): number | null => {
   const known = values.filter((value): value is number => value != null)
   if (known.length === 0) return null
   return known.reduce((sum, value) => sum + value, 0)
+}
+
+const latestDate = (values: Array<string | null>): string | null => {
+  const known = values.filter((value): value is string => Boolean(value))
+  if (known.length === 0) return null
+  return known.sort((a, b) => b.localeCompare(a))[0]!
 }
 
 const gainLossStateFor = (row: ConsolidatedHoldingRow): string => {
@@ -179,6 +189,11 @@ export const buildConsolidatedHoldingsResponse = (
     const unrealizedGainLoss = sumKnown(
       group.holdings.map((holding) => holding.unrealizedGainLoss),
     )
+    const institutionPrice =
+      marketValue != null && quantity != null && quantity !== 0
+        ? marketValue / quantity
+        : first.institutionPrice
+    const priceAsOfDate = latestDate(group.holdings.map((holding) => holding.asOfDate))
     const averageCostBasis =
       quantity != null && quantity !== 0 && costBasis != null ? costBasis / quantity : null
     const gainLossPercent =
@@ -208,6 +223,8 @@ export const buildConsolidatedHoldingsResponse = (
         accountName: account?.name ?? 'Unknown account',
         accountMask: account?.mask ?? null,
         quantity: holding.quantity,
+        institutionPrice: holding.institutionPrice,
+        priceAsOfDate: holding.asOfDate,
         costBasis: holding.costBasis,
         averageCostBasis: detailAverage,
         unrealizedGainLoss: holding.unrealizedGainLoss,
@@ -228,6 +245,8 @@ export const buildConsolidatedHoldingsResponse = (
           ? [...custodians][0]!
           : `${group.holdings.length} accounts`,
       quantity,
+      institutionPrice,
+      priceAsOfDate,
       costBasis,
       averageCostBasis,
       unrealizedGainLoss,

@@ -19,6 +19,15 @@ const formatNumber = (value: number | null | undefined): string =>
     ? 'N/A'
     : new Intl.NumberFormat('en-US', { maximumFractionDigits: 4 }).format(value)
 
+const formatPriceDate = (value: string | null | undefined): string =>
+  value
+    ? new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC',
+      }).format(new Date(value))
+    : 'No date'
+
 function GainLossCell({
   value,
   percent,
@@ -146,6 +155,10 @@ export function ConsolidatedHoldingsRow({
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {formatNumber(row.quantity)}
         </td>
+        <td className="px-3 py-3.5 text-right text-sm text-gray-700">
+          <div className="font-medium">{formatCurrency(row.institutionPrice)}</div>
+          <div className="text-xs text-gray-400">{formatPriceDate(row.priceAsOfDate)}</div>
+        </td>
         <td className="py-3.5 pl-3 pr-4 text-right text-sm font-semibold text-gray-900">
           {formatCurrency(row.marketValue)}
         </td>
@@ -183,6 +196,10 @@ export function ConsolidatedHoldingsRow({
             </td>
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {formatNumber(detail.quantity)}
+            </td>
+            <td className="px-3 py-2.5 text-right text-xs text-gray-600">
+              <div>{formatCurrency(detail.institutionPrice)}</div>
+              <div className="text-gray-400">{formatPriceDate(detail.priceAsOfDate)}</div>
             </td>
             <td className="py-2.5 pl-3 pr-4 text-right text-xs text-gray-600">
               {formatCurrency(detail.marketValue)}

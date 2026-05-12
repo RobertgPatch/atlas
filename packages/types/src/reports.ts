@@ -72,6 +72,8 @@ export interface CustodianHoldingDetailRow {
   accountName: string
   accountMask: string | null
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -86,6 +88,8 @@ export interface ConsolidatedHoldingRow {
   type: string
   custodianSummary: string
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
