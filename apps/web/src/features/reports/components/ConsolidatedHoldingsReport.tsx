@@ -3,19 +3,16 @@ import { LinkIcon, RefreshCwIcon } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorState } from '../../../components/ErrorState'
 import { LoadingState } from '../../../components/LoadingState'
-import { reportsClient } from '../api/reportsClient'
 import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts'
 import { usePlaidLink } from '../hooks/usePlaidLink'
 import { ConsolidatedHoldingsSummaryCards } from './ConsolidatedHoldingsSummaryCards'
-import { ConsolidatedHoldingsFilters } from './ConsolidatedHoldingsFilters'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { PlaidAccountSelector } from './PlaidAccountSelector'
 
 export function ConsolidatedHoldingsReport() {
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false)
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [accountSelectorError, setAccountSelectorError] = useState<string | null>(null)
   const holdings = useConsolidatedHoldings()
   const plaidAccounts = usePlaidAccounts()
@@ -47,7 +44,6 @@ export function ConsolidatedHoldingsReport() {
 
   const data = holdings.query.data
   const rows = data?.rows ?? []
-  const assetTypes = [...new Set(rows.map((row) => row.type))].sort()
   const lastUpdated = data?.sync.lastSuccessfulSyncAt
     ? new Intl.DateTimeFormat('en-US', {
         dateStyle: 'full',
@@ -65,19 +61,6 @@ export function ConsolidatedHoldingsReport() {
           <p className="mt-1 text-sm text-gray-500">Last updated: {lastUpdated}</p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={async () => {
-              const result = await reportsClient.exportConsolidatedHoldings({
-                ...holdings.queryInput,
-                format: 'csv',
-              })
-              setExportMessage(`Export ready: ${result.fileName ?? 'holdings.csv'}`)
-            }}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-          >
-            CSV
-          </button>
           <button
             type="button"
             onClick={() => holdings.refresh.mutate()}
@@ -108,21 +91,9 @@ export function ConsolidatedHoldingsReport() {
 
       <ConsolidatedHoldingsSummaryCards kpis={data?.kpis} />
 
-      {exportMessage && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
-          {exportMessage}
-        </div>
-      )}
-
-      <ConsolidatedHoldingsSyncStatus sync={data?.sync} />
-
-      <ConsolidatedHoldingsFilters
-        filters={holdings.filters}
-        accounts={data?.selectedAccounts ?? []}
-        assetTypes={assetTypes}
-        onChange={holdings.updateFilter}
-        onClear={holdings.clearFilters}
-      />
+      {data?.sync.status === 'partial_success' || data?.sync.status === 'failed' ? (
+        <ConsolidatedHoldingsSyncStatus sync={data.sync} />
+      ) : null}
 
       {rows.length === 0 && !holdings.filters.search ? (
         <EmptyState
@@ -145,7 +116,7 @@ export function ConsolidatedHoldingsReport() {
       )}
 
       <div className="text-center text-xs text-gray-400">
-        Data sourced via Plaid API · Prices may be delayed · For informational purposes only
+        Data sourced via Plaid API - Prices may be delayed up to 15 minutes - For informational purposes only
       </div>
 
       <PlaidAccountSelector
@@ -177,3 +148,4 @@ export function ConsolidatedHoldingsReport() {
     </div>
   )
 }
+
