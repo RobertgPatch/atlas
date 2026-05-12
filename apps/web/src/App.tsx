@@ -21,6 +21,7 @@ import { PartnershipDetail } from './pages/PartnershipDetail'
 import { EntityDetail } from './pages/EntityDetail'
 import { EntitiesPage } from './pages/EntitiesPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { LiquidityPage } from './pages/LiquidityPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -176,6 +177,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/liquidity"
+            element={
+              <ProtectedRoute>
+                <LiquidityPage />
               </ProtectedRoute>
             }
           />

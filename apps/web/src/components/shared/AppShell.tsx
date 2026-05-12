@@ -7,6 +7,7 @@ import {
   Building2,
   Briefcase,
   BarChart3,
+  Landmark,
   Users,
   Bell,
   Search,
@@ -38,6 +39,7 @@ export function AppShell({
     { name: 'Entities', href: '/entities', icon: Building2 },
     { name: 'Partnerships', href: '/partnerships', icon: Briefcase },
     { name: 'Reports', href: '/reports', icon: BarChart3 },
+    { name: 'Liquidity', href: '/liquidity', icon: Landmark },
   ]
 
   const adminNavigation = [

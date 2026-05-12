@@ -96,7 +96,17 @@ export function ConsolidatedHoldingsTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[980px]">
+        <table className="w-full min-w-[1080px] table-fixed">
+          <colgroup>
+            <col className="w-[170px]" />
+            <col className="w-[220px]" />
+            <col className="w-[150px]" />
+            <col className="w-[135px]" />
+            <col className="w-[150px]" />
+            <col className="w-[145px]" />
+            <col className="w-[110px]" />
+            <col className="w-[130px]" />
+          </colgroup>
           <thead>
             <tr className="bg-gray-50/80">
               <th
