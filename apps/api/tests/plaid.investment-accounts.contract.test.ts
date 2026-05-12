@@ -30,8 +30,8 @@ describe('Plaid investment accounts contract', () => {
 
   it('updates selected accounts', async () => {
     const response = await fixture.app.inject({
-      method: 'PATCH',
-      url: '/v1/plaid/investment-accounts',
+      method: 'POST',
+      url: '/v1/plaid/investment-accounts/selection',
       headers: { cookie: fixture.cookie },
       payload: {
         selectedAccountIds: ['11111111-1111-4111-8111-111111111111'],

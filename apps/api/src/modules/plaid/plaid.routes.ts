@@ -15,4 +15,5 @@ export const registerPlaidRoutes = async (app: FastifyInstance): Promise<void> =
   app.post('/plaid/exchange-public-token', gated, exchangePlaidPublicTokenHandler)
   app.get('/plaid/investment-accounts', gated, listPlaidInvestmentAccountsHandler)
   app.patch('/plaid/investment-accounts', gated, updatePlaidInvestmentAccountsHandler)
+  app.post('/plaid/investment-accounts/selection', gated, updatePlaidInvestmentAccountsHandler)
 }

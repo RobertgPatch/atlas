@@ -198,8 +198,8 @@ export const reportsClient = {
   updatePlaidInvestmentAccounts(
     payload: UpdatePlaidInvestmentAccountsRequest,
   ): Promise<PlaidInvestmentAccountsResponse> {
-    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts', {
-      method: 'PATCH',
+    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts/selection', {
+      method: 'POST',
       body: JSON.stringify(payload),
     })
   },
