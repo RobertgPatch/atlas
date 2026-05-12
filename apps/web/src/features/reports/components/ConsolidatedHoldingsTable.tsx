@@ -95,18 +95,15 @@ export function ConsolidatedHoldingsTable({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1210px] table-fixed">
+      <div className="w-full">
+        <table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[170px]" />
-            <col className="w-[220px]" />
-            <col className="w-[150px]" />
-            <col className="w-[135px]" />
-            <col className="w-[150px]" />
-            <col className="w-[145px]" />
-            <col className="w-[110px]" />
-            <col className="w-[130px]" />
-            <col className="w-[130px]" />
+            <col className="w-[14%]" />
+            <col className="w-[34%]" />
+            <col className="w-[13%]" />
+            <col className="w-[15%]" />
+            <col className="w-[10%]" />
+            <col className="w-[14%]" />
           </colgroup>
           <thead>
             <tr className="bg-gray-50/80">
@@ -119,15 +116,7 @@ export function ConsolidatedHoldingsTable({
                 </span>
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Description
-              </th>
-              <th
-                onClick={() => handleSort('type')}
-                className="cursor-pointer select-none px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
-              >
-                <span className="inline-flex items-center gap-1">
-                  Type {sortIcon('type')}
-                </span>
+                Position
               </th>
               <th
                 onClick={() => handleSort('costBasis')}
@@ -145,9 +134,6 @@ export function ConsolidatedHoldingsTable({
                   Unrealized G/L {sortIcon('unrealizedGainLoss')}
                 </span>
               </th>
-              <th className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Custodian
-              </th>
               <th
                 onClick={() => handleSort('quantity')}
                 className="cursor-pointer select-none px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
@@ -155,9 +141,6 @@ export function ConsolidatedHoldingsTable({
                 <span className="inline-flex items-center gap-1">
                   Quantity {sortIcon('quantity')}
                 </span>
-              </th>
-              <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500">
-                Price
               </th>
               <th
                 onClick={() => handleSort('marketValue')}
@@ -172,7 +155,7 @@ export function ConsolidatedHoldingsTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={9} className="py-16 text-center text-sm text-gray-400">
+                <td colSpan={6} className="py-16 text-center text-sm text-gray-400">
                   No holdings found. Try adjusting your search or account selection.
                 </td>
               </tr>

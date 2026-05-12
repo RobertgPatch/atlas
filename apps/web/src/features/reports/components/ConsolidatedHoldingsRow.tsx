@@ -103,21 +103,22 @@ export function ConsolidatedHoldingsRow({
           </div>
         </td>
         <td className="px-3 py-3.5">
-          <div className="max-w-[180px] truncate text-sm text-gray-600">
+          <div className="truncate text-sm text-gray-600">
             {row.description}
           </div>
-          <span
-            className={`mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-              sectorBadgeColors[sector] ?? sectorBadgeColors.Other
-            }`}
-          >
-            {sector}
-          </span>
-        </td>
-        <td className="px-3 py-3.5">
-          <span className="inline-flex whitespace-nowrap rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
-            {row.type}
-          </span>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+            <span className="inline-flex whitespace-nowrap rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+              {row.type}
+            </span>
+            <span
+              className={`inline-flex whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                sectorBadgeColors[sector] ?? sectorBadgeColors.Other
+              }`}
+            >
+              {sector}
+            </span>
+            <span className="truncate text-xs text-gray-400">{row.custodianSummary}</span>
+          </div>
         </td>
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {row.costBasis !== null ? (
@@ -147,20 +148,14 @@ export function ConsolidatedHoldingsRow({
             status={costBasisStatus}
           />
         </td>
-        <td className="px-3 py-3.5 text-center text-sm text-gray-500">
-          <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
-            {row.custodianSummary}
-          </span>
-        </td>
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {formatNumber(row.quantity)}
         </td>
-        <td className="px-3 py-3.5 text-right text-sm text-gray-700">
-          <div className="font-medium">{formatCurrency(row.institutionPrice)}</div>
-          <div className="text-xs text-gray-400">{formatPriceDate(row.priceAsOfDate)}</div>
-        </td>
         <td className="py-3.5 pl-3 pr-4 text-right text-sm font-semibold text-gray-900">
-          {formatCurrency(row.marketValue)}
+          <div>{formatCurrency(row.marketValue)}</div>
+          <div className="text-xs font-normal text-gray-400">
+            {formatCurrency(row.institutionPrice)} {formatPriceDate(row.priceAsOfDate)}
+          </div>
         </td>
       </tr>
 
@@ -169,9 +164,16 @@ export function ConsolidatedHoldingsRow({
           <tr key={detail.id} className="border-b border-gray-50 bg-gray-50/70">
             <td className="py-2.5 pl-12 pr-2 text-xs text-gray-300">-</td>
             <td className="px-3 py-2.5 text-xs text-gray-500">
-              {detail.custodian} - {detail.accountName}
+              <div className="truncate">{detail.custodian} - {detail.accountName}</div>
+              <div className="mt-0.5 flex items-center gap-1">
+                <span className="inline-flex whitespace-nowrap rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
+                  {detail.type}
+                </span>
+                {detail.accountMask ? (
+                  <span className="text-[10px] text-gray-400">****{detail.accountMask}</span>
+                ) : null}
+              </div>
             </td>
-            <td className="px-3 py-2.5" />
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {detail.costBasis !== null ? (
                 <div>
@@ -191,18 +193,14 @@ export function ConsolidatedHoldingsRow({
                 status={detail.costBasis == null ? 'missing' : 'complete'}
               />
             </td>
-            <td className="px-3 py-2.5 text-center text-xs text-gray-500">
-              {detail.accountMask ? `${detail.custodian} ****${detail.accountMask}` : detail.custodian}
-            </td>
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {formatNumber(detail.quantity)}
             </td>
-            <td className="px-3 py-2.5 text-right text-xs text-gray-600">
-              <div>{formatCurrency(detail.institutionPrice)}</div>
-              <div className="text-gray-400">{formatPriceDate(detail.priceAsOfDate)}</div>
-            </td>
             <td className="py-2.5 pl-3 pr-4 text-right text-xs text-gray-600">
-              {formatCurrency(detail.marketValue)}
+              <div>{formatCurrency(detail.marketValue)}</div>
+              <div className="text-gray-400">
+                {formatCurrency(detail.institutionPrice)} {formatPriceDate(detail.priceAsOfDate)}
+              </div>
             </td>
           </tr>
         ))}
