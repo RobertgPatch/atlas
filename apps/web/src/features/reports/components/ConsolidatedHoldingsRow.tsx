@@ -83,6 +83,9 @@ export function ConsolidatedHoldingsRow({
   const costBasisStatus = getCostBasisStatus(row)
   const positionName = truncatePositionName(row.description)
   const positionTitle = row.description.length > 80 ? row.description : undefined
+  const sourceRecordLabel = `${row.details.length} source ${
+    row.details.length === 1 ? 'record' : 'records'
+  }`
 
   return (
     <>
@@ -140,6 +143,9 @@ export function ConsolidatedHoldingsRow({
               {sector}
             </span>
             <span className="truncate text-xs text-gray-400">{row.custodianSummary}</span>
+            <span className="whitespace-nowrap rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+              {sourceRecordLabel}
+            </span>
           </div>
         </td>
         <td className="px-3 py-3.5 align-top">

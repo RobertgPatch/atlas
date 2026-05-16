@@ -24,6 +24,7 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     )
 
     expect(screen.getByText('GOOGL')).toBeInTheDocument()
+    expect(screen.getByText('2 source records')).toBeInTheDocument()
     expect(screen.queryByText('Brokerage A - Taxable')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /expand GOOGL account details/i }),
