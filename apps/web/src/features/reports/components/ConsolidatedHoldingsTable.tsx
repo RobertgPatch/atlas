@@ -146,6 +146,9 @@ const categoryOrder = new Map([
   [otherCategory.key, assetCategories.length] as const,
 ])
 
+const summaryGridTemplateColumns =
+  'minmax(15rem,1.35fr) minmax(7.5rem,.55fr) minmax(11rem,.75fr) minmax(6rem,.45fr) minmax(10rem,.7fr)'
+
 const compareRowsAlphabetically = (
   a: ConsolidatedHoldingRow,
   b: ConsolidatedHoldingRow,
@@ -292,7 +295,19 @@ export function ConsolidatedHoldingsTable({
     )
   }
 
-  const renderPositionHeaderRow = (accentBorderClassName: string) => (
+  const childColumnGroup = (
+    <colgroup>
+      <col className="w-[13%]" />
+      <col className="w-[31%]" />
+      <col className="w-[13%]" />
+      <col className="w-[13%]" />
+      <col className="w-[9%]" />
+      <col className="w-[8%]" />
+      <col className="w-[13%]" />
+    </colgroup>
+  )
+
+  const renderPositionHeaderRow = () => (
     <tr className="border-y border-gray-100 bg-gray-50/80">
       {columns.map((column, index) => (
         <th
@@ -300,9 +315,9 @@ export function ConsolidatedHoldingsTable({
           onClick={() => (column.key ? handleSort(column.key) : undefined)}
           className={`select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors ${
             column.key ? 'cursor-pointer hover:text-gray-700' : ''
-          } ${column.align} ${
-            index === 0 ? `border-l-4 pl-12 ${accentBorderClassName}` : ''
-          } ${index === columns.length - 1 ? 'pr-4' : ''}`}
+          } ${column.align} ${index === 0 ? 'pl-8' : ''} ${
+            index === columns.length - 1 ? 'pr-4' : ''
+          }`}
           scope="col"
         >
           <span className="inline-flex items-center gap-1">
@@ -351,36 +366,20 @@ export function ConsolidatedHoldingsTable({
           <thead>
             <tr className="bg-gray-50/80">
               <th
-                colSpan={2}
-                className="px-3 py-3 pl-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                colSpan={7}
+                className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
                 scope="col"
               >
-                Asset Type
-              </th>
-              <th
-                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
-                scope="col"
-              >
-                Positions
-              </th>
-              <th
-                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
-                scope="col"
-              >
-                Total Unrealized G/L
-              </th>
-              <th
-                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
-                scope="col"
-              >
-                Custodians
-              </th>
-              <th className="px-3 py-3" scope="col" />
-              <th
-                className="py-3 pl-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"
-                scope="col"
-              >
-                Market Value
+                <div
+                  className="grid items-center gap-6"
+                  style={{ gridTemplateColumns: summaryGridTemplateColumns }}
+                >
+                  <span>Asset Type</span>
+                  <span>Positions</span>
+                  <span>Total Unrealized G/L</span>
+                  <span>Custodians</span>
+                  <span className="text-right">Market Value</span>
+                </div>
               </th>
             </tr>
           </thead>
@@ -405,80 +404,90 @@ export function ConsolidatedHoldingsTable({
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${group.category.bgColor}`}
                   >
                     <td
-                      colSpan={2}
-                      className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
+                      colSpan={7}
+                      className={`border-l-4 px-4 py-3 ${group.category.accentBorderColor}`}
                     >
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
-                          {isCollapsed ? (
-                            <PlusIcon className="h-3 w-3" />
-                          ) : (
-                            <MinusIcon className="h-3 w-3" />
-                          )}
+                      <div
+                        className="grid items-center gap-6"
+                        style={{ gridTemplateColumns: summaryGridTemplateColumns }}
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
+                            {isCollapsed ? (
+                              <PlusIcon className="h-3 w-3" />
+                            ) : (
+                              <MinusIcon className="h-3 w-3" />
+                            )}
+                          </span>
+                          <div
+                            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
+                          >
+                            <CategoryIcon className="h-3.5 w-3.5" />
+                          </div>
+                          <span
+                            className={`min-w-0 truncate text-sm font-semibold ${group.category.color}`}
+                            title={group.category.label}
+                          >
+                            {group.category.label}
+                          </span>
+                        </div>
+                        <span className="whitespace-nowrap text-xs font-medium text-gray-400">
+                          {group.rows.length} position
+                          {group.rows.length === 1 ? '' : 's'}
                         </span>
-                        <div
-                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
-                        >
-                          <CategoryIcon className="h-3.5 w-3.5" />
+                        <div>
+                          {group.hasGainLoss ? (
+                            <span
+                              className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                gainLossPositive
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}
+                            >
+                              {gainLossPositive ? '+' : ''}
+                              {formatCurrency(group.totalGainLoss)}
+                            </span>
+                          ) : null}
                         </div>
                         <span
-                          className={`min-w-0 truncate text-sm font-semibold ${group.category.color}`}
-                          title={group.category.label}
+                          className="text-xs font-medium text-gray-400"
+                          title={`${group.accountCount} account${group.accountCount === 1 ? '' : 's'}`}
                         >
-                          {group.category.label}
+                          {group.accountCount}
+                        </span>
+                        <span className="text-right text-sm font-bold text-gray-900">
+                          {formatCurrency(group.totalValue)}
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-left">
-                      <span className="whitespace-nowrap text-xs font-medium text-gray-400">
-                        {group.rows.length} position
-                        {group.rows.length === 1 ? '' : 's'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 text-left">
-                      {group.hasGainLoss ? (
-                        <span
-                          className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            gainLossPositive
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {gainLossPositive ? '+' : ''}
-                          {formatCurrency(group.totalGainLoss)}
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-3 text-left">
-                      <span
-                        className="text-xs font-medium text-gray-400"
-                        title={`${group.accountCount} account${group.accountCount === 1 ? '' : 's'}`}
-                      >
-                        {group.accountCount}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3" />
-                    <td className="py-3 pl-3 pr-4 text-right">
-                      <span className="text-sm font-bold text-gray-900">
-                        {formatCurrency(group.totalValue)}
-                      </span>
-                    </td>
                   </tr>
                   {!isCollapsed && (
-                    <>
-                      {renderPositionHeaderRow(group.category.accentBorderColor)}
-                      {group.rows.map((row) => (
-                        <ConsolidatedHoldingsRow
-                          key={row.id}
-                          row={row}
-                          sector={inferSector(row)}
-                          accountCount={getAccountCount(row)}
-                          groupAccentClassName={group.category.accentBorderColor}
-                          isExpanded={expandedIds.has(row.id)}
-                          onToggle={() => toggleExpand(row.id)}
-                        />
-                      ))}
-                    </>
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className={`border-l-4 bg-white p-0 ${group.category.accentBorderColor}`}
+                      >
+                        <div className="ml-9 border-l border-gray-200 bg-white">
+                          <table className="w-full table-fixed">
+                            {childColumnGroup}
+                            <thead>{renderPositionHeaderRow()}</thead>
+                            <tbody>
+                              {group.rows.map((row) => (
+                                <ConsolidatedHoldingsRow
+                                  key={row.id}
+                                  row={row}
+                                  sector={inferSector(row)}
+                                  accountCount={getAccountCount(row)}
+                                  groupAccentClassName="border-l-transparent"
+                                  isExpanded={expandedIds.has(row.id)}
+                                  onToggle={() => toggleExpand(row.id)}
+                                />
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
                   )}
                 </tbody>
               )
