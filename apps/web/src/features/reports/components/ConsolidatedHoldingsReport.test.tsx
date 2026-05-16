@@ -26,8 +26,12 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
       />,
     )
 
-    expect(screen.getByText('GOOGL')).toBeInTheDocument()
     expect(screen.getByText('Equities')).toBeInTheDocument()
+    expect(screen.queryByText('GOOGL')).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Equities'))
+
+    expect(screen.getByText('GOOGL')).toBeInTheDocument()
     expect(screen.queryByText('2 source records')).not.toBeInTheDocument()
     expect(screen.queryByText('Taxable')).not.toBeInTheDocument()
     expect(
@@ -41,7 +45,8 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText('70')).toBeInTheDocument()
   })
 
-  it('sorts positions alphabetically within each asset-class section', () => {
+  it('sorts positions alphabetically within each asset-class section', async () => {
+    const user = userEvent.setup()
     const [baseRow] = consolidatedHoldingsFixture.rows
     const appleRow = {
       ...baseRow,
@@ -72,6 +77,8 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
       />,
     )
 
+    await user.click(screen.getByText('Equities'))
+
     const appleSymbol = screen.getByText('AAPL')
     const googleSymbol = screen.getByText('GOOGL')
 
@@ -81,7 +88,8 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     ).toBeTruthy()
   })
 
-  it('reverses the same positions when toggling a numeric sort direction', () => {
+  it('reverses the same positions when toggling a numeric sort direction', async () => {
+    const user = userEvent.setup()
     const [baseRow] = consolidatedHoldingsFixture.rows
     const appleRow = {
       ...baseRow,
@@ -104,6 +112,8 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
         onSortChange={vi.fn()}
       />,
     )
+
+    await user.click(screen.getByText('Equities'))
 
     expect(screen.getAllByText(/AAPL|GOOGL/).map((node) => node.textContent)).toEqual([
       'GOOGL',

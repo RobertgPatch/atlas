@@ -204,7 +204,7 @@ export function ConsolidatedHoldingsTable({
   onSortChange,
 }: ConsolidatedHoldingsTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set())
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
 
   const columnByKey = useMemo(
     () => new Set(columns.flatMap((column) => (column.key ? [column.key] : []))),
@@ -273,7 +273,7 @@ export function ConsolidatedHoldingsTable({
   }
 
   const toggleCategory = (key: string) => {
-    setCollapsedCategories((prev) => {
+    setExpandedCategories((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
@@ -393,7 +393,7 @@ export function ConsolidatedHoldingsTable({
             </tbody>
           ) : (
             groupedByCategory.map((group) => {
-              const isCollapsed = collapsedCategories.has(group.category.key)
+              const isExpanded = expandedCategories.has(group.category.key)
               const CategoryIcon = group.category.Icon
               const gainLossPositive = group.totalGainLoss >= 0
 
@@ -413,10 +413,10 @@ export function ConsolidatedHoldingsTable({
                       >
                         <div className="flex min-w-0 items-center gap-2.5">
                           <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
-                            {isCollapsed ? (
-                              <PlusIcon className="h-3 w-3" />
-                            ) : (
+                            {isExpanded ? (
                               <MinusIcon className="h-3 w-3" />
+                            ) : (
+                              <PlusIcon className="h-3 w-3" />
                             )}
                           </span>
                           <div
@@ -461,7 +461,7 @@ export function ConsolidatedHoldingsTable({
                       </div>
                     </td>
                   </tr>
-                  {!isCollapsed && (
+                  {isExpanded && (
                     <tr>
                       <td
                         colSpan={7}
