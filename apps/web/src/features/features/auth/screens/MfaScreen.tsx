@@ -29,7 +29,7 @@ export const MfaScreen: React.FC = () => {
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     if (code === '123456') {
-      navigate('/dashboard');
+      navigate('/liquidity');
     } else {
       setError('Incorrect code. Try 123456 for now.');
       setLoading(false);

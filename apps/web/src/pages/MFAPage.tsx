@@ -89,7 +89,7 @@ export function MFAPage() {
       const session = await authClient.verifyMfa(challenge.challengeId, fullCode)
       authFlowStore.clear()
       sessionStore.setAuthenticated(session)
-      navigate('/dashboard')
+      navigate('/liquidity')
     } catch (err) {
       setError(getMfaErrorMessage(err))
       setCode(['', '', '', '', '', ''])

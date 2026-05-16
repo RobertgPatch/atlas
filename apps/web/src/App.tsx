@@ -10,7 +10,6 @@ import { sessionStore, useSession } from './auth/sessionStore'
 import { LoginPage } from './pages/LoginPage'
 import { MFASetupPage } from './pages/MFASetupPage'
 import { MFAPage } from './pages/MFAPage'
-import { DashboardPage } from './pages/DashboardPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
 import { UserDetailPage } from './pages/UserDetailPage'
@@ -110,7 +109,7 @@ export function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <DashboardPage />
+                <Navigate to="/liquidity" replace />
               </ProtectedRoute>
             }
           />

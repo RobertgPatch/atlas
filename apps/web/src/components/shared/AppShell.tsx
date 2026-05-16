@@ -2,15 +2,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
-  LayoutDashboard,
-  FileText,
-  Building2,
-  Briefcase,
-  BarChart3,
   Landmark,
-  Users,
-  Bell,
-  Search,
   Menu,
   X,
   LogOut,
@@ -26,7 +18,7 @@ interface AppShellProps {
 
 export function AppShell({
   children,
-  currentPath = '/dashboard',
+  currentPath = '/liquidity',
   userRole = 'User',
   userEmail,
   onSignOut,
@@ -34,16 +26,7 @@ export function AppShell({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'K-1 Processing', href: '/k1', icon: FileText },
-    { name: 'Entities', href: '/entities', icon: Building2 },
-    { name: 'Partnerships', href: '/partnerships', icon: Briefcase },
-    { name: 'Reports', href: '/reports', icon: BarChart3 },
     { name: 'Liquidity', href: '/liquidity', icon: Landmark },
-  ]
-
-  const adminNavigation = [
-    { name: 'User Management', href: '/admin/users', icon: Users },
   ]
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> } }) => {
@@ -109,19 +92,6 @@ export function AppShell({
                 <NavItem key={item.name} item={item} />
               ))}
             </nav>
-
-            {userRole === 'Admin' && (
-              <div>
-                <h3 className="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                  Administration
-                </h3>
-                <nav className="space-y-1">
-                  {adminNavigation.map((item) => (
-                    <NavItem key={item.name} item={item} />
-                  ))}
-                </nav>
-              </div>
-            )}
           </div>
 
           {/* User Profile */}
@@ -158,26 +128,6 @@ export function AppShell({
               onClick={() => setIsMobileMenuOpen(true)}
             >
               <Menu className="w-6 h-6" />
-            </button>
-
-            <div className="max-w-md w-full hidden sm:block">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
-                </div>
-                <input
-                  type="text"
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold sm:text-sm transition-colors"
-                  placeholder="Search entities, partnerships, or K-1s..."
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button className="relative p-2 text-gray-400 hover:text-gray-500 transition-colors">
-              <span className="absolute top-1.5 right-1.5 block h-2 w-2 rounded-full bg-error ring-2 ring-white" />
-              <Bell className="w-5 h-5" />
             </button>
           </div>
         </header>

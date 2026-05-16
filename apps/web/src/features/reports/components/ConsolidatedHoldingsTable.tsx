@@ -56,7 +56,6 @@ interface AssetCategory {
 const columns: TableColumn[] = [
   { key: 'symbol', label: 'Symbol', align: 'text-left' },
   { label: 'Description', align: 'text-left' },
-  { key: 'type', label: 'Type', align: 'text-left' },
   { key: 'costBasis', label: 'Cost Basis', align: 'text-right' },
   { key: 'unrealizedGainLoss', label: 'Unrealized G/L', align: 'text-right' },
   { label: 'Custodian', align: 'text-center' },
@@ -286,14 +285,13 @@ export function ConsolidatedHoldingsTable({
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] table-fixed">
           <colgroup>
-            <col className="w-[12%]" />
-            <col className="w-[24%]" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
             <col className="w-[13%]" />
-            <col className="w-[10%]" />
+            <col className="w-[31%]" />
+            <col className="w-[13%]" />
+            <col className="w-[13%]" />
             <col className="w-[9%]" />
-            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[13%]" />
           </colgroup>
           <thead>
             <tr className="bg-gray-50/80">
@@ -318,7 +316,7 @@ export function ConsolidatedHoldingsTable({
           {rows.length === 0 ? (
             <tbody>
               <tr>
-                <td colSpan={8} className="py-16 text-center text-sm text-gray-400">
+                <td colSpan={7} className="py-16 text-center text-sm text-gray-400">
                   No holdings found. Try adjusting your search or account selection.
                 </td>
               </tr>
@@ -336,11 +334,11 @@ export function ConsolidatedHoldingsTable({
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${group.category.bgColor}`}
                   >
                     <td
-                      colSpan={5}
+                      colSpan={4}
                       className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
                     >
                       <div className="flex items-center gap-2.5">
-                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border border-transparent text-gray-400">
+                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
                           {isCollapsed ? (
                             <PlusIcon className="h-3 w-3" />
                           ) : (
@@ -376,8 +374,11 @@ export function ConsolidatedHoldingsTable({
                       </div>
                     </td>
                     <td className="px-3 py-3 text-center">
-                      <span className="text-xs font-medium text-gray-400">
-                        {group.accountCount} acct{group.accountCount === 1 ? '' : 's'}
+                      <span
+                        className="text-xs font-medium text-gray-400"
+                        title={`${group.accountCount} account${group.accountCount === 1 ? '' : 's'}`}
+                      >
+                        {group.accountCount}
                       </span>
                     </td>
                     <td className="px-3 py-3" />
