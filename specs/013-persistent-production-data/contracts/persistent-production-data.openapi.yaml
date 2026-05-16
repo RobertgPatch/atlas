@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  title: Atlas Persistent Production Data Contracts
+  version: 0.1.0
+  description: Contract expectations for durable auth, MFA, Plaid, Liquidity, and persistence diagnostics.
+servers:
+  - url: /v1
+paths:
+  /auth/login:
+    post:
+      summary: Start login and return MFA challenge or enrollment requirement.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        "200":
+          description: Login accepted; MFA is required.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/MfaRequiredResponse"
+                  - $ref: "#/components/schemas/MfaEnrollRequiredResponse"
+        "401":
+          $ref: "#/components/responses/SignInFailed"
+        "423":
+          $ref: "#/components/responses/AccountLocked"
+  /auth/mfa/enroll/complete:
+    post:
+      summary: Complete MFA enrollment and persist completed enrollment state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enrollmentToken, code]
+              properties:
+                enrollmentToken:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+      responses:
+        "200":
+          description: MFA enrollment completed and session cookie issued.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          $ref: "#/components/responses/SignInFailed"
+        "503":
+          $ref: "#/components/responses/PersistenceUnavailable"
+  /auth/mfa/verify:
+    post:
+      summary: Verify MFA challenge and create durable session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeId, code]
+              properties:
+                challengeId:
+                  type: string
+                  format: uuid
+                code:
+                  type: string
+                  pattern: "^[0-9]{6}$"
+      responses:
+        "200":
+          description: MFA verified and session cookie issued.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          $ref: "#/components/responses/SignInFailed"
+        "503":
+          $ref: "#/components/responses/PersistenceUnavailable"
+  /auth/session:
+    get:
+      summary: Return the current durable session.
+      responses:
+        "200":
+          description: Active session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSessionResponse"
+        "401":
+          $ref: "#/components/responses/SignInFailed"
+  /plaid/exchange-public-token:
+    post:
+      summary: Exchange a Plaid public token and persist institution/account metadata.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [publicToken]
+              properties:
+                publicToken:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Plaid connection persisted; sensitive token is not returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaidConnectionResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/PersistenceUnavailable"
+  /plaid/investment-accounts:
+    get:
+      summary: List persisted display-safe Plaid investment accounts.
+      responses:
+        "200":
+          description: Account list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlaidInvestmentAccount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    patch:
+      summary: Persist selected accounts for the Liquidity report.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [selectedAccountIds]
+              properties:
+                selectedAccountIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Updated persisted selections.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accounts]
+                properties:
+                  accounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlaidInvestmentAccount"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/PersistenceUnavailable"
+  /reports/consolidated-holdings:
+    get:
+      summary: Return Liquidity holdings from persisted selected accounts and latest source holdings.
+      responses:
+        "200":
+          description: Consolidated holdings response using durable source data.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [kpis, rows, page, selectedAccounts, sync]
+                properties:
+                  kpis:
+                    type: object
+                  rows:
+                    type: array
+                    items:
+                      type: object
+                  page:
+                    type: object
+                  selectedAccounts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlaidInvestmentAccount"
+                  sync:
+                    type: object
+  /admin/persistence-status:
+    get:
+      summary: Report durable persistence status for critical workflows.
+      responses:
+        "200":
+          description: Persistence diagnostic without secrets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersistenceStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Admin role required.
+components:
+  responses:
+    SignInFailed:
+      description: Sign-in failed.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                const: SIGN_IN_FAILED
+    Unauthorized:
+      description: Authenticated session required.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                const: UNAUTHORIZED
+    AccountLocked:
+      description: Account is temporarily locked.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, lockoutUntil]
+            properties:
+              error:
+                const: ACCOUNT_LOCKED
+              lockoutUntil:
+                type: string
+                format: date-time
+    PersistenceUnavailable:
+      description: Durable persistence is unavailable or write failed.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                const: PERSISTENCE_UNAVAILABLE
+  schemas:
+    MfaRequiredResponse:
+      type: object
+      required: [status, challengeId]
+      properties:
+        status:
+          const: MFA_REQUIRED
+        challengeId:
+          type: string
+          format: uuid
+    MfaEnrollRequiredResponse:
+      type: object
+      required: [status, enrollmentToken, otpAuthUrl, qrCodeDataUrl, manualEntryKey]
+      properties:
+        status:
+          const: MFA_ENROLL_REQUIRED
+        enrollmentToken:
+          type: string
+          format: uuid
+        otpAuthUrl:
+          type: string
+        qrCodeDataUrl:
+          type: string
+        manualEntryKey:
+          type: string
+    AuthSessionResponse:
+      type: object
+      required: [user, role, session]
+      properties:
+        user:
+          type: object
+          required: [id, email, role, status]
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            role:
+              enum: [Admin, User]
+            status:
+              enum: [Invited, Active, Inactive]
+        role:
+          enum: [Admin, User]
+        session:
+          type: object
+          required: [issuedAt, idleTimeoutSeconds, absoluteTimeoutSeconds]
+          properties:
+            issuedAt:
+              type: string
+              format: date-time
+            idleTimeoutSeconds:
+              type: integer
+            absoluteTimeoutSeconds:
+              type: integer
+    PlaidConnectionResponse:
+      type: object
+      required: [connectionId, institutionName, accounts]
+      properties:
+        connectionId:
+          type: string
+        institutionName:
+          type: string
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaidInvestmentAccount"
+    PlaidInvestmentAccount:
+      type: object
+      required: [id, connectionId, custodianName, name, type, selectedForHoldingsReport, syncStatus]
+      properties:
+        id:
+          type: string
+        connectionId:
+          type: string
+        custodianName:
+          type: string
+        name:
+          type: string
+        officialName:
+          type: [string, "null"]
+        mask:
+          type: [string, "null"]
+        type:
+          type: string
+        subtype:
+          type: [string, "null"]
+        selectedForHoldingsReport:
+          type: boolean
+        syncStatus:
+          enum: [never_synced, pending, success, failed, needs_user_action]
+        lastSyncedAt:
+          type: [string, "null"]
+          format: date-time
+    PersistenceStatus:
+      type: object
+      required: [storageMode, databaseConfigured, migrationsReady, authPersistence, plaidPersistence, warnings, checkedAt]
+      properties:
+        storageMode:
+          enum: [durable, temporary, mixed]
+        databaseConfigured:
+          type: boolean
+        migrationsReady:
+          type: boolean
+        authPersistence:
+          enum: [durable, temporary, unavailable]
+        plaidPersistence:
+          enum: [durable, temporary, unavailable]
+        warnings:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time

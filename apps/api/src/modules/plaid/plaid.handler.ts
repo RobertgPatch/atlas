@@ -1,6 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
 import { randomUUID } from 'node:crypto'
+import { auditRepository } from '../audit/audit.repository.js'
+import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { plaidApi, plaidClientConfig, isPlaidConfigured } from './plaid.client.js'
 import { plaidRepository } from './plaid.repository.js'
 import {
@@ -142,4 +144,25 @@ export const updatePlaidInvestmentAccountsHandler = async (
   reply.send({
     accounts: plaidRepository.updateSelectedInvestmentAccounts(body.selectedAccountIds),
   })
+}
+
+export const clearPlaidInvestmentAccountsHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  const cleared = await plaidRepository.clearConnectedAccounts()
+
+  await auditRepository.record({
+    actorUserId: request.authUser.userId,
+    eventName: PARTNERSHIP_AUDIT_EVENTS.PLAID_ACCOUNTS_CLEARED,
+    objectType: 'plaid_connection',
+    after: cleared,
+  })
+
+  reply.send({ accounts: [] })
 }

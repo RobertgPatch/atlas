@@ -11,6 +11,11 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: asNumber(process.env.PORT, 3000),
   databaseUrl: process.env.DATABASE_URL ?? '',
+  persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
+  requireDurablePersistence:
+    (process.env.REQUIRE_DURABLE_PERSISTENCE ?? 'false') === 'true',
+  adminPassword: process.env.ADMIN_PASSWORD ?? 'password123',
+  userPassword: process.env.USER_PASSWORD ?? 'password123',
   webOrigin: process.env.WEB_ORIGIN ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',
   sessionCookieSecure: (process.env.SESSION_COOKIE_SECURE ?? 'false') === 'true',

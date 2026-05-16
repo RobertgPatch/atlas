@@ -22,9 +22,18 @@ export const usePlaidAccounts = () => {
     },
   })
 
+  const clearAccounts = useMutation({
+    mutationFn: () => reportsClient.clearPlaidInvestmentAccounts(),
+    onSuccess: (data) => {
+      queryClient.setQueryData(plaidAccountKeys.accounts, data)
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'consolidated-holdings'] })
+    },
+  })
+
   return {
     accounts: query.data?.accounts ?? [],
     query,
     updateSelection,
+    clearAccounts,
   }
 }

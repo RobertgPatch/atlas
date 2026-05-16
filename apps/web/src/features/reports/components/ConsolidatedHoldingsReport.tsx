@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { LinkIcon, RefreshCwIcon } from 'lucide-react'
+import { LinkIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorState } from '../../../components/ErrorState'
 import { LoadingState } from '../../../components/LoadingState'
@@ -57,6 +57,16 @@ export function ConsolidatedHoldingsReport() {
       }).format(new Date(data.sync.lastSuccessfulSyncAt))
     : 'Not synced yet'
 
+  const handleClearAccounts = () => {
+    plaidAccounts.clearAccounts.mutate(undefined, {
+      onSuccess: () => {
+        setAccountSelectorError(null)
+        setIsAccountSelectorOpen(false)
+        void holdings.query.refetch()
+      },
+    })
+  }
+
   if (holdings.query.isLoading) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white" data-testid="holdings-loading">
@@ -88,6 +98,17 @@ export function ConsolidatedHoldingsReport() {
           <p className="mt-1 text-xs text-gray-400">Last updated: {lastUpdated}</p>
         </div>
         <div className="flex items-center gap-3">
+          {plaidAccounts.accounts.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleClearAccounts}
+              disabled={plaidAccounts.clearAccounts.isPending}
+              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2Icon className="h-4 w-4" />
+              {plaidAccounts.clearAccounts.isPending ? 'Clearing...' : 'Clear Accounts'}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => holdings.refresh.mutate()}

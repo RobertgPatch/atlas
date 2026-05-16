@@ -4,6 +4,7 @@ import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
 import { config } from './config.js'
 import { registerRoutes } from './routes/index.js'
+import { getPersistenceStatus } from './infra/persistence/persistenceStatus.js'
 
 export const buildApp = () => {
   const app = Fastify({
@@ -43,7 +44,10 @@ export const buildApp = () => {
     },
   })
 
-  app.get('/health', async () => ({ status: 'ok' }))
+  app.get('/health', async () => ({
+    status: 'ok',
+    persistence: await getPersistenceStatus(),
+  }))
 
   app.register(registerRoutes, { prefix: '/v1' })
 

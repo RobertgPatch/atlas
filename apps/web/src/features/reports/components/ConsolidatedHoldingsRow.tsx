@@ -28,6 +28,9 @@ const formatPriceDate = (value: string | null | undefined): string =>
       }).format(new Date(value))
     : 'No date'
 
+const truncatePositionName = (value: string): string =>
+  value.length > 80 ? `${value.slice(0, 77)}...` : value
+
 function GainLossCell({
   value,
   percent,
@@ -78,6 +81,8 @@ export function ConsolidatedHoldingsRow({
   onToggle,
 }: ConsolidatedHoldingsRowProps) {
   const costBasisStatus = getCostBasisStatus(row)
+  const positionName = truncatePositionName(row.description)
+  const positionTitle = row.description.length > 80 ? row.description : undefined
 
   return (
     <>
@@ -103,13 +108,13 @@ export function ConsolidatedHoldingsRow({
           </div>
         </td>
         <td className="px-3 py-3.5">
-          <div className="truncate text-sm text-gray-600">
-            {row.description}
+          <div
+            className="truncate text-sm text-gray-600"
+            title={positionTitle}
+          >
+            {positionName}
           </div>
-          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
-            <span className="inline-flex whitespace-nowrap rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
-              {row.type}
-            </span>
+          <div className="mt-1 flex min-w-0 items-center gap-1">
             <span
               className={`inline-flex whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                 sectorBadgeColors[sector] ?? sectorBadgeColors.Other
@@ -119,6 +124,14 @@ export function ConsolidatedHoldingsRow({
             </span>
             <span className="truncate text-xs text-gray-400">{row.custodianSummary}</span>
           </div>
+        </td>
+        <td className="px-3 py-3.5 align-top">
+          <span
+            className="inline-flex max-w-full whitespace-nowrap rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700"
+            title={row.type}
+          >
+            <span className="truncate">{row.type}</span>
+          </span>
         </td>
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {row.costBasis !== null ? (
@@ -166,13 +179,18 @@ export function ConsolidatedHoldingsRow({
             <td className="px-3 py-2.5 text-xs text-gray-500">
               <div className="truncate">{detail.custodian} - {detail.accountName}</div>
               <div className="mt-0.5 flex items-center gap-1">
-                <span className="inline-flex whitespace-nowrap rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600">
-                  {detail.type}
-                </span>
                 {detail.accountMask ? (
                   <span className="text-[10px] text-gray-400">****{detail.accountMask}</span>
                 ) : null}
               </div>
+            </td>
+            <td className="px-3 py-2.5 align-top">
+              <span
+                className="inline-flex max-w-full whitespace-nowrap rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600"
+                title={detail.type}
+              >
+                <span className="truncate">{detail.type}</span>
+              </span>
             </td>
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {detail.costBasis !== null ? (

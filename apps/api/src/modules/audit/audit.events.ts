@@ -30,6 +30,7 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   PLAID_CONNECTED: 'plaid.connected',
   PLAID_RECONNECTED: 'plaid.reconnected',
   PLAID_ACCOUNT_SELECTION_UPDATED: 'plaid.account_selection.updated',
+  PLAID_ACCOUNTS_CLEARED: 'plaid.accounts.cleared',
 } as const
 
 export type PartnershipAuditEventName =

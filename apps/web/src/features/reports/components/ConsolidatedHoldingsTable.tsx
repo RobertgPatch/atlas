@@ -98,10 +98,11 @@ export function ConsolidatedHoldingsTable({
       <div className="w-full">
         <table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[14%]" />
-            <col className="w-[34%]" />
+            <col className="w-[10%]" />
+            <col className="w-[28%]" />
+            <col className="w-[11%]" />
             <col className="w-[13%]" />
-            <col className="w-[15%]" />
+            <col className="w-[14%]" />
             <col className="w-[10%]" />
             <col className="w-[14%]" />
           </colgroup>
@@ -117,6 +118,14 @@ export function ConsolidatedHoldingsTable({
               </th>
               <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Position
+              </th>
+              <th
+                onClick={() => handleSort('type')}
+                className="cursor-pointer select-none px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors hover:text-gray-700"
+              >
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                  Type {sortIcon('type')}
+                </span>
               </th>
               <th
                 onClick={() => handleSort('costBasis')}
@@ -155,7 +164,7 @@ export function ConsolidatedHoldingsTable({
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-16 text-center text-sm text-gray-400">
+                <td colSpan={7} className="py-16 text-center text-sm text-gray-400">
                   No holdings found. Try adjusting your search or account selection.
                 </td>
               </tr>
