@@ -20,6 +20,7 @@ interface ConsolidatedHoldingsKpis {
 interface CustodianHoldingDetailRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
   sector: string | null
@@ -40,6 +41,7 @@ interface CustodianHoldingDetailRow {
 interface ConsolidatedHoldingRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
   sector: string | null
@@ -89,6 +91,32 @@ const hasSecurityIdentifier = (holding: SourceHoldingRecord): boolean =>
       normalizeText(holding.symbol),
   )
 
+const securityIdentifierFor = (holding: SourceHoldingRecord): string | null => {
+  const cusip = normalizeText(holding.cusip)
+  if (cusip) return `CUSIP ${cusip}`
+
+  const isin = normalizeText(holding.isin)
+  if (isin) return `ISIN ${isin}`
+
+  const plaidSecurityId = holding.plaidSecurityId?.trim()
+  if (plaidSecurityId) return `Plaid security ${plaidSecurityId}`
+
+  return null
+}
+
+const displaySymbolFor = (holding: SourceHoldingRecord): string | null => {
+  const symbol = holding.symbol?.trim()
+  if (symbol) return symbol
+
+  const cusip = normalizeText(holding.cusip)
+  if (cusip) return cusip
+
+  const isin = normalizeText(holding.isin)
+  if (isin) return isin
+
+  return null
+}
+
 const identityKeyFor = (holding: SourceHoldingRecord): {
   key: string
   confidence: 'high' | 'medium' | 'low'
@@ -129,9 +157,12 @@ const displayDescriptionFor = (
   holding: SourceHoldingRecord,
   account: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>[number] | undefined,
 ): string => {
-  if (!isGenericUnknownDescription(holding.description) || hasSecurityIdentifier(holding)) {
+  if (!isGenericUnknownDescription(holding.description)) {
     return holding.description
   }
+
+  const securityIdentifier = securityIdentifierFor(holding)
+  if (securityIdentifier) return `Unidentified security (${securityIdentifier})`
 
   const accountLabel = account?.name ?? 'Unknown account'
   const maskLabel = account?.mask ? ` ****${account.mask}` : ''
@@ -264,7 +295,8 @@ export const buildConsolidatedHoldingsResponse = (
 
       return {
         id: holding.id,
-        symbol: holding.symbol,
+        symbol: displaySymbolFor(holding),
+        securityIdentifier: securityIdentifierFor(holding),
         description: displayDescriptionFor(holding, account),
         type: holding.type,
         sector: holding.sector,
@@ -287,7 +319,8 @@ export const buildConsolidatedHoldingsResponse = (
 
     return {
       id: key,
-      symbol: first.symbol,
+      symbol: displaySymbolFor(first),
+      securityIdentifier: securityIdentifierFor(first),
       description: displayDescriptionFor(first, firstAccount),
       type: first.type,
       sector: firstKnownText(group.holdings.map((holding) => holding.sector)),

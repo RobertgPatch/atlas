@@ -140,4 +140,62 @@ describe('Consolidated holdings identity confidence', () => {
     expect(rows.every((row: { identityConfidence: string }) => row.identityConfidence === 'low')).toBe(true)
     expect(rows.every((row: { details: unknown[] }) => row.details.length === 1)).toBe(true)
   })
+
+  it('uses available security identifiers for generic Plaid securities', async () => {
+    plaidRepository._debugSeed({
+      accounts: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          connectionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          custodianName: 'Summit Gate Custody Brokerage',
+          name: 'Trust Account',
+          officialName: null,
+          mask: '2222',
+          type: 'investment',
+          subtype: 'brokerage',
+          selectedForHoldingsReport: true,
+          syncStatus: 'success',
+          lastSyncedAt: '2026-05-11T08:00:00.000Z',
+        },
+      ],
+      holdings: [
+        {
+          id: '55555555-5555-4555-8555-555555555555',
+          accountId: '11111111-1111-4111-8111-111111111111',
+          plaidAccountId: '11111111-1111-4111-8111-111111111111',
+          plaidSecurityId: null,
+          symbol: null,
+          description: 'Unknown security',
+          type: 'Other',
+          sector: null,
+          industry: null,
+          cusip: '13013JEA0',
+          isin: null,
+          currencyCode: 'USD',
+          quantity: 200000,
+          costBasis: 212660.02,
+          institutionPrice: 1.02571,
+          marketValue: 205142,
+          unrealizedGainLoss: -7518.02,
+          asOfDate: '2026-05-11',
+        },
+      ],
+    })
+
+    const response = await getConsolidatedHoldingsViaApi(fixture)
+
+    expect(response.statusCode).toBe(200)
+    const [row] = response.json().rows
+    expect(row).toMatchObject({
+      symbol: '13013JEA0',
+      securityIdentifier: 'CUSIP 13013JEA0',
+      description: 'Unidentified security (CUSIP 13013JEA0)',
+      identityConfidence: 'high',
+    })
+    expect(row.details[0]).toMatchObject({
+      symbol: '13013JEA0',
+      securityIdentifier: 'CUSIP 13013JEA0',
+      description: 'Unidentified security (CUSIP 13013JEA0)',
+    })
+  })
 })

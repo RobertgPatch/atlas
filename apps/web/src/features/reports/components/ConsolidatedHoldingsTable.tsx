@@ -146,14 +146,6 @@ const categoryOrder = new Map([
   [otherCategory.key, assetCategories.length] as const,
 ])
 
-const categoryLabelColumnWidth = `${
-  Math.max(
-    ...[...assetCategories, otherCategory].map((category) => category.label.length),
-  ) + 9
-}ch`
-
-const categorySummaryGridTemplate = `${categoryLabelColumnWidth} 7.5rem 10rem`
-
 const compareRowsAlphabetically = (
   a: ConsolidatedHoldingRow,
   b: ConsolidatedHoldingRow,
@@ -359,18 +351,23 @@ export function ConsolidatedHoldingsTable({
           <thead>
             <tr className="bg-gray-50/80">
               <th
-                colSpan={4}
+                colSpan={2}
                 className="px-3 py-3 pl-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
                 scope="col"
               >
-                <div
-                  className="grid items-center gap-3"
-                  style={{ gridTemplateColumns: categorySummaryGridTemplate }}
-                >
-                  <span>Asset Type</span>
-                  <span>Positions</span>
-                  <span>Total Unrealized G/L</span>
-                </div>
+                Asset Type
+              </th>
+              <th
+                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                scope="col"
+              >
+                Positions
+              </th>
+              <th
+                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                scope="col"
+              >
+                Total Unrealized G/L
               </th>
               <th
                 className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
@@ -408,53 +405,49 @@ export function ConsolidatedHoldingsTable({
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${group.category.bgColor}`}
                   >
                     <td
-                      colSpan={4}
+                      colSpan={2}
                       className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
                     >
-                      <div
-                        className="grid items-center gap-3"
-                        style={{
-                          gridTemplateColumns: categorySummaryGridTemplate,
-                        }}
-                      >
-                        <div className="flex min-w-0 items-center gap-2.5">
-                          <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
-                            {isCollapsed ? (
-                              <PlusIcon className="h-3 w-3" />
-                            ) : (
-                              <MinusIcon className="h-3 w-3" />
-                            )}
-                          </span>
-                          <div
-                            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
-                          >
-                            <CategoryIcon className="h-3.5 w-3.5" />
-                          </div>
-                          <span
-                            className={`min-w-0 truncate text-sm font-semibold ${group.category.color}`}
-                          >
-                            {group.category.label}
-                          </span>
-                        </div>
-                        <span className="whitespace-nowrap text-left text-xs font-medium text-gray-400">
-                          {group.rows.length} position
-                          {group.rows.length === 1 ? '' : 's'}
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
+                          {isCollapsed ? (
+                            <PlusIcon className="h-3 w-3" />
+                          ) : (
+                            <MinusIcon className="h-3 w-3" />
+                          )}
                         </span>
-                        <div className="text-left">
-                          {group.hasGainLoss ? (
-                            <span
-                              className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
-                                gainLossPositive
-                                  ? 'bg-emerald-100 text-emerald-700'
-                                  : 'bg-red-100 text-red-700'
-                              }`}
-                            >
-                              {gainLossPositive ? '+' : ''}
-                              {formatCurrency(group.totalGainLoss)}
-                            </span>
-                          ) : null}
+                        <div
+                          className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
+                        >
+                          <CategoryIcon className="h-3.5 w-3.5" />
                         </div>
+                        <span
+                          className={`min-w-0 truncate text-sm font-semibold ${group.category.color}`}
+                          title={group.category.label}
+                        >
+                          {group.category.label}
+                        </span>
                       </div>
+                    </td>
+                    <td className="px-3 py-3 text-left">
+                      <span className="whitespace-nowrap text-xs font-medium text-gray-400">
+                        {group.rows.length} position
+                        {group.rows.length === 1 ? '' : 's'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 text-left">
+                      {group.hasGainLoss ? (
+                        <span
+                          className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            gainLossPositive
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {gainLossPositive ? '+' : ''}
+                          {formatCurrency(group.totalGainLoss)}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-3 py-3 text-left">
                       <span

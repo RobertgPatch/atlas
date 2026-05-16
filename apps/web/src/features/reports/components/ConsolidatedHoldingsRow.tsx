@@ -77,7 +77,10 @@ export function ConsolidatedHoldingsRow({
 }: ConsolidatedHoldingsRowProps) {
   const costBasisStatus = getCostBasisStatus(row)
   const positionName = truncatePositionName(row.description)
-  const positionTitle = row.description.length > 80 ? row.description : undefined
+  const symbolLabel = row.symbol ?? 'N/A'
+  const symbolTitle = row.securityIdentifier
+    ? `${symbolLabel} (${row.securityIdentifier})`
+    : row.symbol ?? undefined
 
   return (
     <>
@@ -109,20 +112,20 @@ export function ConsolidatedHoldingsRow({
                 <PlusIcon className="h-3 w-3" />
               )}
             </button>
-            <span className="text-sm font-semibold text-gray-900">
-              {row.symbol ?? 'N/A'}
+            <span className="truncate text-sm font-semibold text-gray-900" title={symbolTitle}>
+              {symbolLabel}
             </span>
           </div>
         </td>
         <td className="px-3 py-3.5">
           <div
             className="truncate text-sm text-gray-600"
-            title={positionTitle}
+            title={row.description}
           >
             {positionName}
           </div>
           <div className="mt-0.5 flex min-w-0 items-center">
-            <span className="truncate text-xs text-gray-400">
+            <span className="truncate text-xs text-gray-400" title={sector}>
               {sector}
             </span>
           </div>
@@ -179,11 +182,11 @@ export function ConsolidatedHoldingsRow({
           <tr key={detail.id} className="border-b border-gray-50 bg-gray-50/70">
             <td className={`border-l-4 py-2.5 pl-14 pr-2 ${groupAccentClassName}`} />
             <td className="py-2.5 pl-6 pr-3 text-xs text-gray-500">
-              <div className="truncate font-medium text-gray-600">
+              <div className="truncate font-medium text-gray-600" title={detail.accountName}>
                 {detail.accountName}
               </div>
               <div className="mt-0.5 flex items-center gap-1">
-                <span className="truncate text-[10px] text-gray-400">
+                <span className="truncate text-[10px] text-gray-400" title={detail.custodian}>
                   {detail.custodian}
                 </span>
                 {detail.accountMask ? (
@@ -211,7 +214,7 @@ export function ConsolidatedHoldingsRow({
               />
             </td>
             <td className="px-3 py-2.5 text-center text-xs text-gray-500">
-              <span className="inline-block max-w-full truncate">
+              <span className="inline-block max-w-full truncate" title={detail.custodian}>
                 {detail.custodian}
               </span>
             </td>

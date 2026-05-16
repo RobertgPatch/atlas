@@ -66,6 +66,7 @@ export interface ConsolidatedHoldingsKpis {
 export interface CustodianHoldingDetailRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
   sector: string | null
@@ -86,6 +87,7 @@ export interface CustodianHoldingDetailRow {
 export interface ConsolidatedHoldingRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
   sector: string | null

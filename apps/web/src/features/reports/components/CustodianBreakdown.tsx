@@ -54,7 +54,10 @@ export function CustodianBreakdown({ custodians }: CustodianBreakdownProps) {
                 <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gray-800 text-[9px] font-bold text-white">
                   {custodian.logo}
                 </div>
-                <span className="truncate text-sm font-medium text-gray-800">
+                <span
+                  className="truncate text-sm font-medium text-gray-800"
+                  title={custodian.institution}
+                >
                   {custodian.institution}
                 </span>
                 <span className="flex-shrink-0 text-xs text-gray-400">

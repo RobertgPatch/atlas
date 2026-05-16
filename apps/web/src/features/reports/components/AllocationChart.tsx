@@ -90,7 +90,7 @@ export function AllocationChart({ sectorData }: AllocationChartProps) {
                   className="h-3 w-3 flex-shrink-0 rounded-full"
                   style={{ backgroundColor: sector.color }}
                 />
-                <span className="truncate text-sm font-medium text-gray-700">
+                <span className="truncate text-sm font-medium text-gray-700" title={sector.name}>
                   {sector.name}
                 </span>
               </div>

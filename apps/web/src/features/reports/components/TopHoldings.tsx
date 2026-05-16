@@ -39,7 +39,7 @@ export function TopHoldings({ holdings }: TopHoldingsProps) {
               </div>
 
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="truncate text-base font-bold text-gray-900">
+                <span className="truncate text-base font-bold text-gray-900" title={holding.symbol}>
                   {holding.symbol}
                 </span>
                 {hasGainLoss ? (
@@ -64,7 +64,7 @@ export function TopHoldings({ holdings }: TopHoldingsProps) {
                 )}
               </div>
 
-              <p className="mb-3 truncate text-xs text-gray-500">
+              <p className="mb-3 truncate text-xs text-gray-500" title={holding.description}>
                 {holding.description}
               </p>
 

@@ -13,6 +13,7 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
     {
       id: 'GOOGL',
       symbol: 'GOOGL',
+      securityIdentifier: 'CUSIP 02079K305',
       description: 'Alphabet Inc. Class A',
       type: 'Stock',
       sector: 'Technology Services',
@@ -31,6 +32,7 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
         {
           id: '33333333-3333-4333-8333-333333333333',
           symbol: 'GOOGL',
+          securityIdentifier: 'CUSIP 02079K305',
           description: 'Alphabet Inc. Class A',
           type: 'Stock',
           sector: 'Technology Services',
@@ -50,6 +52,7 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
         {
           id: '44444444-4444-4444-8444-444444444444',
           symbol: 'GOOGL',
+          securityIdentifier: 'CUSIP 02079K305',
           description: 'Alphabet Inc. Class A',
           type: 'Stock',
           sector: 'Technology Services',
