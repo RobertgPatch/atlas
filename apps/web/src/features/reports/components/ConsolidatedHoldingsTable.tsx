@@ -98,8 +98,8 @@ export function ConsolidatedHoldingsTable({
       <div className="w-full">
         <table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[10%]" />
-            <col className="w-[28%]" />
+            <col className="w-[12%]" />
+            <col className="w-[26%]" />
             <col className="w-[11%]" />
             <col className="w-[13%]" />
             <col className="w-[14%]" />

@@ -132,6 +132,23 @@ export function getCustodianBreakdown(
     { value: number; accounts: Set<string>; lastSyncedAt: string | null }
   >()
 
+  for (const account of response.selectedAccounts) {
+    const existing = custodians.get(account.custodianName) ?? {
+      value: 0,
+      accounts: new Set<string>(),
+      lastSyncedAt: null,
+    }
+
+    existing.accounts.add(account.id)
+    if (
+      account.lastSyncedAt &&
+      (!existing.lastSyncedAt || account.lastSyncedAt > existing.lastSyncedAt)
+    ) {
+      existing.lastSyncedAt = account.lastSyncedAt
+    }
+    custodians.set(account.custodianName, existing)
+  }
+
   for (const row of response.rows) {
     for (const detail of row.details) {
       const account = accountByName.get(`${detail.custodian}::${detail.accountName}`)

@@ -88,15 +88,32 @@ export function ConsolidatedHoldingsRow({
     <>
       <tr
         onClick={onToggle}
+        aria-expanded={isExpanded}
         className="group cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50"
       >
         <td className="py-3.5 pl-4 pr-2">
           <div className="flex items-center gap-1.5">
-            {isExpanded ? (
-              <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-            ) : (
-              <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-            )}
+            <button
+              type="button"
+              aria-expanded={isExpanded}
+              aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${row.symbol ?? row.description} account details`}
+              title={`${isExpanded ? 'Collapse' : 'Expand'} account details`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggle()
+              }}
+              className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+                isExpanded
+                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                  : 'border-gray-200 bg-white text-gray-500 group-hover:border-blue-200 group-hover:text-blue-600'
+              }`}
+            >
+              {isExpanded ? (
+                <ChevronDownIcon className="h-4 w-4" />
+              ) : (
+                <ChevronRightIcon className="h-4 w-4" />
+              )}
+            </button>
             <span className="text-sm font-semibold text-gray-900">
               {row.symbol ?? 'N/A'}
             </span>
