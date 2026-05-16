@@ -63,8 +63,8 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
         rows={[baseRow, appleRow]}
         selectedAccountCount={2}
         search=""
-        sort="marketValue"
-        direction="desc"
+        sort="symbol"
+        direction="asc"
         onSearchChange={vi.fn()}
         onSortChange={vi.fn()}
       />,
@@ -77,6 +77,52 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
       appleSymbol.compareDocumentPosition(googleSymbol) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+  })
+
+  it('reverses the same positions when toggling a numeric sort direction', () => {
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const appleRow = {
+      ...baseRow,
+      id: 'AAPL',
+      symbol: 'AAPL',
+      description: 'Apple Inc.',
+      marketValue: 5_000,
+      details: [],
+    }
+
+    const { rerender } = render(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="desc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getAllByText(/AAPL|GOOGL/).map((node) => node.textContent)).toEqual([
+      'GOOGL',
+      'AAPL',
+    ])
+
+    rerender(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="asc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getAllByText(/AAPL|GOOGL/).map((node) => node.textContent)).toEqual([
+      'AAPL',
+      'GOOGL',
+    ])
   })
 })
 

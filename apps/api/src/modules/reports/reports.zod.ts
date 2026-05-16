@@ -107,7 +107,7 @@ export const consolidatedHoldingsQuerySchema = z.object({
   sort: z.enum(consolidatedHoldingsSortFields).optional().default('marketValue'),
   direction: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(250).optional().default(50),
+  pageSize: z.coerce.number().int().min(1).max(5000).optional().default(50),
 })
 
 export const exportReportQuerySchema = z.object({

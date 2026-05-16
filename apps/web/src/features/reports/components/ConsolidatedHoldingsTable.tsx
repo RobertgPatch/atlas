@@ -158,6 +158,39 @@ const compareRowsAlphabetically = (
   })
 }
 
+const sortValueFor = (
+  row: ConsolidatedHoldingRow,
+  key: SortKey,
+): string | number | null => {
+  if (key === 'symbol') return row.symbol ?? row.description
+  return row[key] ?? null
+}
+
+const compareRowsBySort = (
+  a: ConsolidatedHoldingRow,
+  b: ConsolidatedHoldingRow,
+  key: SortKey,
+  sortDirection: 'asc' | 'desc',
+): number => {
+  const aValue = sortValueFor(a, key)
+  const bValue = sortValueFor(b, key)
+
+  if (aValue == null && bValue == null) return compareRowsAlphabetically(a, b)
+  if (aValue == null) return sortDirection === 'asc' ? 1 : -1
+  if (bValue == null) return sortDirection === 'asc' ? -1 : 1
+
+  const result =
+    typeof aValue === 'string' || typeof bValue === 'string'
+      ? String(aValue).localeCompare(String(bValue), undefined, {
+          numeric: true,
+          sensitivity: 'base',
+        })
+      : aValue - bValue
+
+  if (result !== 0) return sortDirection === 'asc' ? result : -result
+  return compareRowsAlphabetically(a, b)
+}
+
 export function ConsolidatedHoldingsTable({
   rows,
   selectedAccountCount,
@@ -216,7 +249,7 @@ export function ConsolidatedHoldingsTable({
         }
       }
       group.accountCount = accounts.size
-      group.rows.sort(compareRowsAlphabetically)
+      group.rows.sort((a, b) => compareRowsBySort(a, b, sort, direction))
     }
 
     return [...groups.values()].sort(
@@ -225,7 +258,7 @@ export function ConsolidatedHoldingsTable({
           (categoryOrder.get(b.category.key) ?? assetCategories.length + 1) ||
         b.totalValue - a.totalValue,
     )
-  }, [rows])
+  }, [direction, rows, sort])
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -337,30 +370,34 @@ export function ConsolidatedHoldingsTable({
                       colSpan={4}
                       className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
-                          {isCollapsed ? (
-                            <PlusIcon className="h-3 w-3" />
-                          ) : (
-                            <MinusIcon className="h-3 w-3" />
-                          )}
-                        </span>
-                        <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
-                        >
-                          <CategoryIcon className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="flex min-w-0 flex-wrap items-center gap-3">
-                          <span className={`text-sm font-semibold ${group.category.color}`}>
+                      <div className="grid grid-cols-[minmax(11rem,1fr)_6.5rem_9rem] items-center gap-3">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
+                            {isCollapsed ? (
+                              <PlusIcon className="h-3 w-3" />
+                            ) : (
+                              <MinusIcon className="h-3 w-3" />
+                            )}
+                          </span>
+                          <div
+                            className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
+                          >
+                            <CategoryIcon className="h-3.5 w-3.5" />
+                          </div>
+                          <span
+                            className={`min-w-0 truncate text-sm font-semibold ${group.category.color}`}
+                          >
                             {group.category.label}
                           </span>
-                          <span className="text-xs font-medium text-gray-400">
-                            {group.rows.length} position
-                            {group.rows.length === 1 ? '' : 's'}
-                          </span>
+                        </div>
+                        <span className="whitespace-nowrap text-left text-xs font-medium text-gray-400">
+                          {group.rows.length} position
+                          {group.rows.length === 1 ? '' : 's'}
+                        </span>
+                        <div className="text-left">
                           {group.hasGainLoss ? (
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
                                 gainLossPositive
                                   ? 'bg-emerald-100 text-emerald-700'
                                   : 'bg-red-100 text-red-700'
@@ -373,7 +410,7 @@ export function ConsolidatedHoldingsTable({
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-3 text-center">
+                    <td className="px-3 py-3 text-left">
                       <span
                         className="text-xs font-medium text-gray-400"
                         title={`${group.accountCount} account${group.accountCount === 1 ? '' : 's'}`}
