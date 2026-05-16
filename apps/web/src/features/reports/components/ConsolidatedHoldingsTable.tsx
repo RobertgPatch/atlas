@@ -5,10 +5,10 @@ import {
   ArrowUpIcon,
   BarChart3Icon,
   BitcoinIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
   LandmarkIcon,
   LayersIcon,
+  MinusIcon,
+  PlusIcon,
   SearchIcon,
   TrendingUpIcon,
 } from 'lucide-react'
@@ -50,7 +50,6 @@ interface AssetCategory {
   bgColor: string
   borderColor: string
   accentBorderColor: string
-  connectorColor: string
   matches: (type: string) => boolean
 }
 
@@ -74,7 +73,6 @@ const assetCategories: AssetCategory[] = [
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
     accentBorderColor: 'border-l-blue-400',
-    connectorColor: 'bg-blue-200',
     matches: (type) => ['stock', 'equity', 'equities'].includes(type),
   },
   {
@@ -85,7 +83,6 @@ const assetCategories: AssetCategory[] = [
     bgColor: 'bg-violet-50',
     borderColor: 'border-violet-200',
     accentBorderColor: 'border-l-violet-400',
-    connectorColor: 'bg-violet-200',
     matches: (type) => type.includes('etf') || type.includes('fund'),
   },
   {
@@ -96,7 +93,6 @@ const assetCategories: AssetCategory[] = [
     bgColor: 'bg-amber-50',
     borderColor: 'border-amber-200',
     accentBorderColor: 'border-l-amber-400',
-    connectorColor: 'bg-amber-200',
     matches: (type) => type.includes('crypto'),
   },
   {
@@ -107,7 +103,6 @@ const assetCategories: AssetCategory[] = [
     bgColor: 'bg-indigo-50',
     borderColor: 'border-indigo-200',
     accentBorderColor: 'border-l-indigo-400',
-    connectorColor: 'bg-indigo-200',
     matches: (type) => type.includes('fixed') || type.includes('bond'),
   },
   {
@@ -118,7 +113,6 @@ const assetCategories: AssetCategory[] = [
     bgColor: 'bg-emerald-50',
     borderColor: 'border-emerald-200',
     accentBorderColor: 'border-l-emerald-400',
-    connectorColor: 'bg-emerald-200',
     matches: (type) => type.includes('cash') || type.includes('money market'),
   },
 ]
@@ -131,7 +125,6 @@ const otherCategory: AssetCategory = {
   bgColor: 'bg-gray-50',
   borderColor: 'border-gray-200',
   accentBorderColor: 'border-l-gray-300',
-  connectorColor: 'bg-gray-200',
   matches: () => true,
 }
 
@@ -282,7 +275,7 @@ export function ConsolidatedHoldingsTable({
           <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search symbol, name, or sector..."
+            placeholder="Search symbol, name, or custodian..."
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-72"
@@ -349,9 +342,9 @@ export function ConsolidatedHoldingsTable({
                       <div className="flex items-center gap-2.5">
                         <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border border-transparent text-gray-400">
                           {isCollapsed ? (
-                            <ChevronRightIcon className="h-3 w-3" />
+                            <PlusIcon className="h-3 w-3" />
                           ) : (
-                            <ChevronDownIcon className="h-3 w-3" />
+                            <MinusIcon className="h-3 w-3" />
                           )}
                         </span>
                         <div
@@ -402,7 +395,6 @@ export function ConsolidatedHoldingsTable({
                         sector={inferSector(row)}
                         accountCount={getAccountCount(row)}
                         groupAccentClassName={group.category.accentBorderColor}
-                        groupConnectorClassName={group.category.connectorColor}
                         isExpanded={expandedIds.has(row.id)}
                         onToggle={() => toggleExpand(row.id)}
                       />

@@ -14,10 +14,20 @@ function formatCompactCurrency(value: number): string {
 function DonutChart({ sectorData }: { sectorData: SectorAllocationDatum[] }) {
   const radius = 64
   const circumference = 2 * Math.PI * radius
-  let offset = 0
+  const segments = sectorData.map((sector, index) => {
+    const priorPercentage = sectorData
+      .slice(0, index)
+      .reduce((sum, item) => sum + item.percentage, 0)
+
+    return {
+      sector,
+      dash: (sector.percentage / 100) * circumference,
+      offset: (priorPercentage / 100) * circumference,
+    }
+  })
 
   return (
-    <svg viewBox="0 0 160 160" className="h-44 w-44" role="img" aria-label="Sector allocation">
+    <svg viewBox="0 0 160 160" className="h-44 w-44" role="img" aria-label="Asset allocation">
       <circle
         cx="80"
         cy="80"
@@ -26,26 +36,21 @@ function DonutChart({ sectorData }: { sectorData: SectorAllocationDatum[] }) {
         stroke="#f1f5f9"
         strokeWidth="18"
       />
-      {sectorData.map((sector) => {
-        const dash = (sector.percentage / 100) * circumference
-        const circle = (
-          <circle
-            key={sector.name}
-            cx="80"
-            cy="80"
-            r={radius}
-            fill="none"
-            stroke={sector.color}
-            strokeDasharray={`${dash} ${circumference - dash}`}
-            strokeDashoffset={-offset}
-            strokeLinecap="round"
-            strokeWidth="18"
-            transform="rotate(-90 80 80)"
-          />
-        )
-        offset += dash
-        return circle
-      })}
+      {segments.map(({ sector, dash, offset }) => (
+        <circle
+          key={sector.name}
+          cx="80"
+          cy="80"
+          r={radius}
+          fill="none"
+          stroke={sector.color}
+          strokeDasharray={`${dash} ${circumference - dash}`}
+          strokeDashoffset={-offset}
+          strokeLinecap="round"
+          strokeWidth="18"
+          transform="rotate(-90 80 80)"
+        />
+      ))}
     </svg>
   )
 }
@@ -57,9 +62,9 @@ export function AllocationChart({ sectorData }: AllocationChartProps) {
     <div className="h-full rounded-xl border border-gray-200 bg-white p-6">
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Sector Allocation</h3>
+          <h3 className="text-sm font-semibold text-gray-900">Asset Allocation</h3>
           <p className="mt-0.5 text-xs text-gray-500">
-            {sectorData.length} sectors
+            {sectorData.length} categories
           </p>
         </div>
         {concentrationWarning && (

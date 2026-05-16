@@ -34,10 +34,23 @@ export interface TopHoldingDatum {
 
 export const sectorColors: Record<string, string> = {
   Technology: '#3b82f6',
+  'Communication Services': '#6366f1',
   'Consumer Cyclical': '#8b5cf6',
+  'Consumer Defensive': '#84cc16',
   'Financial Services': '#0ea5e9',
+  Industrials: '#f97316',
+  Energy: '#ef4444',
+  Utilities: '#22c55e',
+  'Real Estate': '#a855f7',
+  Materials: '#64748b',
   'Broad Market': '#14b8a6',
+  Equities: '#2563eb',
+  Funds: '#7c3aed',
+  'Fixed Income': '#4f46e5',
+  Cash: '#059669',
+  Cryptocurrency: '#f59e0b',
   Healthcare: '#10b981',
+  Unidentified: '#f97316',
   Other: '#94a3b8',
 }
 
@@ -53,11 +66,170 @@ const technologySymbols = new Set([
   'CRM',
   'ORCL',
   'ADBE',
+  'ASML',
+  'QCOM',
+  'TXN',
+  'INTU',
+  'NOW',
+  'IBM',
+  'CSCO',
+  'AMAT',
+  'LRCX',
+  'MU',
+  'INTC',
+  'PANW',
+  'SNOW',
+  'PLTR',
 ])
 
-const consumerCyclicalSymbols = new Set(['AMZN', 'TSLA', 'HD', 'MCD', 'NKE'])
-const financialSymbols = new Set(['JPM', 'V', 'MA', 'BAC', 'WFC', 'GS', 'MS'])
-const broadMarketSymbols = new Set(['VTI', 'VOO', 'SPY', 'IVV', 'SCHB', 'ITOT'])
+const communicationSymbols = new Set([
+  'GOOGL',
+  'GOOG',
+  'META',
+  'NFLX',
+  'DIS',
+  'CMCSA',
+  'T',
+  'TMUS',
+  'VZ',
+])
+const consumerCyclicalSymbols = new Set([
+  'AMZN',
+  'TSLA',
+  'HD',
+  'MCD',
+  'NKE',
+  'LOW',
+  'SBUX',
+  'BKNG',
+  'CMG',
+  'ORLY',
+  'F',
+  'GM',
+])
+const consumerDefensiveSymbols = new Set([
+  'COST',
+  'WMT',
+  'PG',
+  'KO',
+  'PEP',
+  'PM',
+  'MO',
+  'MDLZ',
+  'CL',
+  'TGT',
+])
+const financialSymbols = new Set([
+  'JPM',
+  'V',
+  'MA',
+  'BAC',
+  'WFC',
+  'GS',
+  'MS',
+  'BRK.B',
+  'BRK-B',
+  'SPGI',
+  'BLK',
+  'AXP',
+  'C',
+  'USB',
+  'PNC',
+  'SCHW',
+  'COF',
+])
+const healthcareSymbols = new Set([
+  'UNH',
+  'JNJ',
+  'LLY',
+  'ABBV',
+  'PFE',
+  'MRK',
+  'TMO',
+  'ABT',
+  'DHR',
+  'AMGN',
+])
+const industrialSymbols = new Set([
+  'BA',
+  'CAT',
+  'GE',
+  'HON',
+  'UPS',
+  'RTX',
+  'LMT',
+  'UNP',
+  'DE',
+  'MMM',
+])
+const energySymbols = new Set(['XOM', 'CVX', 'COP', 'SLB', 'EOG'])
+const utilitiesSymbols = new Set(['NEE', 'DUK', 'SO', 'AEP', 'EXC'])
+const realEstateSymbols = new Set(['PLD', 'AMT', 'CCI', 'EQIX', 'SPG', 'O', 'PSA'])
+const materialsSymbols = new Set(['LIN', 'APD', 'SHW', 'FCX', 'NEM', 'DD', 'DOW'])
+const broadMarketSymbols = new Set([
+  'VTI',
+  'VOO',
+  'SPY',
+  'IVV',
+  'SCHB',
+  'ITOT',
+  'VT',
+  'ACWI',
+  'QQQ',
+  'DIA',
+  'IWM',
+])
+const fixedIncomeSymbols = new Set([
+  'BND',
+  'AGG',
+  'IEF',
+  'TLT',
+  'SHY',
+  'MUB',
+  'LQD',
+  'HYG',
+])
+const cashSymbols = new Set(['SPAXX', 'VMFXX', 'SWVXX', 'FDRXX'])
+
+const normalizePlaidSector = (sector: string | null | undefined): string | null => {
+  const value = sector?.trim().toLowerCase()
+  if (!value || value === 'miscellaneous' || value === 'other') return null
+
+  if (value.includes('finance')) return 'Financial Services'
+  if (value.includes('health')) return 'Healthcare'
+  if (value.includes('technology') || value.includes('electronic')) return 'Technology'
+  if (value.includes('communication')) return 'Communication Services'
+  if (value.includes('consumer services') || value.includes('retail')) {
+    return 'Consumer Cyclical'
+  }
+  if (value.includes('consumer non-durables')) return 'Consumer Defensive'
+  if (value.includes('energy')) return 'Energy'
+  if (value.includes('utilities')) return 'Utilities'
+  if (value.includes('real estate')) return 'Real Estate'
+  if (value.includes('materials') || value.includes('minerals')) return 'Materials'
+  if (
+    value.includes('industrial') ||
+    value.includes('manufacturing') ||
+    value.includes('transportation')
+  ) {
+    return 'Industrials'
+  }
+
+  return sector.trim()
+}
+
+const isFundType = (type: string): boolean =>
+  type.includes('etf') || type.includes('fund')
+
+const isUnidentifiedHolding = (row: ConsolidatedHoldingRow): boolean => {
+  const description = row.description.toLowerCase()
+  return (
+    row.identityConfidence === 'low' &&
+    !row.symbol &&
+    (description.includes('unidentified holding') ||
+      description.includes('unknown security'))
+  )
+}
 
 export function getCostBasisStatus(row: ConsolidatedHoldingRow): CostBasisStatus {
   if (row.details.length === 0) return row.costBasis == null ? 'missing' : 'complete'
@@ -73,11 +245,41 @@ export function inferSector(row: ConsolidatedHoldingRow): string {
   const type = row.type.toLowerCase()
   const description = row.description.toLowerCase()
 
-  if (type.includes('etf') || broadMarketSymbols.has(symbol)) return 'Broad Market'
+  if (isUnidentifiedHolding(row)) return 'Unidentified'
+  if (type.includes('cash') || cashSymbols.has(symbol) || description.includes('money market')) {
+    return 'Cash'
+  }
+  if (type.includes('crypto')) return 'Cryptocurrency'
+  if (
+    type.includes('fixed') ||
+    type.includes('bond') ||
+    fixedIncomeSymbols.has(symbol) ||
+    description.includes('bond') ||
+    description.includes('treasury')
+  ) {
+    return 'Fixed Income'
+  }
+  if (broadMarketSymbols.has(symbol) || description.includes('total stock market')) {
+    return 'Broad Market'
+  }
+  if (isFundType(type)) return 'Funds'
+
+  const plaidSector = normalizePlaidSector(row.sector)
+  if (plaidSector) return plaidSector
+
+  if (communicationSymbols.has(symbol)) return 'Communication Services'
   if (technologySymbols.has(symbol)) return 'Technology'
   if (consumerCyclicalSymbols.has(symbol)) return 'Consumer Cyclical'
+  if (consumerDefensiveSymbols.has(symbol)) return 'Consumer Defensive'
   if (financialSymbols.has(symbol)) return 'Financial Services'
+  if (healthcareSymbols.has(symbol)) return 'Healthcare'
+  if (industrialSymbols.has(symbol)) return 'Industrials'
+  if (energySymbols.has(symbol)) return 'Energy'
+  if (utilitiesSymbols.has(symbol)) return 'Utilities'
+  if (realEstateSymbols.has(symbol)) return 'Real Estate'
+  if (materialsSymbols.has(symbol)) return 'Materials'
   if (description.includes('health') || description.includes('pharma')) return 'Healthcare'
+  if (type.includes('stock') || type.includes('equity')) return 'Equities'
   return 'Other'
 }
 

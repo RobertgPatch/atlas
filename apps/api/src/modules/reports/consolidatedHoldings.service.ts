@@ -22,6 +22,8 @@ interface CustodianHoldingDetailRow {
   symbol: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodian: string
   accountName: string
   accountMask: string | null
@@ -40,6 +42,8 @@ interface ConsolidatedHoldingRow {
   symbol: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodianSummary: string
   quantity: number | null
   institutionPrice: number | null
@@ -145,6 +149,9 @@ const latestDate = (values: Array<string | null>): string | null => {
   if (known.length === 0) return null
   return known.sort((a, b) => b.localeCompare(a))[0]!
 }
+
+const firstKnownText = (values: Array<string | null | undefined>): string | null =>
+  values.find((value): value is string => Boolean(value?.trim())) ?? null
 
 const gainLossStateFor = (row: ConsolidatedHoldingRow): string => {
   if (row.unrealizedGainLoss == null) return 'unknown'
@@ -260,6 +267,8 @@ export const buildConsolidatedHoldingsResponse = (
         symbol: holding.symbol,
         description: displayDescriptionFor(holding, account),
         type: holding.type,
+        sector: holding.sector,
+        industry: holding.industry,
         custodian: account?.custodianName ?? 'Unknown',
         accountName: account?.name ?? 'Unknown account',
         accountMask: account?.mask ?? null,
@@ -281,6 +290,8 @@ export const buildConsolidatedHoldingsResponse = (
       symbol: first.symbol,
       description: displayDescriptionFor(first, firstAccount),
       type: first.type,
+      sector: firstKnownText(group.holdings.map((holding) => holding.sector)),
+      industry: firstKnownText(group.holdings.map((holding) => holding.industry)),
       custodianSummary:
         custodians.size === 1
           ? [...custodians][0]!

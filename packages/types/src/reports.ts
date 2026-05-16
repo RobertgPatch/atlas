@@ -68,6 +68,8 @@ export interface CustodianHoldingDetailRow {
   symbol: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodian: string
   accountName: string
   accountMask: string | null
@@ -86,6 +88,8 @@ export interface ConsolidatedHoldingRow {
   symbol: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodianSummary: string
   quantity: number | null
   institutionPrice: number | null

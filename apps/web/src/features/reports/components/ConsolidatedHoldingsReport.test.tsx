@@ -2,7 +2,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { consolidatedHoldingsFixture } from '../fixtures/consolidatedHoldingsFixture'
-import { getCustodianBreakdown } from '../utils/consolidatedHoldingsAnalytics'
+import {
+  getCustodianBreakdown,
+  getSectorAllocation,
+} from '../utils/consolidatedHoldingsAnalytics'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { ConsolidatedHoldingsSummaryCards } from './ConsolidatedHoldingsSummaryCards'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
@@ -27,15 +30,15 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText('Equities')).toBeInTheDocument()
     expect(screen.getByText('2 source records')).toBeInTheDocument()
     expect(screen.getAllByText('2 accts').length).toBeGreaterThan(0)
-    expect(screen.queryByText('Brokerage A - Taxable')).not.toBeInTheDocument()
+    expect(screen.queryByText('Taxable')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /expand GOOGL account details/i }),
     ).toBeInTheDocument()
 
     await user.click(screen.getByText('GOOGL'))
 
-    expect(screen.getByText('Brokerage A - Taxable')).toBeInTheDocument()
-    expect(screen.getByText('Brokerage B - IRA')).toBeInTheDocument()
+    expect(screen.getByText('Taxable')).toBeInTheDocument()
+    expect(screen.getByText('IRA')).toBeInTheDocument()
     expect(screen.getByText('70')).toBeInTheDocument()
   })
 
@@ -79,6 +82,35 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
 })
 
 describe('Consolidated holdings analytics', () => {
+  it('uses Plaid sector data and separates unidentified holdings from Other', () => {
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const unidentifiedRow = {
+      ...baseRow,
+      id: 'unidentified-1',
+      symbol: null,
+      description: 'Unidentified holding - Summit Gate Custody Brokerage ****1234',
+      type: 'Other',
+      sector: null,
+      industry: null,
+      identityConfidence: 'low' as const,
+      marketValue: 5_000,
+      details: [],
+    }
+
+    const allocation = getSectorAllocation(
+      [baseRow, unidentifiedRow],
+      (baseRow.marketValue ?? 0) + (unidentifiedRow.marketValue ?? 0),
+    )
+
+    expect(allocation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Technology', value: 12_250 }),
+        expect.objectContaining({ name: 'Unidentified', value: 5_000 }),
+      ]),
+    )
+    expect(allocation.find((item) => item.name === 'Other')).toBeUndefined()
+  })
+
   it('includes selected custodians even when they have no holdings rows', () => {
     const custodians = getCustodianBreakdown(
       {

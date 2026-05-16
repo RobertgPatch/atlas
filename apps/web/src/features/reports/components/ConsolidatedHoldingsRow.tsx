@@ -1,7 +1,7 @@
 import {
   AlertCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
+  MinusIcon,
+  PlusIcon,
 } from 'lucide-react'
 import type { ConsolidatedHoldingRow } from '../../../../../../packages/types/src/reports'
 import { getCostBasisStatus } from '../utils/consolidatedHoldingsAnalytics'
@@ -12,7 +12,6 @@ interface ConsolidatedHoldingsRowProps {
   sector: string
   accountCount: number
   groupAccentClassName: string
-  groupConnectorClassName: string
   isExpanded: boolean
   onToggle: () => void
 }
@@ -70,10 +69,23 @@ function GainLossCell({
 
 const sectorBadgeColors: Record<string, string> = {
   Technology: 'bg-blue-50 text-blue-700',
+  'Communication Services': 'bg-indigo-50 text-indigo-700',
   'Consumer Cyclical': 'bg-violet-50 text-violet-700',
+  'Consumer Defensive': 'bg-lime-50 text-lime-700',
   'Financial Services': 'bg-sky-50 text-sky-700',
+  Industrials: 'bg-orange-50 text-orange-700',
+  Energy: 'bg-red-50 text-red-700',
+  Utilities: 'bg-green-50 text-green-700',
+  'Real Estate': 'bg-purple-50 text-purple-700',
+  Materials: 'bg-slate-100 text-slate-700',
   'Broad Market': 'bg-teal-50 text-teal-700',
+  Equities: 'bg-blue-50 text-blue-700',
+  Funds: 'bg-violet-50 text-violet-700',
+  'Fixed Income': 'bg-indigo-50 text-indigo-700',
+  Cash: 'bg-emerald-50 text-emerald-700',
+  Cryptocurrency: 'bg-amber-50 text-amber-700',
   Healthcare: 'bg-emerald-50 text-emerald-700',
+  Unidentified: 'bg-orange-50 text-orange-700',
   Other: 'bg-gray-100 text-gray-600',
 }
 
@@ -90,7 +102,6 @@ export function ConsolidatedHoldingsRow({
   sector,
   accountCount,
   groupAccentClassName,
-  groupConnectorClassName,
   isExpanded,
   onToggle,
 }: ConsolidatedHoldingsRowProps) {
@@ -108,12 +119,8 @@ export function ConsolidatedHoldingsRow({
         aria-expanded={isExpanded}
         className="group cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50"
       >
-        <td className={`border-l-4 py-3.5 pl-0 pr-2 ${groupAccentClassName}`}>
+        <td className={`border-l-4 py-3.5 pl-8 pr-2 ${groupAccentClassName}`}>
           <div className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className={`ml-3 h-px w-4 flex-shrink-0 ${groupConnectorClassName}`}
-            />
             <button
               type="button"
               aria-expanded={isExpanded}
@@ -123,16 +130,16 @@ export function ConsolidatedHoldingsRow({
                 event.stopPropagation()
                 onToggle()
               }}
-              className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+              className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border text-[10px] transition-colors ${
                 isExpanded
                   ? 'border-blue-200 bg-blue-50 text-blue-700'
                   : 'border-gray-200 bg-white text-gray-400 group-hover:border-gray-300 group-hover:text-gray-600'
               }`}
             >
               {isExpanded ? (
-                <ChevronDownIcon className="h-3 w-3" />
+                <MinusIcon className="h-3 w-3" />
               ) : (
-                <ChevronRightIcon className="h-3 w-3" />
+                <PlusIcon className="h-3 w-3" />
               )}
             </button>
             <span className="text-sm font-semibold text-gray-900">
@@ -224,21 +231,15 @@ export function ConsolidatedHoldingsRow({
       {isExpanded &&
         row.details.map((detail) => (
           <tr key={detail.id} className="border-b border-gray-50 bg-gray-50/70">
-            <td className={`border-l-4 py-2.5 pl-0 pr-2 ${groupAccentClassName}`}>
-              <div className="flex items-center pl-10">
-                <span
-                  aria-hidden="true"
-                  className="h-px w-5 flex-shrink-0 bg-gray-200"
-                />
-                <span
-                  aria-hidden="true"
-                  className="ml-1 h-1.5 w-1.5 rounded-full bg-gray-300"
-                />
+            <td className={`border-l-4 py-2.5 pl-14 pr-2 ${groupAccentClassName}`} />
+            <td className="py-2.5 pl-6 pr-3 text-xs text-gray-500">
+              <div className="truncate font-medium text-gray-600">
+                {detail.accountName}
               </div>
-            </td>
-            <td className="px-3 py-2.5 text-xs text-gray-500">
-              <div className="truncate">{detail.custodian} - {detail.accountName}</div>
               <div className="mt-0.5 flex items-center gap-1">
+                <span className="truncate text-[10px] text-gray-400">
+                  {detail.custodian}
+                </span>
                 {detail.accountMask ? (
                   <span className="text-[10px] text-gray-400">****{detail.accountMask}</span>
                 ) : null}

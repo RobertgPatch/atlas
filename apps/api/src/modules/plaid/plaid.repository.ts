@@ -46,6 +46,8 @@ export interface SourceHoldingRecord {
   symbol: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   cusip: string | null
   isin: string | null
   currencyCode: string | null
@@ -117,6 +119,8 @@ interface HoldingRow {
   symbol: string | null
   description: string
   security_type: string
+  sector: string | null
+  industry: string | null
   cusip: string | null
   isin: string | null
   currency_code: string | null
@@ -212,6 +216,8 @@ const mapHoldingRow = (row: HoldingRow): SourceHoldingRecord => ({
   symbol: row.symbol,
   description: row.description,
   type: row.security_type,
+  sector: row.sector,
+  industry: row.industry,
   cusip: row.cusip,
   isin: row.isin,
   currencyCode: row.currency_code,
@@ -344,13 +350,13 @@ const persistSourceHoldings = (syncSnapshotId: string, holdings: SourceHoldingRe
         `
           insert into source_holdings (
             id, sync_snapshot_id, plaid_investment_account_id, plaid_account_id,
-            plaid_security_id, symbol, description, security_type, cusip, isin,
-            currency_code, quantity, cost_basis_amount, institution_price,
+            plaid_security_id, symbol, description, security_type, sector, industry,
+            cusip, isin, currency_code, quantity, cost_basis_amount, institution_price,
             market_value_amount, unrealized_gain_loss_amount, as_of_date
           )
           values (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17
+            $11, $12, $13, $14, $15, $16, $17, $18, $19
           )
         `,
         [
@@ -362,6 +368,8 @@ const persistSourceHoldings = (syncSnapshotId: string, holdings: SourceHoldingRe
           holding.symbol,
           holding.description,
           holding.type,
+          holding.sector,
+          holding.industry,
           holding.cusip,
           holding.isin,
           holding.currencyCode,
@@ -435,7 +443,7 @@ export const plaidRepository = {
     const holdingRows = await pool.query<HoldingRow>(
       `
         select id, sync_snapshot_id, plaid_account_id, plaid_security_id, symbol,
-          description, security_type, cusip, isin, currency_code, quantity,
+          description, security_type, sector, industry, cusip, isin, currency_code, quantity,
           cost_basis_amount, institution_price, market_value_amount,
           unrealized_gain_loss_amount, as_of_date
         from source_holdings
