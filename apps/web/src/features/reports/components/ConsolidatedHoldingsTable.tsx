@@ -467,7 +467,7 @@ export function ConsolidatedHoldingsTable({
                         colSpan={7}
                         className={`border-l-4 bg-white p-0 ${group.category.accentBorderColor}`}
                       >
-                        <div className="ml-9 border-l border-gray-200 bg-white">
+                        <div className="bg-white">
                           <table className="w-full table-fixed">
                             {childColumnGroup}
                             <thead>{renderPositionHeaderRow()}</thead>
