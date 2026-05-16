@@ -10,6 +10,7 @@ import { formatCurrency, formatPercent } from '../utils/formatters'
 interface ConsolidatedHoldingsRowProps {
   row: ConsolidatedHoldingRow
   sector: string
+  accountCount: number
   isExpanded: boolean
   onToggle: () => void
 }
@@ -85,6 +86,7 @@ const identityConfidenceLabel = (
 export function ConsolidatedHoldingsRow({
   row,
   sector,
+  accountCount,
   isExpanded,
   onToggle,
 }: ConsolidatedHoldingsRowProps) {
@@ -195,6 +197,11 @@ export function ConsolidatedHoldingsRow({
             status={costBasisStatus}
           />
         </td>
+        <td className="px-3 py-3.5 text-center text-sm text-gray-500">
+          <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+            {accountCount} {accountCount === 1 ? 'acct' : 'accts'}
+          </span>
+        </td>
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {formatNumber(row.quantity)}
         </td>
@@ -244,6 +251,11 @@ export function ConsolidatedHoldingsRow({
                 percent={detail.gainLossPercent}
                 status={detail.costBasis == null ? 'missing' : 'complete'}
               />
+            </td>
+            <td className="px-3 py-2.5 text-center text-xs text-gray-500">
+              <span className="inline-block max-w-full truncate">
+                {detail.custodian}
+              </span>
             </td>
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {formatNumber(detail.quantity)}

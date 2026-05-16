@@ -24,7 +24,9 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     )
 
     expect(screen.getByText('GOOGL')).toBeInTheDocument()
+    expect(screen.getByText('Equities')).toBeInTheDocument()
     expect(screen.getByText('2 source records')).toBeInTheDocument()
+    expect(screen.getAllByText('2 accts').length).toBeGreaterThan(0)
     expect(screen.queryByText('Brokerage A - Taxable')).not.toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /expand GOOGL account details/i }),
@@ -35,6 +37,44 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText('Brokerage A - Taxable')).toBeInTheDocument()
     expect(screen.getByText('Brokerage B - IRA')).toBeInTheDocument()
     expect(screen.getByText('70')).toBeInTheDocument()
+  })
+
+  it('sorts positions alphabetically within each asset-class section', () => {
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const appleRow = {
+      ...baseRow,
+      id: 'AAPL',
+      symbol: 'AAPL',
+      description: 'Apple Inc.',
+      marketValue: 5_000,
+      details: baseRow.details.map((detail, index) => ({
+        ...detail,
+        id: `AAPL-${index}`,
+        symbol: 'AAPL',
+        description: 'Apple Inc.',
+        marketValue: 2_500,
+      })),
+    }
+
+    render(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="desc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    const appleSymbol = screen.getByText('AAPL')
+    const googleSymbol = screen.getByText('GOOGL')
+
+    expect(
+      appleSymbol.compareDocumentPosition(googleSymbol) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 })
 
