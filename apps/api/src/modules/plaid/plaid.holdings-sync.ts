@@ -64,7 +64,7 @@ const mapHolding = (
     plaidAccountId: holding.account_id,
     plaidSecurityId: holding.security_id ?? null,
     symbol: security?.ticker_symbol ?? null,
-    description: security?.name ?? security?.ticker_symbol ?? 'Unknown security',
+    description: security?.name ?? security?.ticker_symbol ?? 'Unidentified holding',
     type: typeLabel(security?.type),
     cusip: security?.cusip ?? null,
     isin: security?.isin ?? null,

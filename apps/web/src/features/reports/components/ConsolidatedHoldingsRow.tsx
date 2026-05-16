@@ -74,6 +74,14 @@ const sectorBadgeColors: Record<string, string> = {
   Other: 'bg-gray-100 text-gray-600',
 }
 
+const identityConfidenceLabel = (
+  confidence: ConsolidatedHoldingRow['identityConfidence'],
+): string => {
+  if (confidence === 'low') return 'Needs ID'
+  if (confidence === 'medium') return 'Provider ID'
+  return 'Verified ID'
+}
+
 export function ConsolidatedHoldingsRow({
   row,
   sector,
@@ -121,8 +129,11 @@ export function ConsolidatedHoldingsRow({
               {row.symbol ?? 'N/A'}
             </span>
             {row.identityConfidence !== 'high' && (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                {row.identityConfidence}
+              <span
+                className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                title="Security identity could not be fully matched from custodian data"
+              >
+                {identityConfidenceLabel(row.identityConfidence)}
               </span>
             )}
           </div>
