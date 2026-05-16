@@ -152,6 +152,8 @@ const categoryLabelColumnWidth = `${
   ) + 9
 }ch`
 
+const categorySummaryGridTemplate = `${categoryLabelColumnWidth} 7.5rem 10rem`
+
 const compareRowsAlphabetically = (
   a: ConsolidatedHoldingRow,
   b: ConsolidatedHoldingRow,
@@ -298,6 +300,28 @@ export function ConsolidatedHoldingsTable({
     )
   }
 
+  const renderPositionHeaderRow = (accentBorderClassName: string) => (
+    <tr className="border-y border-gray-100 bg-gray-50/80">
+      {columns.map((column, index) => (
+        <th
+          key={`${column.label}-${index}`}
+          onClick={() => (column.key ? handleSort(column.key) : undefined)}
+          className={`select-none px-3 py-2.5 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors ${
+            column.key ? 'cursor-pointer hover:text-gray-700' : ''
+          } ${column.align} ${
+            index === 0 ? `border-l-4 pl-12 ${accentBorderClassName}` : ''
+          } ${index === columns.length - 1 ? 'pr-4' : ''}`}
+          scope="col"
+        >
+          <span className="inline-flex items-center gap-1">
+            {column.label}
+            {column.key ? sortIcon(column.key) : null}
+          </span>
+        </th>
+      ))}
+    </tr>
+  )
+
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -334,22 +358,33 @@ export function ConsolidatedHoldingsTable({
           </colgroup>
           <thead>
             <tr className="bg-gray-50/80">
-              {columns.map((column, index) => (
-                <th
-                  key={`${column.label}-${index}`}
-                  onClick={() => (column.key ? handleSort(column.key) : undefined)}
-                  className={`select-none px-3 py-3 text-xs font-semibold uppercase tracking-wider text-gray-500 transition-colors ${
-                    column.key ? 'cursor-pointer hover:text-gray-700' : ''
-                  } ${column.align} ${index === 0 ? 'pl-4' : ''} ${
-                    index === columns.length - 1 ? 'pr-4' : ''
-                  }`}
+              <th
+                colSpan={4}
+                className="px-3 py-3 pl-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                scope="col"
+              >
+                <div
+                  className="grid items-center gap-3"
+                  style={{ gridTemplateColumns: categorySummaryGridTemplate }}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    {column.label}
-                    {column.key ? sortIcon(column.key) : null}
-                  </span>
-                </th>
-              ))}
+                  <span>Asset Type</span>
+                  <span>Positions</span>
+                  <span>Total Unrealized G/L</span>
+                </div>
+              </th>
+              <th
+                className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                scope="col"
+              >
+                Custodians
+              </th>
+              <th className="px-3 py-3" scope="col" />
+              <th
+                className="py-3 pl-3 pr-4 text-right text-xs font-semibold uppercase tracking-wider text-gray-500"
+                scope="col"
+              >
+                Market Value
+              </th>
             </tr>
           </thead>
           {rows.length === 0 ? (
@@ -379,7 +414,7 @@ export function ConsolidatedHoldingsTable({
                       <div
                         className="grid items-center gap-3"
                         style={{
-                          gridTemplateColumns: `${categoryLabelColumnWidth} 7.5rem 10rem`,
+                          gridTemplateColumns: categorySummaryGridTemplate,
                         }}
                       >
                         <div className="flex min-w-0 items-center gap-2.5">
@@ -436,18 +471,22 @@ export function ConsolidatedHoldingsTable({
                       </span>
                     </td>
                   </tr>
-                  {!isCollapsed &&
-                    group.rows.map((row) => (
-                      <ConsolidatedHoldingsRow
-                        key={row.id}
-                        row={row}
-                        sector={inferSector(row)}
-                        accountCount={getAccountCount(row)}
-                        groupAccentClassName={group.category.accentBorderColor}
-                        isExpanded={expandedIds.has(row.id)}
-                        onToggle={() => toggleExpand(row.id)}
-                      />
-                    ))}
+                  {!isCollapsed && (
+                    <>
+                      {renderPositionHeaderRow(group.category.accentBorderColor)}
+                      {group.rows.map((row) => (
+                        <ConsolidatedHoldingsRow
+                          key={row.id}
+                          row={row}
+                          sector={inferSector(row)}
+                          accountCount={getAccountCount(row)}
+                          groupAccentClassName={group.category.accentBorderColor}
+                          isExpanded={expandedIds.has(row.id)}
+                          onToggle={() => toggleExpand(row.id)}
+                        />
+                      ))}
+                    </>
+                  )}
                 </tbody>
               )
             })
