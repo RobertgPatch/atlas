@@ -11,6 +11,8 @@ interface ConsolidatedHoldingsRowProps {
   row: ConsolidatedHoldingRow
   sector: string
   accountCount: number
+  groupAccentClassName: string
+  groupConnectorClassName: string
   isExpanded: boolean
   onToggle: () => void
 }
@@ -87,6 +89,8 @@ export function ConsolidatedHoldingsRow({
   row,
   sector,
   accountCount,
+  groupAccentClassName,
+  groupConnectorClassName,
   isExpanded,
   onToggle,
 }: ConsolidatedHoldingsRowProps) {
@@ -104,8 +108,12 @@ export function ConsolidatedHoldingsRow({
         aria-expanded={isExpanded}
         className="group cursor-pointer border-b border-gray-100 transition-colors hover:bg-gray-50"
       >
-        <td className="py-3.5 pl-4 pr-2">
-          <div className="flex items-center gap-1.5">
+        <td className={`border-l-4 py-3.5 pl-0 pr-2 ${groupAccentClassName}`}>
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={`ml-3 h-px w-4 flex-shrink-0 ${groupConnectorClassName}`}
+            />
             <button
               type="button"
               aria-expanded={isExpanded}
@@ -115,16 +123,16 @@ export function ConsolidatedHoldingsRow({
                 event.stopPropagation()
                 onToggle()
               }}
-              className={`inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
+              className={`inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border transition-colors ${
                 isExpanded
                   ? 'border-blue-200 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 bg-white text-gray-500 group-hover:border-blue-200 group-hover:text-blue-600'
+                  : 'border-gray-200 bg-white text-gray-400 group-hover:border-gray-300 group-hover:text-gray-600'
               }`}
             >
               {isExpanded ? (
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="h-3 w-3" />
               ) : (
-                <ChevronRightIcon className="h-4 w-4" />
+                <ChevronRightIcon className="h-3 w-3" />
               )}
             </button>
             <span className="text-sm font-semibold text-gray-900">
@@ -216,7 +224,18 @@ export function ConsolidatedHoldingsRow({
       {isExpanded &&
         row.details.map((detail) => (
           <tr key={detail.id} className="border-b border-gray-50 bg-gray-50/70">
-            <td className="py-2.5 pl-12 pr-2 text-xs text-gray-300">-</td>
+            <td className={`border-l-4 py-2.5 pl-0 pr-2 ${groupAccentClassName}`}>
+              <div className="flex items-center pl-10">
+                <span
+                  aria-hidden="true"
+                  className="h-px w-5 flex-shrink-0 bg-gray-200"
+                />
+                <span
+                  aria-hidden="true"
+                  className="ml-1 h-1.5 w-1.5 rounded-full bg-gray-300"
+                />
+              </div>
+            </td>
             <td className="px-3 py-2.5 text-xs text-gray-500">
               <div className="truncate">{detail.custodian} - {detail.accountName}</div>
               <div className="mt-0.5 flex items-center gap-1">

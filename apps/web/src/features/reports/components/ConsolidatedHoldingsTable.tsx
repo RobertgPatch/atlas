@@ -49,6 +49,8 @@ interface AssetCategory {
   color: string
   bgColor: string
   borderColor: string
+  accentBorderColor: string
+  connectorColor: string
   matches: (type: string) => boolean
 }
 
@@ -71,6 +73,8 @@ const assetCategories: AssetCategory[] = [
     color: 'text-blue-700',
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
+    accentBorderColor: 'border-l-blue-400',
+    connectorColor: 'bg-blue-200',
     matches: (type) => ['stock', 'equity', 'equities'].includes(type),
   },
   {
@@ -80,6 +84,8 @@ const assetCategories: AssetCategory[] = [
     color: 'text-violet-700',
     bgColor: 'bg-violet-50',
     borderColor: 'border-violet-200',
+    accentBorderColor: 'border-l-violet-400',
+    connectorColor: 'bg-violet-200',
     matches: (type) => type.includes('etf') || type.includes('fund'),
   },
   {
@@ -89,6 +95,8 @@ const assetCategories: AssetCategory[] = [
     color: 'text-amber-700',
     bgColor: 'bg-amber-50',
     borderColor: 'border-amber-200',
+    accentBorderColor: 'border-l-amber-400',
+    connectorColor: 'bg-amber-200',
     matches: (type) => type.includes('crypto'),
   },
   {
@@ -98,6 +106,8 @@ const assetCategories: AssetCategory[] = [
     color: 'text-indigo-700',
     bgColor: 'bg-indigo-50',
     borderColor: 'border-indigo-200',
+    accentBorderColor: 'border-l-indigo-400',
+    connectorColor: 'bg-indigo-200',
     matches: (type) => type.includes('fixed') || type.includes('bond'),
   },
   {
@@ -107,6 +117,8 @@ const assetCategories: AssetCategory[] = [
     color: 'text-emerald-700',
     bgColor: 'bg-emerald-50',
     borderColor: 'border-emerald-200',
+    accentBorderColor: 'border-l-emerald-400',
+    connectorColor: 'bg-emerald-200',
     matches: (type) => type.includes('cash') || type.includes('money market'),
   },
 ]
@@ -118,6 +130,8 @@ const otherCategory: AssetCategory = {
   color: 'text-gray-700',
   bgColor: 'bg-gray-50',
   borderColor: 'border-gray-200',
+  accentBorderColor: 'border-l-gray-300',
+  connectorColor: 'bg-gray-200',
   matches: () => true,
 }
 
@@ -245,11 +259,11 @@ export function ConsolidatedHoldingsTable({
   }
 
   const sortIcon = (key: SortKey) => {
-    if (sort !== key) return <ArrowUpDownIcon className="h-3.5 w-3.5 text-gray-300" />
+    if (sort !== key) return <ArrowUpDownIcon className="h-3 w-3 text-gray-300" />
     return direction === 'asc' ? (
-      <ArrowUpIcon className="h-3.5 w-3.5 text-blue-600" />
+      <ArrowUpIcon className="h-3 w-3 text-blue-600" />
     ) : (
-      <ArrowDownIcon className="h-3.5 w-3.5 text-blue-600" />
+      <ArrowDownIcon className="h-3 w-3 text-blue-600" />
     )
   }
 
@@ -328,17 +342,22 @@ export function ConsolidatedHoldingsTable({
                     onClick={() => toggleCategory(group.category.key)}
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${group.category.bgColor}`}
                   >
-                    <td colSpan={5} className="py-3 pl-4 pr-3">
-                      <div className="flex items-center gap-3">
-                        {isCollapsed ? (
-                          <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                        ) : (
-                          <ChevronDownIcon className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                        )}
+                    <td
+                      colSpan={5}
+                      className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border border-transparent text-gray-400">
+                          {isCollapsed ? (
+                            <ChevronRightIcon className="h-3 w-3" />
+                          ) : (
+                            <ChevronDownIcon className="h-3 w-3" />
+                          )}
+                        </span>
                         <div
-                          className={`flex h-7 w-7 items-center justify-center rounded-lg border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
+                          className={`flex h-6 w-6 items-center justify-center rounded-md border ${group.category.bgColor} ${group.category.color} ${group.category.borderColor}`}
                         >
-                          <CategoryIcon className="h-4 w-4" />
+                          <CategoryIcon className="h-3.5 w-3.5" />
                         </div>
                         <div className="flex min-w-0 flex-wrap items-center gap-3">
                           <span className={`text-sm font-semibold ${group.category.color}`}>
@@ -382,6 +401,8 @@ export function ConsolidatedHoldingsTable({
                         row={row}
                         sector={inferSector(row)}
                         accountCount={getAccountCount(row)}
+                        groupAccentClassName={group.category.accentBorderColor}
+                        groupConnectorClassName={group.category.connectorColor}
                         isExpanded={expandedIds.has(row.id)}
                         onToggle={() => toggleExpand(row.id)}
                       />
