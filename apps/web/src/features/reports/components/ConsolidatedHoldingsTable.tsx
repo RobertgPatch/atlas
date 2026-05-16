@@ -146,6 +146,12 @@ const categoryOrder = new Map([
   [otherCategory.key, assetCategories.length] as const,
 ])
 
+const categoryLabelColumnWidth = `${
+  Math.max(
+    ...[...assetCategories, otherCategory].map((category) => category.label.length),
+  ) + 9
+}ch`
+
 const compareRowsAlphabetically = (
   a: ConsolidatedHoldingRow,
   b: ConsolidatedHoldingRow,
@@ -370,7 +376,12 @@ export function ConsolidatedHoldingsTable({
                       colSpan={4}
                       className={`border-l-4 py-3 pl-3 pr-3 ${group.category.accentBorderColor}`}
                     >
-                      <div className="grid grid-cols-[minmax(11rem,1fr)_6.5rem_9rem] items-center gap-3">
+                      <div
+                        className="grid items-center gap-3"
+                        style={{
+                          gridTemplateColumns: `${categoryLabelColumnWidth} 7.5rem 10rem`,
+                        }}
+                      >
                         <div className="flex min-w-0 items-center gap-2.5">
                           <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center text-gray-400">
                             {isCollapsed ? (
