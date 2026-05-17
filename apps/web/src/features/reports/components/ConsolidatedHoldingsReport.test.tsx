@@ -140,7 +140,7 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
 })
 
 describe('Consolidated holdings analytics', () => {
-  it('uses Plaid sector data and separates unidentified holdings from Other', () => {
+  it('uses one asset-type allocation strategy and separates unidentified holdings from Other', () => {
     const [baseRow] = consolidatedHoldingsFixture.rows
     const unidentifiedRow = {
       ...baseRow,
@@ -163,10 +163,11 @@ describe('Consolidated holdings analytics', () => {
 
     expect(allocation).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'Technology', value: 12_250 }),
+        expect.objectContaining({ name: 'Equities', value: 12_250 }),
         expect.objectContaining({ name: 'Unidentified', value: 5_000 }),
       ]),
     )
+    expect(allocation.find((item) => item.name === 'Technology')).toBeUndefined()
     expect(allocation.find((item) => item.name === 'Other')).toBeUndefined()
   })
 
