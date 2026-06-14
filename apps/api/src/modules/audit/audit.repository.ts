@@ -27,7 +27,6 @@ const serializeAuditInput = (input: AuditInput) => [
   input.before ? JSON.stringify(input.before) : null,
   input.after ? JSON.stringify(input.after) : null,
 ]
-
 export const auditRepository = {
   async record(input: AuditInput, client?: PoolClient): Promise<void> {
     const db = client ?? null

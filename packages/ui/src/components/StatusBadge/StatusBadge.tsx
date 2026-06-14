@@ -1,14 +1,5 @@
-import React from 'react';
-import { Chip, type ChipProps } from '@mui/material';
+import React from 'react'
 
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
-
-/**
- * Standard Atlas status values.
- * Extend this union as new statuses are introduced.
- */
 export type AtlasStatus =
   | 'uploaded'
   | 'processing'
@@ -16,60 +7,46 @@ export type AtlasStatus =
   | 'ready_for_approval'
   | 'finalized'
   | 'active'
-  | 'inactive';
+  | 'inactive'
 
 export interface StatusBadgeProps {
-  /** The status value */
-  status: AtlasStatus | (string & {});
-  /** Override the display label (defaults to humanized status) */
-  label?: string;
-  /** MUI Chip size (default 'small') */
-  size?: ChipProps['size'];
+  status: AtlasStatus | (string & {})
+  label?: string
+  size?: 'small' | 'medium'
 }
 
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
+const colorMap: Record<string, string> = {
+  uploaded: 'bg-blue-50 border-blue-200 text-blue-700',
+  processing: 'bg-amber-50 border-amber-200 text-amber-700',
+  needs_review: 'bg-amber-50 border-amber-200 text-amber-700',
+  ready_for_approval: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+  finalized: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+  active: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+  inactive: 'bg-gray-100 border-gray-200 text-gray-700',
+}
 
-/** Map status → MUI color */
-const colorMap: Record<string, ChipProps['color']> = {
-  uploaded: 'info',
-  processing: 'warning',
-  needs_review: 'warning',
-  ready_for_approval: 'info',
-  finalized: 'success',
-  active: 'success',
-  inactive: 'default',
-};
-
-/** snake_case / kebab → Title Case */
 function humanize(status: string): string {
   return status
     .replace(/[_-]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
-
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
   label,
-  size = 'small',
+  size = 'small'
 }) => {
-  const color = colorMap[status] ?? 'default';
-  const displayLabel = label ?? humanize(status);
+  const colorClasses = colorMap[status] ?? colorMap.inactive
+  const displayLabel = label ?? humanize(status)
+  const sizeClasses = size === 'medium' ? 'px-2.5 py-1 text-xs' : 'px-2 py-0.5 text-[11px]'
 
   return (
-    <Chip
-      label={displayLabel}
-      color={color}
-      size={size}
-      variant="outlined"
-      sx={{ fontWeight: 600, textTransform: 'capitalize' }}
-    />
-  );
-};
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold capitalize ${sizeClasses} ${colorClasses}`}
+    >
+      {displayLabel}
+    </span>
+  )
+}
 
-export default StatusBadge;
+export default StatusBadge
