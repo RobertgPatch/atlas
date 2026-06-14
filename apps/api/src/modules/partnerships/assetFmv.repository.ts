@@ -7,7 +7,7 @@ import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import type {
   AssetFmvSnapshot,
   CreateAssetFmvSnapshotRequest,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 import {
   createInMemoryAssetSnapshot,
   getInMemoryAssetDetail,

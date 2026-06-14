@@ -12,7 +12,7 @@ import type {
   PartnershipDirectoryResponse,
   PartnershipDetail,
   Partnership,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 import type {
   ListPartnershipsQuery,
   ExportPartnershipsQuery,
@@ -135,7 +135,7 @@ const BASE_CTE = `
       kd.tax_year as latest_k1_year,
       coalesce(
         krd.reported_distribution_amount,
-        (select coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)
+        (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
            from k1_field_values fv
           where fv.k1_document_id = kd.id
             and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
@@ -257,7 +257,8 @@ export const partnershipsRepository = {
       }
       if (filters.entityId) rows = rows.filter((r) => r.entity.id === filters.entityId)
       if (filters.assetClass) rows = rows.filter((r) => r.assetClass === filters.assetClass)
-      if (filters.status?.length) rows = rows.filter((r) => filters.status.includes(r.status))
+      const statuses = filters.status ?? []
+      if (statuses.length) rows = rows.filter((r) => statuses.includes(r.status))
 
       const total = rows.length
       const offset = (filters.page - 1) * filters.pageSize
@@ -620,7 +621,7 @@ export const partnershipsRepository = {
              and kd.tax_year is not null)           as latest_k1_year,
           (select coalesce(
              krd.reported_distribution_amount,
-             (select coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)
+             (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
                 from k1_field_values fv
                where fv.k1_document_id = kd2.id
                  and fv.field_name in ('box_19a_distribution', 'box_19_distributions')

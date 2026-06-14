@@ -2,7 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ZodError } from 'zod'
 import { partnershipsRepository } from './partnerships.repository.js'
 import { pool, withTransaction } from '../../infra/db/client.js'
-import type { PartnershipDirectoryRow } from '../../../../../packages/types/src/partnership-management.js'
+import type { PartnershipDirectoryRow } from './partnerships.types.js'
 import {
   listPartnershipsQuerySchema,
   exportPartnershipsQuerySchema,
@@ -104,6 +104,13 @@ export const getPartnershipDetailHandler = async (
 
   const detail = await partnershipsRepository.getPartnershipDetail(params.id, scope)
   if (!detail) return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
+  // Debug log for reportedDistributionsUsd
+  if (detail.capitalOverview) {
+    console.log('[DEBUG] PartnershipDetail', {
+      id: params.id,
+      reportedDistributionsUsd: detail.capitalOverview.reportedDistributionsUsd,
+    })
+  }
   return reply.send(detail)
 }
 
@@ -228,10 +235,16 @@ export const updatePartnershipHandler = async (
     return reply.send(updated)
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
+    console.error('[ERROR] updatePartnershipHandler', {
+      partnershipId: params.id,
+      userId: request.authUser?.userId,
+      error: msg,
+      stack: err instanceof Error ? err.stack : undefined,
+    })
     if (msg.includes('DATABASE_URL')) {
       return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
     }
-    throw err
+    return reply.status(500).send({ error: 'INTERNAL_ERROR', message: msg })
   }
 }
 

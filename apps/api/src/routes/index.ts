@@ -6,6 +6,7 @@ import { registerDashboardRoutes } from '../modules/dashboard/dashboard.routes.j
 import { registerK1Routes } from '../modules/k1/k1.routes.js'
 import { registerReviewRoutes } from '../modules/review/review.routes.js'
 import { registerPartnershipRoutes } from '../modules/partnerships/partnerships.routes.js'
+import { registerPlaidRoutes } from '../modules/plaid/plaid.routes.js'
 import { registerReportsRoutes } from '../modules/reports/reports.routes.js'
 
 export const registerRoutes = async (app: FastifyInstance) => {
@@ -16,5 +17,6 @@ export const registerRoutes = async (app: FastifyInstance) => {
   await registerK1Routes(app)
   await registerReviewRoutes(app)
   await registerPartnershipRoutes(app)
+  await registerPlaidRoutes(app)
   await registerReportsRoutes(app)
 }

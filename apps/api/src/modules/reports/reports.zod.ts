@@ -54,10 +54,20 @@ const activityDetailSortFields = [
   'updatedAt',
 ] as const
 
+const consolidatedHoldingsSortFields = [
+  'symbol',
+  'type',
+  'quantity',
+  'costBasis',
+  'unrealizedGainLoss',
+  'marketValue',
+] as const
+
 const reportTypeSchema = z.enum([
   'portfolio_summary',
   'asset_class_summary',
   'activity_detail',
+  'consolidated_holdings',
 ])
 
 const exportFormatSchema = z.enum(['csv', 'xlsx'])
@@ -88,12 +98,29 @@ export const activityDetailQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(200).optional().default(50),
 })
 
+export const consolidatedHoldingsQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  custodian: z.string().max(120).optional(),
+  accountId: z.string().max(120).optional(),
+  type: z.string().max(80).optional(),
+  gainLossState: z.enum(['gain', 'loss', 'flat', 'unknown']).optional(),
+  sort: z.enum(consolidatedHoldingsSortFields).optional().default('marketValue'),
+  direction: z.enum(['asc', 'desc']).optional().default('desc'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(250).optional().default(50),
+})
+
 export const exportReportQuerySchema = z.object({
   reportType: reportTypeSchema,
   format: exportFormatSchema,
   ...sharedReportsFilterShape,
   sort: z.string().max(120).optional(),
   direction: z.enum(['asc', 'desc']).optional(),
+})
+
+export const consolidatedHoldingsExportQuerySchema = z.object({
+  ...consolidatedHoldingsQuerySchema.shape,
+  format: exportFormatSchema,
 })
 
 export const updateActivityDetailBodySchema = z
@@ -129,11 +156,17 @@ export const updatePortfolioCommitmentBodySchema = z.object({
 export type PortfolioSummaryQuery = z.output<typeof portfolioSummaryQuerySchema>
 export type AssetClassSummaryQuery = z.output<typeof assetClassSummaryQuerySchema>
 export type ActivityDetailQuery = z.output<typeof activityDetailQuerySchema>
+export type ConsolidatedHoldingsQuery = z.output<
+  typeof consolidatedHoldingsQuerySchema
+>
 export type ActivityDetailRowParams = z.output<typeof activityDetailRowParamsSchema>
 export type UpdateActivityDetailBody = z.output<typeof updateActivityDetailBodySchema>
 export type UpdatePortfolioCommitmentBody = z.output<
   typeof updatePortfolioCommitmentBodySchema
 >
 export type ReportExportQuery = z.output<typeof exportReportQuerySchema>
+export type ConsolidatedHoldingsExportQuery = z.output<
+  typeof consolidatedHoldingsExportQuerySchema
+>
 export type ReportExportFormat = z.output<typeof exportFormatSchema>
 export type ReportType = z.output<typeof reportTypeSchema>

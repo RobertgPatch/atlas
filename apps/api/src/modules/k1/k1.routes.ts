@@ -7,6 +7,7 @@ import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { withTransaction } from '../../infra/db/client.js'
 import { k1Repository } from './k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
+import { capitalRepository } from '../partnerships/capital.repository.js'
 import { localPdfStore } from './storage/localPdfStore.js'
 import { getExtractor } from './extraction/index.js'
 import { assertEntityInScope, requireK1Scope } from './k1Scope.plugin.js'
@@ -39,37 +40,59 @@ const ensureDbEntityAndPartnership = async (args: {
   partnershipId: string
   partnershipName: string
   actorUserId: string
-}): Promise<void> => {
-  if (!config.databaseUrl) return
+}): Promise<{ entityId: string; partnershipId: string }> => {
+  if (!config.databaseUrl) {
+    return { entityId: args.entityId, partnershipId: args.partnershipId }
+  }
+
+  let resolvedEntityId = args.entityId
+  let resolvedPartnershipId = args.partnershipId
 
   try {
     await withTransaction(async (client) => {
-      const entityResult = await client.query<{ id: string }>(
+      // Resolve entity: prefer the supplied id; otherwise reuse any row that
+      // already matches by name (case-insensitive). Prevents duplicate
+      // entities when the in-memory store gets reset (UUIDs change) but the
+      // DB still has the same logical entity.
+      const entityById = await client.query<{ id: string }>(
         `select id from entities where id = $1`,
         [args.entityId],
       )
 
-      if (!entityResult.rows[0]) {
-        await client.query(
-          `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
-           values ($1, $2, $3, 'ACTIVE', null, now(), now())`,
-          [args.entityId, args.entityName, args.entityType ?? 'UNKNOWN'],
+      if (!entityById.rows[0]) {
+        const entityByName = await client.query<{ id: string }>(
+          `select id from entities where lower(name) = lower($1) limit 1`,
+          [args.entityName],
         )
+
+        if (entityByName.rows[0]) {
+          resolvedEntityId = entityByName.rows[0].id
+        } else {
+          await client.query(
+            `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
+             values ($1, $2, $3, 'ACTIVE', null, now(), now())`,
+            [args.entityId, args.entityName, args.entityType ?? 'UNKNOWN'],
+          )
+        }
       }
 
-      const partnershipResult = await client.query<{ id: string }>(
+      // Resolve partnership similarly: dedupe by (entity, name).
+      const partnershipByName = await client.query<{ id: string }>(
         `select id from partnerships where entity_id = $1 and lower(name) = lower($2) limit 1`,
-        [args.entityId, args.partnershipName],
+        [resolvedEntityId, args.partnershipName],
       )
 
-      if (partnershipResult.rows[0]) return
+      if (partnershipByName.rows[0]) {
+        resolvedPartnershipId = partnershipByName.rows[0].id
+        return
+      }
 
       await client.query(
         `insert into partnerships (id, entity_id, name, asset_class, status, notes, created_at, updated_at)
          values ($1, $2, $3, null, 'ACTIVE', $4, now(), now())`,
         [
           args.partnershipId,
-          args.entityId,
+          resolvedEntityId,
           args.partnershipName,
           'Auto-created from K-1 upload.',
         ],
@@ -84,7 +107,7 @@ const ensureDbEntityAndPartnership = async (args: {
           before: null,
           after: {
             id: args.partnershipId,
-            entity_id: args.entityId,
+            entity_id: resolvedEntityId,
             name: args.partnershipName,
             asset_class: null,
             status: 'ACTIVE',
@@ -100,6 +123,105 @@ const ensureDbEntityAndPartnership = async (args: {
       error instanceof Error ? error.message : String(error),
     )
   }
+
+  return { entityId: resolvedEntityId, partnershipId: resolvedPartnershipId }
+}
+
+const REPORTED_DISTRIBUTION_FIELD_NAMES = ['box_19a_distribution', 'box_19_distributions'] as const
+
+/**
+ * Mirror the K-1 parse output (document, k1_documents, field values, reported
+ * distribution) to Postgres so PG-backed list/detail/dashboard queries reflect
+ * the freshly ingested K-1. The in-memory store remains the source of truth
+ * for review/finalize today; this writes a parallel snapshot so partnerships
+ * surface the distribution KPI.
+ */
+const mirrorK1ToDb = async (args: {
+  documentId: string
+  k1DocumentId: string
+  storagePath: string
+  mimeType: string
+  sizeBytes: number
+  uploaderUserId: string
+  fileName: string | null
+  entityId: string
+  partnershipId: string
+  taxYear: number
+  processingStatus: string
+  fieldValues: Array<{
+    fieldName: string
+    rawValue: string | null
+    confidenceScore: number | null
+    sourceLocation?: { page: number; bbox: [number, number, number, number] } | null
+  }>
+}): Promise<void> => {
+  if (!config.databaseUrl) return
+
+  try {
+    await withTransaction(async (client) => {
+      // documents row (idempotent)
+      await client.query(
+        `insert into documents (id, document_type, file_name, storage_path, mime_type, uploaded_by, uploaded_at)
+         values ($1, 'K1', $2, $3, $4, $5, now())
+         on conflict (id) do nothing`,
+        [args.documentId, args.fileName, args.storagePath, args.mimeType, args.uploaderUserId],
+      )
+
+      // k1_documents row (idempotent — overwrite parsed fields on re-parse)
+      await client.query(
+        `insert into k1_documents (id, document_id, partnership_id, tax_year, partnership_name_raw, processing_status)
+         values ($1, $2, $3, $4, null, $5)
+         on conflict (id) do update
+           set partnership_id = excluded.partnership_id,
+               tax_year = excluded.tax_year,
+               processing_status = excluded.processing_status,
+               updated_at = now()`,
+        [args.k1DocumentId, args.documentId, args.partnershipId, args.taxYear, args.processingStatus],
+      )
+
+      // Wipe + reinsert field values so re-parses don't accumulate duplicates.
+      await client.query(`delete from k1_field_values where k1_document_id = $1`, [args.k1DocumentId])
+
+      for (const fv of args.fieldValues) {
+        await client.query(
+          `insert into k1_field_values
+             (id, k1_document_id, field_name, raw_value, normalized_value, confidence_score,
+              extraction_method, review_status, page_number)
+           values (gen_random_uuid(), $1, $2, $3, $3, $4, 'AZURE_DI', 'PENDING', $5)`,
+          [args.k1DocumentId, fv.fieldName, fv.rawValue, fv.confidenceScore, fv.sourceLocation?.page ?? null],
+        )
+      }
+
+      // Reported distribution: pull the canonical Box 19 field if present.
+      const distributionRaw = args.fieldValues.find((field) =>
+        (REPORTED_DISTRIBUTION_FIELD_NAMES as readonly string[]).includes(field.fieldName),
+      )?.rawValue
+      const distributionNumeric = parseUsdToNumber(distributionRaw ?? null)
+
+      await client.query(`delete from k1_reported_distributions where k1_document_id = $1`, [args.k1DocumentId])
+      if (distributionNumeric != null) {
+        await client.query(
+          `insert into k1_reported_distributions
+             (id, k1_document_id, entity_id, partnership_id, tax_year, reported_distribution_amount)
+           values (gen_random_uuid(), $1, $2, $3, $4, $5)`,
+          [args.k1DocumentId, args.entityId, args.partnershipId, args.taxYear, distributionNumeric],
+        )
+      }
+    })
+  } catch (error) {
+    console.warn(
+      'Failed to mirror K-1 into Postgres:',
+      error instanceof Error ? error.message : String(error),
+    )
+  }
+}
+
+const parseUsdToNumber = (raw: string | null): number | null => {
+  if (raw == null) return null
+  const cleaned = raw.replace(/[$,\s]/g, '').replace(/[()]/g, (m) => (m === '(' ? '-' : ''))
+  if (cleaned === '' || cleaned === '-') return null
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : null
 }
 
 // --- Async parse pipeline -----------------------------------------------------
@@ -167,7 +289,7 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         result.fieldValues.find((field) => field.fieldName === 'partner_entity_type')?.rawValue?.trim() ??
         null
 
-      await ensureDbEntityAndPartnership({
+      const resolved = await ensureDbEntityAndPartnership({
         entityId: k1.entityId,
         entityName,
         entityType: extractedEntityType,
@@ -176,9 +298,21 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         actorUserId: k1.uploaderUserId,
       })
 
+      // If the DB already has this partnership/entity under a different UUID
+      // (e.g. after an admin "Clear all data" wiped the in-memory store but
+      // not the DB), reconcile the in-memory id so subsequent reads resolve.
+      if (resolved.partnershipId !== partnership.id) {
+        k1Repository.upsertPartnership({
+          id: resolved.partnershipId,
+          entityId: resolved.entityId,
+          name: partnership.name,
+        })
+        partnership = k1Repository.getPartnership(resolved.partnershipId) ?? partnership
+      }
+
       k1Repository.resolveUploadMetadata({
         k1DocumentId,
-        partnershipId: partnership.id,
+        partnershipId: resolved.partnershipId,
         partnershipNameRaw: extractedPartnershipName,
         taxYear: extractedTaxYear,
       })
@@ -233,6 +367,37 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
       }
 
       k1Repository.completeParse(k1DocumentId, nextStatus)
+
+
+      await mirrorK1ToDb({
+        documentId: k1.documentId,
+        k1DocumentId,
+        storagePath,
+        mimeType: 'application/pdf',
+        sizeBytes,
+        uploaderUserId: k1.uploaderUserId,
+        fileName: null,
+        entityId: resolved.entityId,
+        partnershipId: resolved.partnershipId,
+        taxYear: extractedTaxYear,
+        processingStatus: nextStatus,
+        fieldValues: result.fieldValues.map((fv) => ({
+          fieldName: fv.fieldName,
+          rawValue: fv.rawValue,
+          confidenceScore: fv.confidenceScore,
+          sourceLocation: fv.sourceLocation ?? null,
+        })),
+      })
+
+      // Also update partnership_annual_activity so details page KPIs reflect parsed K-1
+      if (config.databaseUrl && resolved.entityId && resolved.partnershipId && extractedTaxYear) {
+        await capitalRepository.syncActivityDetail(
+          resolved.partnershipId,
+          resolved.entityId,
+          { preferredYear: extractedTaxYear }
+        )
+      }
+
       await auditRepository.record({
         eventName: 'k1.parse_completed',
         objectType: 'k1_document',
@@ -449,7 +614,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
       i.parseError?.code ?? '',
       i.parseError?.message ?? '',
     ]
-      .map(csvEscape)
+      .map((value) => csvEscape(value ?? ''))
       .join(','),
   )
 

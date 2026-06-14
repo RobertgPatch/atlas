@@ -29,6 +29,18 @@ import type {
   K1Status,
 } from '../../../../packages/types/src/review-finalization'
 
+// Resolve a server-provided relative URL (e.g. "/k1-documents/<id>/pdf") to an
+// absolute URL pointing at the API origin. In production the api lives on a
+// different subdomain than the web app, so iframes/fetches must target it
+// directly. Locally VITE_API_BASE_URL is unset and we fall back to the same
+// origin.
+const API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
+const resolveApiUrl = (path: string): string => {
+  if (/^https?:\/\//i.test(path)) return path
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`
+}
+
 const statusToBadge: Record<
   K1Status,
   'uploaded' | 'processing' | 'needs_review' | 'ready_for_approval' | 'finalized'
@@ -389,7 +401,7 @@ export const K1ReviewWorkspace = () => {
 
           <div className="h-full">
             <PdfPanel
-              pdfUrl={sessionData.pdfUrl}
+              pdfUrl={resolveApiUrl(sessionData.pdfUrl)}
               highlight={highlight}
               title={sessionData.partnership.name ?? 'K-1 PDF'}
             />

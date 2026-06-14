@@ -83,7 +83,7 @@ const fetchAllPortfolioRows = async (
         entityId: query.entityId,
         partnershipId: query.partnershipId,
         taxYear: query.taxYear,
-        sort: query.sort === undefined ? 'entityName' : query.sort,
+        sort: (query.sort === undefined ? 'entityName' : query.sort) as 'entityName',
         direction: query.direction === undefined ? 'asc' : query.direction,
         page,
         pageSize,
@@ -118,7 +118,7 @@ const fetchAllActivityRows = async (
         entityId: query.entityId,
         partnershipId: query.partnershipId,
         taxYear: query.taxYear,
-        sort: query.sort === undefined ? 'taxYear' : query.sort,
+        sort: (query.sort === undefined ? 'taxYear' : query.sort) as 'taxYear',
         direction: query.direction === undefined ? 'desc' : query.direction,
         page,
         pageSize,
@@ -188,7 +188,7 @@ const buildAssetClassExportData = async (
       entityId: query.entityId,
       partnershipId: query.partnershipId,
       taxYear: query.taxYear,
-      sort: query.sort === undefined ? 'assetClass' : query.sort,
+      sort: (query.sort === undefined ? 'assetClass' : query.sort) as 'assetClass',
       direction: query.direction === undefined ? 'asc' : query.direction,
     },
     scope,
@@ -284,6 +284,84 @@ const buildActivityDetailExportData = async (
   }
 }
 
+const buildConsolidatedHoldingsExportData = async (
+  query: ReportExportQuery,
+): Promise<TabularExportData> => {
+  const holdingsQuery = query as ReportExportQuery & {
+    custodian?: string
+    accountId?: string
+    type?: string
+    gainLossState?: 'gain' | 'loss' | 'flat' | 'unknown'
+  }
+  const response = await reportsRepository.getConsolidatedHoldings({
+    search: query.search,
+    custodian: holdingsQuery.custodian,
+    accountId: holdingsQuery.accountId,
+    type: holdingsQuery.type,
+    gainLossState: holdingsQuery.gainLossState,
+    sort:
+      query.sort === undefined
+        ? 'marketValue'
+        : (query.sort as 'symbol' | 'type' | 'quantity' | 'costBasis' | 'unrealizedGainLoss' | 'marketValue'),
+    direction: query.direction === undefined ? 'desc' : query.direction,
+    page: 1,
+    pageSize: 250,
+  })
+
+  const rows: ExportCell[][] = []
+  for (const row of response.rows) {
+    rows.push([
+      'Aggregate',
+      row.symbol,
+      row.description,
+      row.type,
+      row.costBasis,
+      row.averageCostBasis,
+      row.unrealizedGainLoss,
+      row.gainLossPercent,
+      row.custodianSummary,
+      row.quantity,
+      row.marketValue,
+      row.identityConfidence,
+    ])
+
+    for (const detail of row.details) {
+      rows.push([
+        'Detail',
+        detail.symbol,
+        detail.description,
+        detail.type,
+        detail.costBasis,
+        detail.averageCostBasis,
+        detail.unrealizedGainLoss,
+        detail.gainLossPercent,
+        `${detail.custodian} ${detail.accountName}`,
+        detail.quantity,
+        detail.marketValue,
+        '',
+      ])
+    }
+  }
+
+  return {
+    headers: [
+      'Row Type',
+      'Symbol',
+      'Description',
+      'Type',
+      'Cost Basis',
+      'Average Cost Basis',
+      'Unrealized Gain/Loss',
+      'Gain/Loss %',
+      'Custodian',
+      'Quantity',
+      'Market Value',
+      'Identity Confidence',
+    ],
+    rows,
+  }
+}
+
 const buildTabularExportData = async (
   query: ReportExportQuery,
   scope: ReportsScope,
@@ -294,6 +372,10 @@ const buildTabularExportData = async (
 
   if (query.reportType === 'asset_class_summary') {
     return buildAssetClassExportData(query, scope)
+  }
+
+  if (query.reportType === 'consolidated_holdings') {
+    return buildConsolidatedHoldingsExportData(query)
   }
 
   return buildActivityDetailExportData(query, scope)

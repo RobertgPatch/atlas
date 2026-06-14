@@ -133,6 +133,13 @@ export const createCommitmentHandler = async (
 
     return reply.status(201).send(created)
   } catch (error) {
+    console.error('[ERROR] createCommitmentHandler', {
+      partnershipId: params.partnershipId,
+      entityId: scoped.entityId,
+      userId: request.authUser?.userId,
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     sendCapitalValidationError(reply, error)
   }
 }
@@ -265,6 +272,13 @@ export const createCapitalActivityHandler = async (
 
     return reply.status(201).send(created)
   } catch (error) {
+    console.error('[ERROR] createCapitalActivityHandler', {
+      partnershipId: params.partnershipId,
+      entityId: scoped.entityId,
+      userId: request.authUser?.userId,
+      error: error instanceof Error ? error.message : error,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     sendCapitalValidationError(reply, error)
   }
 }

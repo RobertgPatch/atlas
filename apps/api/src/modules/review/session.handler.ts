@@ -168,7 +168,7 @@ export const sessionHandler = async (
     fields,
     issues,
     reportedDistributionAmount: reported?.reportedDistributionAmount ?? null,
-    pdfUrl: `/v1/k1-documents/${k.id}/pdf`,
+    pdfUrl: `/k1-documents/${k.id}/pdf`,
     canApprove,
     canFinalize,
     canEdit,

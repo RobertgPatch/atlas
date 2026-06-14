@@ -1,0 +1,24 @@
+# Never copy node_modules into the build context — Railway/Nixpacks should
+# install fresh. Carrying these over causes EBUSY locks on cache directories
+# like apps/web/node_modules/.vite during `npm ci`.
+node_modules
+**/node_modules
+
+# Build outputs (regenerated during build)
+apps/api/dist
+apps/web/dist
+**/.vite
+**/.tsbuildinfo
+
+# Local-only state
+.storage
+.specify
+.playwright-mcp
+.vscode
+.git
+.github
+
+# Tests / dev artifacts not needed at runtime
+**/coverage
+**/.nyc_output
+**/*.log

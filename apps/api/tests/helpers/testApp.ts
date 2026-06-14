@@ -5,6 +5,7 @@ import { auditRepository } from '../../src/modules/audit/audit.repository.js'
 import { assetsRepository } from '../../src/modules/partnerships/assets.repository.js'
 import { fmvRepository } from '../../src/modules/partnerships/fmv.repository.js'
 import { capitalRepository } from '../../src/modules/partnerships/capital.repository.js'
+import { plaidRepository } from '../../src/modules/plaid/plaid.repository.js'
 import { config } from '../../src/config.js'
 import type { FastifyInstance } from 'fastify'
 
@@ -29,6 +30,7 @@ export const createTestFixture = async (): Promise<TestFixture> => {
   assetsRepository._debugReset()
   fmvRepository._debugReset()
   capitalRepository._debugReset()
+  plaidRepository._debugReset()
   // Clear in-memory audit buffer between tests so each test can assert a
   // clean slate of events it caused.
   const inMemory = auditRepository.getInMemoryEvents()

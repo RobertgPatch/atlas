@@ -11,8 +11,10 @@ export const config = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: asNumber(process.env.PORT, 3000),
   databaseUrl: process.env.DATABASE_URL ?? '',
+  webOrigin: process.env.WEB_ORIGIN ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',
   sessionCookieSecure: (process.env.SESSION_COOKIE_SECURE ?? 'false') === 'true',
+  sessionCookieSameSite: (process.env.SESSION_COOKIE_SAMESITE ?? 'lax') as 'lax' | 'strict' | 'none',
   sessionIdleTimeoutSeconds: asNumber(process.env.SESSION_IDLE_TIMEOUT_SECONDS, 900),
   sessionAbsoluteTimeoutSeconds: asNumber(
     process.env.SESSION_ABSOLUTE_TIMEOUT_SECONDS,
@@ -29,5 +31,19 @@ export const config = {
     key: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ?? '',
     apiVersion: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION ?? '2024-11-30',
     modelId: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ?? 'prebuilt-layout',
+  },
+  plaid: {
+    clientId: process.env.PLAID_CLIENT_ID ?? '',
+    secret: process.env.PLAID_SECRET ?? '',
+    env: (process.env.PLAID_ENV ?? 'sandbox') as 'sandbox' | 'development' | 'production',
+    products: (process.env.PLAID_PRODUCTS ?? 'investments')
+      .split(',')
+      .map((product) => product.trim())
+      .filter(Boolean),
+    countryCodes: (process.env.PLAID_COUNTRY_CODES ?? 'US')
+      .split(',')
+      .map((country) => country.trim())
+      .filter(Boolean),
+    redirectUri: process.env.PLAID_REDIRECT_URI ?? '',
   },
 }

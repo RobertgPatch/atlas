@@ -603,6 +603,10 @@ export const k1Repository = {
     args.existing.supersededByDocumentId = args.newDocumentId
     k1Documents.set(args.existing.id, args.existing)
 
+    if (!args.existing.partnershipId || args.existing.taxYear == null) {
+      throw new Error('Cannot supersede an unresolved K-1 document')
+    }
+
     const version: DocumentVersionRecord = {
       id: randomUUID(),
       originalDocumentId: args.existing.documentId,

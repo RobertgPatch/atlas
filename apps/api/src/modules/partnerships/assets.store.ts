@@ -8,7 +8,7 @@ import type {
   PartnershipAssetRow,
   PartnershipAssetsResponse,
   PartnershipAssetSource,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 
 interface InMemoryAssetRecord {
   id: string

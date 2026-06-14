@@ -30,7 +30,7 @@ import type {
   PartnershipCommitment,
   UpdateCapitalActivityEventRequest,
   UpdatePartnershipCommitmentRequest,
-} from '../../../../../packages/types/src/partnership-management.js'
+} from './partnerships.types.js'
 
 const IN_MEMORY_SCOPE = { isAdmin: true, entityIds: [] as string[] }
 
@@ -57,6 +57,19 @@ const toNullableNumber = (value: unknown): number | null => {
 const toNumericString = (value: number | null, scale = 2): string | null => {
   if (value == null || !Number.isFinite(value)) return null
   return value.toFixed(scale)
+}
+
+const toIsoDateString = (value: unknown): string | null => {
+  if (value == null) return null
+  if (value instanceof Date) return value.toISOString().slice(0, 10)
+  if (typeof value === 'string') return value.length >= 10 ? value.slice(0, 10) : value
+  return String(value)
+}
+
+const toIsoTimestampString = (value: unknown): string => {
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'string') return value
+  return new Date(value as string | number).toISOString()
 }
 
 const normalizeResidualSource = (source: string | null | undefined): ResidualSource => {
@@ -165,16 +178,16 @@ function mapCommitmentRow(row: any): PartnershipCommitment {
     entityId: row.entity_id,
     partnershipId: row.partnership_id,
     commitmentAmountUsd: Number(row.commitment_amount),
-    commitmentDate: row.commitment_date ?? null,
-    commitmentStartDate: row.commitment_start_date ?? null,
-    commitmentEndDate: row.commitment_end_date ?? null,
+    commitmentDate: toIsoDateString(row.commitment_date),
+    commitmentStartDate: toIsoDateString(row.commitment_start_date),
+    commitmentEndDate: toIsoDateString(row.commitment_end_date),
     status: row.status,
     sourceType: row.source_type,
     notes: row.notes ?? null,
     createdByUserId: row.created_by_user_id ?? null,
     createdByEmail: row.created_by_email ?? null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: toIsoTimestampString(row.created_at),
+    updatedAt: toIsoTimestampString(row.updated_at),
   }
 }
 
@@ -183,15 +196,15 @@ function mapCapitalActivityRow(row: any): CapitalActivityEvent {
     id: row.id,
     entityId: row.entity_id,
     partnershipId: row.partnership_id,
-    activityDate: row.activity_date,
+    activityDate: toIsoDateString(row.activity_date) ?? '',
     eventType: row.event_type,
     amountUsd: Number(row.amount),
     sourceType: row.source_type,
     notes: row.notes ?? null,
     createdByUserId: row.created_by_user_id ?? null,
     createdByEmail: row.created_by_email ?? null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+    createdAt: toIsoTimestampString(row.created_at),
+    updatedAt: toIsoTimestampString(row.updated_at),
   }
 }
 
@@ -289,7 +302,7 @@ async function getReportedDistributionsByYear(partnershipId: string): Promise<{
       from k1_documents kd
       left join k1_reported_distributions krd on krd.k1_document_id = kd.id
       where kd.partnership_id = $1
-        and kd.processing_status = 'FINALIZED'
+        and kd.processing_status in ('FINALIZED', 'READY_FOR_APPROVAL', 'NEEDS_REVIEW')
         and kd.tax_year is not null
       group by kd.tax_year
       `,
@@ -302,7 +315,7 @@ async function getReportedDistributionsByYear(partnershipId: string): Promise<{
         kd.id as finalized_from_k1_document_id
       from k1_documents kd
       where kd.partnership_id = $1
-        and kd.processing_status = 'FINALIZED'
+        and kd.processing_status in ('FINALIZED', 'READY_FOR_APPROVAL', 'NEEDS_REVIEW')
         and kd.tax_year is not null
       order by kd.tax_year, kd.finalized_at desc nulls last, kd.updated_at desc, kd.id desc
       `,

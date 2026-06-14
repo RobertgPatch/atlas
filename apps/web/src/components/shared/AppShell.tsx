@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import {
   LayoutDashboard,
   FileText,
@@ -46,8 +47,8 @@ export function AppShell({
   const NavItem = ({ item }: { item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> } }) => {
     const isActive = currentPath === item.href
     return (
-      <a
-        href={item.href}
+      <Link
+        to={item.href}
         className={`group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
           isActive
             ? 'bg-white/5 text-atlas-gold border-l-2 border-atlas-gold'
@@ -60,7 +61,7 @@ export function AppShell({
           }`}
         />
         <span className="truncate">{item.name}</span>
-      </a>
+      </Link>
     )
   }
 
