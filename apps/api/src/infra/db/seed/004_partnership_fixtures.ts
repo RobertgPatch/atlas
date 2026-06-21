@@ -34,7 +34,7 @@ async function upsertEntity(client: pg.PoolClient, name: string, type: string): 
 
   const id = randomUUID()
   await client.query(
-    `insert into entities (id, name, type, created_at, updated_at) values ($1, $2, $3, now(), now())`,
+    `insert into entities (id, name, entity_type, created_at, updated_at) values ($1, $2, $3, now(), now())`,
     [id, name, type],
   )
   return id
