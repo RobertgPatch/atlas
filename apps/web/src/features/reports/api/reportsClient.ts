@@ -204,6 +204,12 @@ export const reportsClient = {
     })
   },
 
+  clearPlaidInvestmentAccounts(): Promise<PlaidInvestmentAccountsResponse> {
+    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts', {
+      method: 'DELETE',
+    })
+  },
+
   exportReport(query: ReportExportRequest) {
     const queryString = toQueryString(query)
     const path = queryString ? `/reports/export?${queryString}` : '/reports/export'

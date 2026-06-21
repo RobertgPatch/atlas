@@ -78,7 +78,7 @@ export function MFASetupPage() {
       )
       authFlowStore.clear()
       sessionStore.setAuthenticated(session)
-      navigate('/dashboard')
+      navigate('/liquidity')
     } catch (err) {
       setError(getEnrollmentErrorMessage(err))
       setCode('')

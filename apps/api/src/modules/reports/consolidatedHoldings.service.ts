@@ -20,12 +20,17 @@ interface ConsolidatedHoldingsKpis {
 interface CustodianHoldingDetailRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodian: string
   accountName: string
   accountMask: string | null
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -36,10 +41,15 @@ interface CustodianHoldingDetailRow {
 interface ConsolidatedHoldingRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodianSummary: string
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -68,6 +78,45 @@ interface ConsolidatedHoldingsResponse {
 const normalizeText = (value: string | null | undefined): string =>
   value?.trim().toUpperCase() ?? ''
 
+const isGenericUnknownDescription = (value: string | null | undefined): boolean => {
+  const normalized = normalizeText(value)
+  return normalized === 'UNKNOWN SECURITY' || normalized === 'UNIDENTIFIED HOLDING'
+}
+
+const hasSecurityIdentifier = (holding: SourceHoldingRecord): boolean =>
+  Boolean(
+    normalizeText(holding.cusip) ||
+      normalizeText(holding.isin) ||
+      normalizeText(holding.plaidSecurityId) ||
+      normalizeText(holding.symbol),
+  )
+
+const securityIdentifierFor = (holding: SourceHoldingRecord): string | null => {
+  const cusip = normalizeText(holding.cusip)
+  if (cusip) return `CUSIP ${cusip}`
+
+  const isin = normalizeText(holding.isin)
+  if (isin) return `ISIN ${isin}`
+
+  const plaidSecurityId = holding.plaidSecurityId?.trim()
+  if (plaidSecurityId) return `Plaid security ${plaidSecurityId}`
+
+  return null
+}
+
+const displaySymbolFor = (holding: SourceHoldingRecord): string | null => {
+  const symbol = holding.symbol?.trim()
+  if (symbol) return symbol
+
+  const cusip = normalizeText(holding.cusip)
+  if (cusip) return cusip
+
+  const isin = normalizeText(holding.isin)
+  if (isin) return isin
+
+  return null
+}
+
 const identityKeyFor = (holding: SourceHoldingRecord): {
   key: string
   confidence: 'high' | 'medium' | 'low'
@@ -78,11 +127,23 @@ const identityKeyFor = (holding: SourceHoldingRecord): {
   const isin = normalizeText(holding.isin)
   if (isin) return { key: `ISIN:${isin}`, confidence: 'high' }
 
+  const plaidSecurityId = normalizeText(holding.plaidSecurityId)
+  if (plaidSecurityId) {
+    return { key: `PLAID_SECURITY:${plaidSecurityId}`, confidence: 'medium' }
+  }
+
   const symbol = normalizeText(holding.symbol)
   if (symbol) {
     return {
       key: `SYMBOL:${symbol}:${normalizeText(holding.currencyCode)}:${normalizeText(holding.type)}`,
       confidence: 'medium',
+    }
+  }
+
+  if (isGenericUnknownDescription(holding.description) && !hasSecurityIdentifier(holding)) {
+    return {
+      key: `UNIDENTIFIED:${holding.accountId}:${holding.id}`,
+      confidence: 'low',
     }
   }
 
@@ -92,11 +153,36 @@ const identityKeyFor = (holding: SourceHoldingRecord): {
   }
 }
 
+const displayDescriptionFor = (
+  holding: SourceHoldingRecord,
+  account: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>[number] | undefined,
+): string => {
+  if (!isGenericUnknownDescription(holding.description)) {
+    return holding.description
+  }
+
+  const securityIdentifier = securityIdentifierFor(holding)
+  if (securityIdentifier) return `Unidentified security (${securityIdentifier})`
+
+  const accountLabel = account?.name ?? 'Unknown account'
+  const maskLabel = account?.mask ? ` ****${account.mask}` : ''
+  return `Unidentified holding - ${accountLabel}${maskLabel}`
+}
+
 const sumKnown = (values: Array<number | null>): number | null => {
   const known = values.filter((value): value is number => value != null)
   if (known.length === 0) return null
   return known.reduce((sum, value) => sum + value, 0)
 }
+
+const latestDate = (values: Array<string | null>): string | null => {
+  const known = values.filter((value): value is string => Boolean(value))
+  if (known.length === 0) return null
+  return known.sort((a, b) => b.localeCompare(a))[0]!
+}
+
+const firstKnownText = (values: Array<string | null | undefined>): string | null =>
+  values.find((value): value is string => Boolean(value?.trim())) ?? null
 
 const gainLossStateFor = (row: ConsolidatedHoldingRow): string => {
   if (row.unrealizedGainLoss == null) return 'unknown'
@@ -149,7 +235,9 @@ export const buildConsolidatedHoldingsResponse = (
       if (query.type && holding.type !== query.type) return false
       if (query.search) {
         const q = query.search.toLowerCase()
-        const haystack = `${holding.symbol ?? ''} ${holding.description}`.toLowerCase()
+        const displayDescription = displayDescriptionFor(holding, account)
+        const haystack =
+          `${holding.symbol ?? ''} ${holding.description} ${displayDescription} ${account.custodianName} ${account.name} ${account.mask ?? ''}`.toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
@@ -173,12 +261,18 @@ export const buildConsolidatedHoldingsResponse = (
 
   const rows: ConsolidatedHoldingRow[] = [...groups.entries()].map(([key, group]) => {
     const first = group.holdings[0]!
+    const firstAccount = accountById.get(first.accountId)
     const quantity = sumKnown(group.holdings.map((holding) => holding.quantity))
     const costBasis = sumKnown(group.holdings.map((holding) => holding.costBasis))
     const marketValue = sumKnown(group.holdings.map((holding) => holding.marketValue))
     const unrealizedGainLoss = sumKnown(
       group.holdings.map((holding) => holding.unrealizedGainLoss),
     )
+    const institutionPrice =
+      marketValue != null && quantity != null && quantity !== 0
+        ? marketValue / quantity
+        : first.institutionPrice
+    const priceAsOfDate = latestDate(group.holdings.map((holding) => holding.asOfDate))
     const averageCostBasis =
       quantity != null && quantity !== 0 && costBasis != null ? costBasis / quantity : null
     const gainLossPercent =
@@ -201,13 +295,18 @@ export const buildConsolidatedHoldingsResponse = (
 
       return {
         id: holding.id,
-        symbol: holding.symbol,
-        description: holding.description,
+        symbol: displaySymbolFor(holding),
+        securityIdentifier: securityIdentifierFor(holding),
+        description: displayDescriptionFor(holding, account),
         type: holding.type,
+        sector: holding.sector,
+        industry: holding.industry,
         custodian: account?.custodianName ?? 'Unknown',
         accountName: account?.name ?? 'Unknown account',
         accountMask: account?.mask ?? null,
         quantity: holding.quantity,
+        institutionPrice: holding.institutionPrice,
+        priceAsOfDate: holding.asOfDate,
         costBasis: holding.costBasis,
         averageCostBasis: detailAverage,
         unrealizedGainLoss: holding.unrealizedGainLoss,
@@ -220,14 +319,19 @@ export const buildConsolidatedHoldingsResponse = (
 
     return {
       id: key,
-      symbol: first.symbol,
-      description: first.description,
+      symbol: displaySymbolFor(first),
+      securityIdentifier: securityIdentifierFor(first),
+      description: displayDescriptionFor(first, firstAccount),
       type: first.type,
+      sector: firstKnownText(group.holdings.map((holding) => holding.sector)),
+      industry: firstKnownText(group.holdings.map((holding) => holding.industry)),
       custodianSummary:
         custodians.size === 1
           ? [...custodians][0]!
           : `${group.holdings.length} accounts`,
       quantity,
+      institutionPrice,
+      priceAsOfDate,
       costBasis,
       averageCostBasis,
       unrealizedGainLoss,

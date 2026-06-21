@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { consolidatedHoldingsFixture } from '../fixtures/consolidatedHoldingsFixture'
+import {
+  getCustodianBreakdown,
+  getSectorAllocation,
+} from '../utils/consolidatedHoldingsAnalytics'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { ConsolidatedHoldingsSummaryCards } from './ConsolidatedHoldingsSummaryCards'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
@@ -22,14 +26,183 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
       />,
     )
 
+    expect(screen.getByText('Equities')).toBeInTheDocument()
+    expect(screen.queryByText('GOOGL')).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Equities'))
+
     expect(screen.getByText('GOOGL')).toBeInTheDocument()
-    expect(screen.queryByText('Brokerage A - Taxable')).not.toBeInTheDocument()
+    expect(screen.queryByText('2 source records')).not.toBeInTheDocument()
+    expect(screen.queryByText('Taxable')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /expand GOOGL account details/i }),
+    ).toBeInTheDocument()
 
     await user.click(screen.getByText('GOOGL'))
 
-    expect(screen.getByText('Brokerage A - Taxable')).toBeInTheDocument()
-    expect(screen.getByText('Brokerage B - IRA')).toBeInTheDocument()
+    expect(screen.getByText('Taxable')).toBeInTheDocument()
+    expect(screen.getByText('IRA')).toBeInTheDocument()
     expect(screen.getByText('70')).toBeInTheDocument()
+  })
+
+  it('sorts positions alphabetically within each asset-class section', async () => {
+    const user = userEvent.setup()
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const appleRow = {
+      ...baseRow,
+      id: 'AAPL',
+      symbol: 'AAPL',
+      securityIdentifier: 'CUSIP 037833100',
+      description: 'Apple Inc.',
+      marketValue: 5_000,
+      details: baseRow.details.map((detail, index) => ({
+        ...detail,
+        id: `AAPL-${index}`,
+        symbol: 'AAPL',
+        securityIdentifier: 'CUSIP 037833100',
+        description: 'Apple Inc.',
+        marketValue: 2_500,
+      })),
+    }
+
+    render(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="symbol"
+        direction="asc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByText('Equities'))
+
+    const appleSymbol = screen.getByText('AAPL')
+    const googleSymbol = screen.getByText('GOOGL')
+
+    expect(
+      appleSymbol.compareDocumentPosition(googleSymbol) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('reverses the same positions when toggling a numeric sort direction', async () => {
+    const user = userEvent.setup()
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const appleRow = {
+      ...baseRow,
+      id: 'AAPL',
+      symbol: 'AAPL',
+      securityIdentifier: 'CUSIP 037833100',
+      description: 'Apple Inc.',
+      marketValue: 5_000,
+      details: [],
+    }
+
+    const { rerender } = render(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="desc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByText('Equities'))
+
+    expect(screen.getAllByText(/AAPL|GOOGL/).map((node) => node.textContent)).toEqual([
+      'GOOGL',
+      'AAPL',
+    ])
+
+    rerender(
+      <ConsolidatedHoldingsTable
+        rows={[baseRow, appleRow]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="asc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getAllByText(/AAPL|GOOGL/).map((node) => node.textContent)).toEqual([
+      'AAPL',
+      'GOOGL',
+    ])
+  })
+})
+
+describe('Consolidated holdings analytics', () => {
+  it('uses one asset-type allocation strategy and separates unidentified holdings from Other', () => {
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const unidentifiedRow = {
+      ...baseRow,
+      id: 'unidentified-1',
+      symbol: null,
+      securityIdentifier: null,
+      description: 'Unidentified holding - Summit Gate Custody Brokerage ****1234',
+      type: 'Other',
+      sector: null,
+      industry: null,
+      identityConfidence: 'low' as const,
+      marketValue: 5_000,
+      details: [],
+    }
+
+    const allocation = getSectorAllocation(
+      [baseRow, unidentifiedRow],
+      (baseRow.marketValue ?? 0) + (unidentifiedRow.marketValue ?? 0),
+    )
+
+    expect(allocation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Equities', value: 12_250 }),
+        expect.objectContaining({ name: 'Unidentified', value: 5_000 }),
+      ]),
+    )
+    expect(allocation.find((item) => item.name === 'Technology')).toBeUndefined()
+    expect(allocation.find((item) => item.name === 'Other')).toBeUndefined()
+  })
+
+  it('includes selected custodians even when they have no holdings rows', () => {
+    const custodians = getCustodianBreakdown(
+      {
+        ...consolidatedHoldingsFixture,
+        selectedAccounts: [
+          ...consolidatedHoldingsFixture.selectedAccounts,
+          {
+            id: '55555555-5555-4555-8555-555555555555',
+            connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            custodianName: 'Brokerage C',
+            name: 'Trust Account',
+            officialName: 'Trust Account',
+            mask: '5555',
+            type: 'investment',
+            subtype: 'brokerage',
+            selectedForHoldingsReport: true,
+            syncStatus: 'success',
+            lastSyncedAt: '2026-05-11T08:00:00.000Z',
+          },
+        ],
+      },
+      consolidatedHoldingsFixture.kpis.totalMarketValue ?? 0,
+    )
+
+    const emptyCustodian = custodians.find(
+      (custodian) => custodian.institution === 'Brokerage C',
+    )
+    expect(emptyCustodian).toMatchObject({
+      accountCount: 1,
+      totalValue: 0,
+      percentage: 0,
+    })
   })
 })
 

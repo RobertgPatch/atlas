@@ -66,12 +66,17 @@ export interface ConsolidatedHoldingsKpis {
 export interface CustodianHoldingDetailRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodian: string
   accountName: string
   accountMask: string | null
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null
@@ -82,10 +87,15 @@ export interface CustodianHoldingDetailRow {
 export interface ConsolidatedHoldingRow {
   id: string
   symbol: string | null
+  securityIdentifier: string | null
   description: string
   type: string
+  sector: string | null
+  industry: string | null
   custodianSummary: string
   quantity: number | null
+  institutionPrice: number | null
+  priceAsOfDate: string | null
   costBasis: number | null
   averageCostBasis: number | null
   unrealizedGainLoss: number | null

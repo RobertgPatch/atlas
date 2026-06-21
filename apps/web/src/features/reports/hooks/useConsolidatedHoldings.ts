@@ -21,10 +21,10 @@ const DEFAULT_FILTERS: ConsolidatedHoldingsFilters = {
   accountId: '',
   type: '',
   gainLossState: '',
-  sort: 'marketValue',
-  direction: 'desc',
+  sort: 'symbol',
+  direction: 'asc',
   page: 1,
-  pageSize: 50,
+  pageSize: 5000,
 }
 
 const toQuery = (filters: ConsolidatedHoldingsFilters): ConsolidatedHoldingsQuery => ({
@@ -33,9 +33,7 @@ const toQuery = (filters: ConsolidatedHoldingsFilters): ConsolidatedHoldingsQuer
   accountId: filters.accountId || undefined,
   type: filters.type || undefined,
   gainLossState: filters.gainLossState || undefined,
-  sort: filters.sort,
-  direction: filters.direction,
-  page: filters.page,
+  page: 1,
   pageSize: filters.pageSize,
 })
 

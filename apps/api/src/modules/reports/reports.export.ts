@@ -321,6 +321,8 @@ const buildConsolidatedHoldingsExportData = async (
       row.gainLossPercent,
       row.custodianSummary,
       row.quantity,
+      row.institutionPrice,
+      row.priceAsOfDate,
       row.marketValue,
       row.identityConfidence,
     ])
@@ -337,6 +339,8 @@ const buildConsolidatedHoldingsExportData = async (
         detail.gainLossPercent,
         `${detail.custodian} ${detail.accountName}`,
         detail.quantity,
+        detail.institutionPrice,
+        detail.priceAsOfDate,
         detail.marketValue,
         '',
       ])
@@ -355,6 +359,8 @@ const buildConsolidatedHoldingsExportData = async (
       'Gain/Loss %',
       'Custodian',
       'Quantity',
+      'Institution Price',
+      'Price As Of',
       'Market Value',
       'Identity Confidence',
     ],

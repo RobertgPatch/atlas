@@ -1,0 +1,397 @@
+openapi: 3.1.0
+info:
+  title: Atlas Plaid Refresh Policy Contracts
+  version: 0.1.0
+  description: Contract expectations for persisted Plaid holdings snapshots, freshness rules, manual refresh, and refresh diagnostics.
+servers:
+  - url: /v1
+paths:
+  /reports/consolidated-holdings:
+    get:
+      summary: Return Liquidity holdings from saved snapshots without calling Plaid.
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 200
+        - name: custodian
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: accountId
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: type
+          in: query
+          schema:
+            type: string
+            maxLength: 80
+        - name: gainLossState
+          in: query
+          schema:
+            enum: [gain, loss, flat, unknown]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5000
+            default: 50
+      responses:
+        "200":
+          description: Consolidated holdings built from the latest saved dashboard-eligible snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsolidatedHoldingsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /reports/consolidated-holdings/refresh:
+    post:
+      summary: Start an authorized manual refresh and save Plaid results before reporting success.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  default: false
+                  description: Refresh even when the latest saved snapshot is fresh.
+      responses:
+        "202":
+          description: Refresh accepted or completed synchronously for the current implementation.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingsRefreshAttempt"
+        "409":
+          description: Another refresh is already running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshConflict"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "503":
+          $ref: "#/components/responses/PlaidUnavailable"
+  /admin/plaid-refresh-status:
+    get:
+      summary: Return admin-only refresh policy and scheduler diagnostics.
+      responses:
+        "200":
+          description: Refresh diagnostics without secrets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaidRefreshDiagnostic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Admin role required.
+  /admin/plaid-refresh/run:
+    post:
+      summary: Protected scheduler endpoint for the daily 5:00 AM refresh trigger.
+      security:
+        - SchedulerToken: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scheduledFor:
+                  type: string
+                  format: date-time
+      responses:
+        "202":
+          description: Scheduled refresh accepted, skipped because already fresh, or skipped because another refresh is active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HoldingsRefreshAttempt"
+        "401":
+          description: Scheduler token missing or invalid.
+  /admin/production-readiness:
+    get:
+      summary: Return admin-only app-visible production readiness diagnostics.
+      description: Reports only values the API can safely inspect. External AWS controls such as WAF, Budgets, and CloudFront policy are validated by the deployment runbook and Terraform comparison.
+      responses:
+        "200":
+          description: Production readiness diagnostics without secrets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductionReadinessDiagnostic"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Admin role required.
+components:
+  securitySchemes:
+    SchedulerToken:
+      type: apiKey
+      in: header
+      name: X-Atlas-Scheduler-Token
+  responses:
+    Unauthorized:
+      description: Authenticated session required.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                const: UNAUTHORIZED
+    PlaidUnavailable:
+      description: Plaid or durable persistence is unavailable.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                enum: [PLAID_UNAVAILABLE, PERSISTENCE_UNAVAILABLE]
+  schemas:
+    ConsolidatedHoldingsResponse:
+      type: object
+      required: [kpis, rows, page, selectedAccounts, sync]
+      properties:
+        kpis:
+          type: object
+        rows:
+          type: array
+          items:
+            type: object
+        page:
+          type: object
+          required: [size, offset, total]
+          properties:
+            size:
+              type: integer
+            offset:
+              type: integer
+            total:
+              type: integer
+        selectedAccounts:
+          type: array
+          items:
+            type: object
+        sync:
+          $ref: "#/components/schemas/HoldingsSyncMetadata"
+    HoldingsSyncMetadata:
+      type: object
+      required:
+        - status
+        - freshnessStatus
+        - dataAsOfDate
+        - dataFetchedAt
+        - lastSuccessfulSyncAt
+        - nextRefreshAt
+        - refreshing
+        - warnings
+      properties:
+        status:
+          enum: [never_synced, success, partial_success, failed, needs_user_action, unavailable]
+        freshnessStatus:
+          enum: [fresh, stale, refreshing, failed, unavailable]
+        dataAsOfDate:
+          type: [string, "null"]
+          format: date
+        dataFetchedAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessfulSyncAt:
+          type: [string, "null"]
+          format: date-time
+        nextRefreshAt:
+          type: [string, "null"]
+          format: date-time
+        activeRefreshId:
+          type: [string, "null"]
+          format: uuid
+        refreshing:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        refreshPolicy:
+          $ref: "#/components/schemas/PlaidRefreshPolicy"
+    PlaidRefreshPolicy:
+      type: object
+      required: [cadence, refreshTimeLocal, timezone, automaticRefreshEnabled]
+      properties:
+        cadence:
+          enum: [daily]
+        refreshTimeLocal:
+          type: string
+          pattern: "^[0-2][0-9]:[0-5][0-9]$"
+          example: "05:00"
+        timezone:
+          type: string
+          example: America/Los_Angeles
+        automaticRefreshEnabled:
+          type: boolean
+    HoldingsRefreshAttempt:
+      type: object
+      required: [id, triggerSource, status, startedAt, completedAt, selectedAccountIds]
+      properties:
+        id:
+          type: string
+          format: uuid
+        triggerSource:
+          enum: [scheduled, manual, system]
+        refreshReason:
+          enum: [daily_cutoff, manual, missing_snapshot, stale_snapshot, forced, already_fresh]
+        status:
+          enum: [pending, success, partial_success, failed, skipped]
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: [string, "null"]
+          format: date-time
+        dataAsOfDate:
+          type: [string, "null"]
+          format: date
+        selectedAccountIds:
+          type: array
+          items:
+            type: string
+        errorMessage:
+          type: [string, "null"]
+    PlaidRefreshDiagnostic:
+      type: object
+      required:
+        - refreshPolicy
+        - schedulerConfigured
+        - schedulerMode
+        - freshnessStatus
+        - lastAttemptedRefreshAt
+        - lastSuccessfulRefreshAt
+        - nextRefreshAt
+        - warnings
+        - checkedAt
+      properties:
+        refreshPolicy:
+          $ref: "#/components/schemas/PlaidRefreshPolicy"
+        schedulerConfigured:
+          type: boolean
+        schedulerMode:
+          enum: [none, external_cron, in_process]
+        freshnessStatus:
+          enum: [fresh, stale, refreshing, failed, unavailable]
+        lastAttemptedRefreshAt:
+          type: [string, "null"]
+          format: date-time
+        lastSuccessfulRefreshAt:
+          type: [string, "null"]
+          format: date-time
+        nextRefreshAt:
+          type: [string, "null"]
+          format: date-time
+        activeRefreshId:
+          type: [string, "null"]
+          format: uuid
+        warnings:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time
+    ProductionReadinessDiagnostic:
+      type: object
+      required:
+        - environment
+        - durablePersistence
+        - schedulerConfigured
+        - secretsConfigured
+        - secureCookies
+        - allowedOrigin
+        - apiCachingPolicy
+        - scopingStatus
+        - warnings
+        - checkedAt
+      properties:
+        environment:
+          type: string
+          example: production
+        durablePersistence:
+          type: object
+          required: [databaseConfigured, mode]
+          properties:
+            databaseConfigured:
+              type: boolean
+            mode:
+              enum: [durable, temporary, mixed, unavailable]
+        schedulerConfigured:
+          type: boolean
+        secretsConfigured:
+          type: object
+          required:
+            - persistenceSecretKey
+            - sessionSecret
+            - plaidCredentials
+            - schedulerToken
+          properties:
+            persistenceSecretKey:
+              type: boolean
+            sessionSecret:
+              type: boolean
+            plaidCredentials:
+              type: boolean
+            schedulerToken:
+              type: boolean
+        secureCookies:
+          type: object
+          required: [secure, sameSite]
+          properties:
+            secure:
+              type: boolean
+            sameSite:
+              enum: [lax, strict, none]
+        allowedOrigin:
+          type: string
+          example: https://app.example.com
+        apiCachingPolicy:
+          enum: [no_shared_cache, private_only, unknown]
+        scopingStatus:
+          type: object
+          required: [apiRepositoryScoping, postgresRls]
+          properties:
+            apiRepositoryScoping:
+              enum: [required_passed, required_failed, unknown]
+            postgresRls:
+              enum: [deferred_hardening, enabled, not_planned]
+        warnings:
+          type: array
+          items:
+            type: string
+        checkedAt:
+          type: string
+          format: date-time
+    RefreshConflict:
+      type: object
+      required: [error, activeRefreshId]
+      properties:
+        error:
+          const: REFRESH_ALREADY_RUNNING
+        activeRefreshId:
+          type: string
+          format: uuid

@@ -11,7 +11,6 @@ import { sessionStore, useSession } from './auth/sessionStore'
 import { LoginPage } from './pages/LoginPage'
 import { MFASetupPage } from './pages/MFASetupPage'
 import { MFAPage } from './pages/MFAPage'
-import { DashboardPage } from './pages/DashboardPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
 import { UserDetailPage } from './pages/UserDetailPage'
@@ -22,6 +21,7 @@ import { PartnershipDetail } from './pages/PartnershipDetail'
 import { EntityDetail } from './pages/EntityDetail'
 import { EntitiesPage } from './pages/EntitiesPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { LiquidityPage } from './pages/LiquidityPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -110,7 +110,7 @@ export function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <DashboardPage />
+                <Navigate to="/liquidity" replace />
               </ProtectedRoute>
             }
           />
@@ -177,6 +177,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <ReportsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/liquidity"
+            element={
+              <ProtectedRoute>
+                <LiquidityPage />
               </ProtectedRoute>
             }
           />

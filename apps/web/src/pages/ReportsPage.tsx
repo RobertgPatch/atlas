@@ -8,7 +8,6 @@ import { FilterToolbar } from '../components/FilterToolbar'
 import { reportsClient } from '../features/reports/api/reportsClient'
 import { ActivityDetailReport } from '../features/reports/components/ActivityDetailReport'
 import { AssetClassSummaryReport } from '../features/reports/components/AssetClassSummaryReport'
-import { ConsolidatedHoldingsReport } from '../features/reports/components/ConsolidatedHoldingsReport'
 import { PortfolioSummaryReport } from '../features/reports/components/PortfolioSummaryReport'
 import { ReportsHeaderActions } from '../features/reports/components/ReportsHeaderActions'
 import { useActivityDetail } from '../features/reports/hooks/useActivityDetail'
@@ -21,7 +20,6 @@ type ReportsTab =
   | 'portfolio_summary'
   | 'asset_class_summary'
   | 'activity_detail'
-  | 'consolidated_holdings'
 
 const ASSET_CLASS_SORT_FIELDS = new Set([
   'assetClass',
@@ -140,7 +138,7 @@ export function ReportsPage() {
         ? 'Asset Class Summary (Phase 2) with shared filters, grouped metrics, and weighted N/A behavior.'
         : activeTab === 'activity_detail'
           ? 'Activity Detail (Phase 3) with annual rows keyed by entity, partnership, and tax year.'
-          : 'Consolidated Holdings with Plaid account selection and asset-level rollups.'
+          : 'Portfolio Summary (Phase 1) with inline commitment edits and single-step undo.'
 
   const entityTypeOptions = useMemo(() => {
     const values = new Set<string>()
@@ -225,9 +223,7 @@ export function ReportsPage() {
         ? queryInput
       : activeTab === 'asset_class_summary'
           ? assetClassQueryInput
-          : activeTab === 'activity_detail'
-            ? activityDetailQueryInput
-            : { reportType: 'consolidated_holdings' as const }
+          : activityDetailQueryInput
 
     try {
       const result = await reportsClient.exportReport({
@@ -344,15 +340,13 @@ export function ReportsPage() {
           </div>
         )}
 
-        {activeTab !== 'consolidated_holdings' && (
-          <FilterToolbar
-            searchValue={filters.search}
-            onSearchChange={updateSearch}
-            searchPlaceholder="Search entities or partnerships..."
-            filters={toolbarFilters}
-            resultCount={activeResultCount}
-          />
-        )}
+        <FilterToolbar
+          searchValue={filters.search}
+          onSearchChange={updateSearch}
+          searchPlaceholder="Search entities or partnerships..."
+          filters={toolbarFilters}
+          resultCount={activeResultCount}
+        />
 
         <div className="inline-flex w-fit items-center gap-1 rounded-card border border-border bg-surface p-1">
           <button
@@ -390,18 +384,6 @@ export function ReportsPage() {
             }`}
           >
             Activity Detail
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('consolidated_holdings')}
-            data-testid="reports-tab-consolidated-holdings"
-            className={`rounded-card px-3 py-1.5 text-sm font-medium transition ${
-              activeTab === 'consolidated_holdings'
-                ? 'bg-accent text-white'
-                : 'text-text-secondary hover:bg-gray-100'
-            }`}
-          >
-            Holdings
           </button>
         </div>
 
@@ -458,7 +440,7 @@ export function ReportsPage() {
             isError={assetClassQuery.isError}
             onRetry={() => void assetClassQuery.refetch()}
           />
-        ) : activeTab === 'activity_detail' ? (
+        ) : (
           <ActivityDetailReport
             data={activityDetailQuery.data}
             isLoading={activityDetailQuery.isLoading}
@@ -503,12 +485,9 @@ export function ReportsPage() {
               return result
             }}
           />
-        ) : (
-          <ConsolidatedHoldingsReport />
         )}
 
-        {activeTab !== 'consolidated_holdings' &&
-          (filters.search || filters.dateRange !== 'all' || filters.entityType || activityTaxYear) && (
+        {(filters.search || filters.dateRange !== 'all' || filters.entityType || activityTaxYear) && (
           <div className="flex justify-end">
             <button
               type="button"
