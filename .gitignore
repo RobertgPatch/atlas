@@ -153,3 +153,11 @@ Thumbs.db
 .idea/
 
 .playwright-mcp
+
+# Terraform local state/cache
+.terraform/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json

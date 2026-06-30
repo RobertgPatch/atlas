@@ -359,8 +359,8 @@ export const authRepository = {
       values (gen_random_uuid(), 'Admin'), (gen_random_uuid(), 'User')
       on conflict (name) do nothing
     `)
-    await upsertSeedUser('admin@atlas.com', config.adminPassword, 'Admin')
-    await upsertSeedUser('user@atlas.com', config.userPassword, 'User')
+  await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
+  await upsertSeedUser(config.userEmail, config.userPassword, 'User')
     await loadUsersFromDatabase()
     await loadSessionsFromDatabase()
   },

@@ -17,20 +17,20 @@
 
 **Purpose**: Prepare shared application, container, documentation, and Terraform locations for the Liquidity refresh and AWS deployment work.
 
-- [ ] T001 Confirm `AGENTS.md` points to `specs/014-plaid-refresh-policy/plan.md`
-- [ ] T002 Confirm `.specify/feature.json` points to `specs/014-plaid-refresh-policy`
-- [ ] T003 [P] Add Plaid refresh response metadata types in `packages/types/src/reports.ts`
-- [ ] T004 [P] Add Plaid refresh diagnostics and production readiness types in `packages/types/src/plaid.ts`
-- [ ] T005 [P] Add refresh policy, scheduler, security, and AWS runtime configuration fields in `apps/api/src/config.ts`
-- [ ] T006 Create the API production container definition in `apps/api/Dockerfile`
-- [ ] T007 [P] Create the AWS infrastructure overview document in `infra/aws/README.md`
-- [ ] T008 [P] Create the manual AWS Liquidity deployment runbook in `infra/aws/manual-liquidity-deployment.md`
-- [ ] T009 [P] Create the production readiness checklist document in `docs/deployment/aws-liquidity-production-readiness.md`
-- [ ] T010 Create Terraform version constraints in `infra/aws/terraform/versions.tf`
-- [ ] T011 Create Terraform provider configuration in `infra/aws/terraform/providers.tf`
-- [ ] T012 Create Terraform root input variables in `infra/aws/terraform/variables.tf`
-- [ ] T013 Create Terraform root module wiring in `infra/aws/terraform/main.tf`
-- [ ] T014 Create Terraform root outputs in `infra/aws/terraform/outputs.tf`
+- [X] T001 Confirm `AGENTS.md` points to `specs/014-plaid-refresh-policy/plan.md`
+- [X] T002 Confirm `.specify/feature.json` points to `specs/014-plaid-refresh-policy`
+- [X] T003 [P] Add Plaid refresh response metadata types in `packages/types/src/reports.ts`
+- [X] T004 [P] Add Plaid refresh diagnostics and production readiness types in `packages/types/src/plaid.ts`
+- [X] T005 [P] Add refresh policy, scheduler, security, and AWS runtime configuration fields in `apps/api/src/config.ts`
+- [X] T006 Create the API production container definition in `apps/api/Dockerfile`
+- [X] T007 [P] Create the AWS infrastructure overview document in `infra/aws/README.md`
+- [X] T008 [P] Create the manual AWS Liquidity deployment runbook in `infra/aws/manual-liquidity-deployment.md`
+- [X] T009 [P] Create the production readiness checklist document in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T010 Create Terraform version constraints in `infra/aws/terraform/versions.tf`
+- [X] T011 Create Terraform provider configuration in `infra/aws/terraform/providers.tf`
+- [X] T012 Create Terraform root input variables in `infra/aws/terraform/variables.tf`
+- [X] T013 Create Terraform root module wiring in `infra/aws/terraform/main.tf`
+- [X] T014 Create Terraform root outputs in `infra/aws/terraform/outputs.tf`
 
 ---
 
@@ -40,21 +40,21 @@
 
 **CRITICAL**: No user story work should begin until this phase is complete.
 
-- [ ] T015 Implement refresh policy tables, snapshot metadata columns, attempt fields, and indexes in `apps/api/src/infra/db/migrations/015_plaid_refresh_policy.sql`
-- [ ] T016 Add `PlaidRefreshPolicy`, `HoldingsRefreshAttempt`, `HoldingsSnapshotMetadata`, and `ProductionReadinessDiagnostic` interfaces in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T017 Add database row mappers for refresh policies, refresh attempts, snapshot metadata, and safe diagnostic fields in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T018 Implement default refresh policy configuration fallback from environment values in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T019 Implement refresh policy load and update methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T020 Implement refresh-attempt create, finalize, latest, active, and selected-account lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T021 Implement holdings snapshot create, latest, by-account, and metadata lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T022 Implement duplicate refresh prevention with PostgreSQL advisory locks or row locks in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T023 Create cutoff, freshness, stale/fresh status, and next-refresh calculations in `apps/api/src/modules/plaid/plaid.refresh-policy.ts`
-- [ ] T024 Create the scheduled refresh runner service shell in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
-- [ ] T025 Add request schemas for manual refresh force mode, scheduler payloads, and scheduler token validation in `apps/api/src/modules/reports/reports.zod.ts`
-- [ ] T026 Add no-shared-cache headers, secure header defaults, and production rate-limit wiring for authenticated API routes in `apps/api/src/app.ts`
-- [ ] T027 [P] Add API test helpers for seeded dated Plaid snapshots in `apps/api/tests/helpers/consolidatedHoldingsTestHelpers.ts`
-- [ ] T028 [P] Add API test helpers for policy time control, lock simulation, and Plaid call spying in `apps/api/tests/helpers/plaidRefreshPolicyTestHelpers.ts`
-- [ ] T029 [P] Add API test helpers for production readiness diagnostics in `apps/api/tests/helpers/productionReadinessTestHelpers.ts`
+- [X] T015 Implement refresh policy tables, snapshot metadata columns, attempt fields, and indexes in `apps/api/src/infra/db/migrations/015_plaid_refresh_policy.sql`
+- [X] T016 Add `PlaidRefreshPolicy`, `HoldingsRefreshAttempt`, `HoldingsSnapshotMetadata`, and `ProductionReadinessDiagnostic` interfaces in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T017 Add database row mappers for refresh policies, refresh attempts, snapshot metadata, and safe diagnostic fields in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T018 Implement default refresh policy configuration fallback from environment values in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T019 Implement refresh policy load and update methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T020 Implement refresh-attempt create, finalize, latest, active, and selected-account lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T021 Implement holdings snapshot create, latest, by-account, and metadata lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T022 Implement duplicate refresh prevention with PostgreSQL advisory locks or row locks in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T023 Create cutoff, freshness, stale/fresh status, and next-refresh calculations in `apps/api/src/modules/plaid/plaid.refresh-policy.ts`
+- [X] T024 Create the scheduled refresh runner service shell in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
+- [X] T025 Add request schemas for manual refresh force mode, scheduler payloads, and scheduler token validation in `apps/api/src/modules/reports/reports.zod.ts`
+- [X] T026 Add no-shared-cache headers, secure header defaults, and production rate-limit wiring for authenticated API routes in `apps/api/src/app.ts`
+- [X] T027 [P] Add API test helpers for seeded dated Plaid snapshots in `apps/api/tests/helpers/consolidatedHoldingsTestHelpers.ts`
+- [X] T028 [P] Add API test helpers for policy time control, lock simulation, and Plaid call spying in `apps/api/tests/helpers/plaidRefreshPolicyTestHelpers.ts`
+- [X] T029 [P] Add API test helpers for production readiness diagnostics in `apps/api/tests/helpers/productionReadinessTestHelpers.ts`
 
 **Checkpoint**: Database schema, refresh policy calculations, refresh locks, security defaults, and test helpers are ready.
 

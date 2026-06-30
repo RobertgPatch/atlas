@@ -49,3 +49,103 @@ export interface PlaidInvestmentAccountsResponse {
 export interface UpdatePlaidInvestmentAccountsRequest {
   selectedAccountIds: string[]
 }
+
+export type PlaidRefreshCadence = 'daily'
+
+export interface PlaidRefreshPolicy {
+  cadence: PlaidRefreshCadence
+  refreshTimeLocal: string
+  timezone: string
+  automaticRefreshEnabled: boolean
+}
+
+export type HoldingsRefreshTriggerSource = 'scheduled' | 'manual' | 'system'
+
+export type HoldingsRefreshReason =
+  | 'daily_cutoff'
+  | 'manual'
+  | 'missing_snapshot'
+  | 'stale_snapshot'
+  | 'forced'
+  | 'already_fresh'
+
+export type HoldingsRefreshAttemptStatus =
+  | 'pending'
+  | 'success'
+  | 'partial_success'
+  | 'failed'
+  | 'skipped'
+
+export interface HoldingsRefreshAttempt {
+  id: string
+  triggerSource: HoldingsRefreshTriggerSource
+  refreshReason: HoldingsRefreshReason
+  status: HoldingsRefreshAttemptStatus
+  startedAt: string
+  completedAt: string | null
+  dataAsOfDate?: string | null
+  selectedAccountIds: string[]
+  errorMessage?: string | null
+}
+
+export type PlaidRefreshFreshnessStatus =
+  | 'fresh'
+  | 'stale'
+  | 'refreshing'
+  | 'failed'
+  | 'unavailable'
+
+export type PlaidRefreshSchedulerMode = 'none' | 'external_cron' | 'in_process'
+
+export interface PlaidRefreshDiagnostic {
+  refreshPolicy: PlaidRefreshPolicy
+  schedulerConfigured: boolean
+  schedulerMode: PlaidRefreshSchedulerMode
+  freshnessStatus: PlaidRefreshFreshnessStatus
+  lastAttemptedRefreshAt: string | null
+  lastSuccessfulRefreshAt: string | null
+  nextRefreshAt: string | null
+  activeRefreshId?: string | null
+  warnings: string[]
+  checkedAt: string
+}
+
+export interface ProductionReadinessDurablePersistence {
+  databaseConfigured: boolean
+  mode: 'durable' | 'temporary' | 'mixed' | 'unavailable'
+}
+
+export interface ProductionReadinessSecretsConfigured {
+  persistenceSecretKey: boolean
+  sessionSecret: boolean
+  plaidCredentials: boolean
+  schedulerToken: boolean
+}
+
+export interface ProductionReadinessSecureCookies {
+  secure: boolean
+  sameSite: 'lax' | 'strict' | 'none'
+}
+
+export interface ProductionReadinessScopingStatus {
+  apiRepositoryScoping: 'required_passed' | 'required_failed' | 'unknown'
+  postgresRls: 'deferred_hardening' | 'enabled' | 'not_planned'
+}
+
+export interface ProductionReadinessDiagnostic {
+  environment: string
+  durablePersistence: ProductionReadinessDurablePersistence
+  schedulerConfigured: boolean
+  secretsConfigured: ProductionReadinessSecretsConfigured
+  secureCookies: ProductionReadinessSecureCookies
+  allowedOrigin: string
+  apiCachingPolicy: 'no_shared_cache' | 'private_only' | 'unknown'
+  scopingStatus: ProductionReadinessScopingStatus
+  warnings: string[]
+  checkedAt: string
+}
+
+export interface RefreshConflict {
+  error: 'REFRESH_ALREADY_RUNNING'
+  activeRefreshId: string
+}

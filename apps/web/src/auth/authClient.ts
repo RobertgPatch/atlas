@@ -97,7 +97,7 @@ const request = async <T>(
 
 export const authClient = {
   login(email: string, password: string) {
-    return request<MfaChallengeResponse | MfaEnrollmentResponse>(
+    return request<SessionResponse | MfaChallengeResponse | MfaEnrollmentResponse>(
       '/auth/login',
       {
         method: 'POST',

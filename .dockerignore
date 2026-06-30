@@ -12,6 +12,8 @@ apps/web/dist
 
 # Local-only state
 .storage
+.env
+.env.*
 .specify
 .playwright-mcp
 .vscode
