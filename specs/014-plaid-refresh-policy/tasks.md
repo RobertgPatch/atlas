@@ -68,24 +68,24 @@
 
 ### Tests for User Story 1
 
-- [ ] T030 [P] [US1] Add contract test proving `GET /reports/consolidated-holdings` returns saved snapshot metadata in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
-- [ ] T031 [US1] Add integration test proving repeated Liquidity reads do not call Plaid in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
-- [ ] T032 [P] [US1] Add integration test proving user, entity, and selected-account scoping prevents cross-user holdings leakage in `apps/api/tests/reports.consolidated-holdings.identity.integration.test.ts`
-- [ ] T033 [P] [US1] Add web test for fresh saved snapshot status display in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.test.tsx`
+- [X] T030 [P] [US1] Add contract test proving `GET /reports/consolidated-holdings` returns saved snapshot metadata in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
+- [X] T031 [US1] Add integration test proving repeated Liquidity reads do not call Plaid in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
+- [X] T032 [P] [US1] Add integration test proving user, entity, and selected-account scoping prevents cross-user holdings leakage in `apps/api/tests/reports.consolidated-holdings.identity.integration.test.ts`
+- [X] T033 [P] [US1] Add web test for fresh saved snapshot status display in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T034 [US1] Update current snapshot selection queries for dashboard-eligible saved snapshots in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T035 [US1] Update `listSourceHoldingsForSelectedAccounts` to read only latest saved snapshots for selected accounts in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T036 [US1] Enforce user, entity, and account scoping on consolidated holdings queries in `apps/api/src/modules/reports/reports.repository.ts`
-- [ ] T037 [US1] Add saved snapshot metadata to consolidated holdings assembly in `apps/api/src/modules/reports/consolidatedHoldings.service.ts`
-- [ ] T038 [US1] Return freshness, data-as-of, fetched-at, next-refresh, warnings, and active-refresh metadata in `apps/api/src/modules/reports/reports.repository.ts`
-- [ ] T039 [US1] Ensure `getConsolidatedHoldingsHandler` performs no Plaid sync work during ordinary reads in `apps/api/src/modules/reports/reports.handler.ts`
-- [ ] T040 [US1] Update consolidated holdings response type definitions for extended `sync` metadata in `packages/types/src/reports.ts`
-- [ ] T041 [US1] Update the reports client to preserve extended sync metadata in `apps/web/src/features/reports/api/reportsClient.ts`
-- [ ] T042 [US1] Configure TanStack Query reuse for saved Liquidity responses in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
-- [ ] T043 [US1] Render fresh, stale, refreshing, failed, unavailable, data-as-of, and next-refresh labels in `apps/web/src/features/reports/components/ConsolidatedHoldingsSyncStatus.tsx`
-- [ ] T044 [US1] Wire the updated sync status component into the Liquidity report surface in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.tsx`
+- [X] T034 [US1] Update current snapshot selection queries for dashboard-eligible saved snapshots in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T035 [US1] Update `listSourceHoldingsForSelectedAccounts` to read only latest saved snapshots for selected accounts in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T036 [US1] Enforce user, entity, and account scoping on consolidated holdings queries in `apps/api/src/modules/reports/reports.repository.ts`
+- [X] T037 [US1] Add saved snapshot metadata to consolidated holdings assembly in `apps/api/src/modules/reports/consolidatedHoldings.service.ts`
+- [X] T038 [US1] Return freshness, data-as-of, fetched-at, next-refresh, warnings, and active-refresh metadata in `apps/api/src/modules/reports/reports.repository.ts`
+- [X] T039 [US1] Ensure `getConsolidatedHoldingsHandler` performs no Plaid sync work during ordinary reads in `apps/api/src/modules/reports/reports.handler.ts`
+- [X] T040 [US1] Update consolidated holdings response type definitions for extended `sync` metadata in `packages/types/src/reports.ts`
+- [X] T041 [US1] Update the reports client to preserve extended sync metadata in `apps/web/src/features/reports/api/reportsClient.ts`
+- [X] T042 [US1] Configure TanStack Query reuse for saved Liquidity responses in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
+- [X] T043 [US1] Render fresh, stale, refreshing, failed, unavailable, data-as-of, and next-refresh labels in `apps/web/src/features/reports/components/ConsolidatedHoldingsSyncStatus.tsx`
+- [X] T044 [US1] Wire the updated sync status component into the Liquidity report surface in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.tsx`
 
 **Checkpoint**: User Story 1 is independently functional and testable as the MVP.
 

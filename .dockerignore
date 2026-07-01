@@ -19,6 +19,8 @@ apps/web/dist
 .vscode
 .git
 .github
+Dockerfile*
+.dockerignore
 
 # Tests / dev artifacts not needed at runtime
 **/coverage

@@ -20,13 +20,24 @@ const asList = (value: string | undefined, fallback: string): string[] =>
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
 const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:55432/atlas'
+const databaseUrl =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_DATABASE_URL ?? '')
+    : (process.env.DATABASE_URL ??
+      (nodeEnv === 'development' ? defaultDevelopmentDatabaseUrl : ''))
+const plaidClientId =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_PLAID_CLIENT_ID ?? '')
+    : (process.env.PLAID_CLIENT_ID ?? '')
+const plaidSecret =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_PLAID_SECRET ?? '')
+    : (process.env.PLAID_SECRET ?? '')
 
 export const config = {
   nodeEnv,
   port: asNumber(process.env.PORT, 3000),
-  databaseUrl:
-    process.env.DATABASE_URL ??
-    (nodeEnv === 'development' ? defaultDevelopmentDatabaseUrl : ''),
+  databaseUrl,
   persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
   requireDurablePersistence: asBoolean(process.env.REQUIRE_DURABLE_PERSISTENCE),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@atlas.com',
@@ -84,8 +95,8 @@ export const config = {
     modelId: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ?? 'prebuilt-layout',
   },
   plaid: {
-    clientId: process.env.PLAID_CLIENT_ID ?? '',
-    secret: process.env.PLAID_SECRET ?? '',
+    clientId: plaidClientId,
+    secret: plaidSecret,
     env: (process.env.PLAID_ENV ?? 'sandbox') as 'sandbox' | 'development' | 'production',
     products: asList(process.env.PLAID_PRODUCTS, 'investments'),
     countryCodes: asList(process.env.PLAID_COUNTRY_CODES, 'US'),

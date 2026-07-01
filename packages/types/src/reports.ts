@@ -66,13 +66,13 @@ export interface ConsolidatedHoldingsSyncMetadata {
   status: HoldingsSyncStatus
   lastSuccessfulSyncAt: string | null
   warnings: string[]
-  freshnessStatus?: HoldingsFreshnessStatus
-  dataAsOfDate?: string | null
-  dataFetchedAt?: string | null
-  nextRefreshAt?: string | null
-  activeRefreshId?: string | null
-  refreshing?: boolean
-  refreshPolicy?: PlaidRefreshPolicy
+  freshnessStatus: HoldingsFreshnessStatus
+  dataAsOfDate: string | null
+  dataFetchedAt: string | null
+  nextRefreshAt: string | null
+  activeRefreshId: string | null
+  refreshing: boolean
+  refreshPolicy: PlaidRefreshPolicy
 }
 
 export interface ConsolidatedHoldingsKpis {

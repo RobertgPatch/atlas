@@ -33,7 +33,9 @@ const toQuery = (filters: ConsolidatedHoldingsFilters): ConsolidatedHoldingsQuer
   accountId: filters.accountId || undefined,
   type: filters.type || undefined,
   gainLossState: filters.gainLossState || undefined,
-  page: 1,
+  sort: filters.sort,
+  direction: filters.direction,
+  page: filters.page,
   pageSize: filters.pageSize,
 })
 
@@ -51,6 +53,9 @@ export const useConsolidatedHoldings = () => {
     queryKey: consolidatedHoldingsKeys.report(queryInput),
     queryFn: () => reportsClient.getConsolidatedHoldings(queryInput),
     placeholderData: (previous) => previous,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   })
 
   const refresh = useMutation({

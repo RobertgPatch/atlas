@@ -286,6 +286,8 @@ const buildActivityDetailExportData = async (
 
 const buildConsolidatedHoldingsExportData = async (
   query: ReportExportQuery,
+  scope: ReportsScope,
+  actorUserId: string,
 ): Promise<TabularExportData> => {
   const holdingsQuery = query as ReportExportQuery & {
     custodian?: string
@@ -306,6 +308,9 @@ const buildConsolidatedHoldingsExportData = async (
     direction: query.direction === undefined ? 'desc' : query.direction,
     page: 1,
     pageSize: 250,
+  }, {
+    actorUserId,
+    scope,
   })
 
   const rows: ExportCell[][] = []
@@ -371,6 +376,7 @@ const buildConsolidatedHoldingsExportData = async (
 const buildTabularExportData = async (
   query: ReportExportQuery,
   scope: ReportsScope,
+  actorUserId: string,
 ): Promise<TabularExportData> => {
   if (query.reportType === 'portfolio_summary') {
     return buildPortfolioExportData(query, scope)
@@ -381,7 +387,7 @@ const buildTabularExportData = async (
   }
 
   if (query.reportType === 'consolidated_holdings') {
-    return buildConsolidatedHoldingsExportData(query)
+    return buildConsolidatedHoldingsExportData(query, scope, actorUserId)
   }
 
   return buildActivityDetailExportData(query, scope)
@@ -391,8 +397,9 @@ export const reportsExport = {
   async generateReportExport(
     query: ReportExportQuery,
     scope: ReportsScope,
+    actorUserId: string,
   ): Promise<GeneratedReportExport> {
-    const tabular = await buildTabularExportData(query, scope)
+    const tabular = await buildTabularExportData(query, scope, actorUserId)
     const body =
       query.format === 'csv'
         ? toCsvBuffer(tabular.headers, tabular.rows)

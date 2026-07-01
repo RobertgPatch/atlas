@@ -8,6 +8,7 @@ import { capitalRepository } from '../../src/modules/partnerships/capital.reposi
 import { plaidRepository } from '../../src/modules/plaid/plaid.repository.js'
 import { config } from '../../src/config.js'
 import type { FastifyInstance } from 'fastify'
+import { runMigrations } from '../../src/infra/db/migrate.js'
 
 export interface TestFixture {
   app: FastifyInstance
@@ -26,6 +27,12 @@ export interface TestFixture {
  * admin session cookie ready to attach to requests.
  */
 export const createTestFixture = async (): Promise<TestFixture> => {
+  if (config.databaseUrl) {
+    await runMigrations(() => {})
+    await authRepository.bootstrapFromDatabase()
+    await plaidRepository.bootstrapFromDatabase()
+  }
+
   k1Repository._debugReset()
   assetsRepository._debugReset()
   fmvRepository._debugReset()

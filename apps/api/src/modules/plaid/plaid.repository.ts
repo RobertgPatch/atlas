@@ -137,6 +137,11 @@ export interface SourceHoldingRecord {
   asOfDate: string | null
 }
 
+interface PlaidAccountVisibility {
+  actorUserId?: string
+  isAdmin?: boolean
+}
+
 export interface ClearConnectedAccountsResult {
   connectionCount: number
   accountCount: number
@@ -290,6 +295,54 @@ const accountSelectionsOverlap = (left: string[], right: string[]) => {
   if (left.length === 0 || right.length === 0) return true
   const rightSet = new Set(right)
   return left.some((accountId) => rightSet.has(accountId))
+}
+
+const snapshotSortTime = (snapshot: HoldingsSyncSnapshot) =>
+  new Date(
+    snapshot.fetchedAt ??
+      snapshot.completedAt ??
+      snapshot.startedAt,
+  ).getTime()
+
+const isDashboardEligibleSnapshot = (snapshot: HoldingsSyncSnapshot) =>
+  (snapshot.status === 'success' || snapshot.status === 'partial_success') &&
+  snapshot.dashboardEligible !== false &&
+  (snapshot.holdingsCount ?? 1) > 0
+
+const defaultDashboardEligible = (
+  status: HoldingsSyncSnapshot['status'],
+  holdingsCount: number | null | undefined,
+) =>
+  (status === 'success' || status === 'partial_success') &&
+  (holdingsCount ?? 0) > 0
+
+const latestDashboardSnapshotIdByAccount = (selectedAccountIds: string[]) => {
+  const selected = new Set(selectedAccountIds)
+  const latestByAccount = new Map<string, string>()
+  const orderedSnapshots = [...snapshots].sort(
+    (left, right) => snapshotSortTime(right) - snapshotSortTime(left),
+  )
+
+  for (const snapshot of orderedSnapshots) {
+    if (!isDashboardEligibleSnapshot(snapshot)) continue
+
+    const snapshotAccountIds = parseStringArray(snapshot.selectedAccountIds)
+    for (const accountId of snapshotAccountIds) {
+      if (!selected.has(accountId) || latestByAccount.has(accountId)) continue
+      latestByAccount.set(accountId, snapshot.id)
+    }
+  }
+
+  return latestByAccount
+}
+
+const accountIsVisible = (
+  account: PlaidInvestmentAccount,
+  visibility?: PlaidAccountVisibility,
+) => {
+  if (!visibility?.actorUserId || visibility.isAdmin) return true
+  const connection = connections.find((item) => item.id === account.connectionId)
+  return !connection || connection.ownerUserId === visibility.actorUserId
 }
 
 const parseStringArray = (value: unknown): string[] => {
@@ -591,7 +644,8 @@ const persistSnapshot = (
         snapshot.dataAsOfMinDate ?? null,
         snapshot.dataAsOfMaxDate ?? null,
         snapshot.fetchedAt ?? snapshot.completedAt,
-        snapshot.dashboardEligible ?? snapshot.status === 'success',
+        snapshot.dashboardEligible ??
+          defaultDashboardEligible(snapshot.status, snapshot.holdingsCount),
         snapshot.holdingsCount ?? 0,
       ],
     )
@@ -1187,10 +1241,13 @@ export const plaidRepository = {
       dataAsOfMaxDate: input.dataAsOfMaxDate ?? input.dataAsOfDate ?? null,
       fetchedAt: input.fetchedAt ?? completedAt,
       dashboardEligible:
-        input.dashboardEligible ?? (status === 'success' || status === 'partial_success'),
+        input.dashboardEligible ??
+        defaultDashboardEligible(status, input.holdingsCount),
       holdingsCount: input.holdingsCount ?? 0,
     }
 
+    const existingIndex = snapshots.findIndex((snapshot) => snapshot.id === metadata.id)
+    if (existingIndex >= 0) snapshots.splice(existingIndex, 1)
     snapshots.unshift(metadata)
 
     if (pool) {
@@ -1266,7 +1323,7 @@ export const plaidRepository = {
     return {
       ...snapshot,
       requestedByUserId: null,
-      selectedAccountIds: [],
+      selectedAccountIds: parseStringArray(snapshot.selectedAccountIds),
     }
   },
 
@@ -1586,8 +1643,14 @@ export const plaidRepository = {
     return result
   },
 
-  getSelectedInvestmentAccounts(): PlaidInvestmentAccount[] {
-    return accounts.filter((account) => account.selectedForHoldingsReport)
+  getSelectedInvestmentAccounts(
+    visibility?: PlaidAccountVisibility,
+  ): PlaidInvestmentAccount[] {
+    return accounts.filter(
+      (account) =>
+        account.selectedForHoldingsReport &&
+        accountIsVisible(account, visibility),
+    )
   },
 
   getSelectedInvestmentAccountsByConnection(): Array<{
@@ -1606,26 +1669,53 @@ export const plaidRepository = {
   },
 
   createSyncSnapshot(input: {
+    id?: string
     requestedByUserId: string
     selectedAccountIds: string[]
     status?: HoldingsSyncSnapshot['status']
+    startedAt?: string
+    completedAt?: string | null
     errorMessage?: string | null
+    refreshAttemptId?: string | null
+    dataAsOfDate?: string | null
+    dataAsOfMinDate?: string | null
+    dataAsOfMaxDate?: string | null
+    fetchedAt?: string | null
+    dashboardEligible?: boolean
+    holdingsCount?: number
   }): HoldingsSyncSnapshot {
-    const completedAt = input.status === 'pending' ? null : nowIso()
+    const status = input.status ?? 'success'
+    const completedAt = input.completedAt ?? (status === 'pending' ? null : nowIso())
     const snapshot: HoldingsSyncSnapshot = {
-      id: randomUUID(),
-      status: input.status ?? 'success',
-      startedAt: nowIso(),
+      id: input.id ?? randomUUID(),
+      status,
+      startedAt: input.startedAt ?? nowIso(),
       completedAt,
       errorMessage: input.errorMessage ?? null,
+      refreshAttemptId: input.refreshAttemptId ?? null,
+      dataAsOfDate: input.dataAsOfDate ?? null,
+      dataAsOfMinDate: input.dataAsOfMinDate ?? input.dataAsOfDate ?? null,
+      dataAsOfMaxDate: input.dataAsOfMaxDate ?? input.dataAsOfDate ?? null,
+      fetchedAt: input.fetchedAt ?? completedAt,
+      dashboardEligible:
+        input.dashboardEligible ??
+        defaultDashboardEligible(status, input.holdingsCount),
+      holdingsCount: input.holdingsCount ?? 0,
       selectedAccountIds: normalizeAccountIds(input.selectedAccountIds),
     }
+    const existingIndex = snapshots.findIndex((item) => item.id === snapshot.id)
+    if (existingIndex >= 0) snapshots.splice(existingIndex, 1)
     snapshots.unshift(snapshot)
     persistSnapshot(snapshot, input.selectedAccountIds, input.requestedByUserId)
 
     for (const account of accounts) {
       if (input.selectedAccountIds.includes(account.id)) {
-        account.syncStatus = snapshot.status === 'failed' ? 'failed' : 'success'
+        account.syncStatus =
+          snapshot.status === 'pending'
+            ? 'pending'
+            : snapshot.status === 'failed'
+              ? 'failed'
+              : 'success'
         account.lastSyncedAt = snapshot.completedAt
         persistAccount(account)
       }
@@ -1649,13 +1739,21 @@ export const plaidRepository = {
     return holdings
   },
 
-  listSourceHoldingsForSelectedAccounts(): SourceHoldingRecord[] {
-    const selected = new Set(
-      accounts
-        .filter((account) => account.selectedForHoldingsReport)
-        .map((account) => account.id),
+  listSourceHoldingsForSelectedAccounts(
+    visibility?: PlaidAccountVisibility,
+  ): SourceHoldingRecord[] {
+    const selectedAccountIds = this.getSelectedInvestmentAccounts(visibility).map(
+      (account) => account.id,
     )
-    return sourceHoldings.filter((holding) => selected.has(holding.accountId))
+    const selected = new Set(selectedAccountIds)
+    const latestSnapshotByAccount =
+      latestDashboardSnapshotIdByAccount(selectedAccountIds)
+
+    return sourceHoldings.filter(
+      (holding) =>
+        selected.has(holding.accountId) &&
+        latestSnapshotByAccount.get(holding.accountId) === holding.syncSnapshotId,
+    )
   },
 
   getLatestSync() {
@@ -1687,6 +1785,20 @@ export const plaidRepository = {
         completedAt: nowIso(),
         errorMessage: null,
       } satisfies HoldingsSyncSnapshot)
+    snapshot.selectedAccountIds ??= normalizeAccountIds(
+      input.accounts
+        .filter((account) => account.selectedForHoldingsReport)
+        .map((account) => account.id),
+    )
+    snapshot.dashboardEligible ??=
+      defaultDashboardEligible(snapshot.status, input.holdings.length)
+    snapshot.holdingsCount ??= input.holdings.length
+    snapshot.fetchedAt ??= snapshot.completedAt
+    snapshot.dataAsOfDate ??=
+      input.holdings
+        .map((holding) => holding.asOfDate)
+        .filter((value): value is string => Boolean(value))
+        .sort((a, b) => b.localeCompare(a))[0] ?? null
     snapshots.push(snapshot)
     sourceHoldings.push(
       ...input.holdings.map((holding) => ({

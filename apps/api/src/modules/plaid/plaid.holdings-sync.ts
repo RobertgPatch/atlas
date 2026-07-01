@@ -84,6 +84,30 @@ const mapHolding = (
   }
 }
 
+const dateOnly = (value: string | null): string | null => value?.slice(0, 10) ?? null
+
+const holdingDateRange = (holdings: SourceHoldingRecord[]) => {
+  const dates = holdings
+    .map((holding) => dateOnly(holding.asOfDate))
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => left.localeCompare(right))
+
+  const earliest = dates[0] ?? null
+  const latest = dates.length > 0 ? dates[dates.length - 1]! : null
+
+  return {
+    dataAsOfDate: latest,
+    dataAsOfMinDate: earliest,
+    dataAsOfMaxDate: latest,
+  }
+}
+
+const dashboardEligible = (
+  status: HoldingsSyncSnapshot['status'],
+  holdingsCount: number,
+) =>
+  (status === 'success' || status === 'partial_success') && holdingsCount > 0
+
 export const plaidHoldingsSync = {
   async syncSelectedHoldings(requestedByUserId: string): Promise<HoldingsSyncSnapshot> {
     const selectedAccounts = plaidRepository.getSelectedInvestmentAccounts()
@@ -165,17 +189,27 @@ export const plaidHoldingsSync = {
     }
 
     plaidRepository.replaceSourceHoldingsForSnapshot(snapshot.id, sourceHoldings)
+    const status =
+      warnings.length === 0
+        ? 'success'
+        : sourceHoldings.length > 0
+          ? 'partial_success'
+          : 'failed'
+    const completedAt = new Date().toISOString()
+    const dateRange = holdingDateRange(sourceHoldings)
 
     return plaidRepository.createSyncSnapshot({
+      id: snapshot.id,
       requestedByUserId,
       selectedAccountIds,
-      status:
-        warnings.length === 0
-          ? 'success'
-          : sourceHoldings.length > 0
-            ? 'partial_success'
-            : 'failed',
+      status,
+      startedAt: snapshot.startedAt,
+      completedAt,
       errorMessage: warnings.join('; ') || null,
+      ...dateRange,
+      fetchedAt: completedAt,
+      dashboardEligible: dashboardEligible(status, sourceHoldings.length),
+      holdingsCount: sourceHoldings.length,
     })
   },
 }

@@ -157,6 +157,12 @@ export const getConsolidatedHoldingsHandler = async (
     return
   }
 
+  const scope = request.partnershipScope
+  if (!scope) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
   let query: ReturnType<typeof consolidatedHoldingsQuerySchema.parse>
   try {
     query = consolidatedHoldingsQuerySchema.parse(request.query)
@@ -168,7 +174,10 @@ export const getConsolidatedHoldingsHandler = async (
     throw error
   }
 
-  const result = await reportsRepository.getConsolidatedHoldings(query)
+  const result = await reportsRepository.getConsolidatedHoldings(query, {
+    actorUserId: request.authUser.userId,
+    scope,
+  })
   reply.send(result)
 }
 
@@ -217,7 +226,11 @@ export const getReportsExportHandler = async (
     return
   }
 
-  const exported = await reportsExport.generateReportExport(query, scope)
+  const exported = await reportsExport.generateReportExport(
+    query,
+    scope,
+    request.authUser.userId,
+  )
 
   reply
     .header('Content-Type', exported.contentType)
@@ -258,6 +271,7 @@ export const getConsolidatedHoldingsExportHandler = async (
       reportType: 'consolidated_holdings',
     },
     scope,
+    request.authUser.userId,
   )
 
   reply
