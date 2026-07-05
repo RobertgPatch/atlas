@@ -1,0 +1,13 @@
+# Do not use this file directly for environment plans.
+# Copy one of these committed, sanitized examples to a local ignored .tfvars file:
+#
+#   cp staging.tfvars.example staging.tfvars
+#   cp production.tfvars.example production.tfvars
+#
+# Then replace placeholder domains, hosted zone ids, certificate ARNs, and emails locally.
+# Real *.tfvars files are ignored by git. Do not commit account ids, emails, or secrets.
+#
+# Phase 8 expects separate plans:
+#
+#   terraform plan -var-file staging.tfvars
+#   terraform plan -var-file production.tfvars

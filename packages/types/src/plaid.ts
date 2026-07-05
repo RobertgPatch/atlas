@@ -95,7 +95,12 @@ export type PlaidRefreshFreshnessStatus =
   | 'failed'
   | 'unavailable'
 
-export type PlaidRefreshSchedulerMode = 'none' | 'external_cron' | 'in_process'
+export type PlaidRefreshSchedulerMode =
+  | 'none'
+  | 'external_cron'
+  | 'in_process'
+  | 'eventbridge'
+  | 'manual'
 
 export interface PlaidRefreshDiagnostic {
   refreshPolicy: PlaidRefreshPolicy
@@ -139,6 +144,7 @@ export interface ProductionReadinessDiagnostic {
   secretsConfigured: ProductionReadinessSecretsConfigured
   secureCookies: ProductionReadinessSecureCookies
   allowedOrigin: string
+  rateLimitConfigured: boolean
   apiCachingPolicy: 'no_shared_cache' | 'private_only' | 'unknown'
   scopingStatus: ProductionReadinessScopingStatus
   warnings: string[]

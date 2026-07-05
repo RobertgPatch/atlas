@@ -59,7 +59,8 @@ export const useConsolidatedHoldings = () => {
   })
 
   const refresh = useMutation({
-    mutationFn: () => reportsClient.refreshConsolidatedHoldings(),
+    mutationFn: (input?: { force?: boolean }) =>
+      reportsClient.refreshConsolidatedHoldings(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['reports', 'consolidated-holdings'] })
       void queryClient.invalidateQueries({ queryKey: ['plaid', 'investment-accounts'] })

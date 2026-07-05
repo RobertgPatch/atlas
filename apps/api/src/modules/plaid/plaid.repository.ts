@@ -654,16 +654,13 @@ const persistSnapshot = (
 
 const persistSourceHoldings = (syncSnapshotId: string, holdings: SourceHoldingRecord[]) => {
   enqueueDbWrite(async () => {
-    const accountIds = [...new Set(holdings.map((holding) => holding.accountId))]
-    if (accountIds.length > 0) {
-      await pool!.query(
-        `
-          delete from source_holdings
-          where plaid_account_id = any($1::text[])
-        `,
-        [accountIds],
-      )
-    }
+    await pool!.query(
+      `
+        delete from source_holdings
+        where sync_snapshot_id = $1
+      `,
+      [syncSnapshotId],
+    )
 
     for (const holding of holdings) {
       const dbAccountId = dbAccountIdsByPlaidAccountId.get(holding.accountId)
@@ -1670,7 +1667,7 @@ export const plaidRepository = {
 
   createSyncSnapshot(input: {
     id?: string
-    requestedByUserId: string
+    requestedByUserId?: string | null
     selectedAccountIds: string[]
     status?: HoldingsSyncSnapshot['status']
     startedAt?: string
@@ -1706,7 +1703,7 @@ export const plaidRepository = {
     const existingIndex = snapshots.findIndex((item) => item.id === snapshot.id)
     if (existingIndex >= 0) snapshots.splice(existingIndex, 1)
     snapshots.unshift(snapshot)
-    persistSnapshot(snapshot, input.selectedAccountIds, input.requestedByUserId)
+    persistSnapshot(snapshot, input.selectedAccountIds, input.requestedByUserId ?? null)
 
     for (const account of accounts) {
       if (input.selectedAccountIds.includes(account.id)) {
@@ -1728,15 +1725,20 @@ export const plaidRepository = {
     syncSnapshotId: string,
     holdings: SourceHoldingRecord[],
   ): SourceHoldingRecord[] {
-    const accountIds = new Set(holdings.map((holding) => holding.accountId))
     for (let index = sourceHoldings.length - 1; index >= 0; index -= 1) {
-      if (accountIds.has(sourceHoldings[index]!.accountId)) {
+      if (sourceHoldings[index]!.syncSnapshotId === syncSnapshotId) {
         sourceHoldings.splice(index, 1)
       }
     }
     sourceHoldings.push(...holdings.map((holding) => ({ ...holding, syncSnapshotId })))
     persistSourceHoldings(syncSnapshotId, holdings)
     return holdings
+  },
+
+  listSourceHoldingsForSnapshot(syncSnapshotId: string): SourceHoldingRecord[] {
+    return sourceHoldings
+      .filter((holding) => holding.syncSnapshotId === syncSnapshotId)
+      .map((holding) => ({ ...holding }))
   },
 
   listSourceHoldingsForSelectedAccounts(
@@ -1812,7 +1814,11 @@ export const plaidRepository = {
     clearLocalState()
   },
 
-  async _flushPersistenceWrites(): Promise<void> {
+  async flushPersistenceWrites(): Promise<void> {
     await dbWriteQueue
+  },
+
+  async _flushPersistenceWrites(): Promise<void> {
+    await this.flushPersistenceWrites()
   },
 }

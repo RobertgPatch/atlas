@@ -15,6 +15,10 @@
 - Q: What API response caching boundary should the AWS deployment enforce? -> A: Edge-cache static web assets only; authenticated `/v1/*` API responses must not use shared CDN caching.
 - Q: What row-level security scope should the first AWS Liquidity deployment use? -> A: Enforce user/entity/account scoping in the API and repository layer for the first AWS deployment, with Postgres RLS planned as a hardening follow-up after the access model is stable.
 
+### Session 2026-07-02
+
+- Q: How many AWS-hosted server environments should the Phase 3+ deployment plan support? -> A: Two AWS environments: staging and production. Staging must stay as cheap as practical while preserving production-like topology, security boundaries, deployment flow, and validation coverage.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Load Liquidity From Saved Data (Priority: P1)
@@ -122,6 +126,7 @@ As an operator, I want to know the active Plaid refresh cadence, last run result
 - **FR-024**: The AWS edge layer MUST serve the web app and API behind one public app domain, forwarding `/v1/*` requests to the API origin while keeping web assets as the default origin.
 - **FR-025**: The AWS edge layer MUST cache static web assets only and MUST NOT place authenticated `/v1/*` financial API responses in a shared CDN cache.
 - **FR-026**: The first AWS deployment MUST validate user/entity/account data scoping in the application and repository layer before launch, and MUST track Postgres row-level security as a required hardening follow-up rather than a first-launch blocker.
+- **FR-027**: The AWS deployment plan MUST support separate staging and production environments in AWS. Staging MUST preserve the production topology, security boundaries, secret isolation, `/v1/*` routing model, scheduler behavior, observability, and validation workflow while using cost-minimized sizing, retention, and budget thresholds where those reductions do not invalidate production parity.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -130,6 +135,7 @@ As an operator, I want to know the active Plaid refresh cadence, last run result
 - **Holdings Snapshot**: A saved set of holdings values tied to selected accounts, fetch time, data-as-of date, and success status.
 - **Source Holding**: Account-level holding facts from a saved snapshot, including value, quantity, price, identifiers, classification, and data-as-of date.
 - **Refresh Diagnostic**: Operator-facing status showing freshness, last run, next expected run, scheduler availability, and warnings.
+- **AWS Deployment Environment**: A named AWS runtime environment such as staging or production, with its own domain, secrets, database, scheduler, logs, alarms, WAF rules, budget alerts, Terraform variables, and deployment evidence.
 - **Production Security Control**: A deployment-level guardrail such as secret storage, token rotation, request filtering, rate limiting, role-based access, database access boundary, logging, alerting, budget control, or abuse protection.
 
 ## Success Criteria *(mandatory)*
@@ -143,6 +149,7 @@ As an operator, I want to know the active Plaid refresh cadence, last run result
 - **SC-005**: At least 30 days of successful daily snapshots can be retained and distinguished by data-as-of date.
 - **SC-006**: Production diagnostics identify whether automatic refresh scheduling is active and whether any additional scheduler infrastructure is required.
 - **SC-007**: The initial AWS deployment can be validated with health checks, log review, alert delivery, budget alarms, blocked abusive requests, and no committed production secrets.
+- **SC-008**: Staging and production AWS deployment artifacts can be reviewed separately, show environment-specific domains/secrets/databases/budgets, and demonstrate the same core routing, scheduler, security, observability, and readiness checks in both environments.
 
 ## Assumptions
 
@@ -153,6 +160,7 @@ As an operator, I want to know the active Plaid refresh cadence, last run result
 - AWS provisioning starts as a manual learning deployment, with Terraform generated in parallel for review and later adoption.
 - The first AWS deployment intentionally excludes K-1 document upload/PDF persistence unless it is required for authentication, administration, or Liquidity operation.
 - The AWS public URL model uses one app domain rather than separate app and API subdomains.
+- Staging uses AWS rather than Railway or another hosting platform, mirrors production service topology, and reduces cost through smaller resource sizes, lower non-production budgets, lower log retention, sandbox Plaid credentials, and documented non-production allowances.
 - Liquidity performance comes from saved database snapshots and browser/query reuse, not shared CDN caching of authenticated API responses.
 - Production secrets are managed by cloud secret storage and local `.env` files remain development-only.
 - Postgres row-level security is deferred until after the first AWS Liquidity deployment, but application/repository access scoping is required before launch.

@@ -13,7 +13,7 @@
 3. Run the focused API tests:
 
    ```powershell
-   npm run --workspace=api test -- plaid.refresh-policy reports.consolidated-holdings.freshness reports.consolidated-holdings.history production-readiness
+   npm run --workspace=api test -- plaid.refresh-policy reports.consolidated-holdings.freshness reports.consolidated-holdings.history reports.consolidated-holdings.identity reports.consolidated-holdings.export production-readiness
    ```
 
 4. Run the focused web tests:
@@ -35,7 +35,11 @@
    docker build -f apps/api/Dockerfile -t atlas-api:local .
    ```
 
-7. Confirm the container includes compiled JS and SQL migrations beside the runtime path expected by the migration loader.
+7. Confirm the container includes compiled JS, the scheduled refresh CLI, and SQL migrations beside the runtime path expected by the migration loader:
+
+   ```powershell
+   docker run --rm --entrypoint node atlas-api:local -e "import('node:fs').then(fs => { const required = ['dist/server.js', 'dist/scripts/run-plaid-refresh.js', 'dist/infra/db/migrations/015_plaid_refresh_policy.sql']; for (const path of required) { if (!fs.existsSync(path)) throw new Error(path + ' missing') } console.log('api image files ok') })"
+   ```
 
 ## Verify Liquidity Read Path
 
@@ -65,11 +69,18 @@
 
 ## AWS Manual Deployment
 
-Create the first AWS environment manually so each service is visible and understandable. Then generate equivalent Terraform and compare it to the manual resources before adopting Terraform as source of truth.
+Create the staging AWS environment manually first so each service is visible and understandable. Then generate equivalent Terraform and compare it to the manual resources before adopting Terraform as source of truth. Repeat the same topology for production after staging passes validation.
+
+Use separate domains, secrets, databases, scheduler tokens, logs, alarms, budgets, and Terraform variable files:
+
+```text
+staging:    staging.example.com, staging.tfvars, Plaid sandbox credentials
+production: app.example.com,     production.tfvars, production-approved credentials
+```
 
 ### 1. DNS And Certificate
 
-1. Choose one app domain, for example `app.example.com`.
+1. Choose one app domain for the target environment, for example `staging.example.com` or `app.example.com`.
 2. Create or use the matching Route 53 hosted zone.
 3. Request an ACM certificate for the app domain in the CloudFront-required certificate region.
 4. Validate the certificate through DNS.
@@ -123,10 +134,13 @@ Document rotation expectations:
    REQUIRE_DURABLE_PERSISTENCE=true
    SESSION_COOKIE_SECURE=true
    SESSION_COOKIE_SAMESITE=lax
-   WEB_ORIGIN=https://app.example.com
+   WEB_ORIGIN=https://<environment-app-domain>
    PLAID_REFRESH_TIME_LOCAL=05:00
    PLAID_REFRESH_TIMEZONE=America/Los_Angeles
    PLAID_REFRESH_SCHEDULER_ENABLED=true
+   PLAID_REFRESH_SCHEDULER_MODE=eventbridge
+   AWS_ENVIRONMENT_NAME=<staging-or-production>
+   AWS_ENVIRONMENT_PROFILE=<staging-or-production>
    ```
 
 6. Inject secrets from Secrets Manager.
@@ -186,7 +200,7 @@ Document rotation expectations:
    - API/repository scoping tests pass.
    - Postgres RLS is tracked as deferred hardening.
 
-5. Create AWS Budgets alerts with email and/or SNS notification.
+5. Create AWS Budgets alerts with email and/or SNS notification. Use a lower budget for staging.
 6. Confirm budget notification subscription.
 
 ## Terraform Comparison
@@ -212,24 +226,30 @@ Document rotation expectations:
    ```powershell
    terraform fmt
    terraform validate
-   terraform plan
+   Copy-Item staging.tfvars.example staging.tfvars
+   Copy-Item production.tfvars.example production.tfvars
+   terraform plan -var-file staging.tfvars
+   terraform plan -var-file production.tfvars
    ```
 
-4. Compare Terraform plan output to the manual environment.
-5. Document differences in `infra/aws/README.md`.
-6. Do not apply Terraform to production until differences are reviewed and no secret values appear in state outputs.
+4. Edit local `staging.tfvars` and `production.tfvars` with real non-secret domains, hosted zone ids, certificate ARNs, and notification emails. Do not commit these files.
+5. If AWS credentials or the manual account are not ready yet, stop after `terraform validate`. Do not create AWS resources just to satisfy local validation.
+6. Compare staging Terraform plan output to the manual staging environment.
+7. Compare production Terraform plan output separately before production apply/import.
+8. Document differences in `infra/aws/README.md`.
+9. Do not apply Terraform to staging or production until differences are reviewed and no secret values appear in state outputs.
 
-## Production Verification
+## Environment Verification
 
 1. Visit:
 
    ```text
-   https://app.example.com/v1/health
+   https://<environment-app-domain>/v1/health
    ```
 
 2. Confirm persistence reports durable mode.
 3. Sign in through the app domain.
-4. Connect Plaid sandbox or production accounts.
+4. Connect Plaid sandbox accounts in staging. Use production Plaid only after staging is approved.
 5. Refresh Liquidity.
 6. Reopen Liquidity repeatedly and confirm no Plaid call occurs during ordinary reads.
 7. Force or simulate a failed refresh and confirm the last successful snapshot still displays with stale/failed status.
@@ -248,6 +268,8 @@ Document rotation expectations:
    - Plaid connections remain available.
    - Liquidity snapshots remain available.
    - Scheduled refresh still works.
+
+Run this verification for staging first. Production promotion is blocked until staging shows matching routing, WAF/rate limiting, scheduler, private RDS, logs, alarms, budget alerts, diagnostics, and no-shared-cache `/v1/*` behavior.
 
 ## Redis Decision
 

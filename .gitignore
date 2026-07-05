@@ -161,3 +161,15 @@ Thumbs.db
 *.tfstate.*
 *.tfvars
 *.tfvars.json
+
+# Production secret/key artifacts
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.secret
+*.secret.*
+secrets/
+aws-exports.*
+cdk.context.json

@@ -9,12 +9,16 @@ import {
   assetClassSummaryQuerySchema,
   consolidatedHoldingsExportQuerySchema,
   consolidatedHoldingsQuerySchema,
+  consolidatedHoldingsRefreshBodySchema,
   exportReportQuerySchema,
   portfolioSummaryQuerySchema,
   updateActivityDetailBodySchema,
 } from './reports.zod.js'
 import { plaidRepository } from '../plaid/plaid.repository.js'
-import { plaidHoldingsSync } from '../plaid/plaid.holdings-sync.js'
+import {
+  plaidHoldingsSync,
+  RefreshAlreadyRunningError,
+} from '../plaid/plaid.holdings-sync.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -190,9 +194,35 @@ export const refreshConsolidatedHoldingsHandler = async (
     return
   }
 
-  const snapshot = await plaidHoldingsSync.syncSelectedHoldings(request.authUser.userId)
+  let body: ReturnType<typeof consolidatedHoldingsRefreshBodySchema.parse>
+  try {
+    body = consolidatedHoldingsRefreshBodySchema.parse(request.body ?? {})
+  } catch (error) {
+    if (error instanceof ZodError) {
+      sendValidationError(reply, error)
+      return
+    }
+    throw error
+  }
 
-  reply.status(202).send(snapshot)
+  try {
+    const attempt = await plaidHoldingsSync.syncSelectedHoldings({
+      requestedByUserId: request.authUser.userId,
+      triggerSource: 'manual',
+      force: body.force || body.reason === 'forced',
+    })
+
+    reply.status(202).send(attempt)
+  } catch (error) {
+    if (error instanceof RefreshAlreadyRunningError) {
+      reply.status(409).send({
+        error: 'REFRESH_ALREADY_RUNNING',
+        activeRefreshId: error.activeRefreshId,
+      })
+      return
+    }
+    throw error
+  }
 }
 
 export const getReportsExportHandler = async (

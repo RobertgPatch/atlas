@@ -31,6 +31,11 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   PLAID_RECONNECTED: 'plaid.reconnected',
   PLAID_ACCOUNT_SELECTION_UPDATED: 'plaid.account_selection.updated',
   PLAID_ACCOUNTS_CLEARED: 'plaid.accounts.cleared',
+  PLAID_REFRESH_MANUAL: 'plaid.refresh.manual',
+  PLAID_REFRESH_SCHEDULED: 'plaid.refresh.scheduled',
+  PLAID_REFRESH_SKIPPED: 'plaid.refresh.skipped',
+  PLAID_REFRESH_FAILED: 'plaid.refresh.failed',
+  PLAID_REFRESH_DUPLICATE: 'plaid.refresh.duplicate',
 } as const
 
 export type PartnershipAuditEventName =

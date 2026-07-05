@@ -330,6 +330,8 @@ const buildConsolidatedHoldingsExportData = async (
       row.priceAsOfDate,
       row.marketValue,
       row.identityConfidence,
+      response.sync.dataAsOfDate,
+      response.sync.dataFetchedAt,
     ])
 
     for (const detail of row.details) {
@@ -348,6 +350,8 @@ const buildConsolidatedHoldingsExportData = async (
         detail.priceAsOfDate,
         detail.marketValue,
         '',
+        response.sync.dataAsOfDate,
+        response.sync.dataFetchedAt,
       ])
     }
   }
@@ -368,6 +372,8 @@ const buildConsolidatedHoldingsExportData = async (
       'Price As Of',
       'Market Value',
       'Identity Confidence',
+      'Snapshot Data As Of',
+      'Snapshot Fetched At',
     ],
     rows,
   }

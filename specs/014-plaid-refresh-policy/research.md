@@ -117,3 +117,15 @@
 - Add security controls after the app runs: rejected because it risks exposing sensitive workflows during the first deployment.
 - Full enterprise security program before launch: rejected because it would over-scope the 5-10 user Liquidity deployment.
 - Postgres RLS before first launch: rejected as a blocker because it requires schema ownership review, per-request database session context, service-role exceptions, and policy tests. API/repository scoping is required for launch; RLS is tracked as hardening.
+
+## Decision: Use AWS for both staging and production
+
+**Rationale**: Staging should prove the same deployment shape that production will use: CloudFront with `/v1/*` routing, WAF rules, private RDS access, ECS/Fargate API tasks, EventBridge Scheduler, Secrets Manager, CloudWatch logs/alarms, Route 53/ACM, IAM boundaries, and Terraform comparison. Keeping staging in AWS makes the staging smoke test a real rehearsal for production instead of a cheaper but different hosting path.
+
+Staging should still be cost-conscious. It can use smaller API task sizing, one desired API task, the smallest suitable RDS class, lower storage autoscaling bounds, shorter log retention, lower budget thresholds, sandbox Plaid credentials, force-delete friendly ECR settings, and easier teardown settings where those do not remove the production-like topology or security boundaries. NAT, private RDS, WAF, CloudFront, Scheduler, Secrets Manager, CloudWatch, and no-shared-cache `/v1/*` behavior remain part of staging because they are the controls being rehearsed.
+
+**Alternatives considered**:
+
+- Railway staging with AWS production: rejected because it would not validate AWS networking, IAM, CloudFront/WAF behavior, EventBridge Scheduler, RDS private access, Secrets Manager injection, CloudWatch alarms, or Terraform parity.
+- CloudFront generated domain only for staging: acceptable for an early smoke test, but rejected as the staging parity target because cookies, allowed origins, ACM, Route 53, Plaid redirect/domain settings, and user-facing production shape should be validated on a real staging domain.
+- Separate Terraform codebases for staging and production: rejected because it invites drift. Use one reusable root stack with separate non-secret tfvars examples.

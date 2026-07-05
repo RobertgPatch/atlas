@@ -103,24 +103,29 @@
 - If no saved snapshot exists, status is `unavailable` or `never_synced` and the UI prompts for manual refresh or Plaid connection.
 - If refresh fails, metadata reports stale/failed state while rows come from the last successful snapshot.
 
-## AWS Deployment Baseline
+## AWS Deployment Environment
 
-**Purpose**: Captures the production services and relationships required to run the initial Liquidity deployment safely.
+**Purpose**: Captures each AWS runtime environment required to run Liquidity safely. The initial plan has two environments: `staging` and `production`.
 
-**Fields**: `environment_name`, `app_domain`, `region`, `web_origin`, `api_origin`, `database_endpoint`, `scheduler_enabled`, `waf_enabled`, `budget_alerts_enabled`, `manual_setup_completed_at`, `terraform_comparison_status`.
+**Fields**: `environment_name`, `environment_cost_profile`, `app_domain`, `region`, `web_origin`, `api_origin`, `database_endpoint`, `secret_namespace`, `scheduler_enabled`, `waf_enabled`, `budget_alerts_enabled`, `log_retention_days`, `waf_log_retention_days`, `api_desired_count`, `api_task_size`, `database_instance_class`, `database_storage_bounds`, `monthly_budget_limit_usd`, `manual_setup_completed_at`, `terraform_plan_status`, `terraform_comparison_status`.
 
 **Relationships**:
 
 - Owns one CloudFront distribution with static web default behavior and `/v1/*` API behavior.
 - References one ECS Express Mode/Fargate API service and one private RDS PostgreSQL database.
-- References Secrets Manager entries for runtime configuration.
+- References environment-specific Secrets Manager entries for runtime configuration.
 - References CloudWatch log groups, alarms, WAF web ACL, Route 53 records, ACM certificates, and AWS Budgets.
+- Has one matching Terraform variable file and one manual deployment evidence section.
 
 **Validation**:
 
-- One public app domain serves both static web assets and `/v1/*` API requests.
+- `staging` and `production` must use separate domains, databases, Secrets Manager entries, scheduler tokens, Plaid credentials, budgets, and evidence records.
+- One public app domain per environment serves both static web assets and `/v1/*` API requests.
 - Authenticated `/v1/*` responses must bypass shared CloudFront caching.
 - RDS accepts inbound database traffic only from the API service security group.
+- Staging must preserve the production topology, routing model, private database boundary, WAF/rate limiting, scheduler, CloudWatch logging, alarms, and Terraform validation flow.
+- Staging may reduce cost through smaller task sizing, lower desired count, lower RDS storage bounds, shorter log retention, lower budgets, sandbox Plaid credentials, and easier destroy settings where those reductions do not invalidate production parity.
+- The CloudFront-generated distribution domain may be used only for early smoke testing; staging parity validation should use the staging app domain and TLS path.
 - K-1 PDF persistence is not part of the initial baseline unless required by auth/admin/Liquidity.
 
 ## Production Security Control
@@ -138,25 +143,28 @@
 - `application_security`: CSRF controls, XSS-safe rendering, SQL parameterization, secure cookies, auth/session hardening, and refresh abuse prevention.
 - `access_control`: IAM least privilege, admin-only diagnostics, API/repository scoping, and Postgres RLS follow-up.
 - `cost_control`: budget thresholds, resource sizing, and token/API usage minimization.
+- `environment_isolation`: separate domains, databases, secrets, scheduler tokens, Plaid credentials, logs, budgets, and evidence for staging and production.
 
 **Validation**:
 
-- Launch requires all required controls to be `configured` or `accepted_deferred`.
+- Launch requires all required controls to be `configured` or `accepted_deferred` in the target environment.
 - Postgres RLS may be `accepted_deferred` only when API/repository scoping tests pass.
 - Secrets and tokens must never appear in evidence values.
+- Staging-only cost allowances must be documented and must not remove private database networking, WAF/rate limiting, scheduler behavior, CloudWatch logs, or the `/v1/*` no-shared-cache boundary.
 
 ## Terraform Comparison Artifact
 
-**Purpose**: Documents generated Terraform that mirrors the manually created AWS learning deployment.
+**Purpose**: Documents generated Terraform that mirrors the manually created AWS learning deployment for each environment.
 
-**Fields**: `resource_group`, `aws_resource_id`, `terraform_address`, `manual_value`, `terraform_value`, `match_status`, `notes`, `reviewed_at`.
+**Fields**: `environment_name`, `resource_group`, `aws_resource_id`, `terraform_address`, `manual_value`, `terraform_value`, `match_status`, `notes`, `reviewed_at`.
 
-**Relationships**: Tied to the AWS Deployment Baseline and manual runbook steps.
+**Relationships**: Tied to the AWS Deployment Environment and manual runbook steps.
 
 **Validation**:
 
-- Terraform must represent S3, CloudFront, ECS/ECR, RDS, Secrets Manager, EventBridge Scheduler, CloudWatch, WAF, Route 53/ACM, IAM, security groups, and Budgets before adoption as source of truth.
-- Differences between manual resources and Terraform must be documented before applying Terraform to production.
+- Terraform must represent S3, CloudFront, ECS/ECR, RDS, Secrets Manager, EventBridge Scheduler, CloudWatch, WAF, Route 53/ACM, IAM, security groups, and Budgets before adoption as source of truth for either environment.
+- Staging and production plans must be generated from separate non-secret tfvars files.
+- Differences between manual resources and Terraform must be documented before applying Terraform to staging or production.
 - Terraform state and outputs must not expose secret values.
 
 ## Production Readiness Diagnostic

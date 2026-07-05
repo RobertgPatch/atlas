@@ -45,6 +45,7 @@ export const config = {
   userEmail: process.env.USER_EMAIL ?? 'user@atlas.com',
   userPassword: process.env.USER_PASSWORD ?? 'password123',
   webOrigin: process.env.WEB_ORIGIN ?? '',
+  sessionSecret: process.env.SESSION_SECRET ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',
   sessionCookieSecure: asBoolean(process.env.SESSION_COOKIE_SECURE),
   sessionCookieSameSite: (process.env.SESSION_COOKIE_SAMESITE ?? 'lax') as 'lax' | 'strict' | 'none',

@@ -97,6 +97,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PlaidRefreshDiagnostic"
+              examples:
+                configured:
+                  value:
+                    refreshPolicy:
+                      cadence: daily
+                      refreshTimeLocal: "05:00"
+                      timezone: America/Los_Angeles
+                      automaticRefreshEnabled: true
+                    schedulerConfigured: true
+                    schedulerMode: eventbridge
+                    freshnessStatus: fresh
+                    lastAttemptedRefreshAt: "2026-07-01T12:05:00.000Z"
+                    lastSuccessfulRefreshAt: "2026-07-01T12:07:00.000Z"
+                    nextRefreshAt: "2026-07-02T12:00:00.000Z"
+                    activeRefreshId: null
+                    warnings: []
+                    checkedAt: "2026-07-01T18:00:00.000Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -136,6 +153,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ProductionReadinessDiagnostic"
+              examples:
+                productionReady:
+                  value:
+                    environment: production
+                    durablePersistence:
+                      databaseConfigured: true
+                      mode: durable
+                    schedulerConfigured: true
+                    secretsConfigured:
+                      persistenceSecretKey: true
+                      sessionSecret: true
+                      plaidCredentials: true
+                      schedulerToken: true
+                    secureCookies:
+                      secure: true
+                      sameSite: lax
+                    allowedOrigin: https://app.example.com
+                    rateLimitConfigured: true
+                    apiCachingPolicy: no_shared_cache
+                    scopingStatus:
+                      apiRepositoryScoping: required_passed
+                      postgresRls: deferred_hardening
+                    warnings:
+                      - Secret rotation evidence is app-unverified; confirm Secrets Manager rotation in the deployment runbook.
+                    checkedAt: "2026-07-01T18:00:00.000Z"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -293,7 +335,8 @@ components:
         schedulerConfigured:
           type: boolean
         schedulerMode:
-          enum: [none, external_cron, in_process]
+          enum: [none, external_cron, in_process, eventbridge, manual]
+          example: eventbridge
         freshnessStatus:
           enum: [fresh, stale, refreshing, failed, unavailable]
         lastAttemptedRefreshAt:
@@ -324,6 +367,7 @@ components:
         - secretsConfigured
         - secureCookies
         - allowedOrigin
+        - rateLimitConfigured
         - apiCachingPolicy
         - scopingStatus
         - warnings
@@ -369,6 +413,9 @@ components:
         allowedOrigin:
           type: string
           example: https://app.example.com
+        rateLimitConfigured:
+          type: boolean
+          example: true
         apiCachingPolicy:
           enum: [no_shared_cache, private_only, unknown]
         scopingStatus:

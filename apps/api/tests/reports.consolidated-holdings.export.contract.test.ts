@@ -23,6 +23,9 @@ describe('Consolidated holdings export contract', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.headers['content-type']).toContain('text/csv')
+    expect(response.body).toContain('Snapshot Data As Of')
+    expect(response.body).toContain('Snapshot Fetched At')
+    expect(response.body).toContain('2026-05-11')
     expect(response.body).toContain('Aggregate,GOOGL')
     expect(response.body).toContain('Detail,GOOGL')
   })

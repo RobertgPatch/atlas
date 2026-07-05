@@ -29,6 +29,7 @@ export const buildProductionReadinessDiagnosticFixture = (
     sameSite: 'lax',
   },
   allowedOrigin: 'https://app.example.com',
+  rateLimitConfigured: true,
   apiCachingPolicy: 'no_shared_cache',
   scopingStatus: {
     apiRepositoryScoping: 'required_passed',

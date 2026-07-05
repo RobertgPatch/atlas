@@ -19,6 +19,12 @@ apps/web/dist
 .vscode
 .git
 .github
+.terraform
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
 Dockerfile*
 .dockerignore
 

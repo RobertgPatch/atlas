@@ -9,6 +9,7 @@ import type {
   HoldingsRefreshAttempt,
   PlaidRefreshPolicy,
 } from './plaid.repository.js'
+import { plaidHoldingsSync, RefreshAlreadyRunningError } from './plaid.holdings-sync.js'
 
 export type ScheduledRefreshDecision =
   | 'ready'
@@ -27,6 +28,12 @@ export interface ScheduledRefreshShellResult {
   warnings: string[]
 }
 
+export interface ScheduledRefreshRunInput {
+  scheduledFor?: string | Date
+  force?: boolean
+  now?: Date
+}
+
 const schedulerWarnings = () => {
   const warnings: string[] = []
   if (!config.plaidRefresh.schedulerEnabled) {
@@ -41,6 +48,14 @@ const schedulerWarnings = () => {
   return warnings
 }
 
+const logRefreshEvent = (
+  event: string,
+  payload: Record<string, string | number | boolean | null | undefined>,
+) => {
+  if (config.nodeEnv === 'test') return
+  console.info(JSON.stringify({ event, ...payload }))
+}
+
 export const plaidRefreshScheduler = {
   getSchedulerWarnings(): string[] {
     return schedulerWarnings()
@@ -50,13 +65,13 @@ export const plaidRefreshScheduler = {
     scheduledFor?: string | Date
     now?: Date
   }): Promise<ScheduledRefreshShellResult> {
-    const now = input?.now ?? new Date()
     const scheduledFor =
       input?.scheduledFor instanceof Date
         ? input.scheduledFor
         : input?.scheduledFor
           ? new Date(input.scheduledFor)
-          : now
+          : new Date()
+    const now = input?.now ?? scheduledFor
     const policy = await plaidRepository.getRefreshPolicy()
     const selectedAccountIds = plaidRepository
       .getSelectedInvestmentAccounts()
@@ -154,5 +169,46 @@ export const plaidRefreshScheduler = {
       ).toISOString(),
       selectedAccountIds: evaluation.selectedAccountIds,
     })
+  },
+
+  async runScheduledRefresh(
+    input: ScheduledRefreshRunInput = {},
+  ): Promise<HoldingsRefreshAttempt> {
+    const scheduledFor =
+      input.scheduledFor instanceof Date
+        ? input.scheduledFor.toISOString()
+        : input.scheduledFor ?? new Date().toISOString()
+
+    try {
+      const attempt = await plaidHoldingsSync.syncSelectedHoldings({
+        requestedByUserId: null,
+        triggerSource: 'scheduled',
+        force: input.force ?? false,
+        scheduledFor,
+        now: input.now ?? new Date(scheduledFor),
+      })
+      logRefreshEvent('plaid_refresh_scheduled_finished', {
+        attemptId: attempt.id,
+        status: attempt.status,
+        refreshReason: attempt.refreshReason,
+        selectedAccountCount: attempt.selectedAccountIds.length,
+        scheduledFor,
+        dataAsOfDate: attempt.dataAsOfDate,
+      })
+      return attempt
+    } catch (error) {
+      if (error instanceof RefreshAlreadyRunningError) {
+        logRefreshEvent('plaid_refresh_scheduled_conflict', {
+          activeRefreshId: error.activeRefreshId,
+          scheduledFor,
+        })
+      } else {
+        logRefreshEvent('plaid_refresh_scheduled_error', {
+          scheduledFor,
+          errorName: error instanceof Error ? error.name : 'UnknownError',
+        })
+      }
+      throw error
+    }
   },
 }

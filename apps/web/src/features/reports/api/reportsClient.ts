@@ -14,9 +14,12 @@ import type {
 import type {
   PlaidConnectionResponse,
   PlaidExchangePublicTokenRequest,
+  HoldingsRefreshAttempt,
   PlaidInvestmentAccountsResponse,
   PlaidLinkTokenRequest,
   PlaidLinkTokenResponse,
+  PlaidRefreshDiagnostic,
+  ProductionReadinessDiagnostic,
   UpdatePlaidInvestmentAccountsRequest,
 } from '../../../../../../packages/types/src/plaid'
 import type { PartnershipCommitment } from '../../../../../../packages/types/src/partnership-management'
@@ -169,8 +172,19 @@ export const reportsClient = {
     return request<ConsolidatedHoldingsResponse>(path)
   },
 
-  refreshConsolidatedHoldings() {
-    return request('/reports/consolidated-holdings/refresh', { method: 'POST' })
+  refreshConsolidatedHoldings(payload: { force?: boolean } = {}) {
+    return request<HoldingsRefreshAttempt>('/reports/consolidated-holdings/refresh', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+
+  getPlaidRefreshStatus(): Promise<PlaidRefreshDiagnostic> {
+    return request<PlaidRefreshDiagnostic>('/admin/plaid-refresh-status')
+  },
+
+  getProductionReadiness(): Promise<ProductionReadinessDiagnostic> {
+    return request<ProductionReadinessDiagnostic>('/admin/production-readiness')
   },
 
   createPlaidLinkToken(
