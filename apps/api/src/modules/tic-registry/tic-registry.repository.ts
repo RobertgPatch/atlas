@@ -93,42 +93,11 @@ const assertExpectedUpdatedAt = (
   }
 }
 
-const assertEntityAccess = async (
-  entityId: string,
-  scope: TicRegistryScope,
-  client: Queryable = db(),
-): Promise<void> => {
-  if (!scope.isAdmin && !scope.entityIds.includes(entityId)) {
-    throw new TicRegistryError('FORBIDDEN_ENTITY')
-  }
-  const result = await client.query<{ id: string }>('select id from entities where id = $1', [
-    entityId,
-  ])
-  if (!result.rows[0]) throw new TicRegistryError('ENTITY_NOT_FOUND')
-}
-
 const propertyWhere = (
-  scope: TicRegistryScope,
   filters: TicRegistryQuery,
   params: unknown[],
 ): string => {
   const clauses: string[] = []
-
-  if (!scope.isAdmin) {
-    if (scope.entityIds.length === 0) clauses.push('false')
-    else {
-      params.push(scope.entityIds)
-      clauses.push(`p.entity_id = any($${params.length}::uuid[])`)
-    }
-  }
-
-  if (filters.entityId) {
-    if (!scope.isAdmin && !scope.entityIds.includes(filters.entityId)) {
-      throw new TicRegistryError('FORBIDDEN_ENTITY')
-    }
-    params.push(filters.entityId)
-    clauses.push(`p.entity_id = $${params.length}`)
-  }
 
   if (filters.status) {
     params.push(filters.status)
@@ -150,73 +119,46 @@ const propertyWhere = (
 
 const scopedPropertyById = async (
   propertyId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
 ): Promise<TicPropertyRow | null> => {
-  const params: unknown[] = [propertyId]
-  const clauses = ['p.id = $1']
-  if (!scope.isAdmin) {
-    if (scope.entityIds.length === 0) return null
-    params.push(scope.entityIds)
-    clauses.push(`p.entity_id = any($${params.length}::uuid[])`)
-  }
-
   const result = await client.query<TicPropertyRow>(
-    `select * from tic_properties p where ${clauses.join(' and ')} limit 1`,
-    params,
+    `select * from tic_properties p where p.id = $1 limit 1`,
+    [propertyId],
   )
   return result.rows[0] ?? null
 }
 
 const scopedInterestById = async (
   interestId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
-): Promise<(TicInterestRow & { entity_id: string }) | null> => {
-  const params: unknown[] = [interestId]
-  const clauses = ['i.id = $1']
-  if (!scope.isAdmin) {
-    if (scope.entityIds.length === 0) return null
-    params.push(scope.entityIds)
-    clauses.push(`p.entity_id = any($${params.length}::uuid[])`)
-  }
-
-  const result = await client.query<TicInterestRow & { entity_id: string }>(
+): Promise<TicInterestRow | null> => {
+  const result = await client.query<TicInterestRow>(
     `
-    select i.*, p.entity_id
+    select i.*
     from tic_interests i
     join tic_properties p on p.id = i.property_id
-    where ${clauses.join(' and ')}
+    where i.id = $1
     limit 1
     `,
-    params,
+    [interestId],
   )
   return result.rows[0] ?? null
 }
 
 const scopedOwnerById = async (
   ownerId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
-): Promise<(TicOwnerRow & { entity_id: string; property_percentage: string | number }) | null> => {
-  const params: unknown[] = [ownerId]
-  const clauses = ['o.id = $1']
-  if (!scope.isAdmin) {
-    if (scope.entityIds.length === 0) return null
-    params.push(scope.entityIds)
-    clauses.push(`p.entity_id = any($${params.length}::uuid[])`)
-  }
-
-  const result = await client.query<TicOwnerRow & { entity_id: string; property_percentage: string | number }>(
+): Promise<(TicOwnerRow & { property_percentage: string | number }) | null> => {
+  const result = await client.query<TicOwnerRow & { property_percentage: string | number }>(
     `
-    select o.*, p.entity_id, i.property_percentage
+    select o.*, i.property_percentage
     from tic_owners o
     join tic_interests i on i.id = o.tic_interest_id
     join tic_properties p on p.id = i.property_id
-    where ${clauses.join(' and ')}
+    where o.id = $1
     limit 1
     `,
-    params,
+    [ownerId],
   )
   return result.rows[0] ?? null
 }
@@ -328,7 +270,6 @@ const hydrateProperties = async (
     )
     return {
       id: propertyRow.id,
-      entityId: propertyRow.entity_id,
       name: propertyRow.name,
       propertyType: propertyRow.property_type,
       status: propertyRow.status,
@@ -377,43 +318,40 @@ const hydrateProperties = async (
 
 const loadOneProperty = async (
   propertyId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
 ): Promise<TicProperty | null> => {
-  const row = await scopedPropertyById(propertyId, scope, client)
+  const row = await scopedPropertyById(propertyId, client)
   if (!row) return null
   return (await hydrateProperties([row], client)).properties[0] ?? null
 }
 
 const interestToResponse = async (
   interestId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
 ): Promise<TicInterest | null> => {
-  const row = await scopedInterestById(interestId, scope, client)
+  const row = await scopedInterestById(interestId, client)
   if (!row) return null
-  const property = await loadOneProperty(row.property_id, scope, client)
+  const property = await loadOneProperty(row.property_id, client)
   return property?.interests.find((interest) => interest.id === interestId) ?? null
 }
 
 const ownerToResponse = async (
   ownerId: string,
-  scope: TicRegistryScope,
   client: Queryable = db(),
 ): Promise<TicOwner | null> => {
-  const row = await scopedOwnerById(ownerId, scope, client)
+  const row = await scopedOwnerById(ownerId, client)
   if (!row) return null
-  const interest = await interestToResponse(row.tic_interest_id, scope, client)
+  const interest = await interestToResponse(row.tic_interest_id, client)
   return interest?.owners.find((owner) => owner.id === ownerId) ?? null
 }
 
 export const ticRegistryRepository = {
   async listProperties(
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
     filters: TicRegistryQuery = {},
   ): Promise<TicRegistryResponse> {
     const params: unknown[] = []
-    const where = propertyWhere(scope, filters, params)
+    const where = propertyWhere(filters, params)
     const result = await db().query<TicPropertyRow>(
       `
       select *
@@ -426,20 +364,18 @@ export const ticRegistryRepository = {
     return hydrateProperties(result.rows)
   },
 
-  async getProperty(propertyId: string, scope: TicRegistryScope): Promise<TicProperty | null> {
-    return loadOneProperty(propertyId, scope)
+  async getProperty(propertyId: string, _scope: TicRegistryScope): Promise<TicProperty | null> {
+    return loadOneProperty(propertyId)
   },
 
   async createProperty(
     body: CreateTicPropertyRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicProperty> {
-    await assertEntityAccess(body.entityId, scope)
     const result = await db().query<TicPropertyRow>(
       `
       insert into tic_properties (
-        entity_id,
         name,
         property_type,
         status,
@@ -449,11 +385,10 @@ export const ticRegistryRepository = {
         created_by_user_id,
         updated_by_user_id
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+      values ($1, $2, $3, $4, $5, $6, $7, $7)
       returning *
       `,
       [
-        body.entityId,
         body.name.trim(),
         body.propertyType,
         body.status ?? 'held',
@@ -470,9 +405,9 @@ export const ticRegistryRepository = {
     propertyId: string,
     body: UpdateTicPropertyRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicProperty> {
-    const current = await scopedPropertyById(propertyId, scope)
+    const current = await scopedPropertyById(propertyId)
     if (!current) throw new TicRegistryError('TIC_PROPERTY_NOT_FOUND')
     assertExpectedUpdatedAt(body.expectedUpdatedAt, current.updated_at)
 
@@ -511,9 +446,9 @@ export const ticRegistryRepository = {
   async deleteProperty(
     propertyId: string,
     expectedUpdatedAt: string | undefined,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<void> {
-    const current = await scopedPropertyById(propertyId, scope)
+    const current = await scopedPropertyById(propertyId)
     if (!current) throw new TicRegistryError('TIC_PROPERTY_NOT_FOUND')
     assertExpectedUpdatedAt(expectedUpdatedAt, current.updated_at)
     await db().query('delete from tic_properties where id = $1', [propertyId])
@@ -523,11 +458,11 @@ export const ticRegistryRepository = {
     propertyId: string,
     body: CreateTicInterestRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicInterest> {
     db()
     return withTransaction(async (client) => {
-      const property = await scopedPropertyById(propertyId, scope, client)
+      const property = await scopedPropertyById(propertyId, client)
       if (!property) throw new TicRegistryError('TIC_PROPERTY_NOT_FOUND')
 
       let sourceLabel: string | null = null
@@ -540,7 +475,7 @@ export const ticRegistryRepository = {
       } else {
         if (!sourceId && !sourceName) throw new TicRegistryError('INVALID_EXCHANGE_SOURCE')
         if (sourceId) {
-          const source = await scopedInterestById(sourceId, scope, client)
+          const source = await scopedInterestById(sourceId, client)
           if (!source) throw new TicRegistryError('TIC_SOURCE_NOT_FOUND')
           sourceLabel = source.name
           if (source.status === 'active') {
@@ -589,7 +524,7 @@ export const ticRegistryRepository = {
           actorUserId,
         ],
       )
-      return (await interestToResponse(result.rows[0].id, scope, client))!
+      return (await interestToResponse(result.rows[0].id, client))!
     })
   },
 
@@ -597,11 +532,11 @@ export const ticRegistryRepository = {
     interestId: string,
     body: UpdateTicInterestRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicInterest> {
     db()
     return withTransaction(async (client) => {
-      const current = await scopedInterestById(interestId, scope, client)
+      const current = await scopedInterestById(interestId, client)
       if (!current) throw new TicRegistryError('TIC_INTEREST_NOT_FOUND')
       assertExpectedUpdatedAt(body.expectedUpdatedAt, current.updated_at)
 
@@ -624,7 +559,7 @@ export const ticRegistryRepository = {
         if (!sourceId && !sourceName) throw new TicRegistryError('INVALID_EXCHANGE_SOURCE')
         if (sourceId) {
           if (sourceId === interestId) throw new TicRegistryError('INVALID_EXCHANGE_SOURCE')
-          const source = await scopedInterestById(sourceId, scope, client)
+          const source = await scopedInterestById(sourceId, client)
           if (!source) throw new TicRegistryError('TIC_SOURCE_NOT_FOUND')
           sourceLabel = source.name
           if (source.status === 'active') {
@@ -675,16 +610,16 @@ export const ticRegistryRepository = {
           actorUserId,
         ],
       )
-      return (await interestToResponse(result.rows[0].id, scope, client))!
+      return (await interestToResponse(result.rows[0].id, client))!
     })
   },
 
   async deleteInterest(
     interestId: string,
     expectedUpdatedAt: string | undefined,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<void> {
-    const current = await scopedInterestById(interestId, scope)
+    const current = await scopedInterestById(interestId)
     if (!current) throw new TicRegistryError('TIC_INTEREST_NOT_FOUND')
     assertExpectedUpdatedAt(expectedUpdatedAt, current.updated_at)
     await db().query('delete from tic_interests where id = $1', [interestId])
@@ -694,9 +629,9 @@ export const ticRegistryRepository = {
     interestId: string,
     body: CreateTicOwnerRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicOwner> {
-    const interest = await scopedInterestById(interestId, scope)
+    const interest = await scopedInterestById(interestId)
     if (!interest) throw new TicRegistryError('TIC_INTEREST_NOT_FOUND')
     const result = await db().query<TicOwnerRow>(
       `
@@ -713,16 +648,16 @@ export const ticRegistryRepository = {
       `,
       [interestId, body.name.trim(), body.ownerType, body.ticPercentage.toFixed(4), actorUserId],
     )
-    return (await ownerToResponse(result.rows[0].id, scope))!
+    return (await ownerToResponse(result.rows[0].id))!
   },
 
   async updateOwner(
     ownerId: string,
     body: UpdateTicOwnerRequest,
     actorUserId: string,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<TicOwner> {
-    const current = await scopedOwnerById(ownerId, scope)
+    const current = await scopedOwnerById(ownerId)
     if (!current) throw new TicRegistryError('TIC_OWNER_NOT_FOUND')
     assertExpectedUpdatedAt(body.expectedUpdatedAt, current.updated_at)
     const result = await db().query<TicOwnerRow>(
@@ -745,15 +680,15 @@ export const ticRegistryRepository = {
         actorUserId,
       ],
     )
-    return (await ownerToResponse(result.rows[0].id, scope))!
+    return (await ownerToResponse(result.rows[0].id))!
   },
 
   async deleteOwner(
     ownerId: string,
     expectedUpdatedAt: string | undefined,
-    scope: TicRegistryScope,
+    _scope: TicRegistryScope,
   ): Promise<void> {
-    const current = await scopedOwnerById(ownerId, scope)
+    const current = await scopedOwnerById(ownerId)
     if (!current) throw new TicRegistryError('TIC_OWNER_NOT_FOUND')
     assertExpectedUpdatedAt(expectedUpdatedAt, current.updated_at)
     await db().query('delete from tic_owners where id = $1', [ownerId])

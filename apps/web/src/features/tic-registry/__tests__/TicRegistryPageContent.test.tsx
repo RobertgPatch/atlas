@@ -41,18 +41,6 @@ describe('TicRegistryPageContent', () => {
         if (url.includes('/tic-registry/properties')) {
           return jsonResponse(ticRegistryFixture)
         }
-        if (url.includes('/entities')) {
-          return jsonResponse({
-            items: [
-              {
-                id: 'entity-1',
-                name: 'Atlas Holdings LLC',
-                partnershipCount: 0,
-                totalDistributionsUsd: 0,
-              },
-            ],
-          })
-        }
         return Promise.reject(new Error(`Unexpected request: ${url}`))
       }),
     )
@@ -60,7 +48,7 @@ describe('TicRegistryPageContent', () => {
     renderWithQueryClient(true)
 
     expect(await screen.findByText('Harbor View TIC')).toBeInTheDocument()
-    expect(screen.getByText('Harbor View TIC A')).toBeInTheDocument()
+    expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
     expect(screen.getByText('Atlas Family Trust')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add property/i })).toBeInTheDocument()
   })
@@ -72,9 +60,6 @@ describe('TicRegistryPageContent', () => {
         const url = input instanceof Request ? input.url : String(input)
         if (url.includes('/tic-registry/properties')) {
           return jsonResponse(emptyTicRegistryFixture)
-        }
-        if (url.includes('/entities')) {
-          return jsonResponse({ items: [] })
         }
         return Promise.reject(new Error(`Unexpected request: ${url}`))
       }),
@@ -96,9 +81,6 @@ describe('TicRegistryPageContent', () => {
           return new Promise<Response>((resolve) => {
             resolveRegistry = resolve
           })
-        }
-        if (url.includes('/entities')) {
-          return jsonResponse({ items: [] })
         }
         return Promise.reject(new Error(`Unexpected request: ${url}`))
       }),
@@ -124,9 +106,6 @@ describe('TicRegistryPageContent', () => {
         const url = input instanceof Request ? input.url : String(input)
         if (url.includes('/tic-registry/properties')) {
           return jsonResponse({ error: 'DATABASE_REQUIRED' }, 503)
-        }
-        if (url.includes('/entities')) {
-          return jsonResponse({ items: [] })
         }
         return Promise.reject(new Error(`Unexpected request: ${url}`))
       }),

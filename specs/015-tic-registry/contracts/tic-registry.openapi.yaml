@@ -12,7 +12,6 @@ paths:
     get:
       summary: List TIC registry properties with nested interests and owners
       parameters:
-        - $ref: '#/components/parameters/EntityId'
         - name: status
           in: query
           required: false
@@ -269,13 +268,6 @@ components:
       in: cookie
       name: atlas_session
   parameters:
-    EntityId:
-      name: entityId
-      in: query
-      required: false
-      schema:
-        type: string
-        format: uuid
     PropertyId:
       name: propertyId
       in: path
@@ -312,13 +304,13 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     Forbidden:
-      description: Role or entity scope does not permit the action
+      description: Role does not permit the action
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
     NotFound:
-      description: Record not found in caller scope
+      description: Record not found
       content:
         application/json:
           schema:
@@ -468,12 +460,9 @@ components:
           format: date-time
     TicProperty:
       type: object
-      required: [id, entityId, name, propertyType, status, allocation, interests, createdAt, updatedAt]
+      required: [id, name, propertyType, status, allocation, interests, createdAt, updatedAt]
       properties:
         id:
-          type: string
-          format: uuid
-        entityId:
           type: string
           format: uuid
         name:
@@ -513,11 +502,8 @@ components:
             $ref: '#/components/schemas/TicProperty'
     CreateTicPropertyRequest:
       type: object
-      required: [entityId, name, propertyType]
+      required: [name, propertyType]
       properties:
-        entityId:
-          type: string
-          format: uuid
         name:
           type: string
           minLength: 1

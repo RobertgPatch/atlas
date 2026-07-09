@@ -67,7 +67,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 function toQueryString(query?: TicRegistryQuery & { expectedUpdatedAt?: string }): string {
   const params = new URLSearchParams()
 
-  if (query?.entityId) params.set('entityId', query.entityId)
   if (query?.status) params.set('status', query.status)
   if (query?.propertyType) params.set('propertyType', query.propertyType)
   if (query?.search) params.set('search', query.search)

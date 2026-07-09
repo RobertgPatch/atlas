@@ -4,7 +4,6 @@ export const ticRegistryFixture: TicRegistryResponse = {
   properties: [
     {
       id: 'property-1',
-      entityId: 'entity-1',
       name: 'Harbor View TIC',
       propertyType: 'multifamily',
       status: 'held',

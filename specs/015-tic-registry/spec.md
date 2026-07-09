@@ -87,7 +87,6 @@ An authorized user marks whether a TIC interest was acquired through cash purcha
 - A user enters a negative value, blank required name, percentage above 100%, or invalid date.
 - A source TIC interest referenced by exchange lineage is later deleted or becomes inaccessible.
 - A user attempts to delete a property that contains TIC interests and owners.
-- A user attempts to view or change records outside their permitted organization or entity scope.
 - A save fails after the user has entered form data.
 
 ## Requirements *(mandatory)*
@@ -113,7 +112,7 @@ An authorized user marks whether a TIC interest was acquired through cash purcha
 - **FR-017**: System MUST prevent browser-only storage from being the source of truth for production registry data.
 - **FR-018**: System MUST validate required names, dates, currency values, and percentages before saving.
 - **FR-019**: System MUST require confirmation before deleting a property, TIC interest, or owner, and must explain what dependent records will be removed.
-- **FR-020**: System MUST scope registry records to the same organization or entity access boundaries used by the rest of Atlas.
+- **FR-020**: System MUST require authenticated access for registry reads and Admin role for registry mutations.
 - **FR-021**: System MUST provide user-friendly empty, loading, save-success, save-failure, and validation-error states.
 - **FR-022**: System MUST make the page usable on desktop and mobile viewports without text or controls overlapping.
 - **FR-023**: System MUST communicate that registry figures are tracking records and do not replace legal, tax, valuation, or qualified-intermediary review.
@@ -121,10 +120,10 @@ An authorized user marks whether a TIC interest was acquired through cash purcha
 ### Key Entities *(include if feature involves data)*
 
 - **TIC Property**: A co-owned property tracked in the registry. Key attributes include name or address, type, status, acquisition date, estimated value, notes, and its collection of TIC interests.
-- **TIC Interest**: A co-owner's interest in a property. Key attributes include interest name, property percentage, status, acquisition origin, source lineage, date, value, notes, and its collection of underlying owners.
+- **TIC Interest**: A TIC/LLC interest that owns a percentage of a property. Key attributes include TIC/LLC name, property percentage, status, acquisition origin, source lineage, date, value, notes, and its collection of underlying owners.
 - **TIC Owner**: An underlying owner within a TIC interest. Key attributes include owner name, owner type, TIC percentage, and calculated effective property percentage.
 - **Exchange Source**: A source relationship or manual source name explaining what was sold or rolled into an exchange-acquired TIC interest.
-- **Registry Summary**: A derived view of counts, estimated held value, and allocation status across the current user's permitted registry scope.
+- **Registry Summary**: A derived view of counts, estimated held value, and allocation status across the registry.
 
 ## Success Criteria *(mandatory)*
 
@@ -140,7 +139,7 @@ An authorized user marks whether a TIC interest was acquired through cash purcha
 ## Assumptions
 
 - The attached `tic-registry.html` is a functional reference for workflows, fields, and allocation behavior; the production page should use the existing Atlas application design language.
-- Existing Atlas authentication, authorization, and organization or entity scoping rules will be reused.
-- Authorized editor or admin roles can create, update, and delete registry records; read-only roles can view permitted records.
+- Existing Atlas authentication and Admin authorization rules will be reused.
+- Admin users can create, update, and delete registry records; read-only roles can view registry records.
 - Importing and exporting registry data are out of scope for this feature because RDS persistence is the durable source of truth.
 - Estimated property values are for tracking and summary purposes, not authoritative valuations.

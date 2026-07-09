@@ -9,7 +9,6 @@ import type {
   TicRegistryQuery,
 } from '../../../../../../packages/types/src/tic-registry'
 import { PageHeader } from '../../../components/shared/PageHeader'
-import { useEntityList } from '../../partnerships/hooks/useEntityQueries'
 import { TicRegistryApiError } from '../api/ticRegistryClient'
 import {
   useDeleteTicInterest,
@@ -60,7 +59,6 @@ function describeError(error: unknown): string {
 
 export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps) {
   const [search, setSearch] = useState('')
-  const [entityId, setEntityId] = useState('')
   const [status, setStatus] = useState<TicPropertyStatus | ''>('')
   const [propertyType, setPropertyType] = useState<TicPropertyType | ''>('')
   const [propertyDialog, setPropertyDialog] = useState<TicProperty | null | undefined>()
@@ -71,28 +69,19 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
   const query = useMemo<TicRegistryQuery>(
     () => ({
       search: search.trim() || undefined,
-      entityId: entityId || undefined,
       status: status || undefined,
       propertyType: propertyType || undefined,
     }),
-    [entityId, propertyType, search, status],
+    [propertyType, search, status],
   )
 
   const registryQuery = useTicRegistry(query)
-  const entitiesQuery = useEntityList()
   const deleteProperty = useDeleteTicProperty()
   const deleteInterest = useDeleteTicInterest()
   const deleteOwner = useDeleteTicOwner()
 
   const properties = registryQuery.data?.properties ?? []
   const summary = registryQuery.data?.summary
-  const entityNameById = useMemo(
-    () =>
-      new Map(
-        (entitiesQuery.data?.items ?? []).map((entity) => [entity.id, entity.name]),
-      ),
-    [entitiesQuery.data?.items],
-  )
   const allocationIssueGroups = useMemo(() => {
     if (!summary) return []
 
@@ -123,11 +112,6 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
       },
     ].filter((issue) => issue.count > 0)
   }, [summary])
-  const allocationIssueCount = allocationIssueGroups.reduce(
-    (total, issue) => total + issue.count,
-    0,
-  )
-
   async function handleDeleteProperty(property: TicProperty) {
     if (!window.confirm(`Delete ${property.name}?`)) return
     setPageError(null)
@@ -171,7 +155,7 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
     <>
       <PageHeader
         title="TIC Registry"
-        subtitle="Property-level tenant-in-common interests, ownership, and exchange lineage."
+        subtitle="Property-level TIC interests, underlying owners, and exchange lineage."
         actions={
           canEdit ? (
             <button
@@ -196,19 +180,19 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
           <p className="mt-2 text-2xl font-semibold text-gray-950">{summary?.ticInterestCount ?? 0}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Held Value</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Underlying Owners</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-950">{summary?.ownerCount ?? 0}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Est. Held Value</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
             {formatCurrency(summary?.estimatedHeldValueUsd ?? 0)}
           </p>
         </div>
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allocation Flags</p>
-          <p className="mt-2 text-2xl font-semibold text-gray-950">{allocationIssueCount}</p>
-        </div>
       </div>
 
       <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_14rem_12rem_12rem_auto]">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem_auto]">
           <label className="relative block">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
             <input
@@ -218,18 +202,6 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
               className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
             />
           </label>
-          <select
-            value={entityId}
-            onChange={(event) => setEntityId(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
-          >
-            <option value="">{entitiesQuery.isLoading ? 'Loading entities...' : 'All entities'}</option>
-            {(entitiesQuery.data?.items ?? []).map((entity) => (
-              <option key={entity.id} value={entity.id}>
-                {entity.name}
-              </option>
-            ))}
-          </select>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as TicPropertyStatus | '')}
@@ -289,7 +261,6 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
             <TicPropertyCard
               key={property.id}
               property={property}
-              entityName={entityNameById.get(property.entityId)}
               canEdit={canEdit}
               onEditProperty={(selectedProperty) => setPropertyDialog(selectedProperty)}
               onDeleteProperty={handleDeleteProperty}

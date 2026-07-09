@@ -23,7 +23,7 @@ describe('TicPropertyCard', () => {
     )
 
     expect(screen.getByText('Harbor View TIC')).toBeInTheDocument()
-    expect(screen.getByText('Harbor View TIC A')).toBeInTheDocument()
+    expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
     expect(screen.getByText('Atlas Family Trust')).toBeInTheDocument()
     expect(screen.getByText('20%')).toBeInTheDocument()
     expect(screen.getByTitle('Edit property')).toBeInTheDocument()

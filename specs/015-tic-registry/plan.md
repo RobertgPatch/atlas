@@ -7,7 +7,7 @@
 
 Add a new Atlas page at `/tic-registry` and expose it in the side navigation next to Liquidity. Use `tic-registry.html` as the functional reference for registry workflows: properties, TIC interests, underlying owners, acquisition origin, exchange lineage, allocation bars, percentage warnings, and summary counts. Do not copy the standalone local-storage app directly. Rebuild it as an Atlas React feature using the existing AppShell, Tailwind/shared components, React Query patterns, authenticated API calls, and RDS-backed PostgreSQL persistence.
 
-The backend adds a `tic-registry` Fastify module with Zod validation, entity-scoped authorization, Admin-only mutations, and a new `016_tic_registry.sql` migration. Registry data is stored in RDS through the existing `DATABASE_URL` PostgreSQL connection and is never sourced from browser local storage or an in-process memory store. The first version supports nested reads, CRUD for properties/interests/owners, allocation derivations, and exchange source lineage. Import/export workflows are out of scope because durable RDS persistence replaces the HTML backup workaround.
+The backend adds a `tic-registry` Fastify module with Zod validation, authenticated reads, Admin-only mutations, and TIC Registry migrations. Registry data is stored in RDS through the existing `DATABASE_URL` PostgreSQL connection and is never sourced from browser local storage or an in-process memory store. The first version supports nested reads, CRUD for properties/interests/owners, allocation derivations, and exchange source lineage. Import/export workflows are out of scope because durable RDS persistence replaces the HTML backup workaround.
 
 ## Technical Context
 
@@ -18,7 +18,7 @@ The backend adds a `tic-registry` Fastify module with Zod validation, entity-sco
 **Target Platform**: Existing Atlas browser app and Fastify API. Local development uses Docker Postgres; staging/production use RDS PostgreSQL behind the API. TIC Registry CRUD requires a configured PostgreSQL connection in every environment.  
 **Project Type**: Monorepo web application with backend API, frontend React app, shared TypeScript types, and database migration.  
 **Performance Goals**: Initial registry view for 100 properties, 500 TIC interests, and 1,000 owners loads in under 2 seconds under normal staging test conditions. Allocation summaries are derived without client-side N+1 API calls.  
-**Constraints**: Reuse existing authenticated session cookies and entity scope middleware; Admin-only create/update/delete unless the authorization model is later expanded; scoped users can only see permitted entity records; percentages allow up to four decimals; dollar values use two-decimal precision; allocation totals are flagged but not required to equal 100%; deletes require confirmation and cascade intentionally.  
+**Constraints**: Reuse existing authenticated session cookies; Admin-only create/update/delete unless the authorization model is later expanded; percentages allow up to four decimals; dollar values use two-decimal precision; allocation totals are flagged but not required to equal 100%; deletes require confirmation and cascade intentionally.  
 **Scale/Scope**: Internal Atlas user base, small-to-medium TIC registry dataset, one page plus API module, no import/export workflows in v1, no new AWS services beyond the existing RDS-backed app infrastructure.
 
 ## Constitution Check
@@ -29,7 +29,7 @@ The backend adds a `tic-registry` Fastify module with Zod validation, entity-sco
 
 1. **Existing stack and module boundaries**: PASS. Changes stay in the existing Fastify API, React web app, shared type package, and migration directory.
 2. **Durable production state**: PASS. Registry records are persisted in PostgreSQL/RDS, not local storage or process memory, with no in-memory fallback for this module.
-3. **Authorization and entity scope**: PASS. Reads and writes reuse the existing authenticated request and entity scope pattern; mutations are Admin-only for v1.
+3. **Authorization**: PASS. Reads reuse the existing authenticated request pattern; mutations are Admin-only for v1.
 4. **UI consistency**: PASS. The standalone HTML is treated as a workflow reference; production UI uses Atlas AppShell, route, spacing, tables/cards, status badges, and form/dialog conventions.
 5. **Data integrity**: PASS. Required fields, percentages, currency values, exchange lineage, and dependent delete behavior are validated through API schemas and database constraints.
 6. **Testing coverage**: PASS. Contract, integration, and component tests are planned for persistence, scope, allocations, CRUD, and navigation.
@@ -39,7 +39,7 @@ The backend adds a `tic-registry` Fastify module with Zod validation, entity-sco
 
 Re-evaluated after `research.md`, `data-model.md`, `contracts/tic-registry.openapi.yaml`, and `quickstart.md`. Result: **PASS**.
 
-- Research resolves storage, scoping, permissions, lineage, precision, UI translation, and import/export scope decisions.
+- Research resolves storage, permissions, lineage, precision, UI translation, and import/export scope decisions.
 - Data model captures records, validations, cascades, derived allocation fields, and state transitions.
 - Contracts define the registry API without exposing implementation-only details to the web app.
 - Quickstart includes local RDS-equivalent persistence validation, focused API/web tests, and build checks.
@@ -104,7 +104,7 @@ packages/types/src/
 `-- tic-registry.ts
 ```
 
-**Structure Decision**: Keep TIC Registry as one conventional Atlas feature module. The API owns persistence, validation, scope checks, and derived nested responses. The web app owns presentation, forms, and optimistic/loading/error states. Shared request/response contracts live in `packages/types` so API tests and web client stay aligned.
+**Structure Decision**: Keep TIC Registry as one conventional Atlas feature module. The API owns persistence, validation, Admin mutation checks, and derived nested responses. The web app owns presentation, forms, and optimistic/loading/error states. Shared request/response contracts live in `packages/types` so API tests and web client stay aligned.
 
 ## Complexity Tracking
 

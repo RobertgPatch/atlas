@@ -64,7 +64,6 @@ export interface TicInterest {
 
 export interface TicProperty {
   id: string
-  entityId: string
   name: string
   propertyType: TicPropertyType
   status: TicPropertyStatus
@@ -94,7 +93,6 @@ export interface TicRegistryResponse {
 }
 
 export interface CreateTicPropertyRequest {
-  entityId: string
   name: string
   propertyType: TicPropertyType
   status?: TicPropertyStatus
@@ -152,7 +150,6 @@ export interface UpdateTicOwnerRequest {
 }
 
 export interface TicRegistryQuery {
-  entityId?: string
   status?: TicPropertyStatus
   propertyType?: TicPropertyType
   search?: string

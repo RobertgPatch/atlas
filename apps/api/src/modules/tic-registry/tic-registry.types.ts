@@ -64,7 +64,6 @@ export interface TicInterest {
 
 export interface TicProperty {
   id: string
-  entityId: string
   name: string
   propertyType: TicPropertyType
   status: TicPropertyStatus
@@ -94,14 +93,12 @@ export interface TicRegistryResponse {
 }
 
 export interface TicRegistryQuery {
-  entityId?: string
   status?: TicPropertyStatus
   propertyType?: TicPropertyType
   search?: string
 }
 
 export interface CreateTicPropertyRequest {
-  entityId: string
   name: string
   propertyType: TicPropertyType
   status?: TicPropertyStatus
@@ -160,14 +157,12 @@ export interface UpdateTicOwnerRequest {
 
 export type TicRegistryScope = {
   isAdmin: boolean
-  entityIds: string[]
 }
 
 export type Queryable = Pool | PoolClient
 
 export interface TicPropertyRow {
   id: string
-  entity_id: string
   name: string
   property_type: TicPropertyType
   status: TicPropertyStatus
@@ -207,8 +202,6 @@ export interface TicOwnerRow {
 
 export type TicRegistryRepositoryError =
   | 'DATABASE_REQUIRED'
-  | 'ENTITY_NOT_FOUND'
-  | 'FORBIDDEN_ENTITY'
   | 'TIC_PROPERTY_NOT_FOUND'
   | 'TIC_INTEREST_NOT_FOUND'
   | 'TIC_OWNER_NOT_FOUND'

@@ -13,7 +13,7 @@ Copy `apps/api/.env.example` to `apps/api/.env` if it is not already present. Lo
 DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/atlas
 ```
 
-The API runs migrations on startup when `DATABASE_URL` is set, so `016_tic_registry.sql` should apply automatically.
+The API runs migrations on startup when `DATABASE_URL` is set, so `016_tic_registry.sql` and later TIC Registry migrations should apply automatically.
 
 ## 2. Start the App
 
@@ -35,13 +35,13 @@ Open the web dev URL, sign in, and confirm the side navigation includes `TIC Reg
 
 1. Open `/tic-registry` from the side navigation.
 2. Confirm the empty state appears if no registry records exist.
-3. Create a TIC property with an entity, name/address, type, held status, acquisition date, and estimated value.
+3. Create a TIC property with name/address, type, held status, acquisition date, and estimated value.
 4. Add a cash-purchased TIC interest and confirm no relinquished source is required.
 5. Add a 1031 exchange TIC interest with either a manual relinquished source or a reference to another registry interest.
 6. Add underlying owners to each TIC interest.
 7. Enter owner and TIC percentages that total under 100, exactly 100, and over 100. Confirm each allocation state displays correctly.
 8. Refresh the browser and confirm the records still appear.
-9. Sign in from a second browser session with access to the same entity and confirm the same records appear.
+9. Sign in from a second browser session and confirm the same records appear.
 
 ## 4. API Verification
 
@@ -53,14 +53,13 @@ npm run test:api -- tic-registry
 
 Expected coverage:
 
-- Authenticated scoped users can list permitted entity records.
+- Authenticated users can list registry records.
 - Non-admin users cannot create, update, or delete registry records.
 - Admin users can create property, interest, and owner records.
 - Records persist through PostgreSQL and are returned in nested shape.
 - Allocation totals and effective owner percentages are derived correctly.
 - Referencing an active source interest marks it `rolled` in the same transaction.
 - Stale `expectedUpdatedAt` updates return a conflict error.
-- Cross-entity access returns `FORBIDDEN_ENTITY` or not found, matching existing app patterns.
 
 ## 5. Web Verification
 
@@ -97,5 +96,4 @@ After deployment to staging:
 4. Create a TIC property, interest, and owner.
 5. Restart/redeploy the API.
 6. Sign in again and confirm the records remain.
-7. Confirm a non-admin scoped user can view permitted records but cannot mutate them.
-8. Confirm a user outside the entity scope cannot view the records.
+7. Confirm a non-admin user can view records but cannot mutate them.

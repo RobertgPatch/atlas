@@ -2,7 +2,6 @@ begin;
 
 create table if not exists tic_properties (
   id uuid primary key default gen_random_uuid(),
-  entity_id uuid not null references entities(id) on delete cascade,
   name text not null,
   property_type text not null check (
     property_type in (
@@ -61,11 +60,11 @@ create table if not exists tic_owners (
   updated_at timestamptz not null default now()
 );
 
-create index if not exists tic_properties_entity_name_idx
-  on tic_properties (entity_id, lower(name));
+create index if not exists tic_properties_name_idx
+  on tic_properties (lower(name));
 
-create index if not exists tic_properties_entity_status_idx
-  on tic_properties (entity_id, status);
+create index if not exists tic_properties_status_idx
+  on tic_properties (status);
 
 create index if not exists tic_interests_property_idx
   on tic_interests (property_id);

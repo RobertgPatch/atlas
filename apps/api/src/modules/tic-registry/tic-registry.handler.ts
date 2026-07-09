@@ -1,6 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError, type ZodType } from 'zod'
-import { assertEntityInPartnershipScope } from '../partnerships/partnershipScope.plugin.js'
 import { ticRegistryRepository } from './tic-registry.repository.js'
 import { TicRegistryError } from './tic-registry.types.js'
 import {
@@ -48,12 +47,6 @@ const sendRepositoryError = (reply: FastifyReply, error: unknown): boolean => {
     case 'DATABASE_REQUIRED':
       void reply.status(503).send({ error: 'DATABASE_REQUIRED' })
       return true
-    case 'ENTITY_NOT_FOUND':
-      void reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
-      return true
-    case 'FORBIDDEN_ENTITY':
-      void reply.status(403).send({ error: 'FORBIDDEN_ENTITY' })
-      return true
     case 'TIC_PROPERTY_NOT_FOUND':
       void reply.status(404).send({ error: 'TIC_PROPERTY_NOT_FOUND' })
       return true
@@ -94,13 +87,6 @@ export const listTicPropertiesHandler = async (
   const query = parseOrReply(ticRegistryListQuerySchema, request.query, reply)
   if (!query) return
 
-  if (
-    query.entityId &&
-    !assertEntityInPartnershipScope(request, reply, query.entityId)
-  ) {
-    return
-  }
-
   await run(reply, async () => {
     const response = await ticRegistryRepository.listProperties(
       request.partnershipScope!,
@@ -134,8 +120,6 @@ export const createTicPropertyHandler = async (
   if (!requireAdmin(request, reply)) return
   const body = parseOrReply(createTicPropertyBodySchema, request.body, reply)
   if (!body) return
-
-  if (!assertEntityInPartnershipScope(request, reply, body.entityId)) return
 
   await run(reply, async () => {
     const property = await ticRegistryRepository.createProperty(

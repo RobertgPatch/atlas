@@ -28,7 +28,6 @@ describe('TIC Registry contract', () => {
       url: '/v1/tic-registry/properties',
       headers: { cookie: f.userCookie },
       payload: {
-        entityId: f.entityIds[0],
         name: 'Registry Test Property',
         propertyType: 'multifamily',
         status: 'held',

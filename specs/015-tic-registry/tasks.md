@@ -37,14 +37,14 @@
 - [x] T007 Define TIC Registry request/response types and enums in `packages/types/src/tic-registry.ts`
 - [x] T008 Export TIC Registry shared types from `packages/types/src/index.ts`
 - [x] T009 Implement Zod params, query, create, update, and delete validation schemas in `apps/api/src/modules/tic-registry/tic-registry.zod.ts`
-- [x] T010 Define API row, scope, mutation, and derived allocation types in `apps/api/src/modules/tic-registry/tic-registry.types.ts`
-- [x] T011 Implement base scoped nested-read repository functions in `apps/api/src/modules/tic-registry/tic-registry.repository.ts`
-- [x] T012 Implement base list/detail handlers with validation and scoped read behavior in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
+- [x] T010 Define API row, mutation, and derived allocation types in `apps/api/src/modules/tic-registry/tic-registry.types.ts`
+- [x] T011 Implement base nested-read repository functions in `apps/api/src/modules/tic-registry/tic-registry.repository.ts`
+- [x] T012 Implement base list/detail handlers with validation and authenticated read behavior in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
 - [x] T013 Register initial `/tic-registry/properties` and `/tic-registry/properties/:propertyId` read routes in `apps/api/src/modules/tic-registry/tic-registry.routes.ts`
 - [x] T014 Register the TIC Registry route group in `apps/api/src/routes/index.ts`
 - [x] T015 Implement the web API request helper and list/detail client methods in `apps/web/src/features/tic-registry/api/ticRegistryClient.ts`
 - [x] T016 Implement React Query keys and read hooks in `apps/web/src/features/tic-registry/hooks/useTicRegistry.ts`
-- [ ] T017 [P] Create API test helpers for users, entity scope, and TIC fixtures in `apps/api/tests/helpers/ticRegistryTestHelpers.ts`
+- [ ] T017 [P] Create API test helpers for users and TIC fixtures in `apps/api/tests/helpers/ticRegistryTestHelpers.ts`
 - [x] T018 [P] Create web test fixtures for empty, loaded, and read-only registry states in `apps/web/src/features/tic-registry/__tests__/ticRegistryFixtures.ts`
 
 **Checkpoint**: Database schema, API read path, shared types, and web read hooks are ready for user story work.
@@ -84,7 +84,7 @@
 
 - [x] T026 [P] [US2] Add API contract tests for property, interest, and owner CRUD in `apps/api/tests/tic-registry.contract.test.ts`
 - [x] T027 [P] [US2] Add RDS/PostgreSQL persistence tests for nested registry records in `apps/api/tests/tic-registry.persistence.integration.test.ts`
-- [ ] T028 [P] [US2] Add entity-scope and Admin-only mutation tests in `apps/api/tests/tic-registry.authz.integration.test.ts`
+- [ ] T028 [P] [US2] Add authenticated-read and Admin-only mutation tests in `apps/api/tests/tic-registry.authz.integration.test.ts`
 - [ ] T029 [P] [US2] Add web dialog and CRUD mutation tests in `apps/web/src/features/tic-registry/__tests__/TicRegistryCrud.test.tsx`
 
 ### Implementation for User Story 2
@@ -92,9 +92,9 @@
 - [x] T030 [US2] Implement create, update, delete, stale-update, and cascade-aware repository methods for properties in `apps/api/src/modules/tic-registry/tic-registry.repository.ts`
 - [x] T031 [US2] Implement create, update, delete, stale-update, and cascade-aware repository methods for TIC interests in `apps/api/src/modules/tic-registry/tic-registry.repository.ts`
 - [x] T032 [US2] Implement create, update, delete, stale-update, and cascade-aware repository methods for owners in `apps/api/src/modules/tic-registry/tic-registry.repository.ts`
-- [x] T033 [US2] Implement property CRUD handlers with Admin role checks and entity-scope checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
-- [x] T034 [US2] Implement TIC interest CRUD handlers with Admin role checks and parent property scope checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
-- [x] T035 [US2] Implement owner CRUD handlers with Admin role checks and parent interest scope checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
+- [x] T033 [US2] Implement property CRUD handlers with Admin role checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
+- [x] T034 [US2] Implement TIC interest CRUD handlers with Admin role checks and parent property checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
+- [x] T035 [US2] Implement owner CRUD handlers with Admin role checks and parent interest checks in `apps/api/src/modules/tic-registry/tic-registry.handler.ts`
 - [x] T036 [US2] Wire POST, PATCH, and DELETE endpoints from the OpenAPI contract in `apps/api/src/modules/tic-registry/tic-registry.routes.ts`
 - [x] T037 [US2] Add create, update, delete, and invalidation methods in `apps/web/src/features/tic-registry/api/ticRegistryClient.ts`
 - [x] T038 [US2] Add React Query mutation hooks for properties, interests, and owners in `apps/web/src/features/tic-registry/hooks/useTicRegistry.ts`
@@ -220,7 +220,7 @@
 ```text
 Task: "Add API contract tests for property, interest, and owner CRUD in apps/api/tests/tic-registry.contract.test.ts"
 Task: "Add RDS/PostgreSQL persistence tests for nested registry records in apps/api/tests/tic-registry.persistence.integration.test.ts"
-Task: "Add entity-scope and Admin-only mutation tests in apps/api/tests/tic-registry.authz.integration.test.ts"
+Task: "Add authenticated-read and Admin-only mutation tests in apps/api/tests/tic-registry.authz.integration.test.ts"
 Task: "Add web dialog and CRUD mutation tests in apps/web/src/features/tic-registry/__tests__/TicRegistryCrud.test.tsx"
 ```
 

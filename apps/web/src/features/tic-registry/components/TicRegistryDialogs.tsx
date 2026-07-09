@@ -1,6 +1,6 @@
 import React, { Fragment, useEffect, useMemo, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
-import { Loader2, Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import type {
   TicAcquisitionOrigin,
   TicInterest,
@@ -11,8 +11,6 @@ import type {
   TicPropertyStatus,
   TicPropertyType,
 } from '../../../../../../packages/types/src/tic-registry'
-import { EntitiesApiError } from '../../partnerships/api/entitiesClient'
-import { useCreateEntity, useEntityList } from '../../partnerships/hooks/useEntityQueries'
 import {
   useCreateTicInterest,
   useCreateTicOwner,
@@ -97,16 +95,6 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function describeEntityError(error: unknown): string {
-  if (error instanceof EntitiesApiError) {
-    if (error.code === 'DUPLICATE_ENTITY_NAME') return 'An entity with that name already exists.'
-    if (error.code === 'FORBIDDEN_ROLE') return 'Only Admins can create entities.'
-    if (error.code === 'VALIDATION_ERROR') return 'Enter a valid entity name.'
-    return error.code
-  }
-  return error instanceof Error ? error.message : 'Unable to create entity'
-}
-
 interface PropertyDialogProps {
   open: boolean
   property: TicProperty | null
@@ -114,54 +102,28 @@ interface PropertyDialogProps {
 }
 
 export function PropertyDialog({ open, property, onClose }: PropertyDialogProps) {
-  const entitiesQuery = useEntityList()
-  const createEntity = useCreateEntity()
   const createProperty = useCreateTicProperty()
   const updateProperty = useUpdateTicProperty()
   const isEditing = Boolean(property)
 
-  const [entityId, setEntityId] = useState('')
   const [name, setName] = useState('')
   const [propertyType, setPropertyType] = useState<TicPropertyType>('multifamily')
   const [status, setStatus] = useState<TicPropertyStatus>('held')
   const [acquiredDate, setAcquiredDate] = useState('')
   const [estimatedValueUsd, setEstimatedValueUsd] = useState('')
   const [notes, setNotes] = useState('')
-  const [newEntityName, setNewEntityName] = useState('')
-  const [entityError, setEntityError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
-    setEntityId(property?.entityId ?? '')
     setName(property?.name ?? '')
     setPropertyType(property?.propertyType ?? 'multifamily')
     setStatus(property?.status ?? 'held')
     setAcquiredDate(property?.acquiredDate ?? '')
     setEstimatedValueUsd(property?.estimatedValueUsd?.toString() ?? '')
     setNotes(property?.notes ?? '')
-    setNewEntityName('')
-    setEntityError(null)
     setSubmitError(null)
   }, [open, property])
-
-  async function handleCreateEntity() {
-    const trimmedName = newEntityName.trim()
-    if (!trimmedName) {
-      setEntityError('Entity name is required')
-      return
-    }
-
-    setEntityError(null)
-    try {
-      const created = await createEntity.mutateAsync(trimmedName)
-      setEntityId(created.id)
-      setNewEntityName('')
-      await entitiesQuery.refetch()
-    } catch (error) {
-      setEntityError(describeEntityError(error))
-    }
-  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
@@ -170,10 +132,6 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
     const trimmedName = name.trim()
     if (!trimmedName) {
       setSubmitError('Name is required')
-      return
-    }
-    if (!isEditing && !entityId) {
-      setSubmitError('Entity is required')
       return
     }
 
@@ -193,7 +151,6 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
         })
       } else {
         await createProperty.mutateAsync({
-          entityId,
           name: trimmedName,
           propertyType,
           status,
@@ -217,64 +174,6 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
-        {!isEditing && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Entity</label>
-            <select
-              required
-              value={entityId}
-              onChange={(event) => setEntityId(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
-            >
-              <option value="">
-                {entitiesQuery.isLoading ? 'Loading entities...' : 'Select an entity'}
-              </option>
-              {(entitiesQuery.data?.items ?? []).map((entity) => (
-                <option key={entity.id} value={entity.id}>
-                  {entity.name}
-                </option>
-              ))}
-            </select>
-            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
-                New Entity
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  maxLength={200}
-                  value={newEntityName}
-                  onChange={(event) => {
-                    setNewEntityName(event.target.value)
-                    setEntityError(null)
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      void handleCreateEntity()
-                    }
-                  }}
-                  placeholder="e.g. Atlas Holdings LLC"
-                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
-                />
-                <button
-                  type="button"
-                  onClick={() => void handleCreateEntity()}
-                  disabled={createEntity.isPending}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {createEntity.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Plus className="h-4 w-4" />
-                  )}
-                  Add
-                </button>
-              </div>
-              {entityError && <p className="mt-2 text-xs text-red-600">{entityError}</p>}
-            </div>
-          </div>
-        )}
-
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
@@ -506,13 +405,13 @@ export function InterestDialog({
   return (
     <DialogShell
       open={open}
-      title={isEditing ? 'Edit TIC Interest' : 'Add TIC Interest'}
+      title={isEditing ? 'Edit TIC' : 'Add TIC Interest'}
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
+            <label className="mb-1 block text-sm font-medium text-gray-800">TIC / LLC Name</label>
             <input
               required
               maxLength={200}
@@ -522,7 +421,7 @@ export function InterestDialog({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Property Percentage</label>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Property Share</label>
             <input
               required
               inputMode="decimal"
@@ -763,7 +662,7 @@ export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">TIC Percentage</label>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Owner Percentage of TIC</label>
             <input
               required
               inputMode="decimal"

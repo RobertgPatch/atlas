@@ -13,27 +13,27 @@
 - A new storage service: rejected because existing RDS already satisfies the feature's persistence needs.
 - Embedding registry data inside existing partnership tables: rejected because TIC properties, interests, owners, and exchange lineage have their own lifecycle.
 
-## Decision 2: Scope TIC Properties by Entity
+## Decision 2: Treat TIC Properties as Standalone Registry Records
 
-**Decision**: Require each TIC property to belong to an existing Atlas entity via `entity_id`. Reuse the existing authenticated request and partnership/entity scope pattern so non-admin users only read permitted entity records.
+**Decision**: Do not require TIC properties to be attached to an existing Atlas entity. The property is the top-level record; TIC interests below it represent the TIC/LLC owners of that property, and each TIC/LLC has its own underlying owners.
 
-**Rationale**: Existing Atlas financial records are organized around entities and memberships. Entity scoping gives the registry the same security boundary as Partnerships and Reports without inventing a new organization model.
+**Rationale**: The registry workflow is property-first. The selected entity requirement blocked property creation and did not match the actual TIC structure, where the property is owned by one or more TIC/LLC interests and those TIC/LLC interests have underlying owners.
 
 **Alternatives considered**:
 
-- Global registry visible to every authenticated user: rejected because it can leak ownership and tax-sensitive records.
-- User-owned registry records only: rejected because the feature is intended as a shared application page, not a personal browser tool.
-- A new organization table: rejected because the current app already uses entities and entity memberships.
+- Attach every property to an Atlas entity: rejected because there is no separate entity to choose at the property level in this workflow.
+- Store each TIC/LLC as a property-level entity record: rejected because it splits ownership data across unrelated app concepts instead of keeping the nested registry together.
+- User-owned browser records only: rejected because the feature is intended as a shared RDS-backed application page, not a personal browser tool.
 
 ## Decision 3: Use Admin-Only Mutations for V1
 
-**Decision**: Allow authenticated scoped users to read registry records; require Admin role for create, update, and delete.
+**Decision**: Allow authenticated users with app access to read registry records; require Admin role for create, update, and delete.
 
 **Rationale**: Existing partnership asset write paths already use Admin-only mutation checks. TIC Registry includes financial/tax-sensitive records, so the conservative default is to prevent accidental edits by read-only users until a richer permission model exists.
 
 **Alternatives considered**:
 
-- Any scoped user can edit: rejected because current app patterns do not expose fine-grained edit permissions.
+- Any authenticated user can edit: rejected because current app patterns do not expose fine-grained edit permissions.
 - New registry-specific roles: rejected for v1 because it increases auth complexity beyond the requested page.
 
 ## Decision 4: Model Properties, Interests, and Owners as Separate Tables
@@ -44,7 +44,7 @@
 
 **Alternatives considered**:
 
-- Single JSONB blob per entity: rejected because partial updates, scope filtering, auditability, validation, and contract tests become harder.
+- Single JSONB blob: rejected because partial updates, auditability, validation, and contract tests become harder.
 - One wide table per owner row: rejected because property and interest fields would be duplicated and harder to maintain.
 
 ## Decision 5: Store Percentages as Fixed-Precision Numerics and Flag Totals

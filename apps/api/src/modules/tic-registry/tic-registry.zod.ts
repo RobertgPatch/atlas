@@ -46,7 +46,6 @@ export const ticOwnerTypeSchema = z.enum([
 ])
 
 export const ticRegistryListQuerySchema = z.object({
-  entityId: uuidSchema.optional(),
   status: ticPropertyStatusSchema.optional(),
   propertyType: ticPropertyTypeSchema.optional(),
   search: z.string().trim().max(200).optional(),
@@ -69,7 +68,6 @@ export const expectedUpdatedAtQuerySchema = z.object({
 })
 
 export const createTicPropertyBodySchema = z.object({
-  entityId: uuidSchema,
   name: z.string().trim().min(1).max(200),
   propertyType: ticPropertyTypeSchema,
   status: ticPropertyStatusSchema.optional().default('held'),

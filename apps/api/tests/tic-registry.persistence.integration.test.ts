@@ -1,24 +1,15 @@
-import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { config } from '../src/config.js'
-import { pool } from '../src/infra/db/client.js'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 
 describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
   let f: TestFixture
-  let entityId: string
 
   beforeEach(async () => {
     f = await createTestFixture()
-    entityId = randomUUID()
-    await pool!.query(
-      `insert into entities (id, name, entity_type, status) values ($1, $2, $3, $4)`,
-      [entityId, 'Registry Persistence Entity', 'LLC', 'ACTIVE'],
-    )
   })
 
   afterEach(async () => {
-    await pool!.query(`delete from entities where id = $1`, [entityId])
     await f.app.close()
   })
 
@@ -28,7 +19,6 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
       url: '/v1/tic-registry/properties',
       headers: { cookie: f.cookie },
       payload: {
-        entityId,
         name: 'Harbor View TIC',
         propertyType: 'multifamily',
         status: 'held',
@@ -67,7 +57,7 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
 
     const listRes = await f.app.inject({
       method: 'GET',
-      url: `/v1/tic-registry/properties?entityId=${entityId}`,
+      url: '/v1/tic-registry/properties',
       headers: { cookie: f.cookie },
     })
     expect(listRes.statusCode).toBe(200)
@@ -100,7 +90,7 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
 
     const emptyRes = await f.app.inject({
       method: 'GET',
-      url: `/v1/tic-registry/properties?entityId=${entityId}`,
+      url: '/v1/tic-registry/properties',
       headers: { cookie: f.cookie },
     })
     expect(emptyRes.statusCode).toBe(200)
