@@ -38,6 +38,49 @@ const paramsSchema = z.object({ id: z.string().min(1) })
 
 const listEntitiesHandler = async (req: FastifyRequest, reply: FastifyReply) => {
   const scope = req.partnershipScope!
+
+  if (pool) {
+    if (!scope.isAdmin && scope.entityIds.length === 0) {
+      return reply.send({ items: [] satisfies EntityListItem[] })
+    }
+
+    const params: unknown[] = []
+    const where = scope.isAdmin
+      ? ''
+      : (() => {
+          params.push(scope.entityIds)
+          return `where e.id = any($${params.length}::uuid[])`
+        })()
+
+    const result = await pool.query<{
+      id: string
+      name: string
+      partnership_count: string | number
+    }>(
+      `
+        select
+          e.id,
+          e.name,
+          count(p.id) as partnership_count
+        from entities e
+        left join partnerships p on p.entity_id = e.id
+        ${where}
+        group by e.id, e.name
+        order by e.name
+      `,
+      params,
+    )
+
+    const items: EntityListItem[] = result.rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      partnershipCount: Number(row.partnership_count),
+      totalDistributionsUsd: 0,
+    }))
+
+    return reply.send({ items })
+  }
+
   const all = k1Repository.listEntities()
   const visible = scope.isAdmin ? all : all.filter((e) => scope.entityIds.includes(e.id))
 

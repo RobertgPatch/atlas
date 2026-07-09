@@ -2,8 +2,10 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
+  Building2,
   Landmark,
   Menu,
+  Network,
   X,
   LogOut,
 } from 'lucide-react'
@@ -27,6 +29,8 @@ export function AppShell({
 
   const navigation = [
     { name: 'Liquidity', href: '/liquidity', icon: Landmark },
+    { name: 'TIC Registry', href: '/tic-registry', icon: Network },
+    { name: 'Entities', href: '/entities', icon: Building2 },
   ]
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> } }) => {

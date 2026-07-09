@@ -1,0 +1,798 @@
+import React, { Fragment, useEffect, useMemo, useState } from 'react'
+import { Dialog, Transition } from '@headlessui/react'
+import { Loader2, Plus, X } from 'lucide-react'
+import type {
+  TicAcquisitionOrigin,
+  TicInterest,
+  TicInterestStatus,
+  TicOwner,
+  TicOwnerType,
+  TicProperty,
+  TicPropertyStatus,
+  TicPropertyType,
+} from '../../../../../../packages/types/src/tic-registry'
+import { EntitiesApiError } from '../../partnerships/api/entitiesClient'
+import { useCreateEntity, useEntityList } from '../../partnerships/hooks/useEntityQueries'
+import {
+  useCreateTicInterest,
+  useCreateTicOwner,
+  useCreateTicProperty,
+  useUpdateTicInterest,
+  useUpdateTicOwner,
+  useUpdateTicProperty,
+} from '../hooks/useTicRegistry'
+import {
+  ACQUISITION_ORIGIN_LABELS,
+  INTEREST_STATUS_LABELS,
+  INTEREST_STATUSES,
+  OWNER_TYPE_LABELS,
+  OWNER_TYPES,
+  PROPERTY_STATUS_LABELS,
+  PROPERTY_STATUSES,
+  PROPERTY_TYPE_LABELS,
+  PROPERTY_TYPES,
+} from './allocation'
+
+type DialogShellProps = {
+  open: boolean
+  title: string
+  children: React.ReactNode
+  onClose: () => void
+}
+
+function DialogShell({ open, title, children, onClose }: DialogShellProps) {
+  return (
+    <Transition appear show={open} as={Fragment}>
+      <Dialog as="div" className="relative z-50" onClose={onClose}>
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-200"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-150"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-black/40" />
+        </Transition.Child>
+
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-200"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-150"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+                <div className="mb-5 flex items-center justify-between">
+                  <Dialog.Title className="text-lg font-semibold text-gray-950">
+                    {title}
+                  </Dialog.Title>
+                  <button
+                    type="button"
+                    title="Close"
+                    onClick={onClose}
+                    className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                {children}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </div>
+      </Dialog>
+    </Transition>
+  )
+}
+
+function parseOptionalNumber(value: string): number | null {
+  if (!value.trim()) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function describeEntityError(error: unknown): string {
+  if (error instanceof EntitiesApiError) {
+    if (error.code === 'DUPLICATE_ENTITY_NAME') return 'An entity with that name already exists.'
+    if (error.code === 'FORBIDDEN_ROLE') return 'Only Admins can create entities.'
+    if (error.code === 'VALIDATION_ERROR') return 'Enter a valid entity name.'
+    return error.code
+  }
+  return error instanceof Error ? error.message : 'Unable to create entity'
+}
+
+interface PropertyDialogProps {
+  open: boolean
+  property: TicProperty | null
+  onClose: () => void
+}
+
+export function PropertyDialog({ open, property, onClose }: PropertyDialogProps) {
+  const entitiesQuery = useEntityList()
+  const createEntity = useCreateEntity()
+  const createProperty = useCreateTicProperty()
+  const updateProperty = useUpdateTicProperty()
+  const isEditing = Boolean(property)
+
+  const [entityId, setEntityId] = useState('')
+  const [name, setName] = useState('')
+  const [propertyType, setPropertyType] = useState<TicPropertyType>('multifamily')
+  const [status, setStatus] = useState<TicPropertyStatus>('held')
+  const [acquiredDate, setAcquiredDate] = useState('')
+  const [estimatedValueUsd, setEstimatedValueUsd] = useState('')
+  const [notes, setNotes] = useState('')
+  const [newEntityName, setNewEntityName] = useState('')
+  const [entityError, setEntityError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setEntityId(property?.entityId ?? '')
+    setName(property?.name ?? '')
+    setPropertyType(property?.propertyType ?? 'multifamily')
+    setStatus(property?.status ?? 'held')
+    setAcquiredDate(property?.acquiredDate ?? '')
+    setEstimatedValueUsd(property?.estimatedValueUsd?.toString() ?? '')
+    setNotes(property?.notes ?? '')
+    setNewEntityName('')
+    setEntityError(null)
+    setSubmitError(null)
+  }, [open, property])
+
+  async function handleCreateEntity() {
+    const trimmedName = newEntityName.trim()
+    if (!trimmedName) {
+      setEntityError('Entity name is required')
+      return
+    }
+
+    setEntityError(null)
+    try {
+      const created = await createEntity.mutateAsync(trimmedName)
+      setEntityId(created.id)
+      setNewEntityName('')
+      await entitiesQuery.refetch()
+    } catch (error) {
+      setEntityError(describeEntityError(error))
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setSubmitError(null)
+
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setSubmitError('Name is required')
+      return
+    }
+    if (!isEditing && !entityId) {
+      setSubmitError('Entity is required')
+      return
+    }
+
+    try {
+      if (property) {
+        await updateProperty.mutateAsync({
+          propertyId: property.id,
+          payload: {
+            expectedUpdatedAt: property.updatedAt,
+            name: trimmedName,
+            propertyType,
+            status,
+            acquiredDate: acquiredDate || null,
+            estimatedValueUsd: parseOptionalNumber(estimatedValueUsd),
+            notes: notes.trim() || null,
+          },
+        })
+      } else {
+        await createProperty.mutateAsync({
+          entityId,
+          name: trimmedName,
+          propertyType,
+          status,
+          acquiredDate: acquiredDate || null,
+          estimatedValueUsd: parseOptionalNumber(estimatedValueUsd),
+          notes: notes.trim() || null,
+        })
+      }
+      onClose()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to save property')
+    }
+  }
+
+  const isPending = createProperty.isPending || updateProperty.isPending
+
+  return (
+    <DialogShell
+      open={open}
+      title={isEditing ? 'Edit Property' : 'Add Property'}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        {!isEditing && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Entity</label>
+            <select
+              required
+              value={entityId}
+              onChange={(event) => setEntityId(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              <option value="">
+                {entitiesQuery.isLoading ? 'Loading entities...' : 'Select an entity'}
+              </option>
+              {(entitiesQuery.data?.items ?? []).map((entity) => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name}
+                </option>
+              ))}
+            </select>
+            <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">
+                New Entity
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  maxLength={200}
+                  value={newEntityName}
+                  onChange={(event) => {
+                    setNewEntityName(event.target.value)
+                    setEntityError(null)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void handleCreateEntity()
+                    }
+                  }}
+                  placeholder="e.g. Atlas Holdings LLC"
+                  className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCreateEntity()}
+                  disabled={createEntity.isPending}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {createEntity.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
+                  Add
+                </button>
+              </div>
+              {entityError && <p className="mt-2 text-xs text-red-600">{entityError}</p>}
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
+            <input
+              required
+              maxLength={200}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Estimated Value</label>
+            <input
+              inputMode="decimal"
+              value={estimatedValueUsd}
+              onChange={(event) => setEstimatedValueUsd(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Type</label>
+            <select
+              value={propertyType}
+              onChange={(event) => setPropertyType(event.target.value as TicPropertyType)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              {PROPERTY_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {PROPERTY_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Status</label>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as TicPropertyStatus)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              {PROPERTY_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {PROPERTY_STATUS_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Acquired Date</label>
+            <input
+              type="date"
+              value={acquiredDate}
+              onChange={(event) => setAcquiredDate(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-800">Notes</label>
+          <textarea
+            rows={3}
+            maxLength={10000}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+          />
+        </div>
+
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+          >
+            {isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </DialogShell>
+  )
+}
+
+interface InterestDialogProps {
+  open: boolean
+  property: TicProperty | null
+  interest: TicInterest | null
+  properties: TicProperty[]
+  onClose: () => void
+}
+
+export function InterestDialog({
+  open,
+  property,
+  interest,
+  properties,
+  onClose,
+}: InterestDialogProps) {
+  const createInterest = useCreateTicInterest()
+  const updateInterest = useUpdateTicInterest()
+  const isEditing = Boolean(interest)
+
+  const [name, setName] = useState('')
+  const [propertyPercentage, setPropertyPercentage] = useState('')
+  const [status, setStatus] = useState<TicInterestStatus>('active')
+  const [acquisitionOrigin, setAcquisitionOrigin] = useState<TicAcquisitionOrigin>('cash')
+  const [sourceMode, setSourceMode] = useState<'existing' | 'manual'>('existing')
+  const [sourceInterestId, setSourceInterestId] = useState('')
+  const [sourceName, setSourceName] = useState('')
+  const [acquisitionDate, setAcquisitionDate] = useState('')
+  const [acquisitionValueUsd, setAcquisitionValueUsd] = useState('')
+  const [notes, setNotes] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const sourceOptions = useMemo(
+    () =>
+      properties.flatMap((sourceProperty) =>
+        sourceProperty.interests
+          .filter((candidate) => candidate.id !== interest?.id)
+          .map((candidate) => ({
+            id: candidate.id,
+            label: `${sourceProperty.name} / ${candidate.name}`,
+          })),
+      ),
+    [interest?.id, properties],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    setName(interest?.name ?? '')
+    setPropertyPercentage(interest?.propertyPercentage?.toString() ?? '')
+    setStatus(interest?.status ?? 'active')
+    setAcquisitionOrigin(interest?.acquisitionOrigin ?? 'cash')
+    setSourceMode(interest?.relinquishedSourceName ? 'manual' : 'existing')
+    setSourceInterestId(interest?.relinquishedInterestId ?? '')
+    setSourceName(interest?.relinquishedSourceName ?? '')
+    setAcquisitionDate(interest?.acquisitionDate ?? '')
+    setAcquisitionValueUsd(interest?.acquisitionValueUsd?.toString() ?? '')
+    setNotes(interest?.notes ?? '')
+    setSubmitError(null)
+  }, [interest, open])
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setSubmitError(null)
+
+    const trimmedName = name.trim()
+    const parsedPropertyPercentage = parseOptionalNumber(propertyPercentage)
+    if (!trimmedName) {
+      setSubmitError('Name is required')
+      return
+    }
+    if (parsedPropertyPercentage == null || parsedPropertyPercentage < 0 || parsedPropertyPercentage > 100) {
+      setSubmitError('Property percentage must be between 0 and 100')
+      return
+    }
+    if (acquisitionOrigin === 'exchange') {
+      const hasExistingSource = sourceMode === 'existing' && sourceInterestId
+      const hasManualSource = sourceMode === 'manual' && sourceName.trim()
+      if (!hasExistingSource && !hasManualSource) {
+        setSubmitError('Exchange source is required')
+        return
+      }
+    }
+
+    const sourcePayload =
+      acquisitionOrigin === 'exchange'
+        ? {
+            relinquishedInterestId: sourceMode === 'existing' ? sourceInterestId : null,
+            relinquishedSourceName: sourceMode === 'manual' ? sourceName.trim() : null,
+          }
+        : {
+            relinquishedInterestId: null,
+            relinquishedSourceName: null,
+          }
+
+    try {
+      if (interest) {
+        await updateInterest.mutateAsync({
+          interestId: interest.id,
+          payload: {
+            expectedUpdatedAt: interest.updatedAt,
+            name: trimmedName,
+            propertyPercentage: parsedPropertyPercentage,
+            status,
+            acquisitionOrigin,
+            acquisitionDate: acquisitionDate || null,
+            acquisitionValueUsd: parseOptionalNumber(acquisitionValueUsd),
+            notes: notes.trim() || null,
+            ...sourcePayload,
+          },
+        })
+      } else if (property) {
+        await createInterest.mutateAsync({
+          propertyId: property.id,
+          payload: {
+            name: trimmedName,
+            propertyPercentage: parsedPropertyPercentage,
+            status,
+            acquisitionOrigin,
+            acquisitionDate: acquisitionDate || null,
+            acquisitionValueUsd: parseOptionalNumber(acquisitionValueUsd),
+            notes: notes.trim() || null,
+            ...sourcePayload,
+          },
+        })
+      }
+      onClose()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to save TIC interest')
+    }
+  }
+
+  const isPending = createInterest.isPending || updateInterest.isPending
+
+  return (
+    <DialogShell
+      open={open}
+      title={isEditing ? 'Edit TIC Interest' : 'Add TIC Interest'}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
+            <input
+              required
+              maxLength={200}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Property Percentage</label>
+            <input
+              required
+              inputMode="decimal"
+              value={propertyPercentage}
+              onChange={(event) => setPropertyPercentage(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Status</label>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as TicInterestStatus)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              {INTEREST_STATUSES.map((option) => (
+                <option key={option} value={option}>
+                  {INTEREST_STATUS_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Origin</label>
+            <select
+              value={acquisitionOrigin}
+              onChange={(event) => setAcquisitionOrigin(event.target.value as TicAcquisitionOrigin)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              {(['cash', 'exchange'] as TicAcquisitionOrigin[]).map((option) => (
+                <option key={option} value={option}>
+                  {ACQUISITION_ORIGIN_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Acquired Date</label>
+            <input
+              type="date"
+              value={acquisitionDate}
+              onChange={(event) => setAcquisitionDate(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        {acquisitionOrigin === 'exchange' && (
+          <div className="grid gap-4 md:grid-cols-[12rem_minmax(0,1fr)]">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-800">Source Type</label>
+              <select
+                value={sourceMode}
+                onChange={(event) => setSourceMode(event.target.value as 'existing' | 'manual')}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              >
+                <option value="existing">Existing TIC</option>
+                <option value="manual">External Source</option>
+              </select>
+            </div>
+            {sourceMode === 'existing' ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-800">Source TIC</label>
+                <select
+                  value={sourceInterestId}
+                  onChange={(event) => setSourceInterestId(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                >
+                  <option value="">Select a source</option>
+                  {sourceOptions.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-800">External Source</label>
+                <input
+                  maxLength={200}
+                  value={sourceName}
+                  onChange={(event) => setSourceName(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-800">Acquisition Value</label>
+          <input
+            inputMode="decimal"
+            value={acquisitionValueUsd}
+            onChange={(event) => setAcquisitionValueUsd(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-800">Notes</label>
+          <textarea
+            rows={3}
+            maxLength={10000}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+          />
+        </div>
+
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+          >
+            {isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </DialogShell>
+  )
+}
+
+interface OwnerDialogProps {
+  open: boolean
+  interest: TicInterest | null
+  owner: TicOwner | null
+  onClose: () => void
+}
+
+export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps) {
+  const createOwner = useCreateTicOwner()
+  const updateOwner = useUpdateTicOwner()
+  const isEditing = Boolean(owner)
+
+  const [name, setName] = useState('')
+  const [ownerType, setOwnerType] = useState<TicOwnerType>('individual')
+  const [ticPercentage, setTicPercentage] = useState('')
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setName(owner?.name ?? '')
+    setOwnerType(owner?.ownerType ?? 'individual')
+    setTicPercentage(owner?.ticPercentage?.toString() ?? '')
+    setSubmitError(null)
+  }, [open, owner])
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
+    setSubmitError(null)
+
+    const trimmedName = name.trim()
+    const parsedTicPercentage = parseOptionalNumber(ticPercentage)
+    if (!trimmedName) {
+      setSubmitError('Name is required')
+      return
+    }
+    if (parsedTicPercentage == null || parsedTicPercentage < 0 || parsedTicPercentage > 100) {
+      setSubmitError('TIC percentage must be between 0 and 100')
+      return
+    }
+
+    try {
+      if (owner) {
+        await updateOwner.mutateAsync({
+          ownerId: owner.id,
+          payload: {
+            expectedUpdatedAt: owner.updatedAt,
+            name: trimmedName,
+            ownerType,
+            ticPercentage: parsedTicPercentage,
+          },
+        })
+      } else if (interest) {
+        await createOwner.mutateAsync({
+          interestId: interest.id,
+          payload: {
+            name: trimmedName,
+            ownerType,
+            ticPercentage: parsedTicPercentage,
+          },
+        })
+      }
+      onClose()
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to save owner')
+    }
+  }
+
+  const isPending = createOwner.isPending || updateOwner.isPending
+
+  return (
+    <DialogShell
+      open={open}
+      title={isEditing ? 'Edit Owner' : 'Add Owner'}
+      onClose={onClose}
+    >
+      <form onSubmit={handleSubmit} className="grid gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
+          <input
+            required
+            maxLength={200}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+          />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">Owner Type</label>
+            <select
+              value={ownerType}
+              onChange={(event) => setOwnerType(event.target.value as TicOwnerType)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            >
+              {OWNER_TYPES.map((option) => (
+                <option key={option} value={option}>
+                  {OWNER_TYPE_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-800">TIC Percentage</label>
+            <input
+              required
+              inputMode="decimal"
+              value={ticPercentage}
+              onChange={(event) => setTicPercentage(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isPending}
+            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+          >
+            {isPending ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </form>
+    </DialogShell>
+  )
+}

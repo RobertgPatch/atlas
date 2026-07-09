@@ -433,16 +433,38 @@ const mapAccountRow = (row: AccountRow): PlaidInvestmentAccount => {
   }
 }
 
-const mapConnectionRow = (row: ConnectionRow): PlaidConnectionRecord => ({
-  id: row.id,
-  ownerUserId: row.owner_user_id,
-  plaidItemId: row.plaid_item_id,
-  institutionId: row.institution_id,
-  institutionName: row.institution_name,
-  accessToken: decryptSecret(row.access_token_ciphertext),
-  status: row.status,
-  lastSuccessfulSyncAt: row.last_successful_sync_at?.toISOString() ?? null,
-})
+const mapConnectionRow = (row: ConnectionRow): PlaidConnectionRecord => {
+  try {
+    return {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      plaidItemId: row.plaid_item_id,
+      institutionId: row.institution_id,
+      institutionName: row.institution_name,
+      accessToken: decryptSecret(row.access_token_ciphertext),
+      status: row.status,
+      lastSuccessfulSyncAt: row.last_successful_sync_at?.toISOString() ?? null,
+    }
+  } catch (error) {
+    if (config.nodeEnv === 'production') throw error
+
+    console.warn(
+      `[persistence] unable to decrypt Plaid access token for connection ${row.id}; ` +
+        'marking it needs_update. Check PERSISTENCE_SECRET_KEY or reconnect Plaid.',
+    )
+
+    return {
+      id: row.id,
+      ownerUserId: row.owner_user_id,
+      plaidItemId: row.plaid_item_id,
+      institutionId: row.institution_id,
+      institutionName: row.institution_name,
+      accessToken: '',
+      status: 'needs_update',
+      lastSuccessfulSyncAt: row.last_successful_sync_at?.toISOString() ?? null,
+    }
+  }
+}
 
 const mapSnapshotRow = (row: SnapshotRow): HoldingsSyncSnapshot => ({
   id: row.id,
@@ -529,6 +551,22 @@ const mapHoldingRow = (row: HoldingRow): SourceHoldingRecord => ({
   unrealizedGainLoss: toNumber(row.unrealized_gain_loss_amount),
   asOfDate: row.as_of_date?.toISOString().slice(0, 10) ?? null,
 })
+
+const markAccountsForUnavailableConnections = () => {
+  const unavailableConnectionIds = new Set(
+    connections
+      .filter((connection) => connection.status !== 'connected' || !connection.accessToken)
+      .map((connection) => connection.id),
+  )
+
+  if (unavailableConnectionIds.size === 0) return
+
+  for (const account of accounts) {
+    if (unavailableConnectionIds.has(account.connectionId)) {
+      account.syncStatus = 'needs_user_action'
+    }
+  }
+}
 
 const persistConnection = (connection: PlaidConnectionRecord) => {
   enqueueDbWrite(async () => {
@@ -806,6 +844,7 @@ export const plaidRepository = {
 
     connections.push(...connectionRows.rows.map(mapConnectionRow))
     accounts.push(...accountRows.rows.map(mapAccountRow))
+    markAccountsForUnavailableConnections()
     for (const policy of policyRows.rows.map(mapRefreshPolicyRow)) {
       refreshPolicies.set(policy.name, policy)
     }
@@ -1656,6 +1695,7 @@ export const plaidRepository = {
   }> {
     const selectedAccounts = this.getSelectedInvestmentAccounts()
     return connections
+      .filter((connection) => connection.status === 'connected' && connection.accessToken)
       .map((connection) => ({
         connection,
         accounts: selectedAccounts.filter(

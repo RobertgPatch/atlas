@@ -22,6 +22,7 @@ import { EntityDetail } from './pages/EntityDetail'
 import { EntitiesPage } from './pages/EntitiesPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { LiquidityPage } from './pages/LiquidityPage'
+import { TicRegistryPage } from './pages/TicRegistryPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -185,6 +186,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <LiquidityPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tic-registry"
+            element={
+              <ProtectedRoute>
+                <TicRegistryPage />
               </ProtectedRoute>
             }
           />
