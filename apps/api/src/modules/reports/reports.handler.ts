@@ -9,12 +9,16 @@ import {
   assetClassSummaryQuerySchema,
   consolidatedHoldingsExportQuerySchema,
   consolidatedHoldingsQuerySchema,
+  consolidatedHoldingsRefreshBodySchema,
   exportReportQuerySchema,
   portfolioSummaryQuerySchema,
   updateActivityDetailBodySchema,
 } from './reports.zod.js'
 import { plaidRepository } from '../plaid/plaid.repository.js'
-import { plaidHoldingsSync } from '../plaid/plaid.holdings-sync.js'
+import {
+  plaidHoldingsSync,
+  RefreshAlreadyRunningError,
+} from '../plaid/plaid.holdings-sync.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -157,6 +161,12 @@ export const getConsolidatedHoldingsHandler = async (
     return
   }
 
+  const scope = request.partnershipScope
+  if (!scope) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
   let query: ReturnType<typeof consolidatedHoldingsQuerySchema.parse>
   try {
     query = consolidatedHoldingsQuerySchema.parse(request.query)
@@ -168,7 +178,10 @@ export const getConsolidatedHoldingsHandler = async (
     throw error
   }
 
-  const result = await reportsRepository.getConsolidatedHoldings(query)
+  const result = await reportsRepository.getConsolidatedHoldings(query, {
+    actorUserId: request.authUser.userId,
+    scope,
+  })
   reply.send(result)
 }
 
@@ -181,9 +194,35 @@ export const refreshConsolidatedHoldingsHandler = async (
     return
   }
 
-  const snapshot = await plaidHoldingsSync.syncSelectedHoldings(request.authUser.userId)
+  let body: ReturnType<typeof consolidatedHoldingsRefreshBodySchema.parse>
+  try {
+    body = consolidatedHoldingsRefreshBodySchema.parse(request.body ?? {})
+  } catch (error) {
+    if (error instanceof ZodError) {
+      sendValidationError(reply, error)
+      return
+    }
+    throw error
+  }
 
-  reply.status(202).send(snapshot)
+  try {
+    const attempt = await plaidHoldingsSync.syncSelectedHoldings({
+      requestedByUserId: request.authUser.userId,
+      triggerSource: 'manual',
+      force: body.force || body.reason === 'forced',
+    })
+
+    reply.status(202).send(attempt)
+  } catch (error) {
+    if (error instanceof RefreshAlreadyRunningError) {
+      reply.status(409).send({
+        error: 'REFRESH_ALREADY_RUNNING',
+        activeRefreshId: error.activeRefreshId,
+      })
+      return
+    }
+    throw error
+  }
 }
 
 export const getReportsExportHandler = async (
@@ -217,7 +256,11 @@ export const getReportsExportHandler = async (
     return
   }
 
-  const exported = await reportsExport.generateReportExport(query, scope)
+  const exported = await reportsExport.generateReportExport(
+    query,
+    scope,
+    request.authUser.userId,
+  )
 
   reply
     .header('Content-Type', exported.contentType)
@@ -258,6 +301,7 @@ export const getConsolidatedHoldingsExportHandler = async (
       reportType: 'consolidated_holdings',
     },
     scope,
+    request.authUser.userId,
   )
 
   reply

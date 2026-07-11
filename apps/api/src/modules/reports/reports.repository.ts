@@ -136,6 +136,11 @@ export interface ReportsScope {
   entityIds: string[]
 }
 
+export interface ConsolidatedHoldingsReadContext {
+  actorUserId: string
+  scope: ReportsScope
+}
+
 interface ActivityDetailEditContext {
   actorUserId: string
   scope: ReportsScope
@@ -871,8 +876,11 @@ const applyInMemoryActivityPatch = (
 }
 
 export const reportsRepository = {
-  async getConsolidatedHoldings(query: ConsolidatedHoldingsQuery) {
-    return buildConsolidatedHoldingsResponse(query)
+  async getConsolidatedHoldings(
+    query: ConsolidatedHoldingsQuery,
+    context: ConsolidatedHoldingsReadContext,
+  ) {
+    return buildConsolidatedHoldingsResponse(query, context)
   },
 
   async getPortfolioSummary(

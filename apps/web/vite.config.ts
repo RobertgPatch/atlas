@@ -16,7 +16,10 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      '/v1': 'http://localhost:3000',
+      '/v1': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+      },
     },
   },
   css: {

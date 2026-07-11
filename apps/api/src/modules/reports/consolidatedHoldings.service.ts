@@ -1,5 +1,11 @@
-import { plaidRepository, type SourceHoldingRecord } from '../plaid/plaid.repository.js'
+import {
+  plaidRepository,
+  type PlaidRefreshPolicy,
+  type SourceHoldingRecord,
+} from '../plaid/plaid.repository.js'
+import { evaluateSnapshotFreshness } from '../plaid/plaid.refresh-policy.js'
 import type { ConsolidatedHoldingsQuery } from './reports.zod.js'
+import type { ReportsScope } from './reports.repository.js'
 
 type HoldingsSyncStatus =
   | 'never_synced'
@@ -7,6 +13,14 @@ type HoldingsSyncStatus =
   | 'partial_success'
   | 'failed'
   | 'needs_user_action'
+  | 'unavailable'
+
+type HoldingsFreshnessStatus =
+  | 'fresh'
+  | 'stale'
+  | 'refreshing'
+  | 'failed'
+  | 'unavailable'
 
 interface ConsolidatedHoldingsKpis {
   totalMarketValue: number | null
@@ -70,9 +84,21 @@ interface ConsolidatedHoldingsResponse {
   selectedAccounts: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>
   sync: {
     status: HoldingsSyncStatus
+    freshnessStatus: HoldingsFreshnessStatus
+    dataAsOfDate: string | null
+    dataFetchedAt: string | null
     lastSuccessfulSyncAt: string | null
+    nextRefreshAt: string | null
+    activeRefreshId: string | null
+    refreshing: boolean
     warnings: string[]
+    refreshPolicy: PlaidRefreshPolicy
   }
+}
+
+interface ConsolidatedHoldingsContext {
+  actorUserId: string
+  scope: ReportsScope
 }
 
 const normalizeText = (value: string | null | undefined): string =>
@@ -220,13 +246,23 @@ const compareValues = (
   return direction === 'asc' ? result : -result
 }
 
-export const buildConsolidatedHoldingsResponse = (
+export const buildConsolidatedHoldingsResponse = async (
   query: ConsolidatedHoldingsQuery,
-): ConsolidatedHoldingsResponse => {
-  const accounts = plaidRepository.getSelectedInvestmentAccounts()
+  context: ConsolidatedHoldingsContext,
+): Promise<ConsolidatedHoldingsResponse> => {
+  const holdingsVisible =
+    context.scope.isAdmin || context.scope.entityIds.length > 0
+  const visibility = {
+    actorUserId: context.actorUserId,
+    isAdmin: context.scope.isAdmin,
+  }
+  const accounts = holdingsVisible
+    ? plaidRepository.getSelectedInvestmentAccounts(visibility)
+    : []
   const accountById = new Map(accounts.map((account) => [account.id, account]))
+  const selectedAccountIds = accounts.map((account) => account.id)
   const filteredSource = plaidRepository
-    .listSourceHoldingsForSelectedAccounts()
+    .listSourceHoldingsForSelectedAccounts(visibility)
     .filter((holding) => {
       const account = accountById.get(holding.accountId)
       if (!account) return false
@@ -372,7 +408,24 @@ export const buildConsolidatedHoldingsResponse = (
       ? (kpis.totalUnrealizedGainLoss / kpis.totalCostBasis) * 100
       : null
 
-  const latestSync = plaidRepository.getLatestSync()
+  const [refreshPolicy, latestSnapshot, activeRefresh] = await Promise.all([
+    plaidRepository.getRefreshPolicy(),
+    selectedAccountIds.length > 0
+      ? plaidRepository.getLatestHoldingsSnapshotMetadata({
+          dashboardEligible: true,
+          selectedAccountIds,
+          successfulOnly: true,
+        })
+      : Promise.resolve(null),
+    selectedAccountIds.length > 0
+      ? plaidRepository.getActiveRefreshAttempt(selectedAccountIds)
+      : Promise.resolve(null),
+  ])
+  const freshness = evaluateSnapshotFreshness({
+    policy: refreshPolicy,
+    snapshot: latestSnapshot,
+    activeAttempt: activeRefresh,
+  })
   const failedAccounts = accounts.filter((account) => account.syncStatus === 'failed')
   const needsAction = accounts.filter(
     (account) => account.syncStatus === 'needs_user_action',
@@ -384,9 +437,15 @@ export const buildConsolidatedHoldingsResponse = (
         ? rows.length > 0
           ? 'partial_success'
           : 'failed'
-        : latestSync?.status === 'success'
-          ? 'success'
-          : 'never_synced'
+        : latestSnapshot?.status === 'success' || latestSnapshot?.status === 'partial_success'
+          ? latestSnapshot.status
+          : accounts.length === 0
+            ? 'never_synced'
+            : 'never_synced'
+  const accountWarnings = [
+    ...failedAccounts.map((account) => `${account.custodianName} ${account.name} failed to sync.`),
+    ...needsAction.map((account) => `${account.custodianName} ${account.name} needs reconnection.`),
+  ]
 
   return {
     kpis,
@@ -399,11 +458,16 @@ export const buildConsolidatedHoldingsResponse = (
     selectedAccounts: accounts,
     sync: {
       status,
-      lastSuccessfulSyncAt: latestSync?.completedAt ?? null,
-      warnings: [
-        ...failedAccounts.map((account) => `${account.custodianName} ${account.name} failed to sync.`),
-        ...needsAction.map((account) => `${account.custodianName} ${account.name} needs reconnection.`),
-      ],
+      freshnessStatus: freshness.status,
+      dataAsOfDate: freshness.dataAsOfDate,
+      dataFetchedAt: freshness.dataFetchedAt,
+      lastSuccessfulSyncAt:
+        latestSnapshot?.completedAt ?? latestSnapshot?.fetchedAt ?? null,
+      nextRefreshAt: freshness.nextRefreshAt,
+      activeRefreshId: activeRefresh?.id ?? null,
+      refreshing: activeRefresh?.status === 'pending',
+      warnings: [...freshness.warnings, ...accountWarnings],
+      refreshPolicy,
     },
   }
 }

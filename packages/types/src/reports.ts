@@ -1,4 +1,4 @@
-import type { PlaidInvestmentAccount } from './plaid.js'
+import type { PlaidInvestmentAccount, PlaidRefreshPolicy } from './plaid.js'
 
 export type ReportView =
   | 'portfolio_summary'
@@ -45,6 +45,14 @@ export type HoldingsSyncStatus =
   | 'partial_success'
   | 'failed'
   | 'needs_user_action'
+  | 'unavailable'
+
+export type HoldingsFreshnessStatus =
+  | 'fresh'
+  | 'stale'
+  | 'refreshing'
+  | 'failed'
+  | 'unavailable'
 
 export interface HoldingsSyncSnapshot {
   id: string
@@ -52,6 +60,19 @@ export interface HoldingsSyncSnapshot {
   startedAt: string
   completedAt: string | null
   errorMessage: string | null
+}
+
+export interface ConsolidatedHoldingsSyncMetadata {
+  status: HoldingsSyncStatus
+  lastSuccessfulSyncAt: string | null
+  warnings: string[]
+  freshnessStatus: HoldingsFreshnessStatus
+  dataAsOfDate: string | null
+  dataFetchedAt: string | null
+  nextRefreshAt: string | null
+  activeRefreshId: string | null
+  refreshing: boolean
+  refreshPolicy: PlaidRefreshPolicy
 }
 
 export interface ConsolidatedHoldingsKpis {
@@ -114,11 +135,7 @@ export interface ConsolidatedHoldingsResponse {
     total: number
   }
   selectedAccounts: PlaidInvestmentAccount[]
-  sync: {
-    status: HoldingsSyncStatus
-    lastSuccessfulSyncAt: string | null
-    warnings: string[]
-  }
+  sync: ConsolidatedHoldingsSyncMetadata
 }
 
 export interface ReportTotals {

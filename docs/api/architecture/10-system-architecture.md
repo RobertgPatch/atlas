@@ -39,3 +39,13 @@ PLAID_REDIRECT_URI=
 - `POST /v1/reports/consolidated-holdings/refresh`
 - `GET /v1/reports/consolidated-holdings`
 - `GET /v1/reports/consolidated-holdings/export`
+
+### Refresh, Cache, and AWS Boundary Decisions
+
+Liquidity reads are backed by PostgreSQL holdings snapshots. Redis is intentionally not part of the first deployment because the expected 5-10 user scale is served by durable snapshots, PostgreSQL refresh locks, and TanStack Query reuse without adding another production service.
+
+Plaid calls are limited to explicit refresh paths: manual refresh, the daily scheduler, or an operator-approved fallback. Ordinary Liquidity reads should not call Plaid when a saved snapshot exists.
+
+For the initial AWS deployment, CloudFront may cache static web assets from S3, but authenticated `/v1/*` API responses must use private/no-store application headers and a CloudFront caching-disabled behavior. Financial API responses are user-specific and must not be placed in a shared CDN cache.
+
+The daily refresh is modeled as an EventBridge Scheduler ECS task that runs `node dist/scripts/run-plaid-refresh.js` from the API image. This gives the scheduler a one-shot process while keeping the refresh code in the existing API/Plaid modules.

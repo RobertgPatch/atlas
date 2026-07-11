@@ -217,13 +217,65 @@ describe('ConsolidatedHoldingsSummaryCards', () => {
 })
 
 describe('ConsolidatedHoldingsSyncStatus', () => {
+  it('renders fresh saved snapshot status details', () => {
+    render(
+      <ConsolidatedHoldingsSyncStatus
+        sync={{
+          status: 'success',
+          freshnessStatus: 'fresh',
+          dataAsOfDate: '2026-05-11',
+          dataFetchedAt: '2026-05-11T12:00:00.000Z',
+          lastSuccessfulSyncAt: '2026-05-11T12:00:00.000Z',
+          nextRefreshAt: '2026-05-12T12:00:00.000Z',
+          activeRefreshId: null,
+          refreshing: false,
+          warnings: [],
+          refreshPolicy: {
+            id: '00000000-0000-4000-8000-000000000014',
+            name: 'liquidity_default',
+            cadence: 'daily',
+            refreshTimeLocal: '05:00',
+            timezone: 'America/Los_Angeles',
+            staleAfterCutoff: true,
+            manualRefreshEnabled: true,
+            automaticRefreshEnabled: true,
+            createdAt: '2026-05-11T12:00:00.000Z',
+            updatedAt: '2026-05-11T12:00:00.000Z',
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText('Fresh')).toBeInTheDocument()
+    expect(screen.getByText(/Data as of May 11, 2026/i)).toBeInTheDocument()
+    expect(screen.getByText(/Next refresh/i)).toBeInTheDocument()
+  })
+
   it('renders partial sync warnings', () => {
     render(
       <ConsolidatedHoldingsSyncStatus
         sync={{
           status: 'partial_success',
+          freshnessStatus: 'failed',
+          dataAsOfDate: '2026-05-11',
+          dataFetchedAt: '2026-05-11T08:00:00.000Z',
           lastSuccessfulSyncAt: '2026-05-11T08:00:00.000Z',
+          nextRefreshAt: '2026-05-12T12:00:00.000Z',
+          activeRefreshId: null,
+          refreshing: false,
           warnings: ['Brokerage B IRA failed to sync.'],
+          refreshPolicy: {
+            id: '00000000-0000-4000-8000-000000000014',
+            name: 'liquidity_default',
+            cadence: 'daily',
+            refreshTimeLocal: '05:00',
+            timezone: 'America/Los_Angeles',
+            staleAfterCutoff: true,
+            manualRefreshEnabled: true,
+            automaticRefreshEnabled: true,
+            createdAt: '2026-05-11T08:00:00.000Z',
+            updatedAt: '2026-05-11T08:00:00.000Z',
+          },
         }}
       />,
     )

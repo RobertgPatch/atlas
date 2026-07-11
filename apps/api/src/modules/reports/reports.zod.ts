@@ -72,6 +72,8 @@ const reportTypeSchema = z.enum([
 
 const exportFormatSchema = z.enum(['csv', 'xlsx'])
 
+const refreshReasonSchema = z.enum(['manual', 'forced'])
+
 export const activityDetailRowParamsSchema = z.object({
   rowId: uuidSchema,
 })
@@ -108,6 +110,24 @@ export const consolidatedHoldingsQuerySchema = z.object({
   direction: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(5000).optional().default(50),
+})
+
+export const consolidatedHoldingsRefreshBodySchema = z
+  .object({
+    force: z.coerce.boolean().optional().default(false),
+    reason: refreshReasonSchema.optional(),
+  })
+  .default({})
+
+export const schedulerRefreshBodySchema = z
+  .object({
+    scheduledFor: z.string().datetime().optional(),
+    force: z.coerce.boolean().optional().default(false),
+  })
+  .default({})
+
+export const schedulerTokenHeadersSchema = z.object({
+  'x-atlas-scheduler-token': z.string().min(16).max(512),
 })
 
 export const exportReportQuerySchema = z.object({
@@ -159,6 +179,11 @@ export type ActivityDetailQuery = z.output<typeof activityDetailQuerySchema>
 export type ConsolidatedHoldingsQuery = z.output<
   typeof consolidatedHoldingsQuerySchema
 >
+export type ConsolidatedHoldingsRefreshBody = z.output<
+  typeof consolidatedHoldingsRefreshBodySchema
+>
+export type SchedulerRefreshBody = z.output<typeof schedulerRefreshBodySchema>
+export type SchedulerTokenHeaders = z.output<typeof schedulerTokenHeadersSchema>
 export type ActivityDetailRowParams = z.output<typeof activityDetailRowParamsSchema>
 export type UpdateActivityDetailBody = z.output<typeof updateActivityDetailBodySchema>
 export type UpdatePortfolioCommitmentBody = z.output<

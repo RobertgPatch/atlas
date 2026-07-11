@@ -1,0 +1,640 @@
+openapi: 3.1.0
+info:
+  title: Atlas TIC Registry API
+  version: 0.1.0
+  description: API contract for the TIC Registry page.
+servers:
+  - url: /v1
+security:
+  - cookieSession: []
+paths:
+  /tic-registry/properties:
+    get:
+      summary: List TIC registry properties with nested interests and owners
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TicPropertyStatus'
+        - name: propertyType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TicPropertyType'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        '200':
+          description: Registry records visible to the authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicRegistryResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: Create a TIC property
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicPropertyRequest'
+      responses:
+        '201':
+          description: Created property with nested empty interests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicProperty'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /tic-registry/properties/{propertyId}:
+    get:
+      summary: Get one TIC property with nested interests and owners
+      parameters:
+        - $ref: '#/components/parameters/PropertyId'
+      responses:
+        '200':
+          description: Property detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicProperty'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      summary: Update a TIC property
+      parameters:
+        - $ref: '#/components/parameters/PropertyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicPropertyRequest'
+      responses:
+        '200':
+          description: Updated property
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicProperty'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+    delete:
+      summary: Delete a TIC property and its dependent records
+      parameters:
+        - $ref: '#/components/parameters/PropertyId'
+        - $ref: '#/components/parameters/ExpectedUpdatedAt'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+  /tic-registry/properties/{propertyId}/interests:
+    post:
+      summary: Create a TIC interest under a property
+      parameters:
+        - $ref: '#/components/parameters/PropertyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicInterestRequest'
+      responses:
+        '201':
+          description: Created TIC interest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicInterest'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tic-registry/interests/{interestId}:
+    patch:
+      summary: Update a TIC interest
+      parameters:
+        - $ref: '#/components/parameters/InterestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicInterestRequest'
+      responses:
+        '200':
+          description: Updated TIC interest
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicInterest'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+    delete:
+      summary: Delete a TIC interest and its owners
+      parameters:
+        - $ref: '#/components/parameters/InterestId'
+        - $ref: '#/components/parameters/ExpectedUpdatedAt'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+  /tic-registry/interests/{interestId}/owners:
+    post:
+      summary: Create an owner under a TIC interest
+      parameters:
+        - $ref: '#/components/parameters/InterestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTicOwnerRequest'
+      responses:
+        '201':
+          description: Created owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicOwner'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /tic-registry/owners/{ownerId}:
+    patch:
+      summary: Update an underlying owner
+      parameters:
+        - $ref: '#/components/parameters/OwnerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTicOwnerRequest'
+      responses:
+        '200':
+          description: Updated owner
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TicOwner'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+    delete:
+      summary: Delete an underlying owner
+      parameters:
+        - $ref: '#/components/parameters/OwnerId'
+        - $ref: '#/components/parameters/ExpectedUpdatedAt'
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/StaleUpdate'
+components:
+  securitySchemes:
+    cookieSession:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+  parameters:
+    PropertyId:
+      name: propertyId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    InterestId:
+      name: interestId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OwnerId:
+      name: ownerId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ExpectedUpdatedAt:
+      name: expectedUpdatedAt
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Role does not permit the action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Record not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    StaleUpdate:
+      description: Record has changed since the caller opened it
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        issues:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TicPropertyStatus:
+      type: string
+      enum: [held, under_contract, sold]
+    TicInterestStatus:
+      type: string
+      enum: [active, rolled, exited]
+    TicAcquisitionOrigin:
+      type: string
+      enum: [cash, exchange]
+    TicOwnerType:
+      type: string
+      enum: [individual, llc, trust, partnership, s_corp, ira, other]
+    AllocationStatus:
+      type: object
+      required: [status, allocatedPercentage, message]
+      properties:
+        status:
+          type: string
+          enum: [ok, under, over]
+        allocatedPercentage:
+          type: number
+        message:
+          type: string
+    TicRegistrySummary:
+      type: object
+      required:
+        - propertyCount
+        - ticInterestCount
+        - ownerCount
+        - estimatedHeldValueUsd
+        - underAllocatedPropertyCount
+        - overAllocatedPropertyCount
+        - underAllocatedInterestCount
+        - overAllocatedInterestCount
+      properties:
+        propertyCount:
+          type: integer
+        ticInterestCount:
+          type: integer
+        ownerCount:
+          type: integer
+        estimatedHeldValueUsd:
+          type: number
+        underAllocatedPropertyCount:
+          type: integer
+        overAllocatedPropertyCount:
+          type: integer
+        underAllocatedInterestCount:
+          type: integer
+        overAllocatedInterestCount:
+          type: integer
+    TicOwner:
+      type: object
+      required: [id, ticInterestId, name, ownerType, ticPercentage, effectivePropertyPercentage, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticInterestId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        ownerType:
+          $ref: '#/components/schemas/TicOwnerType'
+        ticPercentage:
+          type: number
+        effectivePropertyPercentage:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TicInterest:
+      type: object
+      required: [id, propertyId, name, propertyPercentage, status, acquisitionOrigin, allocation, owners, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        propertyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        propertyPercentage:
+          type: number
+        status:
+          $ref: '#/components/schemas/TicInterestStatus'
+        acquisitionOrigin:
+          $ref: '#/components/schemas/TicAcquisitionOrigin'
+        relinquishedInterestId:
+          type: [string, 'null']
+          format: uuid
+        relinquishedSourceName:
+          type: [string, 'null']
+        relinquishedSourceLabel:
+          type: [string, 'null']
+        acquisitionDate:
+          type: [string, 'null']
+          format: date
+        acquisitionValueUsd:
+          type: [number, 'null']
+        notes:
+          type: [string, 'null']
+        allocation:
+          $ref: '#/components/schemas/AllocationStatus'
+        owners:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicOwner'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TicProperty:
+      type: object
+      required: [id, name, propertyType, status, allocation, interests, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        propertyType:
+          type: string
+        status:
+          $ref: '#/components/schemas/TicPropertyStatus'
+        acquiredDate:
+          type: [string, 'null']
+          format: date
+        estimatedValueUsd:
+          type: [number, 'null']
+        notes:
+          type: [string, 'null']
+        allocation:
+          $ref: '#/components/schemas/AllocationStatus'
+        interests:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicInterest'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TicRegistryResponse:
+      type: object
+      required: [summary, properties]
+      properties:
+        summary:
+          $ref: '#/components/schemas/TicRegistrySummary'
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/TicProperty'
+    CreateTicPropertyRequest:
+      type: object
+      required: [name, propertyType]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        propertyType:
+          type: string
+        status:
+          $ref: '#/components/schemas/TicPropertyStatus'
+        acquiredDate:
+          type: [string, 'null']
+          format: date
+        estimatedValueUsd:
+          type: [number, 'null']
+          minimum: 0
+        notes:
+          type: [string, 'null']
+          maxLength: 10000
+    UpdateTicPropertyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        propertyType:
+          type: string
+        status:
+          $ref: '#/components/schemas/TicPropertyStatus'
+        acquiredDate:
+          type: [string, 'null']
+          format: date
+        estimatedValueUsd:
+          type: [number, 'null']
+          minimum: 0
+        notes:
+          type: [string, 'null']
+          maxLength: 10000
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+    CreateTicInterestRequest:
+      type: object
+      required: [name, propertyPercentage, acquisitionOrigin]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        propertyPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        status:
+          $ref: '#/components/schemas/TicInterestStatus'
+        acquisitionOrigin:
+          $ref: '#/components/schemas/TicAcquisitionOrigin'
+        relinquishedInterestId:
+          type: [string, 'null']
+          format: uuid
+        relinquishedSourceName:
+          type: [string, 'null']
+          maxLength: 200
+        acquisitionDate:
+          type: [string, 'null']
+          format: date
+        acquisitionValueUsd:
+          type: [number, 'null']
+          minimum: 0
+        notes:
+          type: [string, 'null']
+          maxLength: 10000
+    UpdateTicInterestRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        propertyPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        status:
+          $ref: '#/components/schemas/TicInterestStatus'
+        acquisitionOrigin:
+          $ref: '#/components/schemas/TicAcquisitionOrigin'
+        relinquishedInterestId:
+          type: [string, 'null']
+          format: uuid
+        relinquishedSourceName:
+          type: [string, 'null']
+          maxLength: 200
+        acquisitionDate:
+          type: [string, 'null']
+          format: date
+        acquisitionValueUsd:
+          type: [number, 'null']
+          minimum: 0
+        notes:
+          type: [string, 'null']
+          maxLength: 10000
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+    CreateTicOwnerRequest:
+      type: object
+      required: [name, ownerType, ticPercentage]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        ownerType:
+          $ref: '#/components/schemas/TicOwnerType'
+        ticPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+    UpdateTicOwnerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        ownerType:
+          $ref: '#/components/schemas/TicOwnerType'
+        ticPercentage:
+          type: number
+          minimum: 0
+          maximum: 100
+        expectedUpdatedAt:
+          type: string
+          format: date-time

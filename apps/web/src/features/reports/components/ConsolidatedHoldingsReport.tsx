@@ -152,9 +152,7 @@ export function ConsolidatedHoldingsReport() {
         connectedAccounts={data?.kpis.selectedAccountCount ?? 0}
       />
 
-      {data?.sync.status === 'partial_success' || data?.sync.status === 'failed' ? (
-        <ConsolidatedHoldingsSyncStatus sync={data.sync} />
-      ) : null}
+      <ConsolidatedHoldingsSyncStatus sync={data?.sync} />
 
       {rows.length > 0 ? (
         <>

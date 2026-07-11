@@ -12,11 +12,21 @@ apps/web/dist
 
 # Local-only state
 .storage
+.env
+.env.*
 .specify
 .playwright-mcp
 .vscode
 .git
 .github
+.terraform
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+Dockerfile*
+.dockerignore
 
 # Tests / dev artifacts not needed at runtime
 **/coverage

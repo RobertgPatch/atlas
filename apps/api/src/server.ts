@@ -3,6 +3,43 @@ import { config } from './config.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { authRepository } from './modules/auth/auth.repository.js'
 import { plaidRepository } from './modules/plaid/plaid.repository.js'
+import { plaidRefreshScheduler } from './modules/plaid/plaid.refresh-scheduler.js'
+
+const productionGuardrailWarnings = () => {
+  if (config.nodeEnv !== 'production') return []
+
+  return [
+    config.databaseUrl ? null : 'DATABASE_URL is not configured.',
+    config.persistenceSecretKey
+      ? null
+      : 'PERSISTENCE_SECRET_KEY is not configured.',
+    config.sessionSecret ? null : 'SESSION_SECRET is not configured.',
+    config.webOrigin ? null : 'WEB_ORIGIN is not configured.',
+    config.sessionCookieSecure
+      ? null
+      : 'SESSION_COOKIE_SECURE must be true in production.',
+    config.security.rateLimitEnabled
+      ? null
+      : 'RATE_LIMIT_ENABLED is not configured.',
+    config.security.apiSharedCachePolicy === 'no_shared_cache'
+      ? null
+      : 'API_SHARED_CACHE_POLICY must prevent shared caching for /v1/* responses.',
+    config.plaid.clientId && config.plaid.secret
+      ? null
+      : 'Plaid credentials are not fully configured.',
+  ].filter((warning): warning is string => Boolean(warning))
+}
+
+const logStartupDiagnostics = (app: ReturnType<typeof buildApp>) => {
+  const warnings = [
+    ...plaidRefreshScheduler.getSchedulerWarnings(),
+    ...productionGuardrailWarnings(),
+  ]
+
+  for (const warning of [...new Set(warnings)]) {
+    app.log.warn({ diagnostic: 'startup_guardrail' }, warning)
+  }
+}
 
 const start = async () => {
   const app = buildApp()
@@ -21,6 +58,8 @@ const start = async () => {
         throw new Error('REQUIRE_DURABLE_PERSISTENCE=true but DATABASE_URL is not configured')
       }
     }
+
+    logStartupDiagnostics(app)
 
     await app.listen({
       host: '0.0.0.0',

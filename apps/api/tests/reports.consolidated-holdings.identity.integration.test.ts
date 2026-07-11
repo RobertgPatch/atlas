@@ -198,4 +198,111 @@ describe('Consolidated holdings identity confidence', () => {
       description: 'Unidentified security (CUSIP 13013JEA0)',
     })
   })
+
+  it('prevents cross-user and unselected-account holdings leakage', async () => {
+    plaidRepository._debugSeed({
+      accounts: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          connectionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          custodianName: 'Summit Gate Custody Brokerage',
+          name: 'Selected Account',
+          officialName: null,
+          mask: '1111',
+          type: 'investment',
+          subtype: 'brokerage',
+          selectedForHoldingsReport: true,
+          syncStatus: 'success',
+          lastSyncedAt: '2026-05-11T08:00:00.000Z',
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          connectionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          custodianName: 'Summit Gate Custody Brokerage',
+          name: 'Unselected Account',
+          officialName: null,
+          mask: '2222',
+          type: 'investment',
+          subtype: 'brokerage',
+          selectedForHoldingsReport: false,
+          syncStatus: 'success',
+          lastSyncedAt: '2026-05-11T08:00:00.000Z',
+        },
+      ],
+      snapshot: {
+        id: 'aaaaaaaa-1111-4111-8111-111111111111',
+        status: 'success',
+        startedAt: '2026-05-11T08:00:00.000Z',
+        completedAt: '2026-05-11T08:00:00.000Z',
+        errorMessage: null,
+        dataAsOfDate: '2026-05-11',
+        dataAsOfMinDate: '2026-05-11',
+        dataAsOfMaxDate: '2026-05-11',
+        fetchedAt: '2026-05-11T08:00:00.000Z',
+        dashboardEligible: true,
+        holdingsCount: 2,
+        selectedAccountIds: [
+          '11111111-1111-4111-8111-111111111111',
+          '22222222-2222-4222-8222-222222222222',
+        ],
+      },
+      holdings: [
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          accountId: '11111111-1111-4111-8111-111111111111',
+          plaidAccountId: '11111111-1111-4111-8111-111111111111',
+          plaidSecurityId: 'selected-security',
+          symbol: 'SAFE',
+          description: 'Selected Holding',
+          type: 'Stock',
+          sector: null,
+          industry: null,
+          cusip: '111111111',
+          isin: null,
+          currencyCode: 'USD',
+          quantity: 1,
+          costBasis: 100,
+          institutionPrice: 150,
+          marketValue: 150,
+          unrealizedGainLoss: 50,
+          asOfDate: '2026-05-11',
+        },
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          accountId: '22222222-2222-4222-8222-222222222222',
+          plaidAccountId: '22222222-2222-4222-8222-222222222222',
+          plaidSecurityId: 'unselected-security',
+          symbol: 'LEAK',
+          description: 'Unselected Holding',
+          type: 'Stock',
+          sector: null,
+          industry: null,
+          cusip: '222222222',
+          isin: null,
+          currencyCode: 'USD',
+          quantity: 1,
+          costBasis: 200,
+          institutionPrice: 300,
+          marketValue: 300,
+          unrealizedGainLoss: 100,
+          asOfDate: '2026-05-11',
+        },
+      ],
+    })
+
+    const adminResponse = await getConsolidatedHoldingsViaApi(fixture)
+    const userResponse = await getConsolidatedHoldingsViaApi(
+      fixture,
+      '',
+      fixture.userCookie,
+    )
+
+    expect(adminResponse.statusCode).toBe(200)
+    expect(adminResponse.json().rows).toHaveLength(1)
+    expect(adminResponse.json().rows[0].symbol).toBe('SAFE')
+
+    expect(userResponse.statusCode).toBe(200)
+    expect(userResponse.json().rows).toHaveLength(0)
+    expect(userResponse.json().kpis.selectedAccountCount).toBe(0)
+  })
 })

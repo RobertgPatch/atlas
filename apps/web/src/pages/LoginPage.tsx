@@ -4,6 +4,7 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
+import { sessionStore } from '../auth/sessionStore'
 
 const getLoginErrorMessage = (error: unknown) => {
   if (
@@ -48,6 +49,13 @@ export function LoginPage() {
     setIsLoading(true)
     try {
       const result = await authClient.login(email, password)
+      if ('session' in result) {
+        authFlowStore.clear()
+        sessionStore.setAuthenticated(result)
+        navigate('/liquidity')
+        return
+      }
+
       if (result.status === 'MFA_ENROLL_REQUIRED') {
         authFlowStore.setEnrollment(result)
         navigate('/mfa/setup')

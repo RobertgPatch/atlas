@@ -1,0 +1,67 @@
+# Copy to ignored staging.tfvars before planning. Keep real domains, emails,
+# account-specific ids, and secrets out of commits.
+
+environment_name         = "staging"
+environment_cost_profile = "staging"
+project_name             = "atlas"
+aws_region               = "us-west-2"
+
+# Use null for the first low-friction staging smoke test. Terraform will create
+# CloudFront with the generated *.cloudfront.net domain and default certificate.
+# Switch to "staging.example.com" plus Route 53/ACM values for parity validation.
+app_domain             = null
+route53_hosted_zone_id = null
+acm_certificate_arn    = null
+
+availability_zones  = ["us-west-2a", "us-west-2b"]
+vpc_cidr            = "10.43.0.0/16"
+public_subnet_cidrs = ["10.43.0.0/24", "10.43.1.0/24"]
+private_subnet_cidrs = [
+  "10.43.10.0/24",
+  "10.43.11.0/24",
+]
+
+# Keep NAT enabled so private API tasks exercise the same egress shape as production.
+enable_nat_gateway = true
+
+api_image_tag = "staging"
+# First apply only: keep at 0 until the ECR image is pushed and Secrets Manager
+# values are populated. Set to 1 for the actual staging smoke test.
+api_desired_count = 0
+api_task_cpu      = "256"
+api_task_memory   = "512"
+ecr_force_delete  = true
+ecr_image_tag_mutability = "MUTABLE"
+
+database_instance_class           = "db.t4g.micro"
+database_allocated_storage_gb     = 20
+database_max_allocated_storage_gb = 40
+database_backup_retention_days    = 1
+database_deletion_protection      = false
+database_skip_final_snapshot      = true
+
+secret_recovery_window_days = 7
+
+plaid_refresh_time_local = "05:00"
+plaid_refresh_timezone   = "America/Los_Angeles"
+# First apply only: keep disabled until the API image and runtime secrets exist.
+# Set to true before validating the daily Plaid refresh path.
+scheduler_enabled = false
+
+log_retention_days     = 7
+waf_log_retention_days = 7
+
+waf_rate_limit_requests_per_5_minutes = 500
+monthly_budget_limit_usd              = 40
+budget_notification_thresholds        = [50, 80, 100]
+
+cloudfront_price_class = "PriceClass_100"
+
+additional_tags = {
+  Workload = "liquidity"
+  Tier     = "staging"
+}
+
+# Optional notification destinations. Use real emails only in local tfvars.
+alarm_email        = null
+budget_alert_email = null

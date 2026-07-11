@@ -14,6 +14,11 @@
     "build:api": "npm run --workspace=api build",
     "start:api": "npm run --workspace=api start",
     "dev:api": "npm run --workspace=api dev",
+    "dev:db": "docker compose -f docker-compose.dev.yml up -d postgres",
+    "dev:db:logs": "docker compose -f docker-compose.dev.yml logs -f postgres",
+    "dev:db:down": "docker compose -f docker-compose.dev.yml down",
+    "dev:db:reset": "docker compose -f docker-compose.dev.yml down -v",
+    "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
     "build:web": "npm run --workspace=web build",
     "test:api": "npm run --workspace=api test",
     "test:web": "npm run --workspace=web test"

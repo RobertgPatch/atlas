@@ -17,20 +17,20 @@
 
 **Purpose**: Prepare shared application, container, documentation, and Terraform locations for the Liquidity refresh and AWS deployment work.
 
-- [ ] T001 Confirm `AGENTS.md` points to `specs/014-plaid-refresh-policy/plan.md`
-- [ ] T002 Confirm `.specify/feature.json` points to `specs/014-plaid-refresh-policy`
-- [ ] T003 [P] Add Plaid refresh response metadata types in `packages/types/src/reports.ts`
-- [ ] T004 [P] Add Plaid refresh diagnostics and production readiness types in `packages/types/src/plaid.ts`
-- [ ] T005 [P] Add refresh policy, scheduler, security, and AWS runtime configuration fields in `apps/api/src/config.ts`
-- [ ] T006 Create the API production container definition in `apps/api/Dockerfile`
-- [ ] T007 [P] Create the AWS infrastructure overview document in `infra/aws/README.md`
-- [ ] T008 [P] Create the manual AWS Liquidity deployment runbook in `infra/aws/manual-liquidity-deployment.md`
-- [ ] T009 [P] Create the production readiness checklist document in `docs/deployment/aws-liquidity-production-readiness.md`
-- [ ] T010 Create Terraform version constraints in `infra/aws/terraform/versions.tf`
-- [ ] T011 Create Terraform provider configuration in `infra/aws/terraform/providers.tf`
-- [ ] T012 Create Terraform root input variables in `infra/aws/terraform/variables.tf`
-- [ ] T013 Create Terraform root module wiring in `infra/aws/terraform/main.tf`
-- [ ] T014 Create Terraform root outputs in `infra/aws/terraform/outputs.tf`
+- [X] T001 Confirm `AGENTS.md` points to `specs/014-plaid-refresh-policy/plan.md`
+- [X] T002 Confirm `.specify/feature.json` points to `specs/014-plaid-refresh-policy`
+- [X] T003 [P] Add Plaid refresh response metadata types in `packages/types/src/reports.ts`
+- [X] T004 [P] Add Plaid refresh diagnostics and production readiness types in `packages/types/src/plaid.ts`
+- [X] T005 [P] Add refresh policy, scheduler, security, and AWS runtime configuration fields in `apps/api/src/config.ts`
+- [X] T006 Create the API production container definition in `apps/api/Dockerfile`
+- [X] T007 [P] Create the AWS infrastructure overview document in `infra/aws/README.md`
+- [X] T008 [P] Create the manual AWS Liquidity deployment runbook in `infra/aws/manual-liquidity-deployment.md`
+- [X] T009 [P] Create the production readiness checklist document in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T010 Create Terraform version constraints in `infra/aws/terraform/versions.tf`
+- [X] T011 Create Terraform provider configuration in `infra/aws/terraform/providers.tf`
+- [X] T012 Create Terraform root input variables in `infra/aws/terraform/variables.tf`
+- [X] T013 Create Terraform root module wiring in `infra/aws/terraform/main.tf`
+- [X] T014 Create Terraform root outputs in `infra/aws/terraform/outputs.tf`
 
 ---
 
@@ -40,21 +40,21 @@
 
 **CRITICAL**: No user story work should begin until this phase is complete.
 
-- [ ] T015 Implement refresh policy tables, snapshot metadata columns, attempt fields, and indexes in `apps/api/src/infra/db/migrations/015_plaid_refresh_policy.sql`
-- [ ] T016 Add `PlaidRefreshPolicy`, `HoldingsRefreshAttempt`, `HoldingsSnapshotMetadata`, and `ProductionReadinessDiagnostic` interfaces in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T017 Add database row mappers for refresh policies, refresh attempts, snapshot metadata, and safe diagnostic fields in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T018 Implement default refresh policy configuration fallback from environment values in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T019 Implement refresh policy load and update methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T020 Implement refresh-attempt create, finalize, latest, active, and selected-account lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T021 Implement holdings snapshot create, latest, by-account, and metadata lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T022 Implement duplicate refresh prevention with PostgreSQL advisory locks or row locks in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T023 Create cutoff, freshness, stale/fresh status, and next-refresh calculations in `apps/api/src/modules/plaid/plaid.refresh-policy.ts`
-- [ ] T024 Create the scheduled refresh runner service shell in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
-- [ ] T025 Add request schemas for manual refresh force mode, scheduler payloads, and scheduler token validation in `apps/api/src/modules/reports/reports.zod.ts`
-- [ ] T026 Add no-shared-cache headers, secure header defaults, and production rate-limit wiring for authenticated API routes in `apps/api/src/app.ts`
-- [ ] T027 [P] Add API test helpers for seeded dated Plaid snapshots in `apps/api/tests/helpers/consolidatedHoldingsTestHelpers.ts`
-- [ ] T028 [P] Add API test helpers for policy time control, lock simulation, and Plaid call spying in `apps/api/tests/helpers/plaidRefreshPolicyTestHelpers.ts`
-- [ ] T029 [P] Add API test helpers for production readiness diagnostics in `apps/api/tests/helpers/productionReadinessTestHelpers.ts`
+- [X] T015 Implement refresh policy tables, snapshot metadata columns, attempt fields, and indexes in `apps/api/src/infra/db/migrations/015_plaid_refresh_policy.sql`
+- [X] T016 Add `PlaidRefreshPolicy`, `HoldingsRefreshAttempt`, `HoldingsSnapshotMetadata`, and `ProductionReadinessDiagnostic` interfaces in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T017 Add database row mappers for refresh policies, refresh attempts, snapshot metadata, and safe diagnostic fields in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T018 Implement default refresh policy configuration fallback from environment values in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T019 Implement refresh policy load and update methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T020 Implement refresh-attempt create, finalize, latest, active, and selected-account lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T021 Implement holdings snapshot create, latest, by-account, and metadata lookup methods in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T022 Implement duplicate refresh prevention with PostgreSQL advisory locks or row locks in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T023 Create cutoff, freshness, stale/fresh status, and next-refresh calculations in `apps/api/src/modules/plaid/plaid.refresh-policy.ts`
+- [X] T024 Create the scheduled refresh runner service shell in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
+- [X] T025 Add request schemas for manual refresh force mode, scheduler payloads, and scheduler token validation in `apps/api/src/modules/reports/reports.zod.ts`
+- [X] T026 Add no-shared-cache headers, secure header defaults, and production rate-limit wiring for authenticated API routes in `apps/api/src/app.ts`
+- [X] T027 [P] Add API test helpers for seeded dated Plaid snapshots in `apps/api/tests/helpers/consolidatedHoldingsTestHelpers.ts`
+- [X] T028 [P] Add API test helpers for policy time control, lock simulation, and Plaid call spying in `apps/api/tests/helpers/plaidRefreshPolicyTestHelpers.ts`
+- [X] T029 [P] Add API test helpers for production readiness diagnostics in `apps/api/tests/helpers/productionReadinessTestHelpers.ts`
 
 **Checkpoint**: Database schema, refresh policy calculations, refresh locks, security defaults, and test helpers are ready.
 
@@ -68,24 +68,24 @@
 
 ### Tests for User Story 1
 
-- [ ] T030 [P] [US1] Add contract test proving `GET /reports/consolidated-holdings` returns saved snapshot metadata in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
-- [ ] T031 [US1] Add integration test proving repeated Liquidity reads do not call Plaid in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
-- [ ] T032 [P] [US1] Add integration test proving user, entity, and selected-account scoping prevents cross-user holdings leakage in `apps/api/tests/reports.consolidated-holdings.identity.integration.test.ts`
-- [ ] T033 [P] [US1] Add web test for fresh saved snapshot status display in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.test.tsx`
+- [X] T030 [P] [US1] Add contract test proving `GET /reports/consolidated-holdings` returns saved snapshot metadata in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
+- [X] T031 [US1] Add integration test proving repeated Liquidity reads do not call Plaid in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
+- [X] T032 [P] [US1] Add integration test proving user, entity, and selected-account scoping prevents cross-user holdings leakage in `apps/api/tests/reports.consolidated-holdings.identity.integration.test.ts`
+- [X] T033 [P] [US1] Add web test for fresh saved snapshot status display in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T034 [US1] Update current snapshot selection queries for dashboard-eligible saved snapshots in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T035 [US1] Update `listSourceHoldingsForSelectedAccounts` to read only latest saved snapshots for selected accounts in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T036 [US1] Enforce user, entity, and account scoping on consolidated holdings queries in `apps/api/src/modules/reports/reports.repository.ts`
-- [ ] T037 [US1] Add saved snapshot metadata to consolidated holdings assembly in `apps/api/src/modules/reports/consolidatedHoldings.service.ts`
-- [ ] T038 [US1] Return freshness, data-as-of, fetched-at, next-refresh, warnings, and active-refresh metadata in `apps/api/src/modules/reports/reports.repository.ts`
-- [ ] T039 [US1] Ensure `getConsolidatedHoldingsHandler` performs no Plaid sync work during ordinary reads in `apps/api/src/modules/reports/reports.handler.ts`
-- [ ] T040 [US1] Update consolidated holdings response type definitions for extended `sync` metadata in `packages/types/src/reports.ts`
-- [ ] T041 [US1] Update the reports client to preserve extended sync metadata in `apps/web/src/features/reports/api/reportsClient.ts`
-- [ ] T042 [US1] Configure TanStack Query reuse for saved Liquidity responses in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
-- [ ] T043 [US1] Render fresh, stale, refreshing, failed, unavailable, data-as-of, and next-refresh labels in `apps/web/src/features/reports/components/ConsolidatedHoldingsSyncStatus.tsx`
-- [ ] T044 [US1] Wire the updated sync status component into the Liquidity report surface in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.tsx`
+- [X] T034 [US1] Update current snapshot selection queries for dashboard-eligible saved snapshots in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T035 [US1] Update `listSourceHoldingsForSelectedAccounts` to read only latest saved snapshots for selected accounts in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T036 [US1] Enforce user, entity, and account scoping on consolidated holdings queries in `apps/api/src/modules/reports/reports.repository.ts`
+- [X] T037 [US1] Add saved snapshot metadata to consolidated holdings assembly in `apps/api/src/modules/reports/consolidatedHoldings.service.ts`
+- [X] T038 [US1] Return freshness, data-as-of, fetched-at, next-refresh, warnings, and active-refresh metadata in `apps/api/src/modules/reports/reports.repository.ts`
+- [X] T039 [US1] Ensure `getConsolidatedHoldingsHandler` performs no Plaid sync work during ordinary reads in `apps/api/src/modules/reports/reports.handler.ts`
+- [X] T040 [US1] Update consolidated holdings response type definitions for extended `sync` metadata in `packages/types/src/reports.ts`
+- [X] T041 [US1] Update the reports client to preserve extended sync metadata in `apps/web/src/features/reports/api/reportsClient.ts`
+- [X] T042 [US1] Configure TanStack Query reuse for saved Liquidity responses in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
+- [X] T043 [US1] Render fresh, stale, refreshing, failed, unavailable, data-as-of, and next-refresh labels in `apps/web/src/features/reports/components/ConsolidatedHoldingsSyncStatus.tsx`
+- [X] T044 [US1] Wire the updated sync status component into the Liquidity report surface in `apps/web/src/features/reports/components/ConsolidatedHoldingsReport.tsx`
 
 **Checkpoint**: User Story 1 is independently functional and testable as the MVP.
 
@@ -99,26 +99,26 @@
 
 ### Tests for User Story 2
 
-- [ ] T045 [P] [US2] Add contract tests for cutoff, freshness, and next-refresh calculations in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
-- [ ] T046 [US2] Add integration test for stale scheduled refresh creating a new saved snapshot in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
-- [ ] T047 [US2] Add integration test for fresh scheduled refresh skipping Plaid calls in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
-- [ ] T048 [US2] Add integration test for failed refresh retaining the previous saved snapshot in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
-- [ ] T049 [P] [US2] Add contract test for manual refresh force mode in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
-- [ ] T050 [US2] Add contract test for scheduler token authentication and duplicate-refresh conflict behavior in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
+- [X] T045 [P] [US2] Add contract tests for cutoff, freshness, and next-refresh calculations in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
+- [X] T046 [US2] Add integration test for stale scheduled refresh creating a new saved snapshot in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
+- [X] T047 [US2] Add integration test for fresh scheduled refresh skipping Plaid calls in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
+- [X] T048 [US2] Add integration test for failed refresh retaining the previous saved snapshot in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
+- [X] T049 [P] [US2] Add contract test for manual refresh force mode in `apps/api/tests/reports.consolidated-holdings.freshness.contract.test.ts`
+- [X] T050 [US2] Add contract test for scheduler token authentication and duplicate-refresh conflict behavior in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T051 [US2] Update manual refresh handler and route validation to parse force mode and return `HoldingsRefreshAttempt` metadata in `apps/api/src/modules/reports/reports.handler.ts` and `apps/api/src/modules/reports/reports.routes.ts`
-- [ ] T052 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to evaluate freshness before calling Plaid in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
-- [ ] T053 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to create pending attempts and finalize success, partial success, failed, or skipped states in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
-- [ ] T054 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to save holdings snapshots before reporting a successful refresh in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
-- [ ] T055 [US2] Add duplicate refresh conflict behavior using refresh locks in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
-- [ ] T056 [US2] Implement daily scheduler execution and selected-account refresh orchestration in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
-- [ ] T057 [US2] Add protected scheduler endpoint handler in `apps/api/src/modules/admin/plaid-refresh-status.handler.ts`
-- [ ] T058 [US2] Register `POST /admin/plaid-refresh/run` in `apps/api/src/modules/admin/admin.routes.ts`
-- [ ] T059 [US2] Add safe audit events for manual, scheduled, skipped, failed, and duplicate refresh attempts in `apps/api/src/modules/audit/audit.events.ts`
-- [ ] T060 [US2] Emit CloudWatch-friendly structured refresh logs without Plaid tokens in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
-- [ ] T061 [US2] Update the web refresh mutation to send force mode when requested in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
+- [X] T051 [US2] Update manual refresh handler and route validation to parse force mode and return `HoldingsRefreshAttempt` metadata in `apps/api/src/modules/reports/reports.handler.ts` and `apps/api/src/modules/reports/reports.routes.ts`
+- [X] T052 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to evaluate freshness before calling Plaid in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
+- [X] T053 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to create pending attempts and finalize success, partial success, failed, or skipped states in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
+- [X] T054 [US2] Update `plaidHoldingsSync.syncSelectedHoldings` to save holdings snapshots before reporting a successful refresh in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
+- [X] T055 [US2] Add duplicate refresh conflict behavior using refresh locks in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
+- [X] T056 [US2] Implement daily scheduler execution and selected-account refresh orchestration in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
+- [X] T057 [US2] Add protected scheduler endpoint handler in `apps/api/src/modules/admin/plaid-refresh-status.handler.ts`
+- [X] T058 [US2] Register `POST /admin/plaid-refresh/run` in `apps/api/src/modules/admin/admin.routes.ts`
+- [X] T059 [US2] Add safe audit events for manual, scheduled, skipped, failed, and duplicate refresh attempts in `apps/api/src/modules/audit/audit.events.ts`
+- [X] T060 [US2] Emit CloudWatch-friendly structured refresh logs without Plaid tokens in `apps/api/src/modules/plaid/plaid.refresh-scheduler.ts`
+- [X] T061 [US2] Update the web refresh mutation to send force mode when requested in `apps/web/src/features/reports/hooks/useConsolidatedHoldings.ts`
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
@@ -132,18 +132,18 @@
 
 ### Tests for User Story 3
 
-- [ ] T062 [US3] Add history integration test proving source holdings are append-only across refreshes in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
-- [ ] T063 [US3] Add history integration test proving current dashboard chooses the latest eligible snapshot in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
-- [ ] T064 [US3] Add history integration test proving data-as-of dates remain distinguishable by snapshot in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
+- [X] T062 [US3] Add history integration test proving source holdings are append-only across refreshes in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
+- [X] T063 [US3] Add history integration test proving current dashboard chooses the latest eligible snapshot in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
+- [X] T064 [US3] Add history integration test proving data-as-of dates remain distinguishable by snapshot in `apps/api/tests/reports.consolidated-holdings.history.integration.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T065 [US3] Remove account-level source holding delete behavior from normal refresh persistence in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T066 [US3] Persist `data_as_of_date`, min/max as-of dates, and fetched timestamp for each successful snapshot in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T067 [US3] Compute snapshot-level as-of dates from Plaid holdings and securities in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
-- [ ] T068 [US3] Add repository methods to list historical snapshots by account and date range in `apps/api/src/modules/plaid/plaid.repository.ts`
-- [ ] T069 [US3] Ensure consolidated holdings current queries ignore failed, skipped, and empty snapshots in `apps/api/src/modules/reports/reports.repository.ts`
-- [ ] T070 [US3] Update export generation to include displayed snapshot data-as-of metadata in `apps/api/src/modules/reports/reports.export.ts`
+- [X] T065 [US3] Remove account-level source holding delete behavior from normal refresh persistence in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T066 [US3] Persist `data_as_of_date`, min/max as-of dates, and fetched timestamp for each successful snapshot in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T067 [US3] Compute snapshot-level as-of dates from Plaid holdings and securities in `apps/api/src/modules/plaid/plaid.holdings-sync.ts`
+- [X] T068 [US3] Add repository methods to list historical snapshots by account and date range in `apps/api/src/modules/plaid/plaid.repository.ts`
+- [X] T069 [US3] Ensure consolidated holdings current queries ignore failed, skipped, and empty snapshots in `apps/api/src/modules/reports/reports.repository.ts`
+- [X] T070 [US3] Update export generation to include displayed snapshot data-as-of metadata in `apps/api/src/modules/reports/reports.export.ts`
 
 **Checkpoint**: User Stories 1, 2, and 3 all work independently.
 
@@ -157,25 +157,25 @@
 
 ### Tests for User Story 4
 
-- [ ] T071 [P] [US4] Add admin diagnostics contract test for `GET /admin/plaid-refresh-status` in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
-- [ ] T072 [US4] Add integration test for missing scheduler warning in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
-- [ ] T073 [US4] Add integration test proving diagnostics do not expose Plaid tokens, scheduler token, database URL, or persistence secret in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
-- [ ] T074 [P] [US4] Add admin diagnostics contract test for `GET /admin/production-readiness` in `apps/api/tests/production-readiness.contract.test.ts`
-- [ ] T075 [US4] Add production readiness test for no-shared-cache policy, secure cookies, allowed origin, and secret presence booleans in `apps/api/tests/production-readiness.contract.test.ts`
-- [ ] T076 [US4] Add production readiness test for launch-required API/repository scoping and deferred Postgres RLS status in `apps/api/tests/production-readiness.contract.test.ts`
+- [X] T071 [P] [US4] Add admin diagnostics contract test for `GET /admin/plaid-refresh-status` in `apps/api/tests/plaid.refresh-policy.contract.test.ts`
+- [X] T072 [US4] Add integration test for missing scheduler warning in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
+- [X] T073 [US4] Add integration test proving diagnostics do not expose Plaid tokens, scheduler token, database URL, or persistence secret in `apps/api/tests/plaid.refresh-policy.integration.test.ts`
+- [X] T074 [P] [US4] Add admin diagnostics contract test for `GET /admin/production-readiness` in `apps/api/tests/production-readiness.contract.test.ts`
+- [X] T075 [US4] Add production readiness test for no-shared-cache policy, secure cookies, allowed origin, and secret presence booleans in `apps/api/tests/production-readiness.contract.test.ts`
+- [X] T076 [US4] Add production readiness test for launch-required API/repository scoping and deferred Postgres RLS status in `apps/api/tests/production-readiness.contract.test.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T077 [US4] Implement refresh diagnostic aggregation in `apps/api/src/modules/admin/plaid-refresh-status.handler.ts`
-- [ ] T078 [US4] Register `GET /admin/plaid-refresh-status` in `apps/api/src/modules/admin/admin.routes.ts`
-- [ ] T079 [US4] Add scheduler configuration warnings to startup diagnostics in `apps/api/src/server.ts`
-- [ ] T080 [US4] Add admin-only diagnostic response types in `packages/types/src/plaid.ts`
-- [ ] T081 [US4] Add API client support for refresh diagnostics in `apps/web/src/features/reports/api/reportsClient.ts`
-- [ ] T082 [US4] Create the production readiness handler in `apps/api/src/modules/admin/production-readiness.handler.ts`
-- [ ] T083 [US4] Register `GET /admin/production-readiness` in `apps/api/src/modules/admin/admin.routes.ts`
-- [ ] T084 [US4] Implement app-visible durable persistence, scheduler, secrets, secret rotation warning, cookie, origin, cache, and scoping diagnostics in `apps/api/src/modules/admin/production-readiness.handler.ts`
-- [ ] T085 [US4] Add startup warning logs for missing production guardrails without secret values in `apps/api/src/server.ts`
-- [ ] T086 [US4] Document Postgres RLS as deferred hardening with required API/repository scoping evidence in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T077 [US4] Implement refresh diagnostic aggregation in `apps/api/src/modules/admin/plaid-refresh-status.handler.ts`
+- [X] T078 [US4] Register `GET /admin/plaid-refresh-status` in `apps/api/src/modules/admin/admin.routes.ts`
+- [X] T079 [US4] Add scheduler configuration warnings to startup diagnostics in `apps/api/src/server.ts`
+- [X] T080 [US4] Add admin-only diagnostic response types in `packages/types/src/plaid.ts`
+- [X] T081 [US4] Add API client support for refresh diagnostics in `apps/web/src/features/reports/api/reportsClient.ts`
+- [X] T082 [US4] Create the production readiness handler in `apps/api/src/modules/admin/production-readiness.handler.ts`
+- [X] T083 [US4] Register `GET /admin/production-readiness` in `apps/api/src/modules/admin/admin.routes.ts`
+- [X] T084 [US4] Implement app-visible durable persistence, scheduler, secrets, secret rotation warning, cookie, origin, cache, and scoping diagnostics in `apps/api/src/modules/admin/production-readiness.handler.ts`
+- [X] T085 [US4] Add startup warning logs for missing production guardrails without secret values in `apps/api/src/server.ts`
+- [X] T086 [US4] Document Postgres RLS as deferred hardening with required API/repository scoping evidence in `docs/deployment/aws-liquidity-production-readiness.md`
 
 **Checkpoint**: All user stories are independently functional.
 
@@ -185,43 +185,65 @@
 
 **Purpose**: Complete the production deployment artifacts, security/cost guardrails, manual setup guidance, Terraform comparison, and release validation.
 
-- [ ] T087 Update `apps/api/Dockerfile` to build the Node 22 API image, install production dependencies, and copy SQL migrations beside the runtime output
-- [ ] T088 Confirm Docker build context excludes local secrets and transient files in `.dockerignore`
-- [ ] T089 Create Terraform network resources for VPC, public subnets, private subnets, routing, and security-group boundaries in `infra/aws/terraform/modules/network/main.tf`
-- [ ] T090 Create Terraform network variables and outputs in `infra/aws/terraform/modules/network/variables.tf`
-- [ ] T091 Create Terraform RDS PostgreSQL resources with private access from the API security group in `infra/aws/terraform/modules/database/main.tf`
-- [ ] T092 Create Terraform database variables and outputs in `infra/aws/terraform/modules/database/variables.tf`
-- [ ] T093 Create Terraform Secrets Manager resources and rotation metadata placeholders in `infra/aws/terraform/modules/secrets/main.tf`
-- [ ] T094 Create Terraform secrets variables and non-secret outputs in `infra/aws/terraform/modules/secrets/variables.tf`
-- [ ] T095 Create Terraform ECR, ECS/Fargate API service, task definition, IAM roles, log group, and health check resources in `infra/aws/terraform/modules/api/main.tf`
-- [ ] T096 Create Terraform API variables and outputs in `infra/aws/terraform/modules/api/variables.tf`
-- [ ] T097 Create Terraform S3 web bucket, CloudFront default static behavior, `/v1/*` API behavior, ACM, and Route 53 resources in `infra/aws/terraform/modules/edge/main.tf`
-- [ ] T098 Create Terraform edge variables and outputs in `infra/aws/terraform/modules/edge/variables.tf`
-- [ ] T099 Create Terraform WAF managed rules, rate-based rules, and logging resources in `infra/aws/terraform/modules/security/main.tf`
-- [ ] T100 Create Terraform security variables and outputs in `infra/aws/terraform/modules/security/variables.tf`
-- [ ] T101 Create Terraform EventBridge Scheduler resources for daily 5:00 AM `America/Los_Angeles` refresh in `infra/aws/terraform/modules/scheduler/main.tf`
-- [ ] T102 Create Terraform scheduler variables and outputs in `infra/aws/terraform/modules/scheduler/variables.tf`
-- [ ] T103 Create Terraform CloudWatch log retention, health alarms, API error alarms, scheduler alarms, RDS alarms, and WAF alarms in `infra/aws/terraform/modules/observability/main.tf`
-- [ ] T104 Create Terraform observability variables and outputs in `infra/aws/terraform/modules/observability/variables.tf`
-- [ ] T105 Create Terraform AWS Budgets resources and notification variables in `infra/aws/terraform/modules/budgets/main.tf`
-- [ ] T106 Create Terraform budgets variables and outputs in `infra/aws/terraform/modules/budgets/variables.tf`
-- [ ] T107 Wire all Terraform modules together with least-privilege inputs in `infra/aws/terraform/main.tf`
-- [ ] T108 Add sanitized example Terraform variables without secret values in `infra/aws/terraform/terraform.tfvars.example`
-- [ ] T109 Document manual DNS, ACM, VPC, RDS, Secrets Manager, ECR, ECS, S3, CloudFront, WAF, EventBridge, CloudWatch, Route 53, and Budgets steps in `infra/aws/manual-liquidity-deployment.md`
-- [ ] T110 Document manual-to-Terraform comparison fields and drift review process in `infra/aws/README.md`
-- [ ] T111 Document production validation for logs, alarms, WAF, rate limiting, DDoS baseline, budget alerts, secret rotation enforcement, CSRF, XSS, SQL injection, and token minimization in `docs/deployment/aws-liquidity-production-readiness.md`
-- [ ] T112 Update OpenAPI examples after implementation in `specs/014-plaid-refresh-policy/contracts/plaid-refresh-policy.openapi.yaml`
-- [ ] T113 Update quickstart AWS verification commands after implementation in `specs/014-plaid-refresh-policy/quickstart.md`
-- [ ] T114 Add the no-Redis and no-shared-CDN-cache decisions to system architecture notes in `docs/api/architecture/10-system-architecture.md`
-- [ ] T115 Run focused API tests listed in `specs/014-plaid-refresh-policy/quickstart.md`
-- [ ] T116 Run focused web tests listed in `specs/014-plaid-refresh-policy/quickstart.md`
-- [ ] T117 Run API and web production builds from `package.json`
-- [ ] T118 Run local API container build and migration-file presence check from `specs/014-plaid-refresh-policy/quickstart.md`
+- [X] T087 Update `apps/api/Dockerfile` to build the Node 22 API image, install production dependencies, and copy SQL migrations beside the runtime output
+- [X] T088 Confirm Docker build context excludes local secrets and transient files in `.dockerignore`
+- [X] T089 Create Terraform network resources for VPC, public subnets, private subnets, routing, and security-group boundaries in `infra/aws/terraform/modules/network/main.tf`
+- [X] T090 Create Terraform network variables and outputs in `infra/aws/terraform/modules/network/variables.tf`
+- [X] T091 Create Terraform RDS PostgreSQL resources with private access from the API security group in `infra/aws/terraform/modules/database/main.tf`
+- [X] T092 Create Terraform database variables and outputs in `infra/aws/terraform/modules/database/variables.tf`
+- [X] T093 Create Terraform Secrets Manager resources and rotation metadata placeholders in `infra/aws/terraform/modules/secrets/main.tf`
+- [X] T094 Create Terraform secrets variables and non-secret outputs in `infra/aws/terraform/modules/secrets/variables.tf`
+- [X] T095 Create Terraform ECR, ECS/Fargate API service, task definition, IAM roles, log group, and health check resources in `infra/aws/terraform/modules/api/main.tf`
+- [X] T096 Create Terraform API variables and outputs in `infra/aws/terraform/modules/api/variables.tf`
+- [X] T097 Create Terraform S3 web bucket, CloudFront default static behavior, `/v1/*` API behavior, ACM, and Route 53 resources in `infra/aws/terraform/modules/edge/main.tf`
+- [X] T098 Create Terraform edge variables and outputs in `infra/aws/terraform/modules/edge/variables.tf`
+- [X] T099 Create Terraform WAF managed rules, rate-based rules, and logging resources in `infra/aws/terraform/modules/security/main.tf`
+- [X] T100 Create Terraform security variables and outputs in `infra/aws/terraform/modules/security/variables.tf`
+- [X] T101 Create Terraform EventBridge Scheduler resources for daily 5:00 AM `America/Los_Angeles` refresh in `infra/aws/terraform/modules/scheduler/main.tf`
+- [X] T102 Create Terraform scheduler variables and outputs in `infra/aws/terraform/modules/scheduler/variables.tf`
+- [X] T103 Create Terraform CloudWatch log retention, health alarms, API error alarms, scheduler alarms, RDS alarms, and WAF alarms in `infra/aws/terraform/modules/observability/main.tf`
+- [X] T104 Create Terraform observability variables and outputs in `infra/aws/terraform/modules/observability/variables.tf`
+- [X] T105 Create Terraform AWS Budgets resources and notification variables in `infra/aws/terraform/modules/budgets/main.tf`
+- [X] T106 Create Terraform budgets variables and outputs in `infra/aws/terraform/modules/budgets/variables.tf`
+- [X] T107 Wire all Terraform modules together with least-privilege inputs in `infra/aws/terraform/main.tf`
+- [X] T108 Add sanitized example Terraform variables without secret values in `infra/aws/terraform/terraform.tfvars.example`
+- [X] T109 Document manual DNS, ACM, VPC, RDS, Secrets Manager, ECR, ECS, S3, CloudFront, WAF, EventBridge, CloudWatch, Route 53, and Budgets steps in `infra/aws/manual-liquidity-deployment.md`
+- [X] T110 Document manual-to-Terraform comparison fields and drift review process in `infra/aws/README.md`
+- [X] T111 Document production validation for logs, alarms, WAF, rate limiting, DDoS baseline, budget alerts, secret rotation enforcement, CSRF, XSS, SQL injection, and token minimization in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T112 Update OpenAPI examples after implementation in `specs/014-plaid-refresh-policy/contracts/plaid-refresh-policy.openapi.yaml`
+- [X] T113 Update quickstart AWS verification commands after implementation in `specs/014-plaid-refresh-policy/quickstart.md`
+- [X] T114 Add the no-Redis and no-shared-CDN-cache decisions to system architecture notes in `docs/api/architecture/10-system-architecture.md`
+- [X] T115 Run focused API tests listed in `specs/014-plaid-refresh-policy/quickstart.md`
+- [X] T116 Run focused web tests listed in `specs/014-plaid-refresh-policy/quickstart.md`
+- [X] T117 Run API and web production builds from `package.json`
+- [X] T118 Run local API container build and migration-file presence check from `specs/014-plaid-refresh-policy/quickstart.md`
 - [ ] T119 Run `terraform fmt`, `terraform validate`, and `terraform plan` for `infra/aws/terraform/main.tf`
 - [ ] T120 Complete the manual AWS deployment evidence checklist in `infra/aws/manual-liquidity-deployment.md`
 - [ ] T121 Record Terraform plan comparison results and intentional differences in `infra/aws/README.md`
-- [ ] T122 Add production secret exclusion patterns to `.gitignore` and record no-secret verification evidence in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T122 Add production secret exclusion patterns to `.gitignore` and record no-secret verification evidence in `docs/deployment/aws-liquidity-production-readiness.md`
 - [ ] T123 Review completed implementation against success criteria in `specs/014-plaid-refresh-policy/spec.md`
+
+---
+
+## Phase 8: AWS Staging And Production Environment Parity
+
+**Purpose**: Update the AWS plan so Atlas has separate staging and production environments in AWS. Staging must mirror production topology, routing, scheduler, security boundaries, secrets, observability, and validation flow while using cheaper non-production sizing, shorter retention, sandbox credentials, and lower budget thresholds where parity is not weakened.
+
+- [X] T124 Update the implementation plan summary, technical context, target platform, constraints, and structure decision for two AWS environments in `specs/014-plaid-refresh-policy/plan.md`
+- [X] T125 [P] Update the AWS deployment environment data model and validation rules for staging and production in `specs/014-plaid-refresh-policy/data-model.md`
+- [X] T126 [P] Add the staging-in-AWS decision, Railway/non-AWS alternative rejection, and cost-control rationale in `specs/014-plaid-refresh-policy/research.md`
+- [X] T127 Add environment name, domain, tags, cost profile, log retention, database sizing, desired count, and budget threshold inputs in `infra/aws/terraform/variables.tf`
+- [X] T128 Thread environment-specific names, tags, domains, retention, sizing, and budget inputs through the root Terraform modules in `infra/aws/terraform/main.tf`
+- [X] T129 [P] Update non-secret Terraform outputs to include environment-qualified deployment identifiers and review fields in `infra/aws/terraform/outputs.tf`
+- [X] T130 [P] Create a sanitized staging variable example with cheap production-like settings in `infra/aws/terraform/staging.tfvars.example`
+- [X] T131 [P] Create a sanitized production variable example with production-safe settings in `infra/aws/terraform/production.tfvars.example`
+- [X] T132 Update the generic Terraform variable example to point users at staging and production examples without secrets in `infra/aws/terraform/terraform.tfvars.example`
+- [X] T133 Update the manual AWS runbook with staging-first console setup, environment-specific domains, isolated secrets, isolated databases, and non-production cost allowances in `infra/aws/manual-liquidity-deployment.md`
+- [X] T134 Update the Terraform comparison workflow with separate staging and production plan/review evidence in `infra/aws/README.md`
+- [X] T135 Update the production readiness checklist with staging parity checks and documented staging-only cost allowances in `docs/deployment/aws-liquidity-production-readiness.md`
+- [X] T136 Update quickstart verification to validate staging before production and run separate staging and production Terraform plans in `specs/014-plaid-refresh-policy/quickstart.md`
+- [ ] T137 Run `terraform fmt`, `terraform validate`, staging `terraform plan`, and production `terraform plan` for `infra/aws/terraform/main.tf`
+- [X] T138 Review the staging and production AWS plan against FR-027 and SC-008 in `specs/014-plaid-refresh-policy/spec.md`
 
 ---
 
@@ -236,6 +258,7 @@
 - **User Story 3 (Phase 5)**: Depends on Foundational and the US2 refresh write path.
 - **User Story 4 (Phase 6)**: Depends on Foundational and the shared refresh policy, attempt repository methods, and app configuration.
 - **AWS Deployment and Validation (Phase 7)**: Can begin documentation and Terraform scaffolding after Setup, but final validation depends on the desired user stories being complete.
+- **AWS Staging and Production Parity (Phase 8)**: Depends on the Phase 7 Terraform scaffolding and deployment runbooks; T124-T126 should be completed before Terraform and runbook updates T127-T136.
 
 ### User Story Dependencies
 
@@ -261,6 +284,7 @@
 - US4 tests T071 and T074 can run in parallel; T072 and T073 share an integration test file.
 - Terraform module tasks T089, T091, T093, T095, T097, T099, T101, T103, and T105 can be drafted in parallel after root variables are stable.
 - Documentation tasks T109, T110, T111, T112, T113, and T114 can run in parallel after implementation behavior is stable.
+- Phase 8 design tasks T125 and T126 can run in parallel after T124; Terraform example tasks T129, T130, and T131 can run in parallel after T127 and T128 are stable; runbook/readiness/quickstart tasks T133, T135, and T136 can run in parallel after the environment model is clear.
 
 ---
 
@@ -296,6 +320,15 @@ Task: "T097 Create Terraform S3 web bucket, CloudFront default static behavior, 
 Task: "T103 Create Terraform CloudWatch log retention, health alarms, API error alarms, scheduler alarms, RDS alarms, and WAF alarms in infra/aws/terraform/modules/observability/main.tf"
 ```
 
+## Parallel Example: AWS Staging And Production Parity
+
+```text
+Task: "T125 [P] Update the AWS deployment environment data model and validation rules for staging and production in specs/014-plaid-refresh-policy/data-model.md"
+Task: "T126 [P] Add the staging-in-AWS decision, Railway/non-AWS alternative rejection, and cost-control rationale in specs/014-plaid-refresh-policy/research.md"
+Task: "T130 [P] Create a sanitized staging variable example with cheap production-like settings in infra/aws/terraform/staging.tfvars.example"
+Task: "T131 [P] Create a sanitized production variable example with production-safe settings in infra/aws/terraform/production.tfvars.example"
+```
+
 ---
 
 ## Implementation Strategy
@@ -315,6 +348,7 @@ Task: "T103 Create Terraform CloudWatch log retention, health alarms, API error 
 4. US3 protects history for future trend reporting.
 5. US4 adds operator visibility, production readiness diagnostics, and scheduler warnings.
 6. Phase 7 completes AWS manual deployment guidance, Terraform comparison, and release validation.
+7. Phase 8 converts the AWS plan from a single production-shaped environment into separate staging and production environments, keeping staging cheaper without losing topology and validation parity.
 
 ### Parallel Team Strategy
 
@@ -331,5 +365,7 @@ Task: "T103 Create Terraform CloudWatch log retention, health alarms, API error 
 - Preserve historical `source_holdings`; do not replace older successful snapshots during normal refresh.
 - Static web assets can be edge cached, but authenticated `/v1/*` financial API responses must not use shared CDN caching.
 - Production secrets must stay in Secrets Manager or local development-only `.env` files, never in committed docs, Terraform outputs, logs, browser payloads, or diagnostics.
+- Staging must also keep secrets isolated in AWS Secrets Manager and must not reuse production databases, Plaid production credentials, scheduler tokens, or admin bootstrap credentials.
+- Staging cost reductions should come from resource sizing, desired counts, retention periods, budget thresholds, and sandbox credentials; do not remove core production-like routing, private database networking, WAF/rate limiting, scheduler, CloudWatch logging, or Terraform validation.
 - API/repository scoping is launch-required; Postgres RLS remains a documented hardening follow-up after the access model stabilizes.
 - Stop at each checkpoint to validate the story independently.

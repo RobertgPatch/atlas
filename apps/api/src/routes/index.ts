@@ -8,6 +8,7 @@ import { registerReviewRoutes } from '../modules/review/review.routes.js'
 import { registerPartnershipRoutes } from '../modules/partnerships/partnerships.routes.js'
 import { registerPlaidRoutes } from '../modules/plaid/plaid.routes.js'
 import { registerReportsRoutes } from '../modules/reports/reports.routes.js'
+import { registerTicRegistryRoutes } from '../modules/tic-registry/tic-registry.routes.js'
 
 export const registerRoutes = async (app: FastifyInstance) => {
   await registerAuthRoutes(app)
@@ -19,4 +20,5 @@ export const registerRoutes = async (app: FastifyInstance) => {
   await registerPartnershipRoutes(app)
   await registerPlaidRoutes(app)
   await registerReportsRoutes(app)
+  await registerTicRegistryRoutes(app)
 }
