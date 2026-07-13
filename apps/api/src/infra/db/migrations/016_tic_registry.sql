@@ -3,6 +3,10 @@ begin;
 create table if not exists tic_properties (
   id uuid primary key default gen_random_uuid(),
   name text not null,
+  city text,
+  state text,
+  property_code text,
+  number_of_units integer check (number_of_units is null or number_of_units >= 0),
   property_type text not null check (
     property_type in (
       'multifamily',
@@ -18,7 +22,7 @@ create table if not exists tic_properties (
   ),
   status text not null default 'held' check (status in ('held', 'under_contract', 'sold')),
   acquired_date date,
-  estimated_value_usd numeric(18,2) check (estimated_value_usd is null or estimated_value_usd >= 0),
+  acquisition_price_usd numeric(18,2) check (acquisition_price_usd is null or acquisition_price_usd >= 0),
   notes text,
   created_by_user_id uuid references users(id) on delete set null,
   updated_by_user_id uuid references users(id) on delete set null,
@@ -62,6 +66,9 @@ create table if not exists tic_owners (
 
 create index if not exists tic_properties_name_idx
   on tic_properties (lower(name));
+
+create index if not exists tic_properties_code_idx
+  on tic_properties (lower(property_code));
 
 create index if not exists tic_properties_status_idx
   on tic_properties (status);

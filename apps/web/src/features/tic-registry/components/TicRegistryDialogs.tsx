@@ -95,6 +95,11 @@ function parseOptionalNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function parseOptionalInteger(value: string): number | null {
+  const parsed = parseOptionalNumber(value)
+  return parsed == null || !Number.isInteger(parsed) ? null : parsed
+}
+
 interface PropertyDialogProps {
   open: boolean
   property: TicProperty | null
@@ -107,20 +112,28 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
   const isEditing = Boolean(property)
 
   const [name, setName] = useState('')
+  const [city, setCity] = useState('')
+  const [propertyState, setPropertyState] = useState('')
+  const [propertyCode, setPropertyCode] = useState('')
+  const [numberOfUnits, setNumberOfUnits] = useState('')
   const [propertyType, setPropertyType] = useState<TicPropertyType>('multifamily')
   const [status, setStatus] = useState<TicPropertyStatus>('held')
   const [acquiredDate, setAcquiredDate] = useState('')
-  const [estimatedValueUsd, setEstimatedValueUsd] = useState('')
+  const [acquisitionPriceUsd, setAcquisitionPriceUsd] = useState('')
   const [notes, setNotes] = useState('')
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setName(property?.name ?? '')
+    setCity(property?.city ?? '')
+    setPropertyState(property?.state ?? '')
+    setPropertyCode(property?.propertyCode ?? '')
+    setNumberOfUnits(property?.numberOfUnits?.toString() ?? '')
     setPropertyType(property?.propertyType ?? 'multifamily')
     setStatus(property?.status ?? 'held')
     setAcquiredDate(property?.acquiredDate ?? '')
-    setEstimatedValueUsd(property?.estimatedValueUsd?.toString() ?? '')
+    setAcquisitionPriceUsd(property?.acquisitionPriceUsd?.toString() ?? '')
     setNotes(property?.notes ?? '')
     setSubmitError(null)
   }, [open, property])
@@ -134,6 +147,11 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
       setSubmitError('Name is required')
       return
     }
+    const parsedNumberOfUnits = parseOptionalInteger(numberOfUnits)
+    if (numberOfUnits.trim() && (parsedNumberOfUnits == null || parsedNumberOfUnits < 0)) {
+      setSubmitError('Number of units must be a whole number')
+      return
+    }
 
     try {
       if (property) {
@@ -142,20 +160,28 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
           payload: {
             expectedUpdatedAt: property.updatedAt,
             name: trimmedName,
+            city: city.trim() || null,
+            state: propertyState.trim() || null,
+            propertyCode: propertyCode.trim() || null,
+            numberOfUnits: parsedNumberOfUnits,
             propertyType,
             status,
             acquiredDate: acquiredDate || null,
-            estimatedValueUsd: parseOptionalNumber(estimatedValueUsd),
+            acquisitionPriceUsd: parseOptionalNumber(acquisitionPriceUsd),
             notes: notes.trim() || null,
           },
         })
       } else {
         await createProperty.mutateAsync({
           name: trimmedName,
+          city: city.trim() || null,
+          state: propertyState.trim() || null,
+          propertyCode: propertyCode.trim() || null,
+          numberOfUnits: parsedNumberOfUnits,
           propertyType,
           status,
           acquiredDate: acquiredDate || null,
-          estimatedValueUsd: parseOptionalNumber(estimatedValueUsd),
+          acquisitionPriceUsd: parseOptionalNumber(acquisitionPriceUsd),
           notes: notes.trim() || null,
         })
       }
@@ -176,8 +202,9 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
       <form onSubmit={handleSubmit} className="grid gap-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Name</label>
+            <label htmlFor="tic-property-name" className="mb-1 block text-sm font-medium text-gray-800">Name</label>
             <input
+              id="tic-property-name"
               required
               maxLength={200}
               value={name}
@@ -186,20 +213,45 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Estimated Value</label>
+            <label htmlFor="tic-property-code" className="mb-1 block text-sm font-medium text-gray-800">Property Code</label>
             <input
-              inputMode="decimal"
-              value={estimatedValueUsd}
-              onChange={(event) => setEstimatedValueUsd(event.target.value)}
+              id="tic-property-code"
+              maxLength={50}
+              value={propertyCode}
+              onChange={(event) => setPropertyCode(event.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
             />
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Type</label>
+            <label htmlFor="tic-property-city" className="mb-1 block text-sm font-medium text-gray-800">City</label>
+            <input
+              id="tic-property-city"
+              maxLength={100}
+              value={city}
+              onChange={(event) => setCity(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+          <div>
+            <label htmlFor="tic-property-state" className="mb-1 block text-sm font-medium text-gray-800">State</label>
+            <input
+              id="tic-property-state"
+              maxLength={50}
+              value={propertyState}
+              onChange={(event) => setPropertyState(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label htmlFor="tic-property-type" className="mb-1 block text-sm font-medium text-gray-800">Type</label>
             <select
+              id="tic-property-type"
               value={propertyType}
               onChange={(event) => setPropertyType(event.target.value as TicPropertyType)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
@@ -212,8 +264,9 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Status</label>
+            <label htmlFor="tic-property-status" className="mb-1 block text-sm font-medium text-gray-800">Status</label>
             <select
+              id="tic-property-status"
               value={status}
               onChange={(event) => setStatus(event.target.value as TicPropertyStatus)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
@@ -226,19 +279,42 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-800">Acquired Date</label>
+            <label htmlFor="tic-property-acquired-date" className="mb-1 block text-sm font-medium text-gray-800">Acquired Date</label>
             <input
+              id="tic-property-acquired-date"
               type="date"
               value={acquiredDate}
               onChange={(event) => setAcquiredDate(event.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
             />
           </div>
+          <div>
+            <label htmlFor="tic-property-units" className="mb-1 block text-sm font-medium text-gray-800">Number of Units</label>
+            <input
+              id="tic-property-units"
+              inputMode="numeric"
+              value={numberOfUnits}
+              onChange={(event) => setNumberOfUnits(event.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            />
+          </div>
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-gray-800">Notes</label>
+          <label htmlFor="tic-property-acquisition-price" className="mb-1 block text-sm font-medium text-gray-800">Acquisition Price</label>
+          <input
+            id="tic-property-acquisition-price"
+            inputMode="decimal"
+            value={acquisitionPriceUsd}
+            onChange={(event) => setAcquisitionPriceUsd(event.target.value)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="tic-property-notes" className="mb-1 block text-sm font-medium text-gray-800">Notes</label>
           <textarea
+            id="tic-property-notes"
             rows={3}
             maxLength={10000}
             value={notes}

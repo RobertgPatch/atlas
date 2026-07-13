@@ -366,9 +366,10 @@ components:
       type: object
       required:
         - propertyCount
+        - totalUnits
         - ticInterestCount
         - ownerCount
-        - estimatedHeldValueUsd
+        - heldAcquisitionPriceUsd
         - underAllocatedPropertyCount
         - overAllocatedPropertyCount
         - underAllocatedInterestCount
@@ -376,11 +377,13 @@ components:
       properties:
         propertyCount:
           type: integer
+        totalUnits:
+          type: integer
         ticInterestCount:
           type: integer
         ownerCount:
           type: integer
-        estimatedHeldValueUsd:
+        heldAcquisitionPriceUsd:
           type: number
         underAllocatedPropertyCount:
           type: integer
@@ -467,6 +470,15 @@ components:
           format: uuid
         name:
           type: string
+        city:
+          type: [string, 'null']
+        state:
+          type: [string, 'null']
+        propertyCode:
+          type: [string, 'null']
+        numberOfUnits:
+          type: [integer, 'null']
+          minimum: 0
         propertyType:
           type: string
         status:
@@ -474,7 +486,7 @@ components:
         acquiredDate:
           type: [string, 'null']
           format: date
-        estimatedValueUsd:
+        acquisitionPriceUsd:
           type: [number, 'null']
         notes:
           type: [string, 'null']
@@ -508,6 +520,18 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+        city:
+          type: [string, 'null']
+          maxLength: 100
+        state:
+          type: [string, 'null']
+          maxLength: 50
+        propertyCode:
+          type: [string, 'null']
+          maxLength: 50
+        numberOfUnits:
+          type: [integer, 'null']
+          minimum: 0
         propertyType:
           type: string
         status:
@@ -515,7 +539,7 @@ components:
         acquiredDate:
           type: [string, 'null']
           format: date
-        estimatedValueUsd:
+        acquisitionPriceUsd:
           type: [number, 'null']
           minimum: 0
         notes:
@@ -528,6 +552,18 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+        city:
+          type: [string, 'null']
+          maxLength: 100
+        state:
+          type: [string, 'null']
+          maxLength: 50
+        propertyCode:
+          type: [string, 'null']
+          maxLength: 50
+        numberOfUnits:
+          type: [integer, 'null']
+          minimum: 0
         propertyType:
           type: string
         status:
@@ -535,7 +571,7 @@ components:
         acquiredDate:
           type: [string, 'null']
           format: date
-        estimatedValueUsd:
+        acquisitionPriceUsd:
           type: [number, 'null']
           minimum: 0
         notes:

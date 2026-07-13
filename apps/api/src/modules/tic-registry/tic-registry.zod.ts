@@ -15,6 +15,10 @@ const nullableMoneySchema = z
   .union([z.number().min(0), z.null()])
   .optional()
 
+const nullableIntegerSchema = z
+  .union([z.number().int().min(0), z.null()])
+  .optional()
+
 const percentageSchema = z.number().min(0).max(100)
 
 export const ticPropertyTypeSchema = z.enum([
@@ -69,20 +73,28 @@ export const expectedUpdatedAtQuerySchema = z.object({
 
 export const createTicPropertyBodySchema = z.object({
   name: z.string().trim().min(1).max(200),
+  city: nullableStringSchema(100),
+  state: nullableStringSchema(50),
+  propertyCode: nullableStringSchema(50),
+  numberOfUnits: nullableIntegerSchema,
   propertyType: ticPropertyTypeSchema,
   status: ticPropertyStatusSchema.optional().default('held'),
   acquiredDate: nullableDateSchema,
-  estimatedValueUsd: nullableMoneySchema,
+  acquisitionPriceUsd: nullableMoneySchema,
   notes: nullableStringSchema(10_000),
 })
 
 export const updateTicPropertyBodySchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
+    city: nullableStringSchema(100),
+    state: nullableStringSchema(50),
+    propertyCode: nullableStringSchema(50),
+    numberOfUnits: nullableIntegerSchema,
     propertyType: ticPropertyTypeSchema.optional(),
     status: ticPropertyStatusSchema.optional(),
     acquiredDate: nullableDateSchema,
-    estimatedValueUsd: nullableMoneySchema,
+    acquisitionPriceUsd: nullableMoneySchema,
     notes: nullableStringSchema(10_000),
     expectedUpdatedAt: isoTimestampSchema.optional(),
   })

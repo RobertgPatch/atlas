@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { TicRegistryPageContent } from '../components/TicRegistryPageContent'
 import { emptyTicRegistryFixture, ticRegistryFixture } from './ticRegistryFixtures'
@@ -48,6 +49,9 @@ describe('TicRegistryPageContent', () => {
     renderWithQueryClient(true)
 
     expect(await screen.findByText('Harbor View TIC')).toBeInTheDocument()
+    const totalUnitsLabel = screen.getByText('Total Units')
+    expect(totalUnitsLabel).toBeInTheDocument()
+    expect(totalUnitsLabel.nextElementSibling).toHaveTextContent('24')
     expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
     expect(screen.getByText('Atlas Family Trust')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add property/i })).toBeInTheDocument()
@@ -69,6 +73,32 @@ describe('TicRegistryPageContent', () => {
 
     expect(await screen.findByText('No TIC records found')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add property/i })).not.toBeInTheDocument()
+  })
+
+  it('opens the add property dialog with property detail fields', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = input instanceof Request ? input.url : String(input)
+        if (url.includes('/tic-registry/properties')) {
+          return jsonResponse(emptyTicRegistryFixture)
+        }
+        return Promise.reject(new Error(`Unexpected request: ${url}`))
+      }),
+    )
+
+    const user = userEvent.setup()
+    renderWithQueryClient(true)
+
+    await screen.findByText('No TIC records found')
+    await user.click(screen.getAllByRole('button', { name: /add property/i })[0])
+
+    expect(screen.getByLabelText('Name')).toBeInTheDocument()
+    expect(screen.getByLabelText('City')).toBeInTheDocument()
+    expect(screen.getByLabelText('State')).toBeInTheDocument()
+    expect(screen.getByLabelText('Property Code')).toBeInTheDocument()
+    expect(screen.getByLabelText('Number of Units')).toBeInTheDocument()
+    expect(screen.getByLabelText('Acquisition Price')).toBeInTheDocument()
   })
 
   it('shows a loading state while the registry request is pending', async () => {
