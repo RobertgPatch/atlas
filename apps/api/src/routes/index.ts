@@ -9,6 +9,7 @@ import { registerPartnershipRoutes } from '../modules/partnerships/partnerships.
 import { registerPlaidRoutes } from '../modules/plaid/plaid.routes.js'
 import { registerReportsRoutes } from '../modules/reports/reports.routes.js'
 import { registerTicRegistryRoutes } from '../modules/tic-registry/tic-registry.routes.js'
+import { registerK1TrackerRoutes } from '../modules/k1-tracker/k1-tracker.routes.js'
 
 export const registerRoutes = async (app: FastifyInstance) => {
   await registerAuthRoutes(app)
@@ -21,4 +22,5 @@ export const registerRoutes = async (app: FastifyInstance) => {
   await registerPlaidRoutes(app)
   await registerReportsRoutes(app)
   await registerTicRegistryRoutes(app)
+  await registerK1TrackerRoutes(app)
 }

@@ -1,6 +1,7 @@
 import React, { Fragment, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { XIcon } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useCreatePartnership } from '../hooks/usePartnershipMutations'
 import { useEntityList } from '../hooks/useEntityQueries'
 import type { PartnershipStatus } from 'packages/types/src'
@@ -59,20 +60,24 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
       return
     }
 
-    const result = await mutateAsync({
-      entityId,
-      name: trimmedName,
-      assetClass: assetClass || null,
-      status,
-      notes: notes.trim() || null,
-    })
+    try {
+      const result = await mutateAsync({
+        entityId,
+        name: trimmedName,
+        assetClass: assetClass || null,
+        status,
+        notes: notes.trim() || null,
+      })
 
-    if ('kind' in result && result.kind === 'duplicate-name') {
-      setNameError('A partnership with this name already exists for the selected entity.')
-      return
+      if ('kind' in result && result.kind === 'duplicate-name') {
+        setNameError('A partnership with this name already exists for the selected entity.')
+        return
+      }
+
+      handleClose()
+    } catch {
+      setSubmitError('Could not create this partnership. Please try again.')
     }
-
-    handleClose()
   }
 
   return (
@@ -121,6 +126,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                       required
                       value={entityId}
                       onChange={(e) => setEntityId(e.target.value)}
+                      disabled={entitiesQuery.isLoading || !entitiesQuery.data?.items.length}
                       className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
                     >
                       <option value="">
@@ -132,6 +138,15 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                         </option>
                       ))}
                     </select>
+                    {entitiesQuery.isError ? (
+                      <p role="alert" className="mt-1 text-xs text-red-600">
+                        Entities could not be loaded. Refresh the page and try again.
+                      </p>
+                    ) : !entitiesQuery.isLoading && !entitiesQuery.data?.items.length ? (
+                      <p className="mt-1 text-xs text-text-secondary">
+                        Create an <Link to="/entities" onClick={handleClose} className="font-medium text-atlas-gold underline">entity</Link> before adding a partnership.
+                      </p>
+                    ) : null}
                   </div>
 
                   {/* Name */}
@@ -205,7 +220,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                     </button>
                     <button
                       type="submit"
-                      disabled={isPending}
+                      disabled={isPending || entitiesQuery.isLoading || !entitiesQuery.data?.items.length}
                       className="px-4 py-2 text-sm rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Add Partnership'}

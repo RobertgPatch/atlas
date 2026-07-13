@@ -40,3 +40,16 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
 
 export type PartnershipAuditEventName =
   (typeof PARTNERSHIP_AUDIT_EVENTS)[keyof typeof PARTNERSHIP_AUDIT_EVENTS]
+
+export const K1_TRACKER_AUDIT_EVENTS = {
+  YEAR_CREATED: 'k1_tracker.year_created',
+  YEAR_UPDATED: 'k1_tracker.year_updated',
+  YEAR_DELETED: 'k1_tracker.year_deleted',
+  IMPORT_COMMITTED: 'k1_tracker.import_committed',
+  SIGNOFF_PREPARED: 'k1_tracker.signoff_prepared',
+  SIGNOFF_REVIEWED: 'k1_tracker.signoff_reviewed',
+  SIGNOFF_INVALIDATED: 'k1_tracker.signoff_invalidated',
+} as const
+
+export type K1TrackerAuditEventName =
+  (typeof K1_TRACKER_AUDIT_EVENTS)[keyof typeof K1_TRACKER_AUDIT_EVENTS]

@@ -23,6 +23,7 @@ import { EntitiesPage } from './pages/EntitiesPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { LiquidityPage } from './pages/LiquidityPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
+import { K1TrackerPage } from './pages/K1TrackerPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -194,6 +195,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <TicRegistryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/k1-tracker"
+            element={
+              <ProtectedRoute>
+                <K1TrackerPage />
               </ProtectedRoute>
             }
           />

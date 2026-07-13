@@ -1,0 +1,16 @@
+{
+  "source": "[Template] Ultimate Tax Basis Tracker.xlsx",
+  "fixtureApproval": "CPA-approved original workbook; sanitization is not required.",
+  "sha256": "5313eb20bfdc5538c120dad6fe353ac3dadb6095dabdeb9c4bc7c413d76b7b83",
+  "years": {
+    "2021": { "endingOutsideBasis": "1932344.00" },
+    "2022": { "endingOutsideBasis": "1684727.00" },
+    "2023": { "endingOutsideBasis": "1376978.00" },
+    "2024": { "endingOutsideBasis": "1144214.00" },
+    "2025": { "endingOutsideBasis": "695823.00" }
+  },
+  "knownDefects": [
+    "The workbook's calculated net income must exclude capital contributions.",
+    "A component variance over one dollar must prevent reconciliation."
+  ]
+}
