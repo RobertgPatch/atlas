@@ -1,9 +1,12 @@
-import { authClient } from '../auth/authClient'
-import { sessionStore, useSession } from '../auth/sessionStore'
-import { AppShell } from '../components/shared/AppShell'
-import { K1TrackerPageContent } from '../features/k1-tracker/components/K1TrackerPageContent'
+import { Navigate, useLocation } from 'react-router-dom'
 
+/** Legacy browser entry retained only as a compatibility redirect. */
 export function K1TrackerPage() {
-  const { session } = useSession()
-  return <AppShell currentPath="/k1-tracker" userRole={session?.role ?? 'User'} userEmail={session?.user.email} onSignOut={() => { void authClient.logout().finally(() => sessionStore.setUnauthenticated()) }}><K1TrackerPageContent canEdit={session?.role === 'Admin'} /></AppShell>
+  const location = useLocation()
+  const query = new URLSearchParams(location.search)
+  if (!query.has('partnership') && query.has('partnershipId')) query.set('partnership', query.get('partnershipId')!)
+  if (!query.has('year') && query.has('taxYear')) query.set('year', query.get('taxYear')!)
+  query.delete('partnershipId')
+  query.delete('taxYear')
+  return <Navigate to={`/partnership-tracker${query.size ? `?${query}` : ''}`} replace />
 }

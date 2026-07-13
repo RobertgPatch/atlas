@@ -6,7 +6,6 @@ import {
   Landmark,
   Menu,
   Network,
-  ReceiptText,
   X,
   LogOut,
 } from 'lucide-react'
@@ -30,9 +29,8 @@ export function AppShell({
 
   const navigation = [
     { name: 'Liquidity', href: '/liquidity', icon: Landmark },
-    { name: 'Partnerships', href: '/partnerships', icon: Building2 },
+    { name: 'Partnership Tracker', href: '/partnership-tracker', icon: Building2 },
     { name: 'TIC Registry', href: '/tic-registry', icon: Network },
-    { name: 'K1 Tracker', href: '/k1-tracker', icon: ReceiptText },
     { name: 'Entities', href: '/entities', icon: Building2 },
   ]
 

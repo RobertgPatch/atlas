@@ -294,11 +294,11 @@ export const k1TrackerRepository = {
     return { items: rows.map((row) => ({ partnershipId: row.id, partnershipName: row.partnership_name, entityId: row.entity_id, entityName: row.entity_name, yearCount: Number(row.year_count), firstTaxYear: row.first_tax_year, latestTaxYear: row.latest_tax_year, latestStatus: row.latest_status, latestEndingOutsideBasis: row.latest_ending_basis, cumulativeSuspendedLoss: row.suspended_loss, warningCount: Number(row.warning_count) })) }
   },
 
-  async getPartnership(partnershipId: string, scope: TrackerScope): Promise<K1TrackerPartnershipDetail> {
+  async getPartnership(partnershipId: string, scope: TrackerScope, options: { syncSources?: boolean } = {}): Promise<K1TrackerPartnershipDetail> {
     db()
     return withTransaction(async (client) => {
       const partnership = await assertPartnership(partnershipId, scope, client)
-      await syncFinalizedSources(client, partnership)
+      if (options.syncSources !== false) await syncFinalizedSources(client, partnership)
       const years = await yearRowsFor(partnershipId, client)
       const { calculations } = calculateRows(years, await activeValues(years.map((year) => year.id), client))
       const summaries: K1TrackerYearSummary[] = years.map((year) => ({ ...calculations.get(year.id)!.summary, status: year.workflow_status }))
@@ -307,11 +307,11 @@ export const k1TrackerRepository = {
     })
   },
 
-  async getYear(partnershipId: string, taxYear: number, scope: TrackerScope): Promise<K1TrackerYearDetail> {
+  async getYear(partnershipId: string, taxYear: number, scope: TrackerScope, options: { syncSources?: boolean } = {}): Promise<K1TrackerYearDetail> {
     db()
     return withTransaction(async (client) => {
       const partnership = await assertPartnership(partnershipId, scope, client)
-      await syncFinalizedSources(client, partnership)
+      if (options.syncSources !== false) await syncFinalizedSources(client, partnership)
       const years = await yearRowsFor(partnershipId, client)
       const year = years.find((row) => row.tax_year === taxYear)
       if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND')
@@ -328,8 +328,9 @@ export const k1TrackerRepository = {
       const inserted = (await client.query<TrackerYearRow>(`insert into k1_tracker_years (id, entity_id, partnership_id, tax_year, workflow_status, created_by_user_id, updated_by_user_id) values ($1,$2,$3,$4,'NOT_STARTED',$5,$5) returning *`, [randomUUID(), partnership.entity_id, partnershipId, taxYear, actorUserId])).rows[0]
       if (changes.length) await reviseValues(client, inserted.id, changes, actorUserId)
       const years = await yearRowsFor(partnershipId, client); await persistProjection(client, years, actorUserId)
+      const projectedYears = await yearRowsFor(partnershipId, client)
       await auditRepository.record({ actorUserId, eventName: 'k1_tracker.year_created', objectType: 'k1_tracker_year', objectId: inserted.id, after: { partnershipId, taxYear } }, client as never)
-      return detailFor(partnershipId, inserted, years, client)
+      return detailFor(partnershipId, projectedYears.find((item) => item.id === inserted.id)!, projectedYears, client)
     })
   },
 
@@ -351,9 +352,10 @@ export const k1TrackerRepository = {
         )
       }
       const updated = await yearRowsFor(partnershipId, client); await persistProjection(client, updated, actorUserId)
-      const finalYear = updated.find((item) => item.tax_year === taxYear)!
+      const projected = await yearRowsFor(partnershipId, client)
+      const finalYear = projected.find((item) => item.tax_year === taxYear)!
       await auditRepository.record({ actorUserId, eventName: 'k1_tracker.year_updated', objectType: 'k1_tracker_year', objectId: finalYear.id, after: { changes } }, client as never)
-      return { year: await detailFor(partnershipId, finalYear, updated, client), invalidatedTaxYears: affected.filter((item) => item.tax_year > taxYear).map((item) => item.tax_year) }
+      return { year: await detailFor(partnershipId, finalYear, projected, client), invalidatedTaxYears: affected.filter((item) => item.tax_year > taxYear).map((item) => item.tax_year) }
     })
   },
 

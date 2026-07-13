@@ -1,6 +1,6 @@
 // Mirror of packages/types/src/k1-tracker.ts — kept local to satisfy api tsconfig rootDir.
 // Update both files together when the shared API contract changes.
-export const K1_TRACKER_WORKFLOW_STATUSES = ['NOT_STARTED', 'IMPORTED', 'NEEDS_REVIEW', 'RECONCILED'] as const
+export const K1_TRACKER_WORKFLOW_STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'IMPORTED', 'NEEDS_REVIEW', 'RECONCILED'] as const
 export type K1TrackerWorkflowStatus = (typeof K1_TRACKER_WORKFLOW_STATUSES)[number]
 export const K1_TRACKER_SOURCE_TYPES = ['FINALIZED_K1', 'WORKBOOK_IMPORT', 'MANUAL_ENTRY', 'MANUAL_OVERRIDE', 'CARRYFORWARD'] as const
 export type K1TrackerSourceType = (typeof K1_TRACKER_SOURCE_TYPES)[number]

@@ -36,6 +36,21 @@ const IN_MEMORY_SCOPE = { isAdmin: true, entityIds: [] as string[] }
 
 type Queryable = PoolClient | NonNullable<typeof pool>
 
+export async function recomputeActiveCommitmentMarker(
+  db: Queryable,
+  partnershipId: string,
+  asOfDate = new Date().toISOString().slice(0, 10),
+): Promise<void> {
+  await db.query(`update partnership_commitments set status = 'INACTIVE' where partnership_id = $1 and status <> 'INACTIVE'`, [partnershipId])
+  await db.query(`
+    update partnership_commitments set status = 'ACTIVE'
+    where id = (
+      select id from partnership_commitments
+      where partnership_id = $1 and coalesce(commitment_date, created_at::date) <= $2::date
+      order by coalesce(commitment_date, created_at::date) desc, created_at desc, id desc limit 1
+    )`, [partnershipId, asOfDate])
+}
+
 type ResidualSource = Exclude<CapitalDataSource, 'calculated'> | 'none'
 
 interface CapitalComputationSnapshot {
@@ -242,7 +257,7 @@ async function listDbCommitments(partnershipId: string, db: Queryable): Promise<
     from partnership_commitments c
     left join users u on u.id = c.created_by_user_id
     where c.partnership_id = $1
-    order by (c.status = 'ACTIVE') desc, c.created_at desc, c.id desc
+    order by coalesce(c.commitment_date, c.created_at::date) desc, c.created_at desc, c.id desc
     `,
     [partnershipId],
   )
@@ -361,7 +376,7 @@ async function getResidualSnapshot(partnershipId: string): Promise<{
     select valuation_date, source_type, fmv_amount
     from partnership_fmv_snapshots
     where partnership_id = $1
-    order by created_at desc, valuation_date desc, id desc
+    order by valuation_date desc, created_at desc, id desc
     `,
     [partnershipId],
   )

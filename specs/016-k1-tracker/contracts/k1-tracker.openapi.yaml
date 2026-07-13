@@ -1,58 +1,326 @@
 openapi: 3.1.0
 info:
-  title: Atlas K1 Tracker API
-  version: 0.1.0
-  description: Partnership-specific multi-year K-1 basis tracking, import, reconciliation, and sign-off.
+  title: Atlas Partnership Tracker API
+  version: 1.0.0
+  description: >-
+    Scoped Partnership Tracker contract for partnership identity, manual K-1
+    years, effective-dated committed capital, and dated NAV history. V1 has no
+    Excel import, PDF upload, OCR, or automatic K-1 document synchronization
+    endpoint.
 servers:
   - url: /v1
 security:
-  - cookieSession: []
+  - sessionCookie: []
+tags:
+  - name: Partnership Tracker
+  - name: Manual K-1 Years
+  - name: Committed Capital
+  - name: NAV
+
 paths:
-  /k1-tracker/partnerships:
+  /partnership-tracker/partnerships:
     get:
+      tags: [Partnership Tracker]
       summary: List scoped partnerships with tracker summaries
+      operationId: listPartnershipTrackerPartnerships
       parameters:
-        - name: search
-          in: query
+        - in: query
+          name: search
           schema: { type: string, maxLength: 200 }
-        - name: status
-          in: query
-          schema: { $ref: '#/components/schemas/TrackerWorkflowStatus' }
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+        - in: query
+          name: entityId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: partnershipType
+          schema: { $ref: '#/components/schemas/PartnershipType' }
+        - in: query
+          name: status
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/PartnershipStatus' }
+          style: form
+          explode: true
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
       responses:
         '200':
-          description: Scoped partnership tracker summaries
+          description: Scoped, deterministic partnership result set
           content:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, total, nextCursor]
                 properties:
                   items:
                     type: array
-                    items: { $ref: '#/components/schemas/TrackerPartnershipSummary' }
+                    items: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+                  total: { type: integer, minimum: 0 }
+                  nextCursor: { type: [string, 'null'] }
         '401': { $ref: '#/components/responses/Unauthorized' }
-  /k1-tracker/partnerships/{partnershipId}:
-    get:
-      summary: Get partnership tracker header, year rail, and latest summary
-      parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
+    post:
+      tags: [Partnership Tracker]
+      summary: Create and select a partnership
+      operationId: createPartnershipTrackerPartnership
+      description: Admin only. The created partnership has no implicit K-1 year.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePartnershipRequest' }
       responses:
-        '200':
-          description: Tracker overview
+        '201':
+          description: Partnership created
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TrackerPartnershipDetail' }
+              schema:
+                type: object
+                required: [partnership, nextAction]
+                properties:
+                  partnership: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+                  nextAction:
+                    type: string
+                    const: ADD_K1_YEAR
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: Duplicate partnership name for the entity
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnership-tracker/partnerships/{partnershipId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      tags: [Partnership Tracker]
+      summary: Get selected partnership overview and histories
+      operationId: getPartnershipTrackerDetail
+      responses:
+        '200':
+          description: Consolidated selected-partnership read model
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipTrackerDetail' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-  /k1-tracker/partnerships/{partnershipId}/years:
-    post:
-      summary: Create a tracker year
+    patch:
+      tags: [Partnership Tracker]
+      summary: Edit partnership identity fields
+      operationId: updatePartnershipTrackerPartnership
+      description: Admin only. Entity transfer is not supported by this operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePartnershipRequest' }
+      responses:
+        '200':
+          description: Updated summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/commitments:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      tags: [Committed Capital]
+      summary: List effective-dated committed-capital history
+      operationId: listPartnershipCommitments
       parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
+        - in: query
+          name: asOfDate
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: History plus effective value for the requested date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, effectiveEntry]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CommittedCapitalEntry' }
+                  effectiveEntry:
+                    oneOf:
+                      - { $ref: '#/components/schemas/CommittedCapitalEntry' }
+                      - { type: 'null' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [Committed Capital]
+      summary: Add an effective-dated total commitment
+      operationId: createPartnershipCommitment
+      description: Admin only. Backdated entries preserve all later entries.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCommittedCapitalRequest' }
+      responses:
+        '201':
+          description: Commitment entry created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommittedCapitalEntry' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/commitments/{commitmentId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - in: path
+        name: commitmentId
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Committed Capital]
+      summary: Correct a committed-capital entry
+      operationId: updatePartnershipCommitment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCommittedCapitalRequest' }
+      responses:
+        '200':
+          description: Corrected entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommittedCapitalEntry' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+    delete:
+      tags: [Committed Capital]
+      summary: Remove a committed-capital entry
+      operationId: deletePartnershipCommitment
+      parameters:
+        - $ref: '#/components/parameters/ExpectedUpdatedAt'
+      responses:
+        '204': { description: Removed and audited }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/nav:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      tags: [NAV]
+      summary: List chronological NAV history
+      operationId: listPartnershipNav
+      responses:
+        '200':
+          description: Chronological plot series and latest NAV
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, latest]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/NavEntry' }
+                  latest:
+                    oneOf:
+                      - { $ref: '#/components/schemas/NavEntry' }
+                      - { type: 'null' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [NAV]
+      summary: Record a manual NAV observation
+      operationId: createPartnershipNav
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateNavRequest' }
+      responses:
+        '201':
+          description: NAV entry created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NavEntry' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: NAV already exists on the exact valuation date
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnership-tracker/partnerships/{partnershipId}/nav/{navEntryId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - in: path
+        name: navEntryId
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [NAV]
+      summary: Correct a NAV entry
+      operationId: updatePartnershipNav
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateNavRequest' }
+      responses:
+        '200':
+          description: Corrected NAV entry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NavEntry' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+    delete:
+      tags: [NAV]
+      summary: Remove a NAV entry
+      operationId: deletePartnershipNav
+      parameters:
+        - $ref: '#/components/parameters/ExpectedUpdatedAt'
+      responses:
+        '204': { description: Removed and audited }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/years:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    post:
+      tags: [Manual K-1 Years]
+      summary: Create any unused manual K-1 tax year
+      operationId: createManualK1Year
       requestBody:
         required: true
         content:
@@ -62,29 +330,32 @@ paths:
               required: [taxYear]
               properties:
                 taxYear: { type: integer, minimum: 1900, maximum: 2100 }
-                expectedPartnershipRevision: { type: integer, minimum: 0 }
                 values:
                   type: array
-                  items: { $ref: '#/components/schemas/FieldChange' }
+                  items: { $ref: '#/components/schemas/ManualFieldChange' }
       responses:
         '201':
-          description: Created and calculated year
+          description: Manual year created
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TrackerYearDetail' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /k1-tracker/partnerships/{partnershipId}/years/{taxYear}:
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/years/{taxYear}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/TaxYear'
     get:
-      summary: Get one selected-year workspace
-      parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
-        - { $ref: '#/components/parameters/TaxYear' }
+      tags: [Manual K-1 Years]
+      summary: Get one manual K-1 year and calculations
+      operationId: getManualK1Year
       responses:
         '200':
-          description: Inputs, provenance, calculations, checks, journal entries, and sign-off
+          description: Selected-year workspace payload
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TrackerYearDetail' }
@@ -92,10 +363,9 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     patch:
-      summary: Apply field revisions and recalculate this and later years
-      parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
-        - { $ref: '#/components/parameters/TaxYear' }
+      tags: [Manual K-1 Years]
+      summary: Save append-only manual field revisions
+      operationId: updateManualK1Year
       requestBody:
         required: true
         content:
@@ -108,46 +378,42 @@ paths:
                 changes:
                   type: array
                   minItems: 1
-                  items: { $ref: '#/components/schemas/FieldChange' }
+                  items: { $ref: '#/components/schemas/ManualFieldChange' }
       responses:
         '200':
-          description: Updated year and list of invalidated dependent years
+          description: Updated year and recalculated dependent summaries
           content:
             application/json:
-              schema:
-                type: object
-                required: [year, invalidatedTaxYears]
-                properties:
-                  year: { $ref: '#/components/schemas/TrackerYearDetail' }
-                  invalidatedTaxYears:
-                    type: array
-                    items: { type: integer }
+              schema: { $ref: '#/components/schemas/TrackerYearDetail' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
     delete:
-      summary: Delete a tracker year after confirmation and recalculate later years
+      tags: [Manual K-1 Years]
+      summary: Delete a year and invalidate dependent calculations
+      operationId: deleteManualK1Year
       parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
-        - { $ref: '#/components/parameters/TaxYear' }
-        - name: expectedRevision
-          in: query
+        - in: query
+          name: expectedRevision
           required: true
           schema: { type: integer, minimum: 1 }
       responses:
-        '204': { description: Deleted }
+        '204': { description: Year removed and later years recalculated or invalidated }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /k1-tracker/partnerships/{partnershipId}/years/{taxYear}/calculate:
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/years/{taxYear}/calculate:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/TaxYear'
     post:
-      summary: Calculate a non-persistent draft using existing prior-year context
-      parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
-        - { $ref: '#/components/parameters/TaxYear' }
+      tags: [Manual K-1 Years]
+      summary: Preview draft calculations without persistence
+      operationId: calculateManualK1Draft
       requestBody:
         required: true
         content:
@@ -156,26 +422,30 @@ paths:
               type: object
               required: [expectedRevision, changes]
               properties:
-                expectedRevision: { type: integer, minimum: 0 }
+                expectedRevision: { type: integer, minimum: 1 }
                 changes:
                   type: array
-                  items: { $ref: '#/components/schemas/FieldChange' }
+                  items: { $ref: '#/components/schemas/ManualFieldChange' }
       responses:
         '200':
-          description: Draft authoritative calculations only; no values saved
+          description: Non-persistent deterministic calculation
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TrackerCalculation' }
+              schema: { $ref: '#/components/schemas/CalculationResult' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /k1-tracker/partnerships/{partnershipId}/years/{taxYear}/signoffs:
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/years/{taxYear}/signoffs:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/TaxYear'
     post:
-      summary: Prepare, review, or explicitly invalidate a tracker-year revision
-      parameters:
-        - { $ref: '#/components/parameters/PartnershipId' }
-        - { $ref: '#/components/parameters/TaxYear' }
+      tags: [Manual K-1 Years]
+      summary: Prepare, review, or invalidate a year sign-off
+      operationId: signoffManualK1Year
       requestBody:
         required: true
         content:
@@ -185,410 +455,373 @@ paths:
               required: [expectedRevision, action]
               properties:
                 expectedRevision: { type: integer, minimum: 1 }
-                action: { type: string, enum: [PREPARED, REVIEWED, INVALIDATED] }
+                action:
+                  type: string
+                  enum: [PREPARE, REVIEW, INVALIDATE]
                 reason: { type: [string, 'null'], maxLength: 2000 }
       responses:
         '200':
           description: Updated sign-off state
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/SignoffState' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /k1-tracker/imports/preview:
-    post:
-      summary: Parse an Excel workbook and stage a non-mutating preview
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required: [file]
-              properties:
-                file: { type: string, format: binary }
-                targetPartnershipId: { type: string, format: uuid }
-      responses:
-        '200':
-          description: Detected mappings, years, conflicts, and warnings
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ImportPreview' }
-        '400': { $ref: '#/components/responses/ValidationError' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '413':
-          description: Workbook exceeds configured upload limit
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
-  /k1-tracker/imports/{importBatchId}/commit:
-    post:
-      summary: Commit selected preview years atomically
-      parameters:
-        - name: importBatchId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [targetPartnershipId, decisions]
-              properties:
-                targetPartnershipId: { type: string, format: uuid }
-                decisions:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [sheetName, taxYear, action]
-                    properties:
-                      sheetName: { type: string }
-                      taxYear: { type: integer, minimum: 1900, maximum: 2100 }
-                      action: { type: string, enum: [SKIP, MERGE, REPLACE] }
-                      expectedRevision: { type: [integer, 'null'], minimum: 1 }
-      responses:
-        '200':
-          description: Atomic import result
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [importBatchId, partnershipId, importedTaxYears, skippedTaxYears]
-                properties:
-                  importBatchId: { type: string, format: uuid }
-                  partnershipId: { type: string, format: uuid }
-                  importedTaxYears:
-                    type: array
-                    items: { type: integer }
-                  skippedTaxYears:
-                    type: array
-                    items: { type: integer }
+              schema: { $ref: '#/components/schemas/TrackerYearDetail' }
         '400': { $ref: '#/components/responses/ValidationError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-        '410':
-          description: Import preview expired
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
 components:
   securitySchemes:
-    cookieSession:
+    sessionCookie:
       type: apiKey
       in: cookie
       name: atlas_session
+
   parameters:
     PartnershipId:
-      name: partnershipId
       in: path
+      name: partnershipId
       required: true
       schema: { type: string, format: uuid }
     TaxYear:
-      name: taxYear
       in: path
+      name: taxYear
       required: true
       schema: { type: integer, minimum: 1900, maximum: 2100 }
+    ExpectedUpdatedAt:
+      in: query
+      name: expectedUpdatedAt
+      required: true
+      schema: { type: string, format: date-time }
+
   responses:
     Unauthorized:
       description: Authentication required
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          schema: { $ref: '#/components/schemas/Error' }
     Forbidden:
-      description: Entity scope or role does not permit the operation
+      description: Entity scope or Admin role does not permit the operation
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          schema: { $ref: '#/components/schemas/Error' }
     NotFound:
-      description: Partnership, year, or import batch not found in scope
+      description: Resource does not exist within the caller's scope
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          schema: { $ref: '#/components/schemas/Error' }
     ValidationError:
-      description: Request or financial validation failed
+      description: Request validation failed
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
-    Conflict:
-      description: Stale revision, duplicate year, unresolved source conflict, or failed sign-off gate
+          schema: { $ref: '#/components/schemas/Error' }
+    StaleOrDuplicate:
+      description: Stale revision or uniqueness conflict
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          schema: { $ref: '#/components/schemas/Error' }
+
   schemas:
-    ErrorResponse:
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      examples: ['1250000.00']
+    NonnegativeMoney:
+      allOf:
+        - { $ref: '#/components/schemas/Money' }
+      pattern: '^\d+\.\d{2}$'
+    PartnershipType:
+      type: string
+      enum:
+        - Private Equity
+        - Real Estate
+        - Hedge Fund
+        - Venture Capital
+        - Credit
+        - Infrastructure
+        - Other
+    PartnershipStatus:
+      type: string
+      enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED]
+    WorkflowStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, NEEDS_REVIEW, RECONCILED]
+    EntitySummary:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PartnershipIdentity:
+      type: object
+      required:
+        - id
+        - entity
+        - name
+        - partnershipType
+        - status
+        - notes
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        entity: { $ref: '#/components/schemas/EntitySummary' }
+        name: { type: string }
+        partnershipType: { $ref: '#/components/schemas/PartnershipType' }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        notes: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DatedMoney:
+      type: object
+      required: [amount, date]
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        date: { type: string, format: date }
+    PartnershipTrackerSummary:
+      type: object
+      required:
+        - partnership
+        - currentCommittedCapital
+        - latestNav
+        - earliestK1Year
+        - latestK1Year
+        - latestEndingOutsideBasis
+        - latestWorkflowStatus
+        - warningCount
+      properties:
+        partnership: { $ref: '#/components/schemas/PartnershipIdentity' }
+        currentCommittedCapital:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        latestNav:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        earliestK1Year: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
+        latestK1Year: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
+        latestEndingOutsideBasis:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        latestWorkflowStatus:
+          oneOf:
+            - { $ref: '#/components/schemas/WorkflowStatus' }
+            - { type: 'null' }
+        warningCount: { type: integer, minimum: 0 }
+    TrackerYearSummary:
+      type: object
+      required: [taxYear, workflowStatus, revision, endingOutsideBasis, warningCount]
+      properties:
+        taxYear: { type: integer, minimum: 1900, maximum: 2100 }
+        workflowStatus: { $ref: '#/components/schemas/WorkflowStatus' }
+        revision: { type: integer, minimum: 1 }
+        endingOutsideBasis:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        warningCount: { type: integer, minimum: 0 }
+    PartnershipTrackerDetail:
+      type: object
+      required: [summary, years, commitments, navEntries, permissions]
+      properties:
+        summary: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+        years:
+          type: array
+          items: { $ref: '#/components/schemas/TrackerYearSummary' }
+        commitments:
+          type: array
+          items: { $ref: '#/components/schemas/CommittedCapitalEntry' }
+        navEntries:
+          type: array
+          items: { $ref: '#/components/schemas/NavEntry' }
+        permissions:
+          type: object
+          required: [canEditPartnership, canEditK1, canEditCommitment, canEditNav, canSignoff]
+          properties:
+            canEditPartnership: { type: boolean }
+            canEditK1: { type: boolean }
+            canEditCommitment: { type: boolean }
+            canEditNav: { type: boolean }
+            canSignoff: { type: boolean }
+    CreatePartnershipRequest:
+      type: object
+      required: [entityId, name, partnershipType]
+      properties:
+        entityId: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        partnershipType: { $ref: '#/components/schemas/PartnershipType' }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    UpdatePartnershipRequest:
+      type: object
+      required: [expectedUpdatedAt]
+      minProperties: 2
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        partnershipType: { $ref: '#/components/schemas/PartnershipType' }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+        expectedUpdatedAt: { type: string, format: date-time }
+    CommittedCapitalEntry:
+      type: object
+      required:
+        - id
+        - partnershipId
+        - amount
+        - effectiveDate
+        - sourceType
+        - note
+        - isCurrent
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        effectiveDate: { type: string, format: date }
+        sourceType: { type: string, enum: [manual, parsed] }
+        note: { type: [string, 'null'] }
+        isCurrent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateCommittedCapitalRequest:
+      type: object
+      required: [amount, effectiveDate]
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        effectiveDate: { type: string, format: date }
+        note: { type: [string, 'null'], maxLength: 2000 }
+    UpdateCommittedCapitalRequest:
+      type: object
+      required: [expectedUpdatedAt]
+      minProperties: 2
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        effectiveDate: { type: string, format: date }
+        note: { type: [string, 'null'], maxLength: 2000 }
+        expectedUpdatedAt: { type: string, format: date-time }
+    NavEntry:
+      type: object
+      required:
+        - id
+        - partnershipId
+        - amount
+        - valuationDate
+        - sourceType
+        - note
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        valuationDate: { type: string, format: date }
+        sourceType:
+          type: string
+          enum: [manual, manager_statement, valuation_409a, k1]
+        note: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateNavRequest:
+      type: object
+      required: [amount, valuationDate]
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        valuationDate: { type: string, format: date }
+        note: { type: [string, 'null'], maxLength: 2000 }
+    UpdateNavRequest:
+      type: object
+      required: [expectedUpdatedAt]
+      minProperties: 2
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        valuationDate: { type: string, format: date }
+        note: { type: [string, 'null'], maxLength: 2000 }
+        expectedUpdatedAt: { type: string, format: date-time }
+    ManualFieldChange:
+      type: object
+      required: [fieldKey, amount, sourceType]
+      properties:
+        fieldKey: { type: string, minLength: 1, maxLength: 100 }
+        amount:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        sourceType:
+          type: string
+          enum: [MANUAL_ENTRY, MANUAL_OVERRIDE]
+        overrideReason: { type: [string, 'null'], maxLength: 2000 }
+      allOf:
+        - if:
+            properties:
+              sourceType: { const: MANUAL_OVERRIDE }
+          then:
+            required: [overrideReason]
+    TrackerValue:
+      allOf:
+        - { $ref: '#/components/schemas/ManualFieldChange' }
+        - type: object
+          required: [id, createdAt]
+          properties:
+            id: { type: string, format: uuid }
+            carryforwardFromTaxYear: { type: [integer, 'null'] }
+            createdAt: { type: string, format: date-time }
+    CalculationResult:
+      type: object
+      required: [summary, sections, warnings, signoffBlockers]
+      properties:
+        summary:
+          type: object
+          additionalProperties:
+            oneOf:
+              - { $ref: '#/components/schemas/Money' }
+              - { type: 'null' }
+        sections:
+          type: object
+          additionalProperties: true
+        warnings:
+          type: array
+          items: { type: string }
+        signoffBlockers:
+          type: array
+          items: { type: string }
+    TrackerYearDetail:
+      type: object
+      required:
+        - partnershipId
+        - taxYear
+        - workflowStatus
+        - revision
+        - values
+        - calculation
+        - signoffs
+      properties:
+        partnershipId: { type: string, format: uuid }
+        taxYear: { type: integer, minimum: 1900, maximum: 2100 }
+        workflowStatus: { $ref: '#/components/schemas/WorkflowStatus' }
+        revision: { type: integer, minimum: 1 }
+        values:
+          type: array
+          items: { $ref: '#/components/schemas/TrackerValue' }
+        calculation: { $ref: '#/components/schemas/CalculationResult' }
+        signoffs:
+          type: array
+          items:
+            type: object
+            required: [type, signedByEmail, createdAt]
+            properties:
+              type: { type: string, enum: [PREPARED, REVIEWED, INVALIDATED] }
+              signedByEmail: { type: [string, 'null'] }
+              reason: { type: [string, 'null'] }
+              createdAt: { type: string, format: date-time }
+    Error:
       type: object
       required: [error]
       properties:
         error: { type: string }
         message: { type: string }
-        currentRevision: { type: integer }
         issues:
           type: array
-          items:
-            type: object
-            additionalProperties: true
-    Money:
-      type: string
-      pattern: '^-?[0-9]{1,16}(\.[0-9]{1,2})?$'
-      examples: ['1932344.00', '-1067656.00']
-    TrackerWorkflowStatus:
-      type: string
-      enum: [NOT_STARTED, IMPORTED, NEEDS_REVIEW, RECONCILED]
-    SourceType:
-      type: string
-      enum: [FINALIZED_K1, WORKBOOK_IMPORT, MANUAL_ENTRY, MANUAL_OVERRIDE, CARRYFORWARD]
-    FieldKey:
-      type: string
-      enum:
-        - opening_outside_basis
-        - opening_suspended_loss
-        - capital_contributions
-        - box_1_ordinary_income_loss
-        - box_2_net_rental_real_estate_income_loss
-        - box_3_other_net_rental_income_loss
-        - box_4c_guaranteed_payments
-        - box_5_interest_income
-        - box_6a_ordinary_dividends
-        - box_7_royalties
-        - box_8_net_short_term_capital_gain_loss
-        - box_9a_net_long_term_capital_gain_loss
-        - box_10_net_section_1231_gain_loss
-        - box_11_other_income_loss
-        - box_12_section_179_deduction
-        - box_13_other_deductions
-        - box_18a_nondeductible_expenses
-        - box_18b_tax_exempt_income
-        - box_19_distributions
-        - box_21_foreign_taxes
-        - liability_nonrecourse_beginning
-        - liability_nonrecourse_ending
-        - liability_qualified_nonrecourse_beginning
-        - liability_qualified_nonrecourse_ending
-        - liability_recourse_beginning
-        - liability_recourse_ending
-        - section_l_beginning_capital
-        - section_l_capital_contributed
-        - section_l_current_year_net_income_loss
-        - section_l_other_increase_decrease
-        - section_l_withdrawals_distributions
-        - section_l_ending_capital
-        - book_capital_account
-        - book_interest_income
-        - book_dividend_income
-        - book_realized_capital_gain_loss
-        - book_other_partnership_income_loss
-        - recon_section_704c
-        - recon_section_754
-        - recon_timing_differences
-        - recon_other_permanent_differences
-    FieldChange:
-      type: object
-      required: [fieldKey, amount, sourceType]
-      properties:
-        fieldKey: { $ref: '#/components/schemas/FieldKey' }
-        amount:
-          anyOf:
-            - { $ref: '#/components/schemas/Money' }
-            - { type: 'null' }
-        sourceType: { type: string, enum: [MANUAL_ENTRY, MANUAL_OVERRIDE] }
-        overrideReason: { type: [string, 'null'], maxLength: 2000 }
-    TrackerValue:
-      type: object
-      required: [id, fieldKey, amount, sourceType, isActive, createdAt]
-      properties:
-        id: { type: string, format: uuid }
-        fieldKey: { $ref: '#/components/schemas/FieldKey' }
-        amount:
-          anyOf:
-            - { $ref: '#/components/schemas/Money' }
-            - { type: 'null' }
-        originalSourceText: { type: [string, 'null'] }
-        sourceType: { $ref: '#/components/schemas/SourceType' }
-        sourceK1DocumentId: { type: [string, 'null'], format: uuid }
-        sourceK1FieldValueId: { type: [string, 'null'], format: uuid }
-        importBatchId: { type: [string, 'null'], format: uuid }
-        sourceSheet: { type: [string, 'null'] }
-        sourceCell: { type: [string, 'null'] }
-        carryforwardFromTaxYear: { type: [integer, 'null'] }
-        overrideReason: { type: [string, 'null'] }
-        isActive: { type: boolean }
-        createdByEmail: { type: [string, 'null'] }
-        createdAt: { type: string, format: date-time }
-    TrackerYearSummary:
-      type: object
-      required: [taxYear, status, revision, warningCount, sourceConflictCount]
-      properties:
-        taxYear: { type: integer }
-        status: { $ref: '#/components/schemas/TrackerWorkflowStatus' }
-        revision: { type: integer }
-        endingOutsideBasis:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        cumulativeSuspendedLoss:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        taxableExcessDistribution:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        sectionLDifference:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        warningCount: { type: integer, minimum: 0 }
-        sourceConflictCount: { type: integer, minimum: 0 }
-    TrackerPartnershipSummary:
-      type: object
-      required: [partnershipId, partnershipName, entityId, entityName, yearCount, latestStatus, warningCount]
-      properties:
-        partnershipId: { type: string, format: uuid }
-        partnershipName: { type: string }
-        entityId: { type: string, format: uuid }
-        entityName: { type: string }
-        yearCount: { type: integer, minimum: 0 }
-        firstTaxYear: { type: [integer, 'null'] }
-        latestTaxYear: { type: [integer, 'null'] }
-        latestStatus:
-          anyOf: [{ $ref: '#/components/schemas/TrackerWorkflowStatus' }, { type: 'null' }]
-        latestEndingOutsideBasis:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        cumulativeSuspendedLoss:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        warningCount: { type: integer, minimum: 0 }
-    TrackerPartnershipDetail:
-      allOf:
-        - { $ref: '#/components/schemas/TrackerPartnershipSummary' }
-        - type: object
-          required: [years]
-          properties:
-            partnerName: { type: [string, 'null'] }
-            years:
-              type: array
-              items: { $ref: '#/components/schemas/TrackerYearSummary' }
-    CheckResult:
-      type: object
-      required: [key, status, message]
-      properties:
-        key: { type: string }
-        status: { type: string, enum: [PASS, WARNING, FAIL, INCOMPLETE] }
-        actual:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        expected:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        difference:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        tolerance:
-          anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-        message: { type: string }
-    JournalEntry:
-      type: object
-      required: [account, amount, convention]
-      properties:
-        account: { type: string }
-        amount: { $ref: '#/components/schemas/Money' }
-        convention: { type: string, const: DEBIT_POSITIVE_CREDIT_NEGATIVE }
-    TrackerCalculation:
-      type: object
-      required: [calculationVersion, summary, basis, lossLimitation, distribution, liabilities, sectionL, bookTax, journalEntries, journalBalance, checks]
-      properties:
-        calculationVersion: { type: string }
-        summary: { $ref: '#/components/schemas/TrackerYearSummary' }
-        basis: { type: object, additionalProperties: true }
-        lossLimitation: { type: object, additionalProperties: true }
-        distribution: { type: object, additionalProperties: true }
-        liabilities: { type: object, additionalProperties: true }
-        sectionL: { type: object, additionalProperties: true }
-        bookTax: { type: object, additionalProperties: true }
-        journalEntries:
-          type: array
-          items: { $ref: '#/components/schemas/JournalEntry' }
-        journalBalance: { $ref: '#/components/schemas/Money' }
-        checks:
-          type: array
-          items: { $ref: '#/components/schemas/CheckResult' }
-    SignoffState:
-      type: object
-      required: [yearRevision]
-      properties:
-        yearRevision: { type: integer }
-        preparedByEmail: { type: [string, 'null'] }
-        preparedAt: { type: [string, 'null'], format: date-time }
-        reviewedByEmail: { type: [string, 'null'] }
-        reviewedAt: { type: [string, 'null'], format: date-time }
-        invalidatedAt: { type: [string, 'null'], format: date-time }
-        invalidationReason: { type: [string, 'null'] }
-        history:
-          type: array
-          items:
-            type: object
-            required: [action, byEmail, at, reason]
-            properties:
-              action: { type: string, enum: [PREPARED, REVIEWED, INVALIDATED] }
-              byEmail: { type: [string, 'null'] }
-              at: { type: string, format: date-time }
-              reason: { type: [string, 'null'] }
-    TrackerYearDetail:
-      type: object
-      required: [partnershipId, taxYear, status, revision, values, calculation, signoff]
-      properties:
-        partnershipId: { type: string, format: uuid }
-        taxYear: { type: integer }
-        status: { $ref: '#/components/schemas/TrackerWorkflowStatus' }
-        revision: { type: integer }
-        values:
-          type: array
-          items: { $ref: '#/components/schemas/TrackerValue' }
-        sourceConflicts:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        calculation: { $ref: '#/components/schemas/TrackerCalculation' }
-        signoff: { $ref: '#/components/schemas/SignoffState' }
-    ImportPreview:
-      type: object
-      required: [importBatchId, expiresAt, workbookHash, sheets, warnings]
-      properties:
-        importBatchId: { type: string, format: uuid }
-        expiresAt: { type: string, format: date-time }
-        workbookHash: { type: string }
-        proposedPartnershipId: { type: [string, 'null'], format: uuid }
-        sheets:
-          type: array
-          items:
-            type: object
-            required: [sheetName, proposedPartnershipName, years]
-            properties:
-              sheetName: { type: string }
-              proposedPartnershipName: { type: string }
-              proposedPartnershipId: { type: [string, 'null'], format: uuid }
-              years:
-                type: array
-                items:
-                  type: object
-                  required: [taxYear, state, mappedFieldCount, conflicts, warnings]
-                  properties:
-                    taxYear: { type: integer }
-                    state: { type: string, enum: [POPULATED, FORMULA_ONLY, BLANK, INVALID] }
-                    mappedFieldCount: { type: integer }
-                    conflicts:
-                      type: array
-                      items: { type: object, additionalProperties: true }
-                    warnings:
-                      type: array
-                      items: { type: string }
-                    values:
-                      type: array
-                      items:
-                        type: object
-                        required: [fieldKey, amount, sourceCell]
-                        properties:
-                          fieldKey: { $ref: '#/components/schemas/FieldKey' }
-                          amount:
-                            anyOf: [{ $ref: '#/components/schemas/Money' }, { type: 'null' }]
-                          sourceCell: { type: string }
-        warnings:
-          type: array
-          items: { type: string }
+          items: { type: object, additionalProperties: true }

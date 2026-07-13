@@ -99,8 +99,8 @@ const check = (
   tolerance: centsToMoney(tolerance),
 })
 
-const statusForChecks = (checks: K1TrackerCheckResult[]): K1TrackerYearSummary['status'] => {
-  if (checks.some((item) => item.status === 'INCOMPLETE')) return 'NOT_STARTED'
+const statusForChecks = (checks: K1TrackerCheckResult[], hasValues: boolean): K1TrackerYearSummary['status'] => {
+  if (checks.some((item) => item.status === 'INCOMPLETE')) return hasValues ? 'IN_PROGRESS' : 'NOT_STARTED'
   if (checks.some((item) => item.status === 'FAIL')) return 'NEEDS_REVIEW'
   if (checks.some((item) => item.status === 'WARNING')) return 'NEEDS_REVIEW'
   return 'RECONCILED'
@@ -214,7 +214,7 @@ export const calculateTrackerYear = (
   ]
 
   const warningCount = checks.filter((item) => item.status === 'WARNING' || item.status === 'FAIL' || item.status === 'INCOMPLETE').length
-  const status = statusForChecks(checks)
+  const status = statusForChecks(checks, Object.values(values).some((value) => value != null))
   const summary: K1TrackerYearSummary = {
     taxYear: year.taxYear,
     status,

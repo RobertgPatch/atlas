@@ -36,6 +36,9 @@ export const runMigrations = async (
 
   const client = await pool.connect()
   try {
+    // Test workers and horizontally started API instances can reach this code at
+    // the same time. Serialize the migration ledger check and apply sequence.
+    await client.query(`select pg_advisory_lock(hashtext('atlas-schema-migrations'))`)
     await ensureMigrationsTable(client)
     const applied = await listAppliedMigrations(client)
     const files = await listMigrationFiles()
@@ -62,6 +65,7 @@ export const runMigrations = async (
       }
     }
   } finally {
+    await client.query(`select pg_advisory_unlock(hashtext('atlas-schema-migrations'))`).catch(() => undefined)
     client.release()
   }
 }

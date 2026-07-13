@@ -1,7 +1,7 @@
-# Specification Quality Checklist: K1 Tracker
+# Specification Quality Checklist: Partnership Tracker
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning  
-**Created**: 2026-07-11  
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-07-11; revalidated 2026-07-12
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
@@ -31,6 +31,6 @@
 
 ## Notes
 
-- Validation passed on the first review after incorporating the supplied workbook, CPA HTML prototype, and repository legacy-feature inventory.
-- The specification intentionally corrects two material workbook defects: calculated net income includes capital contributions, and overall reconciliation ignores component variances.
-- The default tax-basis ordering is anchored to current IRS partner instructions; workbook-specific departures are bounded as versioned CPA-approved rules and do not block implementation planning.
+- Revalidated after renaming the experience to Partnership Tracker and consolidating partnership creation, manual K-1 entry, committed-capital history, and NAV history.
+- V1 is deliberately limited to manual K-1 entry; Excel import, PDF upload, OCR, and automatic document synchronization are explicitly deferred.
+- Partnership type choices, effective-dated committed-capital semantics, and multiple NAV observations per year are resolved with no remaining clarification markers.
