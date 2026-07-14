@@ -12,6 +12,48 @@ export interface PartnershipTrackerFixture {
   cleanup: () => Promise<void>
 }
 
+export interface AnnualPerformanceFixtureValue {
+  taxYear: number
+  hasCanonicalContribution: boolean
+  capitalContributions: string | null
+  legacyCapitalContributions: string | null
+  distributions: string | null
+}
+
+export const twoYearPerformanceFixture = (): AnnualPerformanceFixtureValue[] => [
+  { taxYear: 2021, hasCanonicalContribution: true, capitalContributions: '3000000.00', legacyCapitalContributions: null, distributions: '0.00' },
+  { taxYear: 2022, hasCanonicalContribution: true, capitalContributions: '0.00', legacyCapitalContributions: null, distributions: '-190773.00' },
+]
+
+export const liabilityOnlyChangeFixture = () => ({
+  liability_nonrecourse_beginning: '100.00',
+  liability_nonrecourse_ending: '1000.00',
+})
+
+export const canonicalOnlyContributionFixture = () => ({
+  hasCanonicalContribution: true,
+  capitalContributions: '100.00',
+  legacyCapitalContributions: null,
+})
+
+export const legacyOnlyContributionFixture = () => ({
+  hasCanonicalContribution: false,
+  capitalContributions: null,
+  legacyCapitalContributions: '100.00',
+})
+
+export const equalContributionFixture = () => ({
+  hasCanonicalContribution: true,
+  capitalContributions: '100.00',
+  legacyCapitalContributions: '100.00',
+})
+
+export const conflictingContributionFixture = () => ({
+  hasCanonicalContribution: true,
+  capitalContributions: '100.00',
+  legacyCapitalContributions: '125.00',
+})
+
 export async function createPartnershipTrackerFixture(): Promise<PartnershipTrackerFixture> {
   if (!pool) throw new Error('ATLAS_TEST_DATABASE_URL is required for durable Partnership Tracker tests')
   await runMigrations()

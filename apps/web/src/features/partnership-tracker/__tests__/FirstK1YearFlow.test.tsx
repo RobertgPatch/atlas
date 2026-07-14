@@ -1,6 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import type { PartnershipTrackerYearDetail } from '../../../../../../packages/types/src/partnership-tracker'
+import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
 import { AddYearDialog } from '../components/AddYearDialog'
+
+const inlineDetail = {
+  partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'NOT_STARTED', values: [],
+  calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {} },
+} as unknown as PartnershipTrackerYearDetail
 
 describe('first K-1 year flow', () => {
   it('accepts the full supported year range and leaves selection to the submitted value', async () => {
@@ -18,5 +25,11 @@ describe('first K-1 year flow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('already exists')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(close).toHaveBeenCalled()
+  })
+  it('opens a new selected year as an inline form without a drawer or Next control', () => {
+    render(<K1YearEntryForm detail={inlineDetail} canEdit pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Manual K-1 inputs' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
   })
 })

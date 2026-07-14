@@ -12,6 +12,19 @@ describe('manual K-1 route contract', () => {
     const malformed = await fixture.app.inject({ method: 'PATCH', url: `/v1/partnership-tracker/partnerships/${id}/years/2021`, headers: { cookie: fixture.cookie }, payload: { expectedRevision: 0, changes: [] } })
     expect(malformed.statusCode).toBe(400)
   })
+  it('rejects new writes to the deprecated Section L contribution key', async () => {
+    const response = await fixture.app.inject({
+      method: 'PATCH',
+      url: `/v1/partnership-tracker/partnerships/${id}/years/2021`,
+      headers: { cookie: fixture.cookie },
+      payload: {
+        expectedRevision: 1,
+        changes: [{ fieldKey: 'section_l_capital_contributed', amount: '100.00', sourceType: 'MANUAL_ENTRY' }],
+      },
+    })
+    expect(response.statusCode).toBe(400)
+    expect(response.body).toContain('capital_contributions')
+  })
   it('has no import, upload, or source-sync endpoint under the new prefix', async () => {
     for (const suffix of ['imports/preview', 'upload', 'source-sync']) {
       const response = await fixture.app.inject({ method: 'POST', url: `/v1/partnership-tracker/${suffix}`, headers: { cookie: fixture.cookie } })

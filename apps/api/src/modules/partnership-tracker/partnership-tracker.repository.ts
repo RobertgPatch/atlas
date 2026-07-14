@@ -16,6 +16,7 @@ import type {
   PartnershipType,
 } from './partnership-tracker.contracts.js'
 import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
+import { composePartnershipPerformance, type PartnershipAnnualPerformanceValue } from './partnership-performance.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
 
 type PartnershipRow = QueryResultRow & {
@@ -24,7 +25,8 @@ type PartnershipRow = QueryResultRow & {
   created_at: Date | string; updated_at: Date | string; current_commitment: string | null
   current_commitment_date: Date | string | null; latest_nav: string | null; latest_nav_date: Date | string | null
   earliest_k1_year: number | null; latest_k1_year: number | null; latest_workflow_status: string | null
-  latest_ending_basis: string | null; warning_count: string; total_count: string
+  latest_ending_basis: string | null; latest_section_l_capital: string | null; warning_count: string; total_count: string
+  annual_performance: PartnershipAnnualPerformanceValue[] | null
 }
 type CommitmentRow = QueryResultRow & {
   id: string; partnership_id: string; commitment_amount: string; effective_date: Date | string
@@ -57,7 +59,19 @@ const partnershipType = (value: string | null): PartnershipType =>
   PARTNERSHIP_TYPES.includes(value as PartnershipType) ? value as PartnershipType : 'Other'
 const scoped = (entityId: string, scope: PartnershipTrackerScope) => scope.isAdmin || scope.entityIds.includes(entityId)
 
-const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => ({
+const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
+  const latestNav = row.latest_nav == null || row.latest_nav_date == null
+    ? null
+    : { amount: money(row.latest_nav)!, date: dateOnly(row.latest_nav_date) }
+  const annualValues = Array.isArray(row.annual_performance) ? row.annual_performance.map((value) => ({
+    taxYear: Number(value.taxYear),
+    hasCanonicalContribution: Boolean(value.hasCanonicalContribution),
+    capitalContributions: value.capitalContributions == null ? null : String(value.capitalContributions),
+    legacyCapitalContributions: value.legacyCapitalContributions == null ? null : String(value.legacyCapitalContributions),
+    distributions: value.distributions == null ? null : String(value.distributions),
+  })) : []
+  const performance = composePartnershipPerformance({ annualValues, latestNav })
+  return {
   partnership: {
     id: row.id,
     entity: { id: row.entity_id, name: row.entity_name },
@@ -71,15 +85,21 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => ({
   currentCommittedCapital: row.current_commitment == null || row.current_commitment_date == null
     ? null
     : { amount: money(row.current_commitment)!, date: dateOnly(row.current_commitment_date) },
-  latestNav: row.latest_nav == null || row.latest_nav_date == null
-    ? null
-    : { amount: money(row.latest_nav)!, date: dateOnly(row.latest_nav_date) },
+  latestNav,
   earliestK1Year: row.earliest_k1_year,
   latestTaxYear: row.latest_k1_year,
   latestWorkflowStatus: workflow(row.latest_workflow_status),
   latestEndingOutsideBasis: money(row.latest_ending_basis),
+  latestSectionLCapital: money(row.latest_section_l_capital),
+  totalCapitalContributions: performance.totalCapitalContributions,
+  totalDistributions: performance.totalDistributions,
+  dpi: performance.dpi,
+  tvpi: performance.tvpi,
+  irr: performance.irr,
+  performanceStatus: performance.performanceStatus,
   warningCount: Number(row.warning_count ?? 0),
-})
+  }
+}
 
 const summaryRows = async (
   scope: PartnershipTrackerScope,
@@ -107,6 +127,8 @@ const summaryRows = async (
       years.latest_k1_year,
       latest_year.workflow_status as latest_workflow_status,
       latest_year.ending_outside_basis as latest_ending_basis,
+      latest_year.latest_section_l_capital,
+      years.annual_performance,
       coalesce(years.warning_count, 0)::text as warning_count,
       count(*) over()::text as total_count
     from partnerships p
@@ -124,11 +146,33 @@ const summaryRows = async (
     ) nav on true
     left join lateral (
       select min(y.tax_year) as earliest_k1_year, max(y.tax_year) as latest_k1_year,
-        coalesce(sum(y.warning_count), 0) as warning_count
-      from k1_tracker_years y where y.partnership_id = p.id
+        coalesce(sum(y.warning_count), 0) as warning_count,
+        jsonb_agg(jsonb_build_object(
+          'taxYear', y.tax_year,
+          'hasCanonicalContribution', coalesce(annual.has_canonical_contribution, false),
+          'capitalContributions', annual.capital_contributions::text,
+          'legacyCapitalContributions', annual.legacy_capital_contributions::text,
+          'distributions', annual.distributions::text
+        ) order by y.tax_year) filter (where y.id is not null) as annual_performance
+      from k1_tracker_years y
+      left join lateral (
+        select
+          bool_or(v.field_key = 'capital_contributions') as has_canonical_contribution,
+          max(v.amount) filter (where v.field_key = 'capital_contributions') as capital_contributions,
+          max(v.amount) filter (where v.field_key = 'section_l_capital_contributed') as legacy_capital_contributions,
+          max(v.amount) filter (where v.field_key = 'box_19_distributions') as distributions
+        from k1_tracker_value_revisions v
+        where v.tracker_year_id = y.id and v.is_active = true
+      ) annual on true
+      where y.partnership_id = p.id
     ) years on true
     left join lateral (
-      select y.workflow_status, y.ending_outside_basis
+      select y.workflow_status, y.ending_outside_basis,
+        (
+          select v.amount from k1_tracker_value_revisions v
+          where v.tracker_year_id = y.id and v.field_key = 'section_l_ending_capital' and v.is_active = true
+          order by v.created_at desc, v.id desc limit 1
+        ) as latest_section_l_capital
       from k1_tracker_years y where y.partnership_id = p.id
       order by y.tax_year desc, y.updated_at desc, y.id desc limit 1
     ) latest_year on true

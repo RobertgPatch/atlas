@@ -13,6 +13,15 @@ describe('Partnership Tracker validation security', () => {
     expect(response.statusCode).toBe(400)
     expect(response.json()).toMatchObject({ error: 'VALIDATION_ERROR' })
     expect(response.body).not.toContain('node_modules')
+    const deprecated = await fixture.app.inject({
+      method: 'PATCH',
+      url: '/v1/partnership-tracker/partnerships/11111111-1111-4111-8111-111111111111/years/2024',
+      headers: { cookie: fixture.cookie },
+      payload: { expectedRevision: 1, changes: [{ fieldKey: 'section_l_capital_contributed', amount: '100.00', sourceType: 'MANUAL_ENTRY' }] },
+    })
+    expect(deprecated.statusCode).toBe(400)
+    expect(deprecated.body).toContain('capital_contributions')
+    expect(deprecated.body).not.toContain('stack')
   })
 })
 

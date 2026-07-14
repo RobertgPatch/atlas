@@ -8,6 +8,13 @@ export const summaryFixture: PartnershipTrackerSummary = {
   latestTaxYear: 2024,
   latestWorkflowStatus: 'IN_PROGRESS',
   latestEndingOutsideBasis: '425000.00',
+  latestSectionLCapital: '450000.00',
+  totalCapitalContributions: '1000000.00',
+  totalDistributions: '75000.00',
+  dpi: '0.0750',
+  tvpi: '1.0250',
+  irr: '0.0247',
+  performanceStatus: { dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'AVAILABLE' },
   warningCount: 2,
 }
 

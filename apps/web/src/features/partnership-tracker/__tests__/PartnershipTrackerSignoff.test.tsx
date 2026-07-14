@@ -19,4 +19,16 @@ describe('Partnership Tracker sign-off panel', () => {
     render(<SignOffPanel state={{ yearRevision: 3, preparedByEmail: null, preparedAt: null, reviewedByEmail: null, reviewedAt: null, invalidatedAt: '2025-01-01T00:00:00.000Z', invalidationReason: 'Earlier year changed' }} checksPassing={false} canEdit={false} pending={false} onSignoff={vi.fn()} />)
     expect(screen.getByText(/Earlier year changed/i)).toBeInTheDocument()
   })
+  it('retains canonical conflict and sign-off history evidence below the annual form', () => {
+    render(<SignOffPanel state={{
+      yearRevision: 4,
+      preparedByEmail: 'preparer@example.com', preparedAt: '2025-01-01T00:00:00.000Z',
+      reviewedByEmail: 'reviewer@example.com', reviewedAt: '2025-01-02T00:00:00.000Z',
+      invalidatedAt: '2025-01-03T00:00:00.000Z', invalidationReason: 'Capital contributions source conflict',
+      history: [{ action: 'PREPARED', byEmail: 'preparer@example.com', at: '2025-01-01T00:00:00.000Z', reason: null }, { action: 'REVIEWED', byEmail: 'reviewer@example.com', at: '2025-01-02T00:00:00.000Z', reason: null }],
+    }} checksPassing={false} canEdit pending={false} onSignoff={vi.fn()} />)
+    expect(screen.getByText(/Capital contributions source conflict/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/prepared.*preparer@example.com/i)).toHaveLength(2)
+    expect(screen.getAllByText(/reviewed.*reviewer@example.com/i)).toHaveLength(2)
+  })
 })

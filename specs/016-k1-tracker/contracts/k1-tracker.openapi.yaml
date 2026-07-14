@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: Atlas Partnership Tracker API
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Scoped Partnership Tracker contract for partnership identity, manual K-1
-    years, effective-dated committed capital, and dated NAV history. V1 has no
-    Excel import, PDF upload, OCR, or automatic K-1 document synchronization
-    endpoint.
+    years, effective-dated committed capital, dated NAV history, and composed
+    K-1 performance metrics. Annual writes use one canonical contribution key;
+    liabilities remain reference-only calculation data. V1 has no Excel import,
+    PDF upload, OCR, or automatic K-1 document synchronization endpoint.
 servers:
   - url: /v1
 security:
@@ -531,6 +532,14 @@ components:
       allOf:
         - { $ref: '#/components/schemas/Money' }
       pattern: '^\d+\.\d{2}$'
+    Ratio:
+      type: string
+      pattern: '^-?\d+\.\d{4,8}$'
+      description: Unit ratio; render DPI/TVPI with x and IRR as a percentage.
+      examples: ['0.0636', '1.0636']
+    MetricAvailability:
+      type: string
+      enum: [AVAILABLE, MISSING_CONTRIBUTIONS, MISSING_NAV, NAV_PRECEDES_CASH_FLOWS, INSUFFICIENT_CASH_FLOWS, AMBIGUOUS_IRR]
     PartnershipType:
       type: string
       enum:
@@ -586,8 +595,15 @@ components:
         - currentCommittedCapital
         - latestNav
         - earliestK1Year
-        - latestK1Year
+        - latestTaxYear
         - latestEndingOutsideBasis
+        - latestSectionLCapital
+        - totalCapitalContributions
+        - totalDistributions
+        - dpi
+        - tvpi
+        - irr
+        - performanceStatus
         - latestWorkflowStatus
         - warningCount
       properties:
@@ -601,11 +617,42 @@ components:
             - { $ref: '#/components/schemas/DatedMoney' }
             - { type: 'null' }
         earliestK1Year: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
-        latestK1Year: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
+        latestTaxYear: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
         latestEndingOutsideBasis:
           oneOf:
             - { $ref: '#/components/schemas/Money' }
             - { type: 'null' }
+        latestSectionLCapital:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        totalCapitalContributions:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        totalDistributions:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        dpi:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        tvpi:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        irr:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        performanceStatus:
+          type: object
+          required: [dpi, tvpi, irr]
+          properties:
+            dpi: { $ref: '#/components/schemas/MetricAvailability' }
+            tvpi: { $ref: '#/components/schemas/MetricAvailability' }
+            irr: { $ref: '#/components/schemas/MetricAvailability' }
         latestWorkflowStatus:
           oneOf:
             - { $ref: '#/components/schemas/WorkflowStatus' }
@@ -744,7 +791,12 @@ components:
       type: object
       required: [fieldKey, amount, sourceType]
       properties:
-        fieldKey: { type: string, minLength: 1, maxLength: 100 }
+        fieldKey:
+          type: string
+          minLength: 1
+          maxLength: 100
+          not: { const: section_l_capital_contributed }
+          description: New writes use capital_contributions as the sole contribution key.
         amount:
           oneOf:
             - { $ref: '#/components/schemas/Money' }
@@ -759,18 +811,29 @@ components:
               sourceType: { const: MANUAL_OVERRIDE }
           then:
             required: [overrideReason]
+            properties:
+              overrideReason: { type: string, minLength: 1, maxLength: 2000 }
     TrackerValue:
-      allOf:
-        - { $ref: '#/components/schemas/ManualFieldChange' }
-        - type: object
-          required: [id, createdAt]
-          properties:
-            id: { type: string, format: uuid }
-            carryforwardFromTaxYear: { type: [integer, 'null'] }
-            createdAt: { type: string, format: date-time }
+      type: object
+      description: Stored values may retain the deprecated section_l_capital_contributed key as read-only provenance.
+      required: [id, fieldKey, amount, sourceType, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fieldKey: { type: string, minLength: 1, maxLength: 100 }
+        amount:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        sourceType:
+          type: string
+          enum: [FINALIZED_K1, WORKBOOK_IMPORT, MANUAL_ENTRY, MANUAL_OVERRIDE, CARRYFORWARD]
+        overrideReason: { type: [string, 'null'], maxLength: 2000 }
+        carryforwardFromTaxYear: { type: [integer, 'null'] }
+        createdAt: { type: string, format: date-time }
     CalculationResult:
       type: object
       required: [summary, sections, warnings, signoffBlockers]
+      description: Liability values remain in sections.liabilities for reference but do not affect summary amounts, warnings, or signoffBlockers.
       properties:
         summary:
           type: object

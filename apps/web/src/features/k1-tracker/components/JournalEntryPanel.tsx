@@ -6,7 +6,7 @@ const journalSources: Record<string, string[]> = {
   'Interest Income': ['box_5_interest_income', 'book_interest_income'],
   'Dividend Income': ['box_6a_ordinary_dividends', 'book_dividend_income'],
   'Realized Capital Gains/Losses': ['box_8_net_short_term_capital_gain_loss', 'box_9a_net_long_term_capital_gain_loss', 'box_10_net_section_1231_gain_loss', 'book_realized_capital_gain_loss'],
-  'Partnership Income - General': ['box_1_ordinary_income_loss', 'box_2_net_rental_real_estate_income_loss', 'box_3_other_net_rental_income_loss', 'box_4c_guaranteed_payments', 'box_7_royalties', 'box_11_other_income_loss', 'box_12_section_179_deduction', 'box_13_other_deductions', 'box_18a_nondeductible_expenses', 'box_18b_tax_exempt_income', 'book_other_partnership_income_loss'],
+  'Partnership Income - General': ['box_1_ordinary_income_loss', 'box_2_net_rental_real_estate_income_loss', 'box_3_other_net_rental_income_loss', 'box_4c_guaranteed_payments', 'box_7_royalties', 'box_11_other_income_loss', 'box_12_section_179_deduction', 'box_13_other_deductions', 'box_18a_nondeductible_expenses', 'book_other_partnership_income_loss'],
 }
 const sourceText = (detail: K1TrackerYearDetail | undefined, account: string) => {
   const keys = journalSources[account]

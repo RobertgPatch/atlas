@@ -1,7 +1,7 @@
 # Research: Partnership Tracker
 
 **Feature**: `016-k1-tracker`
-**Date**: 2026-07-12
+**Date**: 2026-07-13
 
 ## Decision 1: Consolidate the visible experience around a selected partnership
 
@@ -13,7 +13,7 @@
 
 - Keep separate directory, detail, and K1 pages: rejected because creating or managing the partnership still interrupts the main workflow.
 - Copy all sections from `PartnershipDetail`: rejected because assets, manual capital activity, expected distributions, and activity-detail reporting are outside the requested focused v1.
-- Put all retained panels on one page: rejected because a partnership with many years and history entries would still require excessive scrolling.
+- Put every partnership, commitment, NAV, and annual-history panel on one page: rejected because a partnership with many years and history entries would still require excessive scrolling. This does not prevent all fields for one selected K-1 year from sharing one continuous entry page.
 
 ## Decision 2: Reuse `asset_class` as controlled Partnership Type
 
@@ -131,3 +131,61 @@
 
 - Design v1 as if all values will remain manual: rejected because the user has already identified PDF automation as v2.
 - Implement provider-specific OCR fields now: rejected because the provider and accuracy strategy have not been benchmarked and are outside v1.
+
+## Decision 12: Replace the annual wizard and category tabs with one inline form
+
+**Decision**: For the selected tax year, render every supported opening, K-1 box, Item K liability, Section L, book, and reconciliation input in one continuous grouped form. Keep compact year navigation, but remove the annual editor drawer, step tabs, category tabs, Back, and Next. Use one sticky action row for Preview calculation, Save changes, and Revert/Cancel.
+
+**Rationale**: The K-1 source presents the annual values together, and the current six-step drawer plus read-only category tabs makes transcription slower and makes related values difficult to scan. One form preserves grouping and sign guidance without hiding fields behind interaction state.
+
+**Alternatives considered**:
+
+- Keep the drawer and put every field in its first step: rejected because a constrained overlay is the wrong primary surface for dozens of fields and makes source-to-screen comparison harder.
+- Keep category tabs but allow editing in each tab: rejected because it still scatters one source document across multiple UI states.
+- Make every year editable at once: rejected because it recreates a wide worksheet, increases stale-write risk, and conflicts with one-primary-year navigation.
+
+## Decision 13: Treat liabilities as reference-only tracker values
+
+**Decision**: Continue storing, carrying, editing, and displaying all Item K liability categories, but remove liability increases and relief from outside-basis arithmetic, distribution analysis, taxable-excess calculations, overview totals, DPI, TVPI, IRR, warning counts, and sign-off blockers. Return a standalone liability analysis for manual processing.
+
+**Rationale**: The user explicitly owns liability processing outside Atlas and does not want liability values included in any aggregation. Keeping the raw values preserves the K-1 record and later manual review without silently influencing totals.
+
+**Alternatives considered**:
+
+- Remove liability inputs entirely: rejected because the user asked for all K-1 fields on one page and may still need the values for manual work.
+- Keep liability effects in annual basis but exclude them only from Overview: rejected because the same values would still be aggregated into ending basis and distribution limitations.
+- Add an automatic liability adjustment toggle: rejected because it introduces two calculation modes and makes saved results harder to audit.
+
+## Decision 14: Canonicalize capital contributions
+
+**Decision**: Make `capital_contributions` the sole editable contribution field and use it for both outside-basis contributions and Section L reported contributions. Keep `section_l_capital_contributed` only as legacy revision provenance. A compatibility projection uses the legacy value when the canonical value is absent; when both exist, the canonical value wins and a mismatch is surfaced for one-time manual resolution rather than summed.
+
+**Rationale**: The current labels describe the same user-entered fact and only one consistently feeds downstream data. A canonical value prevents duplicate entry and double counting while retaining historical source evidence.
+
+**Alternatives considered**:
+
+- Keep both inputs with clearer labels: rejected because the user explicitly wants one contribution data point.
+- Destructively rename every historical revision: rejected because conflicting active values could be lost and append-only provenance would be weakened.
+- Prefer the Section L key: rejected because `capital_contributions` already drives outside basis and is the clearer cross-year paid-in source.
+
+## Decision 15: Compose Overview performance from active K-1 revisions
+
+**Decision**: Extend the server-composed partnership summary with:
+
+- `totalCapitalContributions`: sum of canonical contribution amounts across all active saved years, or null when no contribution value has ever been entered.
+- `totalDistributions`: sum of absolute Box 19 distribution amounts across all active saved years, or null when no distribution value has ever been entered.
+- `latestSectionLCapital`: latest year's reported Section L ending capital.
+- `dpi`: total distributions divided by total contributions.
+- `tvpi`: total distributions plus latest NAV divided by total contributions.
+- `irr`: a dated cash-flow return using annual contributions as negative cash flows on December 31 of each tax year, annual distributions as positive cash flows on the same dates, and latest NAV as terminal value on its valuation date.
+
+The API returns ratios as fixed-decimal strings and a per-metric availability status. DPI/TVPI are unavailable with a zero or missing paid-in denominator; TVPI is unavailable without NAV. IRR is unavailable unless the series contains at least one negative and one positive cash flow, terminal NAV is not dated before a later annual cash flow, and the solver finds one supported result. Nonconsecutive tax years retain their real elapsed time.
+
+**Rationale**: These fields match the layout and vocabulary in `IMG_3797.heic`, make the overview useful without opening every year, and use the same active revisions shown in the annual form. Server composition prevents divergent browser calculations and per-year API fan-out.
+
+**Alternatives considered**:
+
+- Reuse legacy capital-activity totals: rejected because the user wants contributions and distributions aggregated from the K-1 years and the legacy rows can diverge.
+- Use current committed capital as paid-in: rejected because commitment is a dated ceiling, not an amount contributed.
+- Reuse `partnership_annual_activity.irr`: rejected because it is a separate manually maintained value and does not prove consistency with the selected K-1 revisions.
+- Calculate IRR from undated amounts only: rejected because elapsed time materially changes the result; tax-year end provides the deterministic date for annual K-1 cash flows while NAV retains its exact date.

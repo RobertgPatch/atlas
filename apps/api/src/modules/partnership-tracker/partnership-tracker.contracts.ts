@@ -13,6 +13,13 @@ export type PartnershipType = (typeof PARTNERSHIP_TYPES)[number]
 export const PARTNERSHIP_NAV_SOURCES = ['manager_statement', 'valuation_409a', 'k1', 'manual'] as const
 export type PartnershipNavSource = (typeof PARTNERSHIP_NAV_SOURCES)[number]
 export type PartnershipTrackerMoney = string
+export const PARTNERSHIP_TRACKER_METRIC_AVAILABILITY = ['AVAILABLE', 'MISSING_CONTRIBUTIONS', 'MISSING_NAV', 'NAV_PRECEDES_CASH_FLOWS', 'INSUFFICIENT_CASH_FLOWS', 'AMBIGUOUS_IRR'] as const
+export type PartnershipTrackerMetricAvailability = (typeof PARTNERSHIP_TRACKER_METRIC_AVAILABILITY)[number]
+export interface PartnershipTrackerPerformanceStatus {
+  dpi: PartnershipTrackerMetricAvailability
+  tvpi: PartnershipTrackerMetricAvailability
+  irr: PartnershipTrackerMetricAvailability
+}
 export type PartnershipTrackerWorkflowStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'NEEDS_REVIEW' | 'RECONCILED'
 
 export interface PartnershipTrackerSummary {
@@ -32,6 +39,13 @@ export interface PartnershipTrackerSummary {
   latestTaxYear: number | null
   latestWorkflowStatus: PartnershipTrackerWorkflowStatus | null
   latestEndingOutsideBasis: PartnershipTrackerMoney | null
+  latestSectionLCapital: PartnershipTrackerMoney | null
+  totalCapitalContributions: PartnershipTrackerMoney | null
+  totalDistributions: PartnershipTrackerMoney | null
+  dpi: string | null
+  tvpi: string | null
+  irr: string | null
+  performanceStatus: PartnershipTrackerPerformanceStatus
   warningCount: number
 }
 

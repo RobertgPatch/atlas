@@ -1,7 +1,7 @@
 # Data Model: Partnership Tracker
 
 **Feature**: `016-k1-tracker`
-**Date**: 2026-07-12
+**Date**: 2026-07-13
 **Storage**: Existing PostgreSQL schema plus a compatibility migration; no new source-of-truth table is required.
 
 ## Relationship Overview
@@ -11,6 +11,7 @@ Entity
   `-- Partnership
        |-- CommittedCapitalEntry (effective-dated history)
        |-- NavEntry (dated valuation history; stored as FMV snapshots)
+       |-- PartnershipPerformanceSummary (derived across active years)
        `-- TrackerYear
             |-- TrackerValueRevision
             |-- YearSignoff
@@ -65,8 +66,15 @@ Composed for directory/picker rows so the client does not issue one request per 
 | `currentCommittedCapital` | Money/date or null | Latest effective commitment on or before today |
 | `latestNav` | Money/date/source or null | Greatest NAV valuation date |
 | `earliestK1Year` | Integer or null | Minimum tracker tax year |
-| `latestK1Year` | Integer or null | Maximum tracker tax year |
+| `latestTaxYear` | Integer or null | Maximum tracker tax year |
 | `latestEndingOutsideBasis` | Money or null | Summary from the greatest tracker tax year |
+| `latestSectionLCapital` | Money or null | Canonical Section L ending capital from the greatest tracker tax year |
+| `totalCapitalContributions` | Money or null | Sum of canonical annual contributions; null until at least one value exists |
+| `totalDistributions` | Money or null | Sum of absolute annual Box 19 distributions; null until at least one value exists |
+| `dpi` | Ratio or null | Cumulative distributions / cumulative contributions |
+| `tvpi` | Ratio or null | (cumulative distributions + latest NAV) / cumulative contributions |
+| `irr` | Ratio or null | Dated return across canonical annual cash flows and terminal NAV |
+| `performanceStatus` | Status object | Per-metric availability reason for DPI, TVPI, and IRR |
 | `latestWorkflowStatus` | Status or null | Workflow state for the greatest tracker tax year |
 | `warningCount` | Integer | Sum or current-year count as specified by response field |
 
@@ -195,6 +203,14 @@ NOT_STARTED -> IN_PROGRESS -> NEEDS_REVIEW -> RECONCILED
 - A materially changed earlier year invalidates later sign-off and moves affected years to `NEEDS_REVIEW`.
 - Migration 019 maps legacy `IMPORTED` status to `IN_PROGRESS`; provenance on its values is retained.
 
+### Canonical Annual Contribution
+
+- `capital_contributions` is the only editable contribution field and feeds both outside-basis and Section L contribution rows.
+- `section_l_capital_contributed` is deprecated for writes and retained only in historical revision responses/provenance.
+- When the canonical active value is absent, the compatibility projection reads the active legacy value as the canonical amount.
+- When both active keys exist, `capital_contributions` is authoritative. Equal values are displayed once; unequal values produce a migration/source conflict for manual resolution and are never summed.
+- New validation rejects `section_l_capital_contributed` in mutation payloads while allowing old revisions to remain readable.
+
 ## 7. TrackerValueRevision
 
 **Existing table**: `k1_tracker_value_revisions`
@@ -220,7 +236,7 @@ NOT_STARTED -> IN_PROGRESS -> NEEDS_REVIEW -> RECONCILED
 
 ## 8. Calculation Read Models
 
-The existing calculation engine remains authoritative and returns:
+The versioned server calculation engine remains authoritative and returns:
 
 - `BasisRollforward`
 - `LossLimitation`
@@ -233,13 +249,51 @@ The existing calculation engine remains authoritative and returns:
 
 All public monetary fields are exact two-decimal strings. Missing input is `null`, not `"0.00"`.
 
-## 9. YearSignoff
+### Liability Exclusion
+
+Liability inputs remain part of `LiabilityAnalysis` for manual reference and carryforward only. The revised calculation version:
+
+- sets no liability-derived amount in `BasisRollforward.totalIncreases`;
+- sets no liability-relief amount in `DistributionAnalysis.distributionDecrease` or taxable excess distributions;
+- excludes liability continuity checks from warning counts, workflow status, and sign-off blockers;
+- excludes every liability value from partnership performance summaries; and
+- retains beginning, ending, and net-change values so the user can process them manually.
+
+The API may keep named `liabilityIncrease` and `liabilityRelief` compatibility fields during rollout, but they MUST return `"0.00"` and be marked excluded from the active calculation version. New UI summaries do not render them as calculated basis movements.
+
+## 9. PartnershipPerformanceSummary *(derived read model)*
+
+The performance summary is calculated on read from active `k1_tracker_value_revisions`, `k1_tracker_years`, and the latest `partnership_fmv_snapshots` row. It is not a new persistence table.
+
+| Field | Type | Rule |
+|---|---|---|
+| `totalCapitalContributions` | Money/null | Sum canonical `capital_contributions`; null when no active value exists, while explicit zero contributes zero |
+| `totalDistributions` | Money/null | Sum `abs(box_19_distributions)`; null when no active value exists, while explicit zero contributes zero |
+| `latestSectionLCapital` | Money/null | Active `section_l_ending_capital` for greatest tax year |
+| `latestNav` | Dated money/null | Greatest valuation date with deterministic legacy tie-breakers |
+| `dpi` | Ratio/null | `totalDistributions / totalCapitalContributions` |
+| `tvpi` | Ratio/null | `(totalDistributions + latestNav.amount) / totalCapitalContributions` |
+| `irr` | Ratio/null | Dated return described below |
+| `performanceStatus` | Status object | `dpi`, `tvpi`, and `irr` each report `AVAILABLE` or `MISSING_CONTRIBUTIONS`, `MISSING_NAV`, `NAV_PRECEDES_CASH_FLOWS`, `INSUFFICIENT_CASH_FLOWS`, or `AMBIGUOUS_IRR` as applicable |
+
+Money remains an exact two-decimal string. Ratios are fixed-decimal strings such as `"0.0636"`; the UI renders DPI/TVPI as `0.06x` and IRR as `6.4%` without changing the underlying value.
+
+### IRR Cash-Flow Series
+
+1. For each saved tax year, add `-capital_contributions` and `+abs(box_19_distributions)` on December 31 of that tax year; combine flows sharing a date.
+2. Add latest NAV as a positive terminal flow on its exact valuation date. If that date shares a date with an annual flow, combine them.
+3. Preserve actual dates and gaps between nonconsecutive years.
+4. Require at least one negative and one positive combined cash flow.
+5. Return `null` plus `NAV_PRECEDES_CASH_FLOWS`, `INSUFFICIENT_CASH_FLOWS`, or `AMBIGUOUS_IRR` when terminal NAV is stale for the series or a supported unique result cannot be determined.
+6. Liability values, committed capital, legacy capital activity, and inactive revisions never enter the series.
+
+## 10. YearSignoff
 
 **Existing table**: `k1_tracker_signoffs`
 
 Sign-off retains tracker year, reviewed revision, type (`PREPARED`, `REVIEWED`, `INVALIDATED`), actor, reason, and timestamp. A partnership identity, K-1, or carryforward change invalidates only sign-offs whose reviewed annual result is materially affected; commitment and NAV changes do not alter tax-year calculation sign-off unless a later rule explicitly makes them calculation inputs.
 
-## 10. Audit Events
+## 11. Audit Events
 
 Use existing `audit_events`. Add or retain named events for:
 
@@ -262,7 +316,7 @@ partnership_tracker.nav.deleted
 
 Every mutation includes object type/ID, partnership ID, actor, timestamp, and before/after JSON where applicable.
 
-## 11. Migration 019
+## 12. Migrations 019 and 020
 
 `019_partnership_tracker.sql` should:
 
@@ -272,21 +326,23 @@ Every mutation includes object type/ID, partnership ID, actor, timestamp, and be
 4. Preserve all import tables, provenance columns, legacy source rows, assets, and capital-activity data.
 5. Avoid destructive column/table renames for `asset_class` and partnership FMV snapshots.
 
-## 12. Authorization and Scope
+`020_partnership_tracker_entry_overview.sql` should add only indexes or compatibility metadata required for set-based active-value aggregation. It MUST NOT add a second contribution or performance-results table. Legacy contribution revisions remain append-only; canonicalization is performed by the projection and explicit future edits so conflicting source evidence is not destroyed.
+
+## 13. Authorization and Scope
 
 - All reads require an authenticated session and apply existing entity membership scope.
 - Admin role is required for partnership, manual K-1, commitment, NAV, delete, and sign-off mutations.
 - A partnership ID in the route must resolve inside the request scope before any child resource is read or mutated.
 - Response list totals and search results must be computed after scope filtering.
 
-## 13. Concurrency
+## 14. Concurrency
 
 - Partnership identity PATCH uses `expectedUpdatedAt` or an equivalent revision token.
 - Tracker year PATCH/DELETE uses `expectedRevision`.
 - Commitment and NAV PATCH/DELETE use `expectedUpdatedAt`.
 - A mismatch returns `409 STALE_REVISION` with the latest token; no silent last-write-wins behavior.
 
-## 14. Deletion Behavior
+## 15. Deletion Behavior
 
 - Tracker-year deletion retains audit history and recalculates/invalidate later years.
 - Commitment/NAV deletion removes the selected record only after confirmation and emits before-state audit evidence.

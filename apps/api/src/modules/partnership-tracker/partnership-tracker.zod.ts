@@ -73,6 +73,13 @@ export const manualFieldChangeSchema = z.object({
   sourceType: z.enum(['MANUAL_ENTRY', 'MANUAL_OVERRIDE']),
   overrideReason: z.string().trim().min(1).max(2_000).nullable().optional(),
 }).superRefine((change, context) => {
+  if (change.fieldKey === 'section_l_capital_contributed') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['fieldKey'],
+      message: 'Use capital_contributions. Section L contributions is retained only for legacy provenance.',
+    })
+  }
   if (change.sourceType === 'MANUAL_OVERRIDE' && !change.overrideReason) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['overrideReason'], message: 'An override reason is required' })
   }

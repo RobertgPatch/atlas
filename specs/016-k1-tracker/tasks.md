@@ -1,352 +1,300 @@
-# Tasks: Partnership Tracker
+# Tasks: Partnership Tracker Single-Page K-1 Entry and Overview Revision
 
-**Input**: Design documents from `/specs/016-k1-tracker/`
+**Input**: Revised design documents from `/specs/016-k1-tracker/`
 **Prerequisites**: `plan.md`, `spec.md`, `research.md`, `data-model.md`, `contracts/k1-tracker.openapi.yaml`, `quickstart.md`
+**Baseline**: The original Partnership Tracker rollout is implemented. These tasks cover only the 2026-07-13 revision and preserve existing partnership, commitment, NAV, audit, authorization, and manual-year behavior unless explicitly changed below.
+**Tests**: Required because the specification defines independent tests and measurable financial outcomes.
 
-**Tests**: Required by the specification. Write the listed tests first and confirm the intended failures before implementing each story.
+## Phase 1: Revision Setup
 
-**Organization**: Tasks are grouped by user story so each increment remains independently testable. These tasks describe updates from the already implemented K1 Tracker and partnership modules; they do not rebuild the existing calculation engine from scratch.
+**Purpose**: Extend existing fixtures with the changed-spec scenarios before shared contracts and components move.
 
-## Format: `[ID] [P?] [Story] Description`
-
-- **[P]**: Can run in parallel because it targets different files and has no dependency on another incomplete task in the same group.
-- **[Story]**: Maps the task to one of the six user stories in `spec.md`.
-- Every task names the concrete file or directory it changes.
-
----
-
-## Phase 1: Setup (Shared Structure)
-
-**Purpose**: Establish the consolidated Partnership Tracker module and shared naming without changing production behavior yet.
-
-- [X] T001 Create Partnership Tracker shared enums, exact-money primitives, identity summaries, and barrel exports in `packages/types/src/partnership-tracker.ts` and `packages/types/src/index.ts`
-- [X] T002 [P] Create the API module entry files in `apps/api/src/modules/partnership-tracker/partnership-tracker.contracts.ts`, `apps/api/src/modules/partnership-tracker/partnership-tracker.types.ts`, and `apps/api/src/modules/partnership-tracker/index.ts`
-- [X] T003 [P] Create the web feature entry files in `apps/web/src/features/partnership-tracker/index.ts`, `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts`, `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`, and `apps/web/src/pages/PartnershipTrackerPage.tsx`
-- [X] T004 [P] Create durable Partnership Tracker test fixtures and cleanup helpers in `apps/api/tests/helpers/partnershipTrackerFixture.ts`
+- [X] T001 Add two-year performance, liability-change, canonical-only, legacy-only, equal-duplicate, and conflicting-contribution fixture builders in `apps/api/tests/helpers/partnershipTrackerFixture.ts`
+- [X] T002 [P] Add nullable aggregate, performance-status, single-page field, and accepted currency-input fixtures in `apps/web/src/features/partnership-tracker/__tests__/fixtures.ts`
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: Foundational Components and Contracts
 
-**Purpose**: Add the migration, validation, audit vocabulary, scoped orchestration, and route/client foundations shared by every story.
+**Purpose**: Establish shared currency behavior and wire shapes that block all changed user stories.
 
-**Critical**: No user-story implementation starts until this phase is complete.
+**Critical**: Complete this phase before story implementation.
 
-- [X] T005 Implement `IN_PROGRESS` workflow migration, commitment effective-date indexes, and safe nonnegative constraints without deleting legacy import/source data in `apps/api/src/infra/db/migrations/019_partnership_tracker.sql`
-- [X] T006 [P] Implement Partnership Type, exact two-decimal money, date, pagination, and optimistic-concurrency schemas in `apps/api/src/modules/partnership-tracker/partnership-tracker.zod.ts`
-- [X] T007 [P] Add partnership, manual-year, commitment, NAV, recalculation, and sign-off audit event names in `apps/api/src/modules/audit/audit.events.ts`
-- [X] T008 Implement the scoped Partnership Tracker repository foundation that composes existing partnership, commitment, FMV, and K1 tracker persistence without N+1 reads in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T009 Implement shared Admin guards, scoped resource checks, validation errors, stale-revision errors, and duplicate conflicts in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts`
-- [X] T010 Register the `/partnership-tracker` API prefix with existing session and partnership-scope middleware in `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts` and `apps/api/src/routes/index.ts`
-- [X] T011 [P] Implement Partnership Tracker query keys, exact-money serialization, common API errors, and request helpers in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts`
-- [X] T012 Add migration, shared-schema, decimal-string, and no-import-path foundation coverage in `apps/api/tests/partnership-tracker.foundation.test.ts`
+- [X] T003 [P] Write parser, formatter, blur behavior, signed/nonnegative, null, malformed grouping, and precision tests in `apps/web/src/components/shared/CurrencyInput.test.tsx`
+- [X] T004 Implement reusable `en-US` currency parsing, exact two-decimal normalization, and accessible blur-format/error behavior in `apps/web/src/components/shared/currencyInput.ts` and `apps/web/src/components/shared/CurrencyInput.tsx`
+- [X] T005 [P] Extend shared and API-local Partnership Tracker summary contracts with nullable contribution/distribution totals, latest Section L capital, DPI, TVPI, IRR, and per-metric availability in `packages/types/src/partnership-tracker.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.contracts.ts`
+- [X] T006 [P] Define the canonical writable contribution key while retaining the legacy key for read provenance in `packages/types/src/k1-tracker.ts`, `apps/api/src/modules/k1-tracker/k1-tracker.contracts.ts`, and `apps/api/src/modules/k1-tracker/k1-tracker.zod.ts`
+- [X] T007 Add client-boundary tests proving formatted UI values normalize before requests while exact two-decimal API payloads remain unchanged in `apps/web/src/features/partnership-tracker/__tests__/partnershipTrackerClient.test.ts`
 
-**Checkpoint**: The new vertical compiles, applies its compatibility migration, and exposes only authenticated placeholder routes with the correct shared contracts.
+**Checkpoint**: Shared UI money controls and revised contracts are stable for parallel story work.
 
 ---
 
-## Phase 3: User Story 1 - Find and Manage a Partnership (Priority: P1) — Technical MVP
+## Phase 3: User Story 1 - Find and Manage a Partnership (Priority: P1)
 
-**Goal**: Users can search scoped partnerships, select one, inspect a concise Overview/K-1 & Basis/Capital & NAV shell, edit allowed identity fields, and follow legacy browser links into the same experience.
+**Goal**: Expand the selected-partnership Overview with cumulative K-1 performance and deterministic unavailable states.
 
-**Independent Test**: Seed 100 partnerships across multiple entity scopes, find and select one, verify its type/current commitment/latest NAV/latest K-1/latest basis summary, edit identity fields as an Admin, and verify old browser routes redirect with selection preserved.
+**Independent Test**: Select a partnership with the 2021/2022 fixture and verify paid-in capital, distributions, capital account, outside basis, NAV, DPI, TVPI, and IRR match the active annual revisions while liabilities have no effect.
 
 ### Tests for User Story 1
 
-- [X] T013 [P] [US1] Write list, search, detail-summary, exact-money, pagination, and identity-PATCH contract tests in `apps/api/tests/partnership-tracker.contract.test.ts`
-- [X] T014 [P] [US1] Write Admin mutation, scoped read, empty-scope, cross-entity, and stale-identity authorization tests in `apps/api/tests/partnership-tracker.authz.integration.test.ts`
-- [X] T015 [P] [US1] Write navigation-label, active-state, `/partnerships`, `/partnerships/:id`, and `/k1-tracker` redirect tests in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerNavigation.test.tsx`
-- [X] T016 [P] [US1] Write partnership search, selection, URL state, three-area layout, overview cards, and edit-dialog tests in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerPageContent.test.tsx`
+- [X] T008 [P] [US1] Add list/detail contract coverage for every revised summary field, fixed-decimal ratios, per-metric statuses, and missing-versus-explicit-zero behavior in `apps/api/tests/partnership-tracker.contract.test.ts`
+- [X] T009 [P] [US1] Add dated IRR tests for the 6.4-percent reference fixture, nonconsecutive years, combined same-date flows, missing NAV, stale NAV, insufficient signs, negative returns, and ambiguous roots in `apps/api/tests/partnership-tracker.performance.test.ts`
+- [X] T010 [P] [US1] Add durable aggregation tests for active revisions, absolute Box 19 sums, canonical contribution precedence, legacy fallback, latest Section L capital, latest NAV, and liability exclusion in `apps/api/tests/partnership-tracker.performance.integration.test.ts`
+- [X] T011 [P] [US1] Add Overview rendering tests for the reference metric order, money/ratio formatting, null states, status labels, and read-only behavior in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerPageContent.test.tsx`
 
 ### Implementation for User Story 1
 
-- [X] T017 [US1] Implement set-based scoped partnership list and selected-detail queries with current commitment, latest NAV, K-1 range, latest basis, workflow, and warning summaries in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T018 [US1] Serialize every Partnership Tracker summary amount as an exact two-decimal string while preserving nulls and deterministic ordering in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T019 [US1] Implement name, Partnership Type, status, and notes updates with `expectedUpdatedAt`, duplicate detection, and before/after audit in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T020 [US1] Complete list, detail, and identity-PATCH handlers and routes in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T021 [US1] Add list/detail/update requests, scoped query hooks, URL-selected partnership state, and targeted cache invalidation in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts` and `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
-- [X] T022 [US1] Replace separate Partnerships and K1 Tracker navigation entries, add `/partnership-tracker`, and implement selection-preserving legacy redirects in `apps/web/src/components/shared/AppShell.tsx` and `apps/web/src/App.tsx`
-- [X] T023 [US1] Implement the searchable picker, bounded three-area shell, overview cards, identity editor, and loading/empty/error states in `apps/web/src/features/partnership-tracker/components/PartnershipPicker.tsx`, `apps/web/src/features/partnership-tracker/components/PartnershipOverview.tsx`, `apps/web/src/features/partnership-tracker/components/EditPartnershipDialog.tsx`, and `apps/web/src/features/partnership-tracker/components/PartnershipTrackerPageContent.tsx`
-- [X] T024 [US1] Run all US1 tests and execute the navigation, search, selection, overview, edit, and redirect checks in `specs/016-k1-tracker/quickstart.md`
+- [X] T012 [US1] Implement pure dated cash-flow composition, DPI/TVPI division, IRR solving, fixed-decimal output, and explicit unavailable statuses in `apps/api/src/modules/partnership-tracker/partnership-performance.ts`
+- [X] T013 [US1] Extend the scoped set-based summary query to aggregate active annual contribution/distribution revisions and latest Section L capital without N+1 year reads in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
+- [X] T014 [US1] Compose latest NAV with performance calculations and map nullable totals/statuses into list and detail responses in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
+- [X] T015 [P] [US1] Implement the compact Paid-in, Distributions, Capital account, Outside basis, NAV, DPI, TVPI, and IRR strip in `apps/web/src/features/partnership-tracker/components/PerformanceMetricStrip.tsx`
+- [X] T016 [US1] Integrate the performance strip and unavailable-state details into the selected-partnership Overview in `apps/web/src/features/partnership-tracker/components/PartnershipOverview.tsx`
+- [X] T017 [US1] Invalidate and refresh Overview summaries after annual K-1 or NAV mutations without adding per-year browser requests in `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
+- [X] T018 [US1] Run the US1 contract, performance, and Overview tests and reconcile the expected figures in `apps/api/tests/partnership-tracker.performance.test.ts` and `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerPageContent.test.tsx`
 
-**Checkpoint**: A scoped, read-focused Partnership Tracker with identity editing works independently of new partnership creation, annual editing, commitment entry, or NAV entry.
+**Checkpoint**: Overview independently reports trusted cumulative performance for an existing partnership.
 
 ---
 
 ## Phase 4: User Story 2 - Add a Partnership and Start Its First K-1 Year (Priority: P1)
 
-**Goal**: An Admin creates a typed partnership in place, sees it selected immediately, and can start any supported manual tax year without leaving Partnership Tracker.
+**Goal**: Preserve the existing create-to-first-year flow while making the destination an inline annual-entry surface.
 
-**Independent Test**: Create a Real Estate partnership, reject a duplicate normalized name, confirm the new empty workspace is selected, and open a noncurrent unused year in the manual editor.
+**Independent Test**: Create a partnership, add any unused tax year, and verify the selected year opens in the page workspace without an editor drawer, category step, or Next button.
 
 ### Tests for User Story 2
 
-- [X] T025 [P] [US2] Write create contract tests for required entity/name/type, controlled type values, default Active status, duplicate normalization, next action, and non-Admin rejection in `apps/api/tests/partnership-tracker.lifecycle.integration.test.ts`
-- [X] T026 [P] [US2] Write create-dialog tests for entity loading/error/empty states, controlled Partnership Type selection, validation, duplicate feedback, submission, and focus return in `apps/web/src/features/partnership-tracker/__tests__/PartnershipCreationFlow.test.tsx`
-- [X] T027 [P] [US2] Write new-partnership selection, no-year next action, arbitrary 1900-2100 year, duplicate-year, and cancel-flow tests in `apps/web/src/features/partnership-tracker/__tests__/FirstK1YearFlow.test.tsx`
+- [X] T019 [P] [US2] Extend first-year tests for immediate selection, arbitrary-year creation, inline editor destination, and absence of drawer/Next controls in `apps/web/src/features/partnership-tracker/__tests__/FirstK1YearFlow.test.tsx`
 
 ### Implementation for User Story 2
 
-- [X] T028 [US2] Implement transactional partnership creation using `asset_class` as Partnership Type, normalized per-entity uniqueness, Active default, scope validation, audit, and `ADD_K1_YEAR` response in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T029 [US2] Complete the typed partnership POST handler and route with Admin-only validation and duplicate conflict responses in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T030 [US2] Implement the short entity/name/type/notes Add Partnership dialog by adapting entity queries without legacy status/export fields in `apps/web/src/features/partnership-tracker/components/AddPartnershipDialog.tsx`
-- [X] T031 [US2] Add the create mutation, immediately select the returned partnership, update the scoped list cache, and expose the no-year next action in `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts` and `apps/web/src/features/partnership-tracker/components/PartnershipTrackerPageContent.tsx`
-- [X] T032 [US2] Adapt the existing arbitrary-year dialog and launch it from the newly-created empty state without automatic incrementing in `apps/web/src/features/partnership-tracker/components/AddYearDialog.tsx` and `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx`
-- [X] T033 [US2] Run all US2 tests and execute the create-partnership and create-first-year checks in `specs/016-k1-tracker/quickstart.md`
+- [X] T020 [US2] Route newly created and newly added years into an inline `K1YearEntryForm` boundary while preserving selection and empty-year states in `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx` and `apps/web/src/features/k1-tracker/components/K1YearEntryForm.tsx`
+- [X] T021 [US2] Run the create-to-first-year regression and resolve focus/status regressions in `apps/web/src/features/partnership-tracker/__tests__/FirstK1YearFlow.test.tsx`
 
-**Checkpoint**: Admins can onboard a partnership and reach its first manual year entirely inside the new page.
+**Checkpoint**: Partnership creation still reaches a usable selected-year entry surface without navigation steps.
 
 ---
 
 ## Phase 5: User Story 3 - Enter and Review Manual K-1 Years (Priority: P1)
 
-**Goal**: Admins manually create, calculate, revise, and delete arbitrary K-1 years with carryforwards and audit history; the v1 experience exposes no automated ingestion path.
+**Goal**: Put every editable annual field on one page, canonicalize contributions, exclude liabilities from calculations, and accept forgiving US currency input.
 
-**Independent Test**: Enter nonconsecutive CPA fixture years manually, verify calculations and carryforwards, reject stale updates, invalidate dependent years, retain revisions, and confirm no import/upload/autosync action or new automated source revision exists.
+**Independent Test**: Enter every supported field in one selected year using values such as `1000`, `$1,000`, `1000.5`, and `(1,000)`, preview and save once, and verify there are no category tabs or Back/Next controls, only one contribution input exists, and liability changes affect no sum or status.
 
 ### Tests for User Story 3
 
-- [X] T034 [P] [US3] Write create/get/PATCH/delete/calculate and 1900-2100 validation contract tests for the new route prefix in `apps/api/tests/partnership-tracker.manual-years.contract.test.ts`
-- [X] T035 [P] [US3] Write durable append-only revision, null-vs-zero, carryforward, stale update, downstream recalculation, deletion, and audit tests in `apps/api/tests/partnership-tracker.manual-years.integration.test.ts`
-- [X] T036 [P] [US3] Write manual-only source-policy tests proving no workbook route, PDF route, finalized-source autosync, or new automated revision is created in `apps/api/tests/partnership-tracker.manual-source-policy.integration.test.ts`
-- [X] T037 [P] [US3] Add manual CPA fixture, sign convention, loss/distribution limitation, liability, and Section L regression cases in `apps/api/tests/partnership-tracker.calculation.test.ts`
-- [X] T038 [P] [US3] Write year navigation, grouped fields, live draft calculation, source history, arbitrary-year, and comparison tests in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Workflow.test.tsx`
-- [X] T039 [P] [US3] Write unsaved-navigation, stale-revision recovery, override-reason, keyboard, and no-import-control tests in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Editor.test.tsx`
+- [X] T022 [P] [US3] Add calculation regression cases proving liabilities do not change basis, distributions, taxable excess, warnings, workflow status, or sign-off blockers and canonical contributions feed both basis and Section L in `apps/api/tests/partnership-tracker.calculation-regression.test.ts`
+- [X] T023 [P] [US3] Add durable projection cases for legacy-only, canonical-only, equal duplicate, and conflicting contribution revisions with no double counting or provenance loss in `apps/api/tests/partnership-tracker.manual-year.integration.test.ts`
+- [X] T024 [P] [US3] Add contract tests rejecting new `section_l_capital_contributed` writes while preserving legacy reads and exact normalized money payloads in `apps/api/tests/partnership-tracker.manual-year.contract.test.ts`
+- [X] T025 [P] [US3] Replace wizard-oriented tests with all-field single-page, grouped ordering, one-contribution, no-tabs/no-Next, blur formatting, signed input, inline error, preview, and save coverage in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Editor.test.tsx`
+- [X] T026 [P] [US3] Add workflow tests for one change set, stale revision recovery, earlier-year invalidation, carryforward labels, and unsaved partnership/year/area/route navigation in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Workflow.test.tsx`
+- [X] T027 [P] [US3] Add keyboard order, field-label, error announcement, sticky-action, read-only, and focus-preservation coverage for the continuous form in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerAccessibility.test.tsx`
 
 ### Implementation for User Story 3
 
-- [X] T040 [US3] Add manual-only year list/detail reads that preserve legacy sourced revisions without triggering finalized-document synchronization in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T041 [US3] Adapt existing tracker create/update/delete/draft-calculate transactions for the new route module, retaining append-only revisions, carryforwards, stale locking, downstream invalidation, and audits in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T042 [US3] Apply `NOT_STARTED`/`IN_PROGRESS`/`NEEDS_REVIEW`/`RECONCILED` transitions and map legacy `IMPORTED` display state without losing provenance in `apps/api/src/modules/k1-tracker/k1-tracker.repository.ts` and `packages/types/src/partnership-tracker.ts`
-- [X] T043 [US3] Complete manual year CRUD and non-persistent calculate handlers/routes under `/partnership-tracker` without registering import or upload endpoints in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T044 [US3] Add manual year detail, create, update, delete, draft-calculate, and revision-conflict client methods and hooks in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts` and `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
-- [X] T045 [US3] Move and adapt the compact year rail, selected-year tabs, summary cards, basis, K-1, liability, reconciliation, journal, and comparison components into `apps/web/src/features/partnership-tracker/components/`
-- [X] T046 [US3] Adapt the guided year editor for manual and carryforward sources only, including sign guidance, live draft summaries, revision history, override reasons, and unsaved-change guards in `apps/web/src/features/partnership-tracker/components/EditYearDrawer.tsx`
-- [X] T047 [US3] Integrate the manual K-1 workspace and remove Import Workbook actions and finalized-source conflict controls from `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx` and `apps/web/src/features/partnership-tracker/components/PartnershipTrackerPageContent.tsx`
-- [X] T048 [US3] Run all US3 tests and execute the manual-year, carryforward, concurrency, calculation, and manual-only boundary checks in `specs/016-k1-tracker/quickstart.md`
+- [X] T028 [US3] Add a new calculation version that removes liability increases/relief from every arithmetic and status gate while retaining reference-only liability analysis in `apps/api/src/modules/k1-tracker/k1-tracker.calculation.ts` and `apps/api/src/modules/k1-tracker/k1-tracker.field-map.ts`
+- [X] T029 [US3] Project the legacy Section L contribution key into canonical `capital_contributions`, preserve conflicts, and make canonical values authoritative for calculations and carryforwards in `apps/api/src/modules/k1-tracker/k1-tracker.repository.ts`
+- [X] T030 [P] [US3] Define document-oriented field groups, labels, sign rules, deprecated-key filtering, and carryforward display metadata in `apps/web/src/features/k1-tracker/k1FieldGroups.ts`
+- [X] T031 [US3] Implement the complete inline annual form with all field groups, shared currency controls, provenance, override reasons, preview, save, revert, and sticky actions in `apps/web/src/features/k1-tracker/components/K1YearEntryForm.tsx`
+- [X] T032 [P] [US3] Compose summary, outside basis, reference liabilities, reconciliation, journal, and sign-off results below the form without category tabs in `apps/web/src/features/k1-tracker/components/K1YearResults.tsx`
+- [X] T033 [US3] Replace drawer and selected-year tab state with inline form/result composition and a single expected-revision change set in `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx`
+- [X] T034 [P] [US3] Change liability copy and derived rows to state reference-only treatment and remove liability basis/distribution movements in `apps/web/src/features/k1-tracker/components/LiabilitiesPanel.tsx` and `apps/web/src/features/k1-tracker/components/OutsideBasisPanel.tsx`
+- [X] T035 [P] [US3] Render canonical Capital contributions once in Section L and surface legacy conflicts without a duplicate editable input in `apps/web/src/features/k1-tracker/components/ReconciliationPanel.tsx` and `apps/web/src/features/k1-tracker/components/K1InputsPanel.tsx`
+- [X] T036 [US3] Implement unsaved-change interception for partnership, year, top-level area, route, and browser-exit navigation in `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx` and `apps/web/src/features/partnership-tracker/components/PartnershipTrackerPageContent.tsx`
+- [X] T037 [US3] Run the US3 API/web suites and reconcile the complete annual-entry section in `specs/016-k1-tracker/quickstart.md`
 
-**Checkpoint**: US1-US3 form the usable v1 MVP: select or create a partnership and maintain its complete K-1 history manually.
+**Checkpoint**: The primary revised workflow is complete: all annual inputs are editable on one page with trusted calculations and forgiving currency entry.
 
 ---
 
 ## Phase 6: User Story 4 - Preserve Committed-Capital History (Priority: P2)
 
-**Goal**: Admins maintain effective-dated total committed-capital values, including backdated entries and audited corrections, while users see deterministic current and historical values.
+**Goal**: Apply the shared currency behavior to nonnegative committed-capital entries without changing effective-date history semantics.
 
-**Independent Test**: Record the three-value backdating example, verify current and as-of results, reject stale correction, delete one entry without changing later entries, and inspect audit evidence.
+**Independent Test**: Enter `1250000`, `1,250,000`, and `$1,250,000.5`, verify blur formatting and exact payloads, reject negative forms inline, and preserve backdated/stale-write behavior.
 
 ### Tests for User Story 4
 
-- [X] T049 [P] [US4] Write effective-date, backdating, legacy-null-date fallback, current-marker, correction, deletion, and audit integration tests in `apps/api/tests/partnership-tracker.commitment-history.integration.test.ts`
-- [X] T050 [P] [US4] Write exact-string, required-date, nonnegative, stale-token, scoped access, and Admin-only commitment contract tests in `apps/api/tests/partnership-tracker.commitment.contract.test.ts`
-- [X] T051 [P] [US4] Write current commitment, chronological history, add/edit/delete confirmation, backdated explanation, permission, and stale-error UI tests in `apps/web/src/features/partnership-tracker/__tests__/CommitmentHistoryPanel.test.tsx`
+- [X] T038 [P] [US4] Add integer, grouped, dollar-sign, one-decimal, negative rejection, malformed, normalized payload, correction, and focus tests in `apps/web/src/features/partnership-tracker/__tests__/CommitmentHistoryPanel.test.tsx`
 
 ### Implementation for User Story 4
 
-- [X] T052 [US4] Implement effective-date ordering, as-of selection, legacy date fallback, and transactional ACTIVE marker recomputation in `apps/api/src/modules/partnerships/capital.repository.ts`
-- [X] T053 [US4] Implement exact-money commitment create/correct/delete operations with `expectedUpdatedAt`, backdating preservation, scope, and before/after audit in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T054 [US4] Complete commitment list/create/PATCH/delete handlers and routes in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T055 [US4] Add commitment API methods, as-of queries, mutations, stale recovery, and precise overview/detail cache invalidation in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts` and `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
-- [X] T056 [US4] Implement committed-capital current value, dated history, and accessible add/edit/delete workflows in `apps/web/src/features/partnership-tracker/components/CommitmentHistoryPanel.tsx` and `apps/web/src/features/partnership-tracker/components/CommitmentEntryDialog.tsx`
-- [X] T057 [US4] Connect current committed capital to Overview and verify commitment mutations do not invalidate K-1 calculations or sign-offs in `apps/web/src/features/partnership-tracker/components/PartnershipOverview.tsx` and `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T058 [US4] Run all US4 tests and execute the committed-capital history and backdating checks in `specs/016-k1-tracker/quickstart.md`
+- [X] T039 [US4] Replace the raw amount input with the shared nonnegative currency control while preserving create/update tokens and effective dates in `apps/web/src/features/partnership-tracker/components/CommitmentEntryDialog.tsx`
+- [X] T040 [US4] Run commitment UI and API regressions and verify normalized amounts retain effective-date/audit behavior in `apps/web/src/features/partnership-tracker/__tests__/CommitmentHistoryPanel.test.tsx` and `apps/api/tests/partnership-tracker.commitment-history.integration.test.ts`
 
-**Checkpoint**: Commitment history is durable, auditable, and independently useful without NAV or sign-off work.
+**Checkpoint**: Commitment history accepts natural US currency entry without weakening nonnegative or concurrency rules.
 
 ---
 
 ## Phase 7: User Story 5 - Record and Plot NAV History (Priority: P2)
 
-**Goal**: Admins maintain multiple dated NAV observations per year, and every user can inspect the latest value, chronological plot, exact points, and equivalent accessible table.
+**Goal**: Apply the shared currency behavior to nonnegative NAV entries and keep Overview return metrics synchronized.
 
-**Independent Test**: Record four NAV points with two in one year, reject an exact-date duplicate, correct and remove points with concurrency checks, and verify visual order equals accessible table order.
+**Independent Test**: Enter `3000000`, `3,000,000`, and `$3,000,000.5`, verify blur formatting/exact payloads and negative rejection, then confirm latest NAV, TVPI, and IRR refresh after save.
 
 ### Tests for User Story 5
 
-- [X] T059 [P] [US5] Write multiple-same-year, exact-date uniqueness, latest-by-valuation-date, legacy-source, correction, deletion, and audit integration tests in `apps/api/tests/partnership-tracker.nav-history.integration.test.ts`
-- [X] T060 [P] [US5] Write exact-string, nonnegative, date, stale-token, scoped read, and Admin-only NAV contract tests in `apps/api/tests/partnership-tracker.nav.contract.test.ts`
-- [X] T061 [P] [US5] Write date-proportional geometry, chronological ordering, empty, one-point, all-zero, duplicate-value, and responsive-domain tests in `apps/web/src/features/partnership-tracker/__tests__/NavHistoryChart.test.tsx`
-- [X] T062 [P] [US5] Write keyboard-point, chart-summary, table-equivalence, add/edit/delete, duplicate-date, permission, and focus tests in `apps/web/src/features/partnership-tracker/__tests__/NavHistoryPanel.test.tsx`
+- [X] T041 [P] [US5] Add integer, grouped, dollar-sign, one-decimal, negative rejection, malformed, normalized payload, duplicate-date, and focus tests in `apps/web/src/features/partnership-tracker/__tests__/NavHistoryPanel.test.tsx`
 
 ### Implementation for User Story 5
 
-- [X] T063 [US5] Implement chronological NAV reads, latest-by-valuation-date selection, deterministic legacy tie-breakers, and exact-money mapping over `partnership_fmv_snapshots` in `apps/api/src/modules/partnerships/fmv.repository.ts`
-- [X] T064 [US5] Implement manual NAV create/correct/delete with exact-date uniqueness, `expectedUpdatedAt`, scope, and before/after audit in `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
-- [X] T065 [US5] Complete NAV list/create/PATCH/delete handlers and routes using NAV terminology while preserving the FMV table in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T066 [US5] Add NAV API methods, mutations, duplicate/stale errors, and overview/detail cache invalidation in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts` and `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
-- [X] T067 [US5] Implement a native responsive SVG line plot with actual-date x positions, value y positions, axes, focusable point details, textual trend summary, and reduced-motion behavior in `apps/web/src/features/partnership-tracker/components/NavHistoryChart.tsx`
-- [X] T068 [US5] Implement the chronological accessible NAV table and add/edit/delete dialogs, including empty and permission-restricted states, in `apps/web/src/features/partnership-tracker/components/NavHistoryPanel.tsx` and `apps/web/src/features/partnership-tracker/components/NavEntryDialog.tsx`
-- [X] T069 [US5] Connect latest NAV/date to Overview and run all US5 tests plus the NAV plot/history checks in `apps/web/src/features/partnership-tracker/components/PartnershipOverview.tsx` and `specs/016-k1-tracker/quickstart.md`
+- [X] T042 [US5] Replace the raw NAV amount input with the shared nonnegative currency control and preserve duplicate/stale handling in `apps/web/src/features/partnership-tracker/components/NavEntryDialog.tsx`
+- [X] T043 [US5] Run NAV UI/API regressions and verify NAV mutations refresh chart, Overview TVPI, and IRR in `apps/web/src/features/partnership-tracker/__tests__/NavHistoryPanel.test.tsx` and `apps/api/tests/partnership-tracker.nav-history.integration.test.ts`
 
-**Checkpoint**: NAV history and its accessible visualization work independently of tax reconciliation and use no new chart dependency.
+**Checkpoint**: NAV entry uses the same forgiving currency behavior and immediately updates dependent performance metrics.
 
 ---
 
 ## Phase 8: User Story 6 - Reconcile and Sign Off a Year (Priority: P3)
 
-**Goal**: Retained K-1 calculations, reconciliation panels, journal outputs, and revision-specific sign-off operate correctly inside Partnership Tracker for manual v1 data.
+**Goal**: Preserve reconciliation and sign-off rigor after canonical contribution and liability-rule changes.
 
-**Independent Test**: Complete a manual CPA fixture year, trace basis and Section L, balance journal entries, prepare/review with separate Admins, change an earlier K-1 year to invalidate later sign-off, and prove commitment/NAV changes do not invalidate it.
+**Independent Test**: Complete a year, change only liabilities, and verify calculated warnings/status/sign-off remain unchanged; then change canonical contributions and verify Section L, dependent years, and sign-off invalidation update once.
 
 ### Tests for User Story 6
 
-- [X] T070 [P] [US6] Write draft-calculation, journal-balance, sign-off gate, distinct reviewer, stale revision, and invalidation contract tests under the new prefix in `apps/api/tests/partnership-tracker.signoff.contract.test.ts`
-- [X] T071 [P] [US6] Write manual CPA result, earlier-year invalidation, commitment/NAV non-invalidation, restart persistence, and audit integration tests in `apps/api/tests/partnership-tracker.reconciliation.integration.test.ts`
-- [X] T072 [P] [US6] Write basis drilldown, Section L, warning, journal copy, failed-gate, prepare/review, invalidation, and comparison UI tests in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerSignoff.test.tsx`
+- [X] T044 [P] [US6] Add sign-off contract/integration cases for liability non-blocking behavior, canonical contribution invalidation, legacy conflict blocking, and reviewed revision retention in `apps/api/tests/partnership-tracker.signoff.contract.test.ts` and `apps/api/tests/partnership-tracker.reconciliation.integration.test.ts`
+- [X] T045 [P] [US6] Update reconciliation UI tests for below-form results, reference-only liability edits, canonical contribution changes, blocker announcements, and sign-off history in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerSignoff.test.tsx`
 
 ### Implementation for User Story 6
 
-- [X] T073 [US6] Update calculation completeness and workflow evaluation for manual `IN_PROGRESS` years while retaining exact basis, loss, distribution, liability, Section L, book-tax, and journal rules in `apps/api/src/modules/k1-tracker/k1-tracker.calculation.ts`
-- [X] T074 [US6] Expose calculate and sign-off orchestration under the Partnership Tracker module with revision locks, separate reviewer enforcement, invalidation reasons, and audit in `apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts`, `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`, and `apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts`
-- [X] T075 [US6] Add calculate/sign-off client mutations, gate errors, and exact revision cache updates in `apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts` and `apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts`
-- [X] T076 [US6] Compose Outside Basis, K-1 Inputs, Liabilities, Reconciliation, Journal Entries, Sign-off, and three-year comparison within the new workspace in `apps/web/src/features/partnership-tracker/components/K1BasisWorkspace.tsx`
-- [X] T077 [US6] Complete accessible debit-positive/credit-negative journal copy, balance status, sign-off history, blocker explanations, and invalidation UI in `apps/web/src/features/partnership-tracker/components/JournalEntryPanel.tsx` and `apps/web/src/features/partnership-tracker/components/SignOffPanel.tsx`
-- [X] T078 [US6] Display retained legacy imported/finalized revisions as read-only provenance and require a reason for manual override without offering new sync/import actions in `apps/web/src/features/partnership-tracker/components/EditYearDrawer.tsx`
-- [X] T079 [US6] Run all US6 tests and execute the reconciliation, journal, sign-off, earlier-year invalidation, and non-tax-history checks in `specs/016-k1-tracker/quickstart.md`
+- [X] T046 [US6] Align workflow/check aggregation and sign-off invalidation with the new calculation version while retaining conflict and journal gates in `apps/api/src/modules/k1-tracker/k1-tracker.repository.ts` and `apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts`
+- [X] T047 [US6] Run the US6 reconciliation/sign-off suites and reconcile the sign-off section in `specs/016-k1-tracker/quickstart.md`
 
-**Checkpoint**: The complete manual Partnership Tracker v1 is functional and auditable.
+**Checkpoint**: Reconciliation remains auditable while liabilities are manual-reference data and contributions have one authoritative value.
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 9: Polish and Cross-Cutting Validation
 
-**Purpose**: Remove duplicate user-facing surfaces and validate accessibility, performance, security, persistence, and build quality across all stories.
+**Purpose**: Remove obsolete interaction code and validate accessibility, performance, security, persistence, and documentation across the revision.
 
-- [X] T080 [P] Add end-to-end keyboard, focus return, visible focus, accessible-name, live-warning, chart alternative, and unsaved-navigation coverage in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerAccessibility.test.tsx`
-- [X] T081 [P] Add 100-partnership/50-year/50-commitment/200-NAV query-count and two-second fixture coverage in `apps/api/tests/partnership-tracker.performance.integration.test.ts` and `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerPerformance.test.tsx`
-- [X] T082 [P] Add cross-entity child-resource, malformed money/date, duplicate race, stale delete, and error-sanitization security tests in `apps/api/tests/partnership-tracker.security.integration.test.ts`
-- [X] T083 Remove duplicate legacy navigation/page implementations and dead workbook-import UI wiring after redirects are covered, while preserving legacy APIs/data, in `apps/web/src/pages/PartnershipDirectory.tsx`, `apps/web/src/pages/PartnershipDetail.tsx`, `apps/web/src/pages/K1TrackerPage.tsx`, and `apps/web/src/features/k1-tracker/`
-- [X] T084 Normalize responsive area overflow, compact year navigation, chart sizing, skeletons, empty/filtered-empty/new/error/restricted states, and reduced motion in `apps/web/src/features/partnership-tracker/components/PartnershipTrackerPageContent.tsx`
-- [X] T085 Verify migration upgrade, fresh database creation, API restart persistence, and legacy commitment/FMV/import/source readability in `apps/api/tests/partnership-tracker.persistence.integration.test.ts`
-- [X] T086 Run all focused API tests with `npm run test:api -- partnership-tracker k1-tracker partnerships` and fix failures in `apps/api/src/modules/partnership-tracker/`, `apps/api/src/modules/k1-tracker/`, and `apps/api/src/modules/partnerships/`
-- [X] T087 Run all focused web tests and quality checks with `npm run test:web -- PartnershipTracker`, `npm run build:api`, `npm run build:web`, and `npm run --workspace=web lint`, fixing failures in `apps/web/src/features/partnership-tracker/`, `apps/web/src/App.tsx`, `apps/web/src/components/shared/AppShell.tsx`, and `packages/types/src/partnership-tracker.ts`
-- [ ] T088 Execute every v1 validation section in `specs/016-k1-tracker/quickstart.md` and document any intentional compatibility caveat without adding Excel/PDF/OCR work to v1
+- [X] T048 [P] Add 50-year aggregate query-count and two-second response coverage for contribution/distribution/NAV metrics and IRR in `apps/api/tests/partnership-tracker.performance.integration.test.ts`
+- [X] T049 [P] Add malformed raw API money, deprecated write-key, cross-entity, stale mutation, and error-sanitization coverage in `apps/api/tests/partnership-tracker.security.integration.test.ts`
+- [X] T050 [P] Add cross-workflow keyboard, focus, visible-error, screen-reader label, and formatted-value coverage for K-1, commitment, and NAV money controls in `apps/web/src/features/partnership-tracker/__tests__/PartnershipTrackerAccessibility.test.tsx`
+- [X] T051 Remove obsolete drawer/tab components and tests after inline coverage passes in `apps/web/src/features/partnership-tracker/components/EditYearDrawer.tsx`, `apps/web/src/features/partnership-tracker/components/SelectedYearTabs.tsx`, `apps/web/src/features/k1-tracker/components/EditYearDrawer.tsx`, `apps/web/src/features/k1-tracker/components/SelectedYearTabs.tsx`, and `apps/web/src/features/k1-tracker/__tests__/EditYearDrawer.test.tsx`
+- [X] T052 Synchronize currency examples, exact API boundary wording, new component paths, and revised validation steps in `specs/016-k1-tracker/plan.md`, `specs/016-k1-tracker/data-model.md`, `specs/016-k1-tracker/contracts/k1-tracker.openapi.yaml`, and `specs/016-k1-tracker/quickstart.md`
+- [X] T053 Run focused durable API tests with `npm run test:api -- partnership-tracker k1-tracker` and fix failures in `apps/api/src/modules/partnership-tracker/` and `apps/api/src/modules/k1-tracker/`
+- [X] T054 Run focused web tests and builds with `npm run test:web -- PartnershipTracker`, `npm run build:api`, `npm run build:web`, and `npm run --workspace=web lint`, fixing failures in `apps/web/src/components/shared/`, `apps/web/src/features/partnership-tracker/`, `apps/web/src/features/k1-tracker/`, and `packages/types/src/`
+- [X] T055 Execute the revised single-page, Overview aggregate, currency-entry, commitment, NAV, and sign-off validations and record results in `specs/016-k1-tracker/quickstart.md`
 
 ---
 
-## Dependencies & Execution Order
+## Dependencies and Execution Order
 
 ### Phase Dependencies
 
-- **Phase 1 - Setup**: Starts immediately.
-- **Phase 2 - Foundation**: Depends on Phase 1 and blocks every user story.
-- **Phase 3 - US1**: Depends on Foundation and establishes the selected-partnership shell used by later web stories.
-- **Phase 4 - US2**: Depends on US1 for the page shell and Foundation for create/year APIs.
-- **Phase 5 - US3**: Depends on US1 for selection and US2 for the create-to-first-year journey; backend manual-year work can begin after Foundation.
-- **Phase 6 - US4**: Backend work can begin after Foundation; UI integration depends on US1. It can run in parallel with US3 and US5.
-- **Phase 7 - US5**: Backend work can begin after Foundation; UI integration depends on US1. It can run in parallel with US3 and US4.
-- **Phase 8 - US6**: Depends on US3 manual-year behavior and the retained calculation/sign-off engine. It does not depend on US4 or US5 calculations, but its non-invalidation tests require those mutations.
-- **Phase 9 - Polish**: Depends on every story selected for the release.
+- **Phase 1 - Revision Setup**: Starts immediately.
+- **Phase 2 - Foundation**: Depends on fixture setup and blocks every changed story.
+- **Phase 3 - US1**: Depends on revised contracts; backend metric work can proceed in parallel with the US2/US3 web shell after Foundation.
+- **Phase 4 - US2**: Depends on the shared currency/form boundary and establishes the inline destination used by US3.
+- **Phase 5 - US3**: Depends on US2's inline boundary and is the core annual-entry revision.
+- **Phase 6 - US4**: Depends only on the shared currency component; it can run in parallel with US1-US3.
+- **Phase 7 - US5**: Depends on the shared currency component; Overview refresh verification also depends on US1.
+- **Phase 8 - US6**: Depends on US3 calculation/projection behavior; it does not require US4.
+- **Phase 9 - Polish**: Depends on all stories selected for release.
 
 ### User Story Dependency Graph
 
 ```text
-Setup -> Foundation -> US1 Find/Manage
-                         |-> US2 Create/First Year -> US3 Manual K-1 -> US6 Reconcile/Sign-off
-                         |-> US4 Commitment History ----------------------|
-                         `-> US5 NAV History -----------------------------|
+Revision Setup -> Foundation
+                    |-> US1 Overview Performance --------------------|
+                    |-> US2 First-Year Inline Boundary -> US3 Entry -> US6 Sign-off
+                    |-> US4 Commitment Currency ---------------------|
+                    `-> US5 NAV Currency (refresh depends on US1) ----|
+                                                                    `-> Polish
 ```
 
 ### Within Each User Story
 
-1. Write the story tests and confirm the expected failures.
-2. Implement repository/storage behavior before handlers.
-3. Implement handlers/routes before client integration.
-4. Implement client/hooks before page composition.
-5. Run the story checkpoint before declaring the story complete.
+1. Write the listed story tests and confirm they fail for the changed behavior.
+2. Implement pure utilities and repository behavior before UI composition.
+3. Keep exact API strings as the boundary; parse/format user-friendly values in shared web controls.
+4. Run the story checkpoint before moving dependent stories forward.
 
 ## Parallel Opportunities
 
-- Setup tasks T002-T004 can run in parallel after T001 fixes the shared naming direction.
-- Foundation schema, audit, and client helpers (T006, T007, T011) can run in parallel while T005 prepares the migration.
-- All test tasks within a story marked `[P]` can be authored concurrently.
-- US4 commitment backend tasks and US5 NAV backend tasks can proceed concurrently after Foundation.
-- US3 manual-year UI work can proceed alongside US4/US5 history UI after the US1 page shell stabilizes.
-- Polish accessibility, performance, and security tests (T080-T082) target separate files and can run in parallel.
+- T001 and T002 target separate API/web fixtures.
+- T003, T005, and T006 target separate shared component/type/schema files.
+- US1 test tasks T008-T011 can be authored concurrently.
+- US1 backend tasks T012-T014 can proceed alongside UI task T015 after contracts stabilize.
+- US3 test tasks T022-T027 target separate API and web files.
+- US3 metadata/results tasks T030, T032, T034, and T035 can proceed concurrently after the form contract stabilizes.
+- US4 and US5 currency integrations can proceed in parallel after T004.
+- Polish performance, security, and accessibility tasks T048-T050 are independent.
 
 ## Parallel Examples
 
 ### User Story 1
 
 ```text
-T013: API list/detail/PATCH contract tests
-T014: Scope and authorization integration tests
-T015: Navigation and redirect tests
-T016: Picker/overview/edit UI tests
+T008: Summary contract tests
+T009: Dated performance utility tests
+T010: Durable aggregate query tests
+T011: Overview rendering tests
 ```
 
 ### User Story 2
 
 ```text
-T025: Partnership create lifecycle API tests
-T026: Add Partnership dialog tests
-T027: First K-1 year flow tests
+T019: First-year inline destination tests
+T020: Inline form boundary integration after T019
 ```
 
 ### User Story 3
 
 ```text
-T034: Manual-year route contract tests
-T035: Revision/carryforward integration tests
-T036: Manual-only source-policy tests
-T037: Calculation regression tests
-T038-T039: Manual workspace and editor tests
+T022: Liability-free calculation tests
+T023: Canonical contribution persistence tests
+T024: Manual-year contract tests
+T025-T027: Editor, workflow, and accessibility tests
 ```
 
 ### User Story 4
 
 ```text
-T049: Effective-date and backdating integration tests
-T050: Commitment contract tests
-T051: Commitment history UI tests
+T038: Commitment currency tests
+T039: Commitment control integration after T038
 ```
 
 ### User Story 5
 
 ```text
-T059: NAV persistence/integration tests
-T060: NAV contract tests
-T061: SVG geometry tests
-T062: NAV panel accessibility tests
+T041: NAV currency tests
+T042: NAV control integration after T041
 ```
 
 ### User Story 6
 
 ```text
-T070: Calculation/sign-off contract tests
-T071: Reconciliation/invalidation integration tests
-T072: Reconciliation and sign-off UI tests
+T044: Sign-off API tests
+T045: Reconciliation UI tests
 ```
 
 ## Implementation Strategy
 
-### Technical MVP
+### Suggested Revision MVP
 
-1. Complete Setup and Foundation.
-2. Complete US1.
-3. Validate scoped selection, overview, editing, and redirects with seeded data.
-
-### Usable V1 MVP
-
-1. Complete Setup, Foundation, US1, US2, and US3.
-2. Validate the full create-partnership-to-manual-K-1 journey.
-3. Do not add Excel import, PDF upload, OCR, or automatic source sync to reach MVP.
+1. Complete Revision Setup and Foundation.
+2. Complete US2 and US3 to deliver the single-page annual form, canonical contributions, liability exclusion, and K-1 currency handling.
+3. Validate the manual K-1 independent test before adding Overview and history-dialog refinements.
 
 ### Incremental Delivery
 
-1. **US1**: Consolidated scoped partnership management shell.
-2. **US2**: In-page creation and first-year next step.
-3. **US3**: Trusted manual annual K-1 workflow.
-4. **US4**: Effective-dated committed-capital history.
-5. **US5**: Manual NAV history and accessible plot.
-6. **US6**: Reconciliation, journal, and sign-off integration.
-7. **Polish**: Remove duplicate UI and validate the complete v1.
+1. **US3 via US2 boundary**: Single-page annual entry and corrected calculations.
+2. **US1**: Overview aggregate and performance metrics.
+3. **US4**: Committed-capital currency formatting.
+4. **US5**: NAV currency formatting and metric refresh.
+5. **US6**: Reconciliation and sign-off regression completion.
+6. **Polish**: Remove obsolete interaction code and run complete quality gates.
 
 ## Notes
 
-- Existing `apps/api/src/modules/k1-tracker/k1-tracker.calculation.ts` is retained and adapted; do not rewrite approved formulas without a regression test.
-- Existing commitment and partnership FMV tables remain the only sources for committed capital and NAV.
-- `asset_class` remains the persisted/reporting field; Partnership Type is the new user-facing name.
-- Existing imported/finalized tracker revisions remain readable but v1 creates only manual, override, and carryforward revisions.
-- Legacy browser pages are redirected and may be removed from routing only after redirect tests pass; legacy APIs and stored data remain intact.
-- `[P]` is valid only while shared contract shapes and prerequisite files are stable.
+- Existing partnership creation, effective-dated commitment history, NAV persistence/charting, authorization, auditing, and legacy route redirects are baseline behavior and are not reimplemented.
+- `capital_contributions` is the sole new-write contribution key; `section_l_capital_contributed` remains readable provenance only.
+- Liability values remain editable and carryforward-aware but never affect arithmetic, performance, warnings, workflow state, or sign-off blockers.
+- Browser controls accept flexible US currency input; APIs continue receiving exact two-decimal strings.
+- Committed capital and NAV remain nonnegative; only signed K-1 fields accept minus signs or accounting parentheses.
+- Do not add Excel import, PDF upload, OCR, automatic finalized-document sync, a duplicate performance table, or a second contribution store.
+- `[P]` is valid only while the shared contracts and prerequisite files are stable.

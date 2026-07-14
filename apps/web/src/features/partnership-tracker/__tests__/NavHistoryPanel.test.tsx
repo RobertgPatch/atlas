@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { NavHistoryPanel } from '../components/NavHistoryPanel'
 import { navFixtures } from './fixtures'
@@ -14,5 +14,16 @@ describe('NavHistoryPanel', () => {
     expect(rows[1]).toHaveTextContent('Mar 31, 2024')
     expect(rows[3]).toHaveTextContent('Mar 31, 2025')
     expect(screen.getByRole('button', { name: 'Add NAV' })).toBeInTheDocument()
+  })
+  it('formats natural US currency entry and rejects negative NAV inline', () => {
+    render(<NavHistoryPanel partnershipId="p-1" items={navFixtures} canEdit />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add NAV' }))
+    const input = screen.getByLabelText('NAV')
+    fireEvent.change(input, { target: { value: '3,000,000' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue('$3,000,000.00')
+    fireEvent.change(input, { target: { value: '-1' } })
+    fireEvent.blur(input)
+    expect(screen.getByRole('alert')).toHaveTextContent('cannot be negative')
   })
 })

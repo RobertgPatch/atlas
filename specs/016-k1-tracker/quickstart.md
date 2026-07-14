@@ -60,7 +60,7 @@ Expected behavior:
 
 - The partnership is Active by default.
 - It becomes the selected partnership without a page change.
-- The overview shows empty current commitment, NAV, and K-1 states.
+- The overview shows empty current commitment, paid-in, distributions, NAV, outside-basis, and return-metric states without substituting zero for missing data.
 - `Add K-1 Year` is the recommended next step.
 - A duplicate normalized name within the same entity produces an inline conflict instead of a second record.
 
@@ -68,17 +68,20 @@ Expected behavior:
 
 1. Choose `Add K-1 Year`.
 2. Enter any unused year from 1900 through 2100; use a noncurrent year to verify that the value is not auto-incremented.
-3. Open the manual editor.
-4. Enter the relevant K-1, liability, Section L, and book-value fields.
+3. Select the year and use the inline annual form on the K-1 & Basis page.
+4. Enter the opening, Capital contributions, K-1 boxes, liability, Section L, and book-value fields without changing category tabs.
 5. Preview calculations and save.
 6. Add a nonconsecutive later year and inspect offered carryforwards.
 
 Expected behavior:
 
 - Missing values remain blank/null and do not silently become zero.
-- One selected year is expanded at a time.
+- One selected year is expanded at a time, and every editable field for that year is present on the same continuous page.
+- There is no annual Back button, Next button, step tablist, category tablist, or editor drawer.
+- `Capital contributions` appears once; there is no separate editable `Section L contributions` value.
 - Income/loss/decrease signs are explained.
-- Calculation preview uses exact amounts and displays basis, loss, distribution, reconciliation, and journal effects.
+- Calculation preview uses exact amounts and displays basis, loss, distribution, reconciliation, and journal effects below the form.
+- Liability balances remain visible and carry forward, but their changes do not alter basis, distributions, warnings, workflow status, or sign-off.
 - Later-year opening values identify their carryforward source.
 - No Excel import, PDF upload, OCR, or automatic-source action appears.
 
@@ -121,13 +124,34 @@ Expected behavior:
 - Submitting another entry for 2023-09-30 returns a duplicate-date conflict and directs the user to edit that entry.
 - A one-point series and an all-zero series render without misleading axes or runtime errors.
 
-## 8. Verify Reconciliation and Sign-off
+## 8. Verify Overview Aggregates
+
+Create or edit two K-1 years so the active values include:
+
+| Tax year | Capital contributions | Box 19 distributions |
+|---|---:|---:|
+| 2021 | $3,000,000.00 | $0.00 |
+| 2022 | $0.00 | $190,773.00 |
+
+Use latest NAV `$3,000,000.00` on `2022-12-31`. Enter visibly different beginning and ending liability balances in either year.
+
+Expected behavior:
+
+- Overview Paid-in capital is `$3,000,000.00` and cumulative Distributions is `$190,773.00`.
+- DPI is `0.06x` and TVPI is `1.06x` at two-decimal display precision.
+- IRR is approximately `6.4%` for the documented dated cash-flow series.
+- Latest Section L capital, latest outside basis, and NAV are displayed as separate values.
+- Liability changes do not alter any of these figures.
+- A zero paid-in denominator returns unavailable DPI/TVPI; missing NAV returns unavailable TVPI/IRR with an explicit status.
+- A legacy year containing only `section_l_capital_contributed` projects once into Capital contributions. Equal or conflicting duplicate keys are never summed.
+
+## 9. Verify Reconciliation and Sign-off
 
 For a manually completed year:
 
 1. Review Outside Basis.
 2. Confirm loss and distribution limitation behavior.
-3. Review liabilities and Section L component differences.
+3. Review reference-only liabilities and Section L component differences.
 4. Confirm journal entries balance within $1.
 5. Complete preparer and reviewer sign-off.
 6. Change a material value in an earlier year.
@@ -137,9 +161,9 @@ Expected behavior:
 - An incomplete or warning-producing year cannot become Reconciled.
 - A passing year records the identities, times, and reviewed revision.
 - The earlier-year change recalculates dependent years and invalidates materially affected sign-off.
-- Commitment and NAV edits do not invalidate tax workpaper sign-off because they are not calculation inputs in v1.
+- Commitment and NAV edits do not invalidate tax workpaper sign-off. Liability edits remain auditable but do not change calculated warnings or sign-off gates.
 
-## 9. Verify Read-only Access
+## 10. Verify Read-only Access
 
 Sign in as a scoped non-Admin user.
 
@@ -150,7 +174,7 @@ Expected behavior:
 - Add, edit, delete, calculate-save, and sign-off controls are absent or disabled.
 - Direct mutation requests return 403.
 
-## 10. Focused Validation Commands
+## 11. Focused Validation Commands
 
 ```powershell
 $env:ATLAS_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/atlas'
@@ -173,6 +197,10 @@ The focused tests should cover:
 - create-to-first-year workflow and arbitrary manual years
 - absence of v1 import/extraction endpoints and controls
 - exact manual field revisions and stale-write rejection
+- one-page all-field entry with no Back/Next, step tabs, category tabs, or editor drawer
+- canonical contribution projection and duplicate-key conflict behavior
+- liability exclusion from basis, distributions, warnings, sign-off, and performance metrics
+- cumulative contribution/distribution totals plus DPI, TVPI, IRR, and unavailable states
 - carryforwards and earlier-year invalidation
 - commitment effective-date/backdating behavior
 - multiple same-year NAV observations and exact-date conflicts
@@ -181,16 +209,15 @@ The focused tests should cover:
 - Admin mutation and scoped read authorization
 - restart persistence against PostgreSQL
 
-### Implementation validation record (2026-07-12)
+### Revised implementation validation record (2026-07-13)
 
-- The combined durable API run `npm run test:api -- partnership-tracker k1-tracker partnerships` passed 33 files and 92 tests, with 2 intentional skips.
-- The focused Partnership Tracker web run passed 12 files and 20 tests.
-- `npm run build:api`, `npm run build:web`, and lint scoped to the Partnership Tracker feature, route shell, and page passed. The repository-wide web lint command still reports pre-existing violations in unrelated legacy feature files; no reported violation is in a T087-owned path.
-- Automated coverage exercises all v1 workflows above, including arbitrary years, stale writes, earlier-year invalidation, effective-dated commitments, multiple NAV observations per year, entity scope, restart persistence, and the absence of upload/extraction endpoints.
-- Interactive browser verification is still pending because the installed in-app browser plugin is incomplete: its required `scripts/browser-client.mjs`, `docs/browser-safety.md`, and `docs/bootstrap-troubleshooting.md` files are absent. No alternate browser automation was substituted, per that plugin's safety instructions.
-- The intentional compatibility boundary remains unchanged: legacy data and APIs stay readable, old routes redirect into Partnership Tracker, and Excel/PDF/OCR controls are not exposed in v1.
+- `npm run test:api -- partnership-tracker k1-tracker` passed 25 files, 65 tests, with 2 intentional skips against durable PostgreSQL.
+- The full web suite passed all 42 files and 114 tests, including the single-page K-1 entry, currency fields, commitment/NAV dialogs, client serialization, Overview, accessibility, navigation, and sign-off coverage.
+- `npm run build:api`, `npm run build:web`, and ESLint scoped to the revised web files passed. The production web build reports only its existing large-bundle advisory.
+- The local application started successfully at `http://localhost:5173` with API health at `http://localhost:3000/health`. Interactive browser inspection could not run because the in-app browser surface is unavailable in this session; no alternate browser backend was substituted.
+- Automated coverage exercises one-page annual entry, canonical contribution compatibility, liability-free calculations, aggregates and unavailable states, dated IRR, exact money serialization, commitment/NAV input validation, sign-off behavior, authorization, and durable persistence.
 
-## 11. V2 Boundary Check
+## 12. V2 Boundary Check
 
 Do not add a PDF upload control to satisfy a v1 test. V2 will add:
 

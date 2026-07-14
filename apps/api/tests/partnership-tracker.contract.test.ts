@@ -30,5 +30,14 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     expect(result.total).toBeGreaterThanOrEqual(1)
     expect(result.items[0]!.currentCommittedCapital?.amount).toBe('1000000.00')
     expect(result.items[0]!.latestNav?.amount).toBe('900000.00')
+    expect(result.items[0]).toMatchObject({
+      latestSectionLCapital: null,
+      totalCapitalContributions: null,
+      totalDistributions: null,
+      dpi: null,
+      tvpi: null,
+      irr: null,
+      performanceStatus: { dpi: 'MISSING_CONTRIBUTIONS', tvpi: 'MISSING_CONTRIBUTIONS', irr: 'MISSING_CONTRIBUTIONS' },
+    })
   })
 })

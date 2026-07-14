@@ -17,6 +17,7 @@ import type {
   UpdatePartnershipTrackerYearRequest,
   UpdateTrackedPartnershipRequest,
 } from '../../../../../../packages/types/src/partnership-tracker'
+import { normalizeCurrencyInput } from '../../../components/shared/currencyInput'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
 
@@ -35,12 +36,9 @@ export class PartnershipTrackerApiError extends Error {
 }
 
 export function serializeTrackerMoney(value: string): string {
-  const normalized = value.trim().replace(/[$,\s]/g, '')
-  if (!/^-?\d+(?:\.\d{0,2})?$/.test(normalized)) throw new Error('Enter a valid amount with no more than two decimal places.')
-  const negative = normalized.startsWith('-')
-  const unsigned = negative ? normalized.slice(1) : normalized
-  const [whole, fraction = ''] = unsigned.split('.')
-  return `${negative ? '-' : ''}${whole}.${fraction.padEnd(2, '0')}`
+  const parsed = normalizeCurrencyInput(value)
+  if (parsed.error || parsed.value == null) throw new Error(parsed.error ?? 'Enter a valid amount.')
+  return parsed.value
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {

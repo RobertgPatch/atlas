@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { CommitmentHistoryPanel } from '../components/CommitmentHistoryPanel'
 import { commitmentFixtures } from './fixtures'
@@ -18,5 +18,16 @@ describe('CommitmentHistoryPanel', () => {
   it('hides mutations from read-only users', () => {
     render(<CommitmentHistoryPanel partnershipId="p-1" items={commitmentFixtures} canEdit={false} />)
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+  it('formats natural US currency entry and rejects negative commitments inline', () => {
+    render(<CommitmentHistoryPanel partnershipId="p-1" items={commitmentFixtures} canEdit />)
+    fireEvent.click(screen.getByRole('button', { name: 'Add entry' }))
+    const input = screen.getByLabelText('Total committed capital')
+    fireEvent.change(input, { target: { value: '$1,250,000.5' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue('$1,250,000.50')
+    fireEvent.change(input, { target: { value: '(10)' } })
+    fireEvent.blur(input)
+    expect(screen.getByRole('alert')).toHaveTextContent('cannot be negative')
   })
 })

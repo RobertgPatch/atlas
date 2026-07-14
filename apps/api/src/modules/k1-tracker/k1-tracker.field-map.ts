@@ -13,7 +13,7 @@ export interface TrackerFieldDefinition {
 
 const field = (definition: TrackerFieldDefinition) => definition
 
-export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v1'
+export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v6-inferred-box-18c-nondeductible-expense'
 
 export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'opening_outside_basis', label: 'Opening outside basis', role: 'opening', workbookLabels: ['beginning tax basis'] }),
@@ -33,7 +33,8 @@ export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'box_12_section_179_deduction', label: 'Line 12 · Section 179 deduction', role: 'deduction', workbookLabels: ['line 12 - sec 179'], k1Aliases: ['box_12_section_179_deduction'] }),
   field({ key: 'box_13_other_deductions', label: 'Line 13 · Other deductions', role: 'deduction', workbookLabels: ['line 13 - other deductions'], k1Aliases: ['box_13_other_deductions'] }),
   field({ key: 'box_18a_nondeductible_expenses', label: 'Line 18A · Nondeductible expenses', role: 'deduction', workbookLabels: ['line 18a - nondeductible'] }),
-  field({ key: 'box_18b_tax_exempt_income', label: 'Line 18B · Tax-exempt income', role: 'income', signed: true, workbookLabels: ['line 18b - tax-exempt'] }),
+  field({ key: 'box_18b_tax_exempt_income', label: 'Line 18B · Tax-exempt income (basis only)', role: 'income', signed: true, workbookLabels: ['line 18b - tax-exempt'] }),
+  field({ key: 'box_18c_nondeductible_expenses', label: 'Line 18C · Nondeductible expenses (basis decrease)', role: 'deduction', workbookLabels: ['line 18c - nondeductible'], k1Aliases: ['box_18c_nondeductible_expenses'] }),
   field({ key: 'box_19_distributions', label: 'Line 19 · Distributions', role: 'distribution', workbookLabels: ['line 19 - distributions'], k1Aliases: ['box_19_distributions', 'box_19a_distribution'] }),
   field({ key: 'box_21_foreign_taxes', label: 'Line 21 · Foreign taxes paid', role: 'deduction', workbookLabels: ['line 21 - foreign'], k1Aliases: ['box_21_foreign_taxes'] }),
   field({ key: 'liability_nonrecourse_beginning', label: 'Nonrecourse liabilities · beginning', role: 'liability', workbookLabels: ['nonrecourse - beginning'], k1Aliases: ['liab_nonrecourse_beginning'] }),
@@ -70,6 +71,7 @@ for (const [label, fieldKey] of [
   ['line 18a - nondeductible exp', 'box_18a_nondeductible_expenses'],
   ['line 18a - nondeductible expenses', 'box_18a_nondeductible_expenses'],
   ['line 18b - tax-exempt income', 'box_18b_tax_exempt_income'],
+  ['line 18c - nondeductible expenses', 'box_18c_nondeductible_expenses'],
   ['beginning capital account (sec l)', 'section_l_beginning_capital'],
   ['current year net income (loss)', 'section_l_current_year_net_income_loss'],
   ['other increase (decrease)', 'section_l_other_increase_decrease'],

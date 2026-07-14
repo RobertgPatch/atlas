@@ -37,6 +37,7 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_13_other_deductions',
   'box_18a_nondeductible_expenses',
   'box_18b_tax_exempt_income',
+  'box_18c_nondeductible_expenses',
   'box_19_distributions',
   'box_21_foreign_taxes',
   'liability_nonrecourse_beginning',
@@ -63,6 +64,9 @@ export const K1_TRACKER_FIELD_KEYS = [
 ] as const
 
 export type K1TrackerFieldKey = (typeof K1_TRACKER_FIELD_KEYS)[number]
+export const K1_TRACKER_DEPRECATED_WRITE_FIELD_KEYS = ['section_l_capital_contributed'] as const
+export type K1TrackerDeprecatedWriteFieldKey = (typeof K1_TRACKER_DEPRECATED_WRITE_FIELD_KEYS)[number]
+export type K1TrackerWritableFieldKey = Exclude<K1TrackerFieldKey, K1TrackerDeprecatedWriteFieldKey>
 export type K1TrackerMoney = string
 export type K1TrackerCheckStatus = 'PASS' | 'WARNING' | 'FAIL' | 'INCOMPLETE'
 

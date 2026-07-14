@@ -73,10 +73,25 @@ const sourceConflictsFor = async (
       and candidate.amount is distinct from active.amount
       and candidate.created_at > active.created_at
   `, [yearId])).rows
-  return rows.map((row) => ({
+  const sourceConflicts = rows.map((row) => ({
     fieldKey: row.field_key,
     message: `A ${row.source_type.replaceAll('_', ' ').toLowerCase()} value differs from the active source and needs an Admin decision.`,
   }))
+  const contributionConflict = (await client.query<{ canonical_amount: string | null; legacy_amount: string | null }>(`
+    select canonical.amount as canonical_amount, legacy.amount as legacy_amount
+    from k1_tracker_value_revisions canonical
+    join k1_tracker_value_revisions legacy on legacy.tracker_year_id = canonical.tracker_year_id
+      and legacy.field_key = 'section_l_capital_contributed' and legacy.is_active = true
+    where canonical.tracker_year_id = $1 and canonical.field_key = 'capital_contributions' and canonical.is_active = true
+      and canonical.amount is distinct from legacy.amount
+  `, [yearId])).rows[0]
+  if (contributionConflict) {
+    sourceConflicts.push({
+      fieldKey: 'capital_contributions',
+      message: 'Legacy Section L contributions differs from Capital contributions. The canonical amount is used until the legacy source is resolved.',
+    })
+  }
+  return sourceConflicts
 }
 
 const refreshConflictCount = async (client: Queryable, yearId: string): Promise<number> => {
@@ -94,10 +109,24 @@ const mapValue = (row: TrackerValueRow): K1TrackerValue => ({
   createdByEmail: row.created_by_email ?? null, createdAt: iso(row.created_at)!,
 })
 
-const inputFor = (year: TrackerYearRow, values: TrackerValueRow[]): TrackerYearInput => ({
-  id: year.id, taxYear: year.tax_year, revision: year.revision, status: year.workflow_status,
-  values: Object.fromEntries(values.map((value) => [value.field_key, value.amount == null ? null : cents(value.amount)])),
-})
+const inputFor = (year: TrackerYearRow, values: TrackerValueRow[]): TrackerYearInput => {
+  const result = Object.fromEntries(values.map((value) => [value.field_key, value.amount == null ? null : cents(value.amount)])) as TrackerYearInput['values']
+  const hasCanonicalContribution = values.some((value) => value.field_key === 'capital_contributions')
+  if (!hasCanonicalContribution && result.section_l_capital_contributed != null) {
+    result.capital_contributions = result.section_l_capital_contributed
+  }
+  return { id: year.id, taxYear: year.tax_year, revision: year.revision, status: year.workflow_status, values: result }
+}
+
+const projectCanonicalContribution = (values: TrackerValueRow[]): TrackerValueRow[] => {
+  const canonical = values.find((value) => value.field_key === 'capital_contributions')
+  const legacy = values.find((value) => value.field_key === 'section_l_capital_contributed')
+  const visible = values.filter((value) => value.field_key !== 'section_l_capital_contributed')
+  if (!canonical && legacy) {
+    visible.push({ ...legacy, field_key: 'capital_contributions' })
+  }
+  return visible
+}
 
 const calculateRows = (years: TrackerYearRow[], values: TrackerValueRow[]) => {
   const valuesByYear = new Map<string, TrackerValueRow[]>()
@@ -146,10 +175,21 @@ const detailFor = async (partnershipId: string, year: TrackerYearRow, allYears: 
   const values = await activeValues(allYears.map((item) => item.id), client)
   const { calculations, valuesByYear } = calculateRows(allYears, values)
   const calculated = calculations.get(year.id)!
-  const calculation = { ...calculated, summary: { ...calculated.summary, status: year.workflow_status } }
+  const sourceConflicts = await sourceConflictsFor(year.id, client)
+  const extraConflictCount = Math.max(0, sourceConflicts.length - year.source_conflict_count)
+  const calculation = { ...calculated, summary: { ...calculated.summary, status: extraConflictCount > 0 ? 'NEEDS_REVIEW' : year.workflow_status } }
+  if (extraConflictCount > 0) {
+    calculation.checks.push({
+      key: 'unresolved-source-conflicts', status: 'FAIL', actual: centsToMoney(BigInt(extraConflictCount) * 100n),
+      expected: '0.00', difference: centsToMoney(BigInt(extraConflictCount) * 100n), tolerance: '0.00',
+      message: `${extraConflictCount} source conflict(s) require an Admin decision.`,
+    })
+    calculation.summary.warningCount += extraConflictCount
+    calculation.summary.sourceConflictCount = sourceConflicts.length
+  }
   return {
     partnershipId, taxYear: year.tax_year, status: year.workflow_status, revision: year.revision,
-    values: (valuesByYear.get(year.id) ?? []).map(mapValue), sourceConflicts: await sourceConflictsFor(year.id, client),
+    values: projectCanonicalContribution(valuesByYear.get(year.id) ?? []).map(mapValue), sourceConflicts,
     calculation, signoff: await signoffFor(year, client),
   }
 }
@@ -163,7 +203,9 @@ const persistProjection = async (client: Queryable, years: TrackerYearRow[], act
   const { calculations, valuesByYear } = calculateRows(years, values)
   for (const year of years) {
     const calc = calculations.get(year.id)!
-    const status = calc.summary.status === 'RECONCILED' ? 'NEEDS_REVIEW' : calc.summary.status
+    const status = year.workflow_status === 'NEEDS_REVIEW'
+      ? 'NEEDS_REVIEW'
+      : calc.summary.status === 'RECONCILED' ? 'NEEDS_REVIEW' : calc.summary.status
     await client.query(`update k1_tracker_years set workflow_status = $2, warning_count = $3, calculation_version = $4,
       ending_outside_basis = $5, cumulative_suspended_loss = $6, taxable_excess_distribution = $7, section_l_difference = $8,
       calculated_at = now(), updated_by_user_id = $9, updated_at = now() where id = $1`, [
@@ -342,16 +384,35 @@ export const k1TrackerRepository = {
       if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION')
       await reviseValues(client, year.id, changes, actorUserId)
       await refreshConflictCount(client, year.id)
-      const affected = years.filter((item) => item.tax_year >= taxYear)
-      await client.query('update k1_tracker_years set revision = revision + 1, workflow_status = $2, updated_by_user_id = $3, updated_at = now() where id = any($1::uuid[])', [affected.map((item) => item.id), 'NEEDS_REVIEW', actorUserId])
-      for (const affectedYear of affected) {
-        await client.query(
-          `insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason)
-           values ($1, $2, $3, 'INVALIDATED', $4, 'Material tracker value change')`,
-          [randomUUID(), affectedYear.id, affectedYear.revision + 1, actorUserId],
-        )
+      const materialChanges = changes.some((change) => !change.fieldKey.startsWith('liability_'))
+      const affected = materialChanges ? years.filter((item) => item.tax_year >= taxYear) : []
+      const priorStatuses = new Map(years.map((item) => [item.id, item.workflow_status]))
+      if (materialChanges) {
+        await client.query(`
+          update k1_tracker_years
+          set revision = revision + 1,
+              workflow_status = case
+                when tax_year > $2 or workflow_status = 'RECONCILED' then 'NEEDS_REVIEW'
+                else workflow_status
+              end,
+              updated_by_user_id = $3,
+              updated_at = now()
+          where id = any($1::uuid[])
+        `, [affected.map((item) => item.id), taxYear, actorUserId])
+        for (const affectedYear of affected) {
+          await client.query(
+            `insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason)
+             values ($1, $2, $3, 'INVALIDATED', $4, 'Material tracker value change')`,
+            [randomUUID(), affectedYear.id, affectedYear.revision + 1, actorUserId],
+          )
+        }
       }
       const updated = await yearRowsFor(partnershipId, client); await persistProjection(client, updated, actorUserId)
+      if (!materialChanges) {
+        for (const [yearId, workflowStatus] of priorStatuses) {
+          await client.query('update k1_tracker_years set workflow_status = $2, updated_by_user_id = $3, updated_at = now() where id = $1', [yearId, workflowStatus, actorUserId])
+        }
+      }
       const projected = await yearRowsFor(partnershipId, client)
       const finalYear = projected.find((item) => item.tax_year === taxYear)!
       await auditRepository.record({ actorUserId, eventName: 'k1_tracker.year_updated', objectType: 'k1_tracker_year', objectId: finalYear.id, after: { changes } }, client as never)

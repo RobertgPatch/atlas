@@ -4,17 +4,17 @@ import { describe, expect, it } from 'vitest'
 import { AppShell } from '../../../components/shared/AppShell'
 
 describe('Partnership navigation', () => {
-  it('exposes Partnerships as a visible management destination', () => {
+  it('uses the consolidated Partnership Tracker management destination', () => {
     render(
       <MemoryRouter>
-        <AppShell currentPath="/partnerships" userRole="Admin">
+        <AppShell currentPath="/partnership-tracker" userRole="Admin">
           <div>Partnership management</div>
         </AppShell>
       </MemoryRouter>,
     )
 
-    const link = screen.getByRole('link', { name: /^partnerships$/i })
-    expect(link).toHaveAttribute('href', '/partnerships')
+    const link = screen.getByRole('link', { name: /partnership tracker/i })
+    expect(link).toHaveAttribute('href', '/partnership-tracker')
     expect(link).toHaveClass('text-atlas-gold')
   })
 })

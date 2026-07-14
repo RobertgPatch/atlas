@@ -2,9 +2,16 @@
 
 **Feature Branch**: `016-k1-tracker`
 **Created**: 2026-07-11
-**Revised**: 2026-07-12
+**Revised**: 2026-07-13
 **Status**: Draft
-**Input**: Rename K1 Tracker to Partnership Tracker and make it the focused place to create and manage partnerships, enter annual K-1 values manually, preserve dated committed-capital history, and record multiple dated NAV values per year. Excel import and PDF extraction are deferred; v1 is intentionally manual so the workflow and calculations can be validated first.
+**Input**: Rename K1 Tracker to Partnership Tracker and make it the focused place to create and manage partnerships, enter annual K-1 values manually, preserve dated committed-capital history, and record multiple dated NAV values per year. Revise annual entry so every K-1 field is editable on one screen without a stepper or Next button. Exclude liabilities from calculated sums and performance aggregates, unify the duplicate contribution inputs, and expand Overview with cumulative paid-in capital, distributions, capital account, NAV, outside basis, DPI, TVPI, and IRR. Excel import and PDF extraction are deferred; v1 is intentionally manual so the workflow and calculations can be validated first.
+
+## Clarifications
+
+### Session 2026-07-13
+
+- Q: When should K-1 currency inputs apply US formatting? -> A: Format on blur; accept plain numbers, comma grouping, an optional dollar sign, up to two optional decimal places, and accounting-style negatives, then normalize before preview or save.
+- Q: Which money fields should use the clarified parsing and formatting behavior? -> A: All Partnership Tracker money fields, including annual K-1 values, committed capital, and NAV.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -14,7 +21,7 @@ An authorized user opens Partnership Tracker, searches the partnerships within t
 
 **Why this priority**: Partnership selection and context are the entry point for every K-1, commitment, and NAV workflow.
 
-**Independent Test**: Load 100 scoped partnerships, find one by name, select it, and verify the overview shows its entity, type, status, current committed capital, latest NAV, latest K-1 year, and latest ending outside basis.
+**Independent Test**: Load 100 scoped partnerships, find one by name, select it, and verify the overview shows its entity, type, status, current committed capital, cumulative capital contributions and distributions, latest capital account, latest NAV, latest K-1 year and outside basis, DPI, TVPI, and IRR availability.
 
 **Acceptance Scenarios**:
 
@@ -22,6 +29,7 @@ An authorized user opens Partnership Tracker, searches the partnerships within t
 2. **Given** a partnership is selected, **When** its workspace opens, **Then** the user sees Overview, K-1 & Basis, and Capital & NAV areas without a long page of unrelated legacy sections.
 3. **Given** an Admin edits a partnership, **When** the change is saved, **Then** its name, type, status, and notes update in place and the action is audited.
 4. **Given** an old `/partnerships` or `/k1-tracker` browser link, **When** it is opened, **Then** it redirects to the equivalent Partnership Tracker location.
+5. **Given** a partnership has multiple saved K-1 years, **When** Overview loads, **Then** it presents a compact performance strip based on all active annual revisions and the latest NAV without requiring the user to inspect each year.
 
 ---
 
@@ -44,19 +52,22 @@ An Admin adds a partnership from Partnership Tracker by choosing its owning enti
 
 ### User Story 3 - Enter and Review Manual K-1 Years (Priority: P1)
 
-An Admin manually enters the K-1 and basis fields for any available tax year. Atlas calculates outside basis, suspended losses, excess distributions, Section L reconciliation, and journal-entry outputs while keeping every year accessible through compact navigation.
+An Admin manually enters every supported annual K-1, opening-balance, Item K liability, Section L, and book-tax field for any available tax year on one continuous screen. Atlas calculates outside basis, suspended losses, excess distributions, Section L reconciliation, and journal-entry outputs while keeping liabilities available for manual reference but outside calculated sums.
 
 **Why this priority**: K-1 values drive most of the useful partnership information and v1 must establish trusted calculations before automated extraction is introduced.
 
-**Independent Test**: Add nonconsecutive years, enter the supplied CPA values manually, and verify the rollforward, reconciliation, and selected-year experience without Excel or PDF upload controls.
+**Independent Test**: Add nonconsecutive years, enter and edit every supported annual field without changing tabs or advancing a stepper, and verify the rollforward, reconciliation, liability exclusion, and selected-year experience without Excel or PDF upload controls.
 
 **Acceptance Scenarios**:
 
 1. **Given** a partnership has no years or nonconsecutive years, **When** an Admin adds a year, **Then** any unused supported tax year can be selected.
-2. **Given** a prior year exists, **When** a later year is created, **Then** ending outside basis, ending capital, liability balances, and suspended losses are offered as carried values.
-3. **Given** an Admin enters or corrects K-1 values, **When** the draft is calculated, **Then** basis and reconciliation effects update before saving and prior revisions remain auditable.
+2. **Given** a prior year exists, **When** a later year is created, **Then** ending outside basis, ending capital, liability balances, and suspended losses are offered as carried values, with liabilities clearly marked as reference-only.
+3. **Given** an Admin enters or corrects K-1 values, **When** the draft is calculated, **Then** basis and reconciliation effects update before saving, liability changes do not alter any sum, and prior revisions remain auditable.
 4. **Given** the selected partnership has many years, **When** the user changes years, **Then** one year remains primary and every year is reachable without a multi-column worksheet or endless vertical cards.
 5. **Given** v1 is running, **When** the user opens the tracker, **Then** there is no Excel import, PDF upload, OCR, or automatic finalized-document synchronization action.
+6. **Given** an annual year is selected, **When** the Admin edits it, **Then** every editable field is present in one grouped form with Preview and Save actions and no Back, Next, step tabs, or category tabs.
+7. **Given** a year contains a legacy `section_l_capital_contributed` value, **When** it is displayed or edited, **Then** it resolves to the single canonical Capital contributions field without presenting a duplicate input.
+8. **Given** an Admin enters `1000`, `1,000`, `$1,000`, `1000.5`, `-1000`, or `(1,000)` in an applicable K-1 money field, **When** the field loses focus, **Then** the value displays in US currency format and preview/save receives the equivalent exact two-decimal amount without requiring trailing zeros.
 
 ---
 
@@ -74,6 +85,7 @@ An Admin records committed capital as effective-dated entries. The tracker shows
 2. **Given** multiple commitment entries, **When** the overview is calculated for a date, **Then** the entry with the latest effective date on or before that date is used.
 3. **Given** a backdated commitment is added, **When** it is saved, **Then** later entries remain intact and the current amount changes only when the backdated entry is the latest effective value.
 4. **Given** an entry is corrected or removed, **When** the Admin confirms the action, **Then** the before-and-after value is audited and the remaining dated history is preserved.
+5. **Given** an Admin enters a committed-capital amount without decimals or trailing zeros, **When** the field loses focus, **Then** it formats as US currency and saves the normalized exact amount.
 
 ---
 
@@ -91,6 +103,7 @@ An Admin records manual NAV values with exact valuation dates, including multipl
 2. **Given** multiple NAV entries share a year but have different dates, **When** the chart loads, **Then** every entry appears as its own point in chronological order.
 3. **Given** an entry already exists for the exact valuation date, **When** another is submitted, **Then** the user is asked to edit the existing entry rather than create an ambiguous duplicate.
 4. **Given** the chart cannot be perceived visually, **When** the user navigates with assistive technology, **Then** equivalent dates and values are available in an accessible table and chart summary.
+5. **Given** an Admin enters a NAV amount without decimals or trailing zeros, **When** the field loses focus, **Then** it formats as US currency and saves the normalized exact amount.
 
 ---
 
@@ -120,6 +133,11 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - The first available K-1 year has unknown opening basis or suspended losses.
 - A prior year changes after later years exist and later calculations or sign-offs become stale.
 - Missing values, explicit zeros, negative source values, and accounting-style decrease signs must remain distinguishable.
+- A money field contains no decimal point, one decimal digit, comma grouping, a dollar sign, surrounding whitespace, an accounting-style negative, malformed grouping, or more than two decimal digits.
+- A legacy year has only `section_l_capital_contributed`, has both contribution keys with equal values, or has conflicting values under both keys.
+- Total capital contributions are zero, so DPI and TVPI have no valid denominator.
+- Annual cash flows do not include both an investment outflow and a return inflow, or produce no unique IRR solution.
+- Liabilities change materially between years but remain excluded from basis, distribution, performance, warning-count, and sign-off aggregates.
 - A commitment entry is backdated, future-dated, or shares an effective date with an existing entry.
 - NAV has multiple observations in one year, dates arrive out of order, or an exact date is duplicated.
 - NAV or commitment values include cents, are zero, are extremely large, or exceed supported precision.
@@ -136,7 +154,7 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - **FR-003**: Users MUST be able to search and select only partnerships within their permitted entity scope.
 - **FR-004**: The selected partnership workspace MUST use focused Overview, K-1 & Basis, and Capital & NAV areas and MUST NOT reproduce every section from the legacy partnership detail page.
 - **FR-005**: The selected partnership header MUST show name, owning entity, partnership type, status, available K-1 year range, and latest workflow status.
-- **FR-006**: The Overview MUST show current committed capital, latest NAV with valuation date, latest ending outside basis, latest K-1 year, and outstanding warning count when available.
+- **FR-006**: The Overview MUST show current committed capital, total capital contributions (Paid-in capital), cumulative K-1 distributions, latest Section L capital account, latest NAV with valuation date, latest ending outside basis, latest K-1 year, DPI, TVPI, IRR or an unavailability state, and outstanding warning count when available.
 - **FR-007**: Admins MUST be able to create a partnership without leaving Partnership Tracker.
 - **FR-008**: Partnership creation MUST require an owning entity, a trimmed name unique within that entity, and a partnership type.
 - **FR-009**: Supported partnership types MUST be `Private Equity`, `Real Estate`, `Hedge Fund`, `Venture Capital`, `Credit`, `Infrastructure`, and `Other`.
@@ -144,15 +162,15 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - **FR-011**: A newly created partnership MUST default to Active, become selected immediately, and present Add K-1 Year as the recommended next step.
 - **FR-012**: Admins MUST be able to edit a partnership's name, type, status, and notes in the selected workspace; non-Admins MAY view them.
 - **FR-013**: The K-1 workspace MUST support any unused tax year from 1900 through 2100 and MUST NOT force automatic year increments.
-- **FR-014**: V1 K-1 values MUST be entered manually through grouped, sign-aware fields; Excel import, PDF upload, OCR, and automatic extraction MUST NOT be exposed in Partnership Tracker v1.
+- **FR-014**: V1 K-1 values MUST be entered manually through one continuous, grouped, sign-aware selected-year form; Excel import, PDF upload, OCR, and automatic extraction MUST NOT be exposed in Partnership Tracker v1.
 - **FR-015**: V1 MUST NOT automatically synchronize finalized document-review fields into tracker values; the design MUST retain provenance seams for a future PDF/OCR version.
 - **FR-016**: Manual field changes MUST preserve append-only revisions, actor, timestamp, and optional explanation; stale updates MUST be rejected.
 - **FR-017**: Missing values MUST remain distinct from explicit zero values.
 - **FR-018**: A later year MUST offer carried opening outside basis, Section L capital, liability categories, and suspended losses from the nearest prior year while identifying them as carryforwards.
 - **FR-019**: Changes to an earlier year MUST recalculate dependent later years and invalidate materially affected sign-off.
 - **FR-020**: The selected-year summary MUST show ending outside basis, annual basis change, cumulative suspended losses, taxable excess distribution, Section L difference, and warning count.
-- **FR-021**: Detailed annual information MUST remain separated into Outside Basis, K-1 Inputs, Liabilities, Section L and Book-Tax Reconciliation, Journal Entries, and Sign-off views.
-- **FR-022**: Outside basis, loss limitation, distribution analysis, liabilities, Section L reconciliation, book-tax differences, and journal entries MUST retain the existing deterministic server calculation rules.
+- **FR-021**: Every editable annual field MUST be reachable on the same selected-year page without category tabs, step tabs, Back, or Next controls; derived basis, reconciliation, journal, and sign-off results MAY follow the form on that page.
+- **FR-022**: Outside basis, loss limitation, distribution analysis, Section L reconciliation, book-tax differences, and journal entries MUST use deterministic server calculation rules, except liability balances and changes MUST be display-only and MUST NOT participate in arithmetic totals or status gates.
 - **FR-023**: Ending outside basis MUST never be below zero; before-limit results and applied limitations MUST be displayed separately.
 - **FR-024**: Reconciliation and journal checks MUST use a $1 tolerance and MUST NOT mark missing or incomplete years as reconciled.
 - **FR-025**: A year MUST NOT be reconciled until required values are present, warnings are resolved or explained, journal entries balance, and required sign-off is complete.
@@ -174,13 +192,20 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - **FR-041**: Existing workbook-import records MAY remain readable for compatibility, but no workbook import endpoint or control may be part of the v1 Partnership Tracker contract.
 - **FR-042**: A partnership list of 100 records and a selected partnership with 50 K-1 years, 50 commitment entries, and 200 NAV points MUST become usable within 2 seconds under normal staging conditions.
 - **FR-043**: The page MUST provide loading, empty, filtered-empty, error, permission-restricted, newly-created, no-year, and populated states.
-- **FR-044**: Search, tabs, year navigation, dialogs, drawers, the NAV chart, and data tables MUST be keyboard accessible with meaningful assistive labels and visible focus.
-- **FR-045**: Unsaved manual K-1 changes MUST prompt before partnership, tab, year, or route navigation discards them.
+- **FR-044**: Search, top-level workspace navigation, year navigation, the single-page K-1 form, dialogs, the NAV chart, and data tables MUST be keyboard accessible with meaningful assistive labels and visible focus.
+- **FR-045**: Unsaved manual K-1 changes MUST prompt before partnership, year, top-level area, or route navigation discards them.
+- **FR-046**: `capital_contributions` MUST be the only editable and calculated annual contribution value; `section_l_capital_contributed` MUST remain readable only as legacy provenance and MUST NOT appear as a second input or be double-counted.
+- **FR-047**: Total capital contributions MUST equal the sum of canonical `capital_contributions` amounts across all active saved K-1 years, and cumulative distributions MUST equal the sum of the absolute `box_19_distributions` amounts across those years. An aggregate MUST remain missing until at least one corresponding annual value exists; an explicitly entered zero MUST aggregate as zero.
+- **FR-048**: DPI MUST equal cumulative distributions divided by total capital contributions, and TVPI MUST equal cumulative distributions plus latest NAV divided by total capital contributions; either metric MUST be unavailable when its required denominator or NAV is unavailable.
+- **FR-049**: Liability beginning balances, ending balances, and changes MAY be entered, edited, carried, and displayed, but MUST be excluded from outside-basis increases, distribution decreases, taxable excess distributions, overview totals, DPI, TVPI, IRR, warning counts, and sign-off blockers.
+- **FR-050**: IRR MUST use canonical annual contributions as negative tax-year-end cash flows, annual distributions as positive tax-year-end cash flows, and the latest NAV as a terminal positive cash flow on its valuation date. Missing years MUST preserve elapsed time, and insufficient or ambiguous cash-flow series MUST return an explicit unavailable status rather than a fabricated percentage.
+- **FR-051**: Overview performance values MUST be composed server-side from active tracker revisions and the latest NAV so the browser does not independently recalculate financial metrics or issue per-year requests.
+- **FR-052**: Every Partnership Tracker monetary input, including annual K-1 values, committed capital, and NAV, MUST accept plain digits with no decimal point or trailing zeros, optional valid US comma grouping, an optional leading dollar sign, and zero, one, or two decimal places. Fields whose domain allows negative amounts MUST also accept a leading minus sign or accounting parentheses; nonnegative fields MUST reject negative forms inline. On blur, valid input MUST display as `en-US` USD currency with two fraction digits; before preview/save it MUST normalize to the exact two-decimal API string. Missing decimal places alone MUST NOT produce a validation error, while malformed grouping, nonnumeric content, or more than two decimal places MUST produce an inline field error without submitting.
 
 ### Key Entities
 
 - **Partnership**: Existing scoped investment relationship with owning entity, name, controlled partnership type stored in `asset_class`, status, and notes.
-- **Partnership Tracker Summary**: Read model combining partnership identity, current effective commitment, latest NAV, K-1 year range, latest outside basis, and warning status.
+- **Partnership Tracker Summary**: Read model combining partnership identity, current effective commitment, cumulative annual contribution/distribution performance, latest capital account, latest NAV, K-1 year range, latest outside basis, return metrics, and warning status.
 - **Tracker Year**: One manually maintained tax year for a partnership, including workflow status, revision, calculations, and sign-off.
 - **Tracker Value Revision**: Append-only manual or carryforward field value with effective amount, actor, source, and prior-revision link.
 - **Committed Capital Entry**: An effective-dated total committed-capital amount retained as part of the partnership's history.
@@ -204,6 +229,10 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - **SC-008**: A 100-partnership directory and a selected partnership with 50 years, 50 commitment entries, and 200 NAV entries becomes usable within 2 seconds under normal staging conditions.
 - **SC-009**: Keyboard-only users can create or select a partnership, add a year, navigate annual fields, record commitment and NAV values, inspect chart-equivalent data, and save without a focus trap.
 - **SC-010**: Partnership Tracker v1 contains no Excel import, PDF upload, OCR, or automated K-1 extraction control.
+- **SC-011**: An Admin can enter or edit every supported field for one K-1 year and save it without opening another category view or using a Next button.
+- **SC-012**: A fixture with `$3,000,000.00` total contributions, `$190,773.00` total distributions, and `$3,000,000.00` latest NAV produces DPI `0.0636x`, TVPI `1.0636x`, and an IRR consistent with the documented annual cash-flow dates, without including liabilities.
+- **SC-013**: A legacy year containing both contribution field keys contributes at most once to Section L, outside basis, and overview performance totals.
+- **SC-014**: Every Partnership Tracker money control accepts the equivalent values `1000`, `1,000`, `$1,000`, and `1000.00`, formats each as `$1,000.00` on blur, and submits `1000.00`; applicable signed K-1 fields also normalize `-1000` and `(1,000)` to `-1000.00`, while committed-capital and NAV controls reject negative forms inline.
 
 ## Assumptions
 
@@ -213,6 +242,8 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - Existing partnership FMV snapshots are the authoritative partnership-level NAV history; the UI and new contract use NAV terminology without destructively renaming stored data.
 - Legacy non-manual FMV snapshots remain visible with their source label, while v1 creates manual NAV entries only.
 - Existing assets, capital-activity, distribution-history, and report integrations remain stored and callable but are omitted from the focused v1 page.
-- Existing K-1 calculation and sign-off logic remains in scope. Excel import and automatic finalized-document synchronization are removed from the v1 interaction and API contract.
+- Existing K-1 calculation and sign-off logic remains in scope except for the explicit removal of liability effects from calculations and status gates. Excel import and automatic finalized-document synchronization are removed from the v1 interaction and API contract.
+- `capital_contributions` is the canonical annual paid-in value. The legacy Section L contribution key remains only for backward-compatible provenance and is projected into the canonical value when needed.
+- Overview return metrics use active saved K-1 revisions, not legacy manual capital-activity rows. Committed capital remains a separate effective-dated total and is never treated as paid-in capital.
 - PDF upload, OCR, model-assisted field extraction, confidence scoring, and human review are planned for v2 and will populate the existing revision/provenance model rather than changing the annual calculation model.
 - The legacy `/partnerships` and `/k1-tracker` browser routes are compatibility redirects, not separate maintained experiences.
