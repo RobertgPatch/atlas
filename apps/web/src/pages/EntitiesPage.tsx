@@ -23,7 +23,7 @@ function formatUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString()}`
 }
 
-function errorMessage(err: unknown, fallback = 'Action failed. Please try again.'): string {
+export function errorMessage(err: unknown, fallback = 'Action failed. Please try again.'): string {
   if (err instanceof EntitiesApiError) {
     if (err.code === 'DUPLICATE_ENTITY_NAME') return 'An entity with that name already exists.'
     if (err.code === 'ENTITY_HAS_PARTNERSHIPS')

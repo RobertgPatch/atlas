@@ -10,6 +10,9 @@ export const partnershipTrackerDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
 }, 'Use a valid calendar date')
 export const partnershipTrackerDateTimeSchema = z.string().datetime({ offset: true })
+export const partnershipTrackerRatioSchema = z.string()
+  .regex(/^\d+\.\d{4,8}$/, 'Use a unit ratio with four to eight decimal places')
+  .refine((value) => Number(value) >= 0 && Number(value) <= 1, 'Use a unit ratio between 0 and 1')
 export const partnershipTrackerTypeSchema = z.enum(PARTNERSHIP_TYPES)
 export const partnershipTrackerStatusSchema = z.enum(['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED'])
 export const partnershipTrackerTaxYearSchema = z.coerce.number().int().min(1900).max(2100)
@@ -27,17 +30,27 @@ export const partnershipTrackerYearParamsSchema = partnershipTrackerPartnershipP
 export const partnershipTrackerCommitmentParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ commitmentId: partnershipTrackerUuidSchema })
 export const partnershipTrackerNavParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ navEntryId: partnershipTrackerUuidSchema })
 
+const inceptionDateSchema = partnershipTrackerDateSchema.nullable().refine(
+  (value) => value == null || value <= new Date().toISOString().slice(0, 10),
+  'Inception date cannot be in the future',
+)
+
 export const createTrackedPartnershipBodySchema = z.object({
   entityId: partnershipTrackerUuidSchema,
   name: z.string().trim().min(1).max(120),
   partnershipType: partnershipTrackerTypeSchema,
   notes: z.string().trim().max(10_000).nullable().optional(),
+  inceptionDate: inceptionDateSchema.optional(),
+  managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),
 })
 export const updateTrackedPartnershipBodySchema = z.object({
+  entityId: partnershipTrackerUuidSchema.optional(),
   name: z.string().trim().min(1).max(120).optional(),
   partnershipType: partnershipTrackerTypeSchema.optional(),
   status: partnershipTrackerStatusSchema.optional(),
   notes: z.string().trim().max(10_000).nullable().optional(),
+  inceptionDate: inceptionDateSchema.optional(),
+  managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),
   expectedUpdatedAt: partnershipTrackerDateTimeSchema,
 }).refine((body) => Object.keys(body).some((key) => key !== 'expectedUpdatedAt'), { message: 'At least one editable field is required' })
 
@@ -66,6 +79,7 @@ export const updateNavBodySchema = z.object({
 }).refine((body) => Object.keys(body).some((key) => key !== 'expectedUpdatedAt'), { message: 'At least one editable field is required' })
 export const expectedUpdatedAtQuerySchema = z.object({ expectedUpdatedAt: partnershipTrackerDateTimeSchema })
 export const commitmentListQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
+export const managementFeeQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
 
 export const manualFieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),
@@ -78,6 +92,13 @@ export const manualFieldChangeSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ['fieldKey'],
       message: 'Use capital_contributions. Section L contributions is retained only for legacy provenance.',
+    })
+  }
+  if (change.fieldKey === 'box_13_other_deductions') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['fieldKey'],
+      message: 'Use Other Portfolio Deductions and Management Fees. The combined Line 13 field is retained only for legacy provenance.',
     })
   }
   if (change.sourceType === 'MANUAL_OVERRIDE' && !change.overrideReason) {

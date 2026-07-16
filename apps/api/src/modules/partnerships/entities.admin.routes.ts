@@ -6,7 +6,7 @@ import { requirePartnershipScope } from './partnershipScope.plugin.js'
 import { k1Repository } from '../k1/k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
 import { auditRepository } from '../audit/audit.repository.js'
-import { pool } from '../../infra/db/client.js'
+import { pool, withTransaction } from '../../infra/db/client.js'
 
 /**
  * Entity management routes (Admin-only writes; list is visible to any user
@@ -30,7 +30,7 @@ const updateEntitySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
 })
 
-const paramsSchema = z.object({ id: z.string().min(1) })
+const paramsSchema = z.object({ id: z.string().uuid() })
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -195,44 +195,50 @@ const updateEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     throw err
   }
 
-  const before = k1Repository.listEntities().find((e) => e.id === params.id)
-  if (!before) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
+  if (pool) {
+    try {
+      const updated = await withTransaction(async (client) => {
+        const before = (await client.query<{ id: string; name: string }>('select id, name from entities where id = $1 for update', [params.id])).rows[0]
+        if (!before) return null
+        const nextName = body.name?.trim() ?? before.name
+        const duplicate = (await client.query(
+          'select 1 from entities where id <> $1 and lower(trim(name)) = lower(trim($2)) limit 1',
+          [params.id, nextName],
+        )).rows[0]
+        if (duplicate) return 'DUPLICATE' as const
+        const row = (await client.query<{ id: string; name: string }>(
+          'update entities set name = $2, updated_at = now() where id = $1 returning id, name',
+          [params.id, nextName],
+        )).rows[0]!
+        await auditRepository.record({
+          actorUserId: req.authUser?.userId,
+          eventName: 'entity.updated',
+          objectType: 'entity',
+          objectId: row.id,
+          before,
+          after: row,
+        }, client)
+        return row
+      })
+      if (updated == null) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
+      if (updated === 'DUPLICATE') return reply.status(409).send({ error: 'DUPLICATE_ENTITY_NAME' })
+      return reply.send(updated)
+    } catch (error) {
+      req.log.error({ err: error }, 'Failed to update database-backed entity')
+      throw error
+    }
+  }
 
+  const before = k1Repository.listEntities().find((entity) => entity.id === params.id)
+  if (!before) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
   if (body.name) {
     const needle = body.name.trim().toLowerCase()
-    const duplicate = k1Repository
-      .listEntities()
-      .some((e) => e.id !== params.id && e.name.trim().toLowerCase() === needle)
-    if (duplicate) {
-      return reply.status(409).send({ error: 'DUPLICATE_ENTITY_NAME' })
-    }
+    const duplicate = k1Repository.listEntities().some((entity) => entity.id !== params.id && entity.name.trim().toLowerCase() === needle)
+    if (duplicate) return reply.status(409).send({ error: 'DUPLICATE_ENTITY_NAME' })
   }
-
   const updated = k1Repository.updateEntity(params.id, body)
   if (!updated) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
-
-  if (pool && body.name) {
-    try {
-      await pool.query(
-        `update entities set name = $2, updated_at = now() where id = $1`,
-        [updated.id, updated.name],
-      )
-    } catch (error) {
-      console.warn(
-        'Failed to mirror entity update into Postgres:',
-        error instanceof Error ? error.message : String(error),
-      )
-    }
-  }
-
-  await auditRepository.record({
-    actorUserId: req.authUser?.userId,
-    eventName: 'entity.updated',
-    objectType: 'entity',
-    objectId: updated.id,
-    before: { id: before.id, name: before.name },
-    after: { id: updated.id, name: updated.name },
-  })
+  await auditRepository.record({ actorUserId: req.authUser?.userId, eventName: 'entity.updated', objectType: 'entity', objectId: updated.id, before, after: updated })
   return reply.send({ id: updated.id, name: updated.name })
 }
 

@@ -13,7 +13,7 @@ export interface TrackerFieldDefinition {
 
 const field = (definition: TrackerFieldDefinition) => definition
 
-export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v6-inferred-box-18c-nondeductible-expense'
+export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v7-split-line-13'
 
 export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'opening_outside_basis', label: 'Opening outside basis', role: 'opening', workbookLabels: ['beginning tax basis'] }),
@@ -31,7 +31,9 @@ export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'box_10_net_section_1231_gain_loss', label: 'Line 10 · Section 1231 gain (loss)', role: 'income', signed: true, workbookLabels: ['line 10 - sec 1231 gain', 'line 10 - sec 1231 loss'], k1Aliases: ['box_10_net_section_1231_gain'] }),
   field({ key: 'box_11_other_income_loss', label: 'Line 11 · Other income (loss)', role: 'income', signed: true, workbookLabels: ['line 11 - other income'], k1Aliases: ['box_11_other_income'] }),
   field({ key: 'box_12_section_179_deduction', label: 'Line 12 · Section 179 deduction', role: 'deduction', workbookLabels: ['line 12 - sec 179'], k1Aliases: ['box_12_section_179_deduction'] }),
-  field({ key: 'box_13_other_deductions', label: 'Line 13 · Other deductions', role: 'deduction', workbookLabels: ['line 13 - other deductions'], k1Aliases: ['box_13_other_deductions'] }),
+  field({ key: 'box_13_other_deductions', label: 'Line 13 - Historical combined deductions', role: 'deduction', workbookLabels: ['line 13 - other deductions'], k1Aliases: ['box_13_other_deductions'] }),
+  field({ key: 'box_13_other_portfolio_deductions', label: 'Line 13 - Other Portfolio Deductions', role: 'deduction' }),
+  field({ key: 'box_13_management_fees', label: 'Line 13 - Management Fees', role: 'deduction' }),
   field({ key: 'box_18a_nondeductible_expenses', label: 'Line 18A · Nondeductible expenses', role: 'deduction', workbookLabels: ['line 18a - nondeductible'] }),
   field({ key: 'box_18b_tax_exempt_income', label: 'Line 18B · Tax-exempt income (basis only)', role: 'income', signed: true, workbookLabels: ['line 18b - tax-exempt'] }),
   field({ key: 'box_18c_nondeductible_expenses', label: 'Line 18C · Nondeductible expenses (basis decrease)', role: 'deduction', workbookLabels: ['line 18c - nondeductible'], k1Aliases: ['box_18c_nondeductible_expenses'] }),

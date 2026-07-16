@@ -12,7 +12,7 @@ export interface MfaChallengeResponse {
   status: 'MFA_REQUIRED'
 }
 
-export type LoginResponse = SessionResponse | MfaChallengeResponse
+export type LoginResponse = SessionResponse
 
 export interface MfaVerifyRequest {
   challengeId: string

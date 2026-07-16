@@ -6,6 +6,7 @@ import { PartnershipTrackerError } from './partnership-tracker.types.js'
 import {
   calculateManualYearBodySchema,
   commitmentListQuerySchema,
+  managementFeeQuerySchema,
   createCommitmentBodySchema,
   createManualYearBodySchema,
   createNavBodySchema,
@@ -64,6 +65,11 @@ export const listPartnershipTrackerHandler = async (request: FastifyRequest, rep
 export const getPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply); if (!params) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.getPartnership(params.partnershipId, request.partnershipScope!)))
+}
+export const getManagementFeesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
+  const query = parse(managementFeeQuerySchema, request.query, reply); if (!params || !query) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.getManagementFees(params.partnershipId, request.partnershipScope!, query.asOfDate)))
 }
 export const createPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

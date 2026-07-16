@@ -56,9 +56,6 @@ export const config = {
   ),
   authLockoutThreshold: asNumber(process.env.AUTH_LOCKOUT_THRESHOLD, 3),
   authLockoutMinutes: asNumber(process.env.AUTH_LOCKOUT_MINUTES, 30),
-  authMfaDisabled:
-    nodeEnv !== 'production' &&
-    asBoolean(process.env.AUTH_MFA_DISABLED, nodeEnv === 'development'),
   totpIssuer: process.env.TOTP_ISSUER ?? 'Atlas',
   storageRoot: process.env.STORAGE_ROOT ?? './.storage',
   k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),

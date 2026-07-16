@@ -56,7 +56,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
       return
     }
     if (!entityId) {
-      setSubmitError('Entity is required')
+      setSubmitError('Owner is required')
       return
     }
 
@@ -117,10 +117,10 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                 </div>
 
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                  {/* Entity ID */}
+                  {/* Owner */}
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">
-                      Entity <span className="text-red-500">*</span>
+                      Owner <span className="text-red-500">*</span>
                     </label>
                     <select
                       required

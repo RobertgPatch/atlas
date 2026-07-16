@@ -17,6 +17,7 @@ export const partnershipTrackerKeys = {
   list: (params: PartnershipTrackerListParams) => ['partnership-tracker', 'list', params] as const,
   detail: (id: string) => ['partnership-tracker', 'detail', id] as const,
   commitments: (id: string, asOfDate?: string) => ['partnership-tracker', 'commitments', id, asOfDate ?? 'current'] as const,
+  managementFees: (id: string, asOfDate?: string) => ['partnership-tracker', 'management-fees', id, asOfDate ?? 'current'] as const,
   nav: (id: string) => ['partnership-tracker', 'nav', id] as const,
   year: (id: string, year: number) => ['partnership-tracker', 'year', id, year] as const,
 }
@@ -24,6 +25,7 @@ export const partnershipTrackerKeys = {
 export const usePartnershipTrackerList = (params: PartnershipTrackerListParams = {}) => useQuery({ queryKey: partnershipTrackerKeys.list(params), queryFn: () => partnershipTrackerClient.list(params) })
 export const usePartnershipTrackerDetail = (id?: string) => useQuery({ queryKey: partnershipTrackerKeys.detail(id ?? ''), queryFn: () => partnershipTrackerClient.get(id!), enabled: Boolean(id) })
 export const usePartnershipTrackerCommitments = (id?: string, asOfDate?: string) => useQuery({ queryKey: partnershipTrackerKeys.commitments(id ?? '', asOfDate), queryFn: () => partnershipTrackerClient.listCommitments(id!, asOfDate), enabled: Boolean(id) })
+export const usePartnershipManagementFees = (id?: string, asOfDate?: string) => useQuery({ queryKey: partnershipTrackerKeys.managementFees(id ?? '', asOfDate), queryFn: () => partnershipTrackerClient.managementFees(id!, asOfDate), enabled: Boolean(id) })
 export const usePartnershipTrackerNav = (id?: string) => useQuery({ queryKey: partnershipTrackerKeys.nav(id ?? ''), queryFn: () => partnershipTrackerClient.listNav(id!), enabled: Boolean(id) })
 export const usePartnershipTrackerYear = (id?: string, year?: number) => useQuery({ queryKey: partnershipTrackerKeys.year(id ?? '', year ?? 0), queryFn: () => partnershipTrackerClient.getYear(id!, year!), enabled: Boolean(id && year) })
 
@@ -33,6 +35,15 @@ export function usePartnershipTrackerActions() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: ['partnership-tracker', 'management-fees', id] }),
+      queryClient.invalidateQueries({ queryKey: ['entity'] }),
+      queryClient.invalidateQueries({ queryKey: ['entities'] }),
+      queryClient.invalidateQueries({ queryKey: ['k1'] }),
+      queryClient.invalidateQueries({ queryKey: ['k1-tracker'] }),
+      queryClient.invalidateQueries({ queryKey: ['partnerships-list'] }),
+      queryClient.invalidateQueries({ queryKey: ['partnership'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+      queryClient.invalidateQueries({ queryKey: ['reports'] }),
       ...(year == null ? [] : [queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.year(id, year) })]),
     ])
   }

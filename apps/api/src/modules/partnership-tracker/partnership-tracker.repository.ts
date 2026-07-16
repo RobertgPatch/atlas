@@ -8,6 +8,7 @@ import { recomputeActiveCommitmentMarker } from '../partnerships/capital.reposit
 import type { K1TrackerFieldChange } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
   PartnershipCommitmentEntry,
+  PartnershipManagementFeeEstimate,
   PartnershipNavEntry,
   PartnershipTrackerDetail,
   PartnershipTrackerListResponse,
@@ -17,11 +18,13 @@ import type {
 } from './partnership-tracker.contracts.js'
 import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
 import { composePartnershipPerformance, type PartnershipAnnualPerformanceValue } from './partnership-performance.js'
+import { calculateManagementFeeEstimate } from './management-fee.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
 
 type PartnershipRow = QueryResultRow & {
   id: string; entity_id: string; entity_name: string; name: string; asset_class: string | null
   status: PartnershipTrackerSummary['partnership']['status']; notes: string | null
+  inception_date: Date | string | null; management_fee_rate: string | null
   created_at: Date | string; updated_at: Date | string; current_commitment: string | null
   current_commitment_date: Date | string | null; latest_nav: string | null; latest_nav_date: Date | string | null
   earliest_k1_year: number | null; latest_k1_year: number | null; latest_workflow_status: string | null
@@ -53,11 +56,17 @@ const money = (value: string | null): string | null => {
   const [whole = '0', fraction = ''] = unsigned.split('.')
   return `${negative ? '-' : ''}${whole}.${(fraction + '00').slice(0, 2)}`
 }
+const ratio = (value: string | null): string | null => value == null ? null : Number(value).toFixed(8)
 const workflow = (value: string | null): PartnershipTrackerWorkflowStatus | null =>
   value === 'IMPORTED' ? 'IN_PROGRESS' : value as PartnershipTrackerWorkflowStatus | null
 const partnershipType = (value: string | null): PartnershipType =>
   PARTNERSHIP_TYPES.includes(value as PartnershipType) ? value as PartnershipType : 'Other'
 const scoped = (entityId: string, scope: PartnershipTrackerScope) => scope.isAdmin || scope.entityIds.includes(entityId)
+const validateInceptionDate = (value: string | null | undefined) => {
+  if (value != null && value > new Date().toISOString().slice(0, 10)) {
+    throw new PartnershipTrackerError('VALIDATION_ERROR', 400, 'Inception date cannot be in the future.')
+  }
+}
 
 const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
   const latestNav = row.latest_nav == null || row.latest_nav_date == null
@@ -70,7 +79,13 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
     legacyCapitalContributions: value.legacyCapitalContributions == null ? null : String(value.legacyCapitalContributions),
     distributions: value.distributions == null ? null : String(value.distributions),
   })) : []
-  const performance = composePartnershipPerformance({ annualValues, latestNav })
+  const performance = composePartnershipPerformance({
+    annualValues,
+    latestNav,
+    inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
+    currentCommitment: money(row.current_commitment),
+    latestEndingOutsideBasis: money(row.latest_ending_basis),
+  })
   return {
   partnership: {
     id: row.id,
@@ -79,6 +94,8 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
     partnershipType: partnershipType(row.asset_class),
     status: row.status,
     notes: row.notes ?? null,
+    inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
+    managementFeeRate: ratio(row.management_fee_rate),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   },
@@ -96,6 +113,13 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
   dpi: performance.dpi,
   tvpi: performance.tvpi,
   irr: performance.irr,
+  irrTerminalDate: performance.irrTerminalDate,
+  irrUsesCarriedForwardNav: performance.irrUsesCarriedForwardNav,
+  annualizedCashOnCashYield: performance.annualizedCashOnCashYield,
+  performanceAsOfDate: performance.performanceAsOfDate,
+  unfundedCommitmentAmount: performance.unfundedCommitmentAmount,
+  unfundedCommitmentPercentage: performance.unfundedCommitmentPercentage,
+  unrealizedGain: performance.unrealizedGain,
   performanceStatus: performance.performanceStatus,
   warningCount: Number(row.warning_count ?? 0),
   }
@@ -118,7 +142,7 @@ const summaryRows = async (
   const offsetIndex = params.length
   return (await database().query<PartnershipRow>(`
     select p.id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
-      p.created_at, p.updated_at,
+      p.inception_date, p.management_fee_rate, p.created_at, p.updated_at,
       commitment.commitment_amount as current_commitment,
       commitment.effective_date as current_commitment_date,
       nav.fmv_amount as latest_nav,
@@ -239,7 +263,8 @@ export const partnershipTrackerRepository = {
     }
   },
 
-  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; notes?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+    validateInceptionDate(body.inceptionDate)
     const id = await withTransaction(async (client) => {
       const entity = (await client.query<{ id: string }>('select id from entities where id = $1', [body.entityId])).rows[0]
       if (!entity) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Entity was not found.')
@@ -247,8 +272,8 @@ export const partnershipTrackerRepository = {
       const duplicate = (await client.query('select 1 from partnerships where entity_id = $1 and lower(trim(name)) = lower(trim($2)) limit 1', [body.entityId, body.name])).rows[0]
       if (duplicate) throw new PartnershipTrackerError('DUPLICATE_PARTNERSHIP_NAME', 409, 'A partnership with this name already exists for the entity.')
       const partnershipId = randomUUID()
-      const row = (await client.query(`insert into partnerships (id, entity_id, name, asset_class, status, notes, created_at, updated_at)
-        values ($1,$2,$3,$4,'ACTIVE',$5,now(),now()) returning *`, [partnershipId, body.entityId, body.name.trim(), body.partnershipType, body.notes ?? null])).rows[0]
+      const row = (await client.query(`insert into partnerships (id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate, created_at, updated_at)
+        values ($1,$2,$3,$4,'ACTIVE',$5,$6,$7,now(),now()) returning *`, [partnershipId, body.entityId, body.name.trim(), body.partnershipType, body.notes ?? null, body.inceptionDate ?? null, body.managementFeeRate ?? null])).rows[0]
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_CREATED, objectType: 'partnership', objectId: partnershipId, before: null, after: row }, client)
       return partnershipId
     })
@@ -256,22 +281,57 @@ export const partnershipTrackerRepository = {
     return { partnership: mapSummary(rows[0]!), nextAction: 'ADD_K1_YEAR' as const }
   },
 
-  async updatePartnership(partnershipId: string, patch: { name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
+  async updatePartnership(partnershipId: string, patch: { entityId?: string; name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
+    validateInceptionDate(patch.inceptionDate)
     await withTransaction(async (client) => {
-      const partnership = await assertPartnership(partnershipId, scope, client)
+      await assertPartnership(partnershipId, scope, client)
       const before = (await client.query('select * from partnerships where id = $1 for update', [partnershipId])).rows[0]
       if (!before) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Partnership was not found.')
-      if (patch.name !== undefined) {
-        const duplicate = (await client.query('select 1 from partnerships where entity_id = $1 and id <> $2 and lower(trim(name)) = lower(trim($3)) limit 1', [partnership.entity_id, partnershipId, patch.name])).rows[0]
-        if (duplicate) throw new PartnershipTrackerError('DUPLICATE_PARTNERSHIP_NAME', 409, 'A partnership with this name already exists for the entity.')
+      const targetEntityId = patch.entityId ?? before.entity_id
+      const ownerChanged = targetEntityId !== before.entity_id
+      if (ownerChanged) {
+        const targetOwner = (await client.query<{ id: string }>('select id from entities where id = $1 for update', [targetEntityId])).rows[0]
+        if (!targetOwner) throw new PartnershipTrackerError('OWNER_NOT_FOUND', 404, 'The selected owner was not found.')
+        if (!scoped(targetEntityId, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The selected owner is outside your scope.')
       }
+      const targetName = patch.name?.trim() ?? before.name
+      const duplicate = (await client.query('select 1 from partnerships where entity_id = $1 and id <> $2 and lower(trim(name)) = lower(trim($3)) limit 1', [targetEntityId, partnershipId, targetName])).rows[0]
+      if (duplicate) throw new PartnershipTrackerError('DUPLICATE_PARTNERSHIP_NAME', 409, 'A partnership with this name already exists for the selected owner.')
       const result = await client.query(`update partnerships set
-          name = coalesce($2, name), asset_class = coalesce($3, asset_class), status = coalesce($4, status),
-          notes = case when $5::boolean then $6 else notes end, updated_at = now()
-        where id = $1 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $7::timestamptz)
-        returning *`, [partnershipId, patch.name?.trim() ?? null, patch.partnershipType ?? null, patch.status ?? null, Object.hasOwn(patch, 'notes'), patch.notes ?? null, patch.expectedUpdatedAt])
+          entity_id = $2, name = coalesce($3, name), asset_class = coalesce($4, asset_class), status = coalesce($5, status),
+          notes = case when $6::boolean then $7 else notes end,
+          inception_date = case when $8::boolean then $9::date else inception_date end,
+          management_fee_rate = case when $10::boolean then $11::numeric else management_fee_rate end,
+          updated_at = now()
+        where id = $1 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $12::timestamptz)
+        returning *`, [partnershipId, targetEntityId, patch.name?.trim() ?? null, patch.partnershipType ?? null, patch.status ?? null, Object.hasOwn(patch, 'notes'), patch.notes ?? null, Object.hasOwn(patch, 'inceptionDate'), patch.inceptionDate ?? null, Object.hasOwn(patch, 'managementFeeRate'), patch.managementFeeRate ?? null, patch.expectedUpdatedAt])
       if (!result.rows[0]) throw new PartnershipTrackerError('STALE_PARTNERSHIP_REVISION', 409, 'The partnership was changed by another user. Reload and try again.')
-      await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_UPDATED, objectType: 'partnership', objectId: partnershipId, before, after: result.rows[0] }, client)
+      const childRowCounts: Record<string, number> = {}
+      if (ownerChanged) {
+        for (const table of ['document_versions', 'k1_reported_distributions', 'partnership_commitments', 'capital_activity_events', 'partnership_annual_activity'] as const) {
+          const moved = await client.query(`update ${table} set entity_id = $2 where partnership_id = $1 and entity_id = $3`, [partnershipId, targetEntityId, before.entity_id])
+          childRowCounts[table] = moved.rowCount ?? 0
+        }
+        const importBatches = await client.query('update k1_tracker_import_batches set entity_id = $2 where target_partnership_id = $1 and entity_id = $3', [partnershipId, targetEntityId, before.entity_id])
+        childRowCounts.k1_tracker_import_batches = importBatches.rowCount ?? 0
+        const trackerYears = await client.query<{ id: string; revision: number }>(`update k1_tracker_years
+          set entity_id = $2, revision = revision + 1, workflow_status = 'NEEDS_REVIEW', updated_by_user_id = $4, updated_at = now()
+          where partnership_id = $1 and entity_id = $3
+          returning id, revision`, [partnershipId, targetEntityId, before.entity_id, actorUserId])
+        childRowCounts.k1_tracker_years = trackerYears.rowCount ?? 0
+        for (const year of trackerYears.rows) {
+          await client.query(`insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason, created_at)
+            values ($1,$2,$3,'INVALIDATED',$4,'Partnership owner changed',now())`, [randomUUID(), year.id, year.revision, actorUserId])
+        }
+      }
+      await auditRepository.record({
+        actorUserId,
+        eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_UPDATED,
+        objectType: 'partnership',
+        objectId: partnershipId,
+        before,
+        after: ownerChanged ? { ...result.rows[0], ownerReassignment: { sourceEntityId: before.entity_id, targetEntityId, childRowCounts } } : result.rows[0],
+      }, client)
     })
     const rows = await summaryRows(scope, { partnershipId, limit: 1, offset: 0 })
     return mapSummary(rows[0]!)
@@ -293,6 +353,31 @@ export const partnershipTrackerRepository = {
       order by history.effective_date asc, history.created_at asc, history.id asc`, [partnershipId, effectiveDate])).rows
     const items = rows.map(mapCommitment)
     return { items, effectiveEntry: items.find((entry) => entry.isCurrent) ?? null }
+  },
+
+  async getManagementFees(partnershipId: string, scope: PartnershipTrackerScope, asOfDate = new Date().toISOString().slice(0, 10)): Promise<PartnershipManagementFeeEstimate> {
+    await assertPartnership(partnershipId, scope, database())
+    const partnership = (await database().query<{ inception_date: Date | string | null; management_fee_rate: string | null }>(
+      'select inception_date, management_fee_rate from partnerships where id = $1',
+      [partnershipId],
+    )).rows[0]!
+    const inceptionDate = partnership.inception_date == null ? null : dateOnly(partnership.inception_date)
+    if (inceptionDate && asOfDate < inceptionDate) {
+      throw new PartnershipTrackerError('VALIDATION_ERROR', 400, 'Management fee as-of date cannot be before inception.')
+    }
+    const commitments = (await database().query<{ amount: string; effective_date: Date | string }>(`
+      select commitment_amount as amount, coalesce(commitment_date, created_at::date) as effective_date
+      from partnership_commitments
+      where partnership_id = $1 and coalesce(commitment_date, created_at::date) <= $2::date
+      order by coalesce(commitment_date, created_at::date), created_at, id
+    `, [partnershipId, asOfDate])).rows.map((entry) => ({ amount: money(entry.amount)!, effectiveDate: dateOnly(entry.effective_date) }))
+    return calculateManagementFeeEstimate({
+      partnershipId,
+      inceptionDate,
+      annualRate: ratio(partnership.management_fee_rate),
+      asOfDate,
+      commitments,
+    })
   },
 
   async createCommitment(partnershipId: string, body: { amount: string; effectiveDate: string; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {

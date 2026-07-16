@@ -2,7 +2,11 @@ import React, { Fragment, useEffect, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { XIcon } from 'lucide-react'
 import { useUpdatePartnership } from '../hooks/usePartnershipMutations'
+import { useEntityList } from '../hooks/useEntityQueries'
+import { usePartnershipTrackerActions } from '../../partnership-tracker/hooks/usePartnershipTracker'
+import { PartnershipTrackerApiError } from '../../partnership-tracker/api/partnershipTrackerClient'
 import type { Partnership, PartnershipStatus } from 'packages/types/src'
+import type { PartnershipType } from '../../../../../../packages/types/src/partnership-tracker'
 
 interface EditPartnershipDialogProps {
   open: boolean
@@ -15,7 +19,10 @@ const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture C
 
 export function EditPartnershipDialog({ open, onClose, partnership }: EditPartnershipDialogProps) {
   const { mutateAsync, isPending } = useUpdatePartnership()
+  const trackerActions = usePartnershipTrackerActions()
+  const owners = useEntityList()
 
+  const [entityId, setEntityId] = useState(partnership.entity.id)
   const [name, setName] = useState(partnership.name)
   const [assetClass, setAssetClass] = useState(partnership.assetClass ?? '')
   const [status, setStatus] = useState<PartnershipStatus>(partnership.status)
@@ -24,6 +31,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
 
   // Sync state if partnership changes externally
   useEffect(() => {
+    setEntityId(partnership.entity.id)
     setName(partnership.name)
     setAssetClass(partnership.assetClass ?? '')
     setStatus(partnership.status)
@@ -50,9 +58,33 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
       return
     }
 
+    if (entityId !== partnership.entity.id) {
+      try {
+        await trackerActions.updatePartnership.mutateAsync({
+          id: partnership.id,
+          body: {
+            entityId,
+            name: trimmedName,
+            partnershipType: (assetClass || 'Other') as PartnershipType,
+            status,
+            notes: notes.trim() || null,
+            expectedUpdatedAt: partnership.updatedAt,
+          },
+        })
+        handleClose()
+      } catch (error) {
+        setNameError(error instanceof PartnershipTrackerApiError && error.isDuplicate
+          ? 'A partnership with this name already exists for this owner.'
+          : error instanceof PartnershipTrackerApiError && error.isStale
+            ? 'This partnership changed while you were editing. Reload and try again.'
+            : 'The owner could not be changed.')
+      }
+      return
+    }
+
     const result = await mutateAsync({
       id: partnership.id,
-      entityId: partnership.entity.id,
+      entityId,
       body: {
         name: trimmedName !== partnership.name ? trimmedName : undefined,
         assetClass: assetClass || null,
@@ -62,7 +94,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
     })
 
     if ('kind' in result && result.kind === 'duplicate-name') {
-      setNameError('A partnership with this name already exists for this entity.')
+      setNameError('A partnership with this name already exists for this owner.')
       return
     }
 
@@ -105,12 +137,22 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                   </button>
                 </div>
 
-                {/* Entity is read-only */}
-                <p className="text-sm text-text-secondary mb-4">
-                  Entity: <span className="font-medium text-text-primary">{partnership.entity.name}</span>
-                </p>
-
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-1">Owner</label>
+                    <select
+                      value={entityId}
+                      onChange={(event) => setEntityId(event.target.value)}
+                      disabled={owners.isLoading}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold disabled:opacity-50"
+                    >
+                      {!owners.data?.items.some((owner) => owner.id === partnership.entity.id) && (
+                        <option value={partnership.entity.id}>{partnership.entity.name}</option>
+                      )}
+                      {owners.data?.items.map((owner) => <option key={owner.id} value={owner.id}>{owner.name}</option>)}
+                    </select>
+                  </div>
+
                   {/* Name */}
                   <div>
                     <label className="block text-sm font-medium text-text-primary mb-1">
@@ -178,7 +220,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     </button>
                     <button
                       type="submit"
-                      disabled={isPending}
+                      disabled={isPending || trackerActions.updatePartnership.isPending || owners.isLoading}
                       className="px-4 py-2 text-sm rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Save Changes'}

@@ -55,7 +55,6 @@ const sectionLIncomeKeys: K1TrackerFieldKey[] = [
 
 const deductionKeys: K1TrackerFieldKey[] = [
   'box_12_section_179_deduction',
-  'box_13_other_deductions',
   'box_18a_nondeductible_expenses',
   'box_21_foreign_taxes',
 ]
@@ -144,7 +143,10 @@ export const calculateTrackerYear = (
     : absolute(values.box_18c_nondeductible_expenses)
   const incomeIncrease = sum(sectionLIncomeEffects.map(positive)) + taxExemptIncome
   const currentLosses = sum(sectionLIncomeEffects.map(negativeMagnitude))
-  const deductions = sum(deductionKeys.map((key) => absolute(amount(values, key))))
+  const effectiveLine13 = Object.hasOwn(values, 'box_13_other_portfolio_deductions') || Object.hasOwn(values, 'box_13_management_fees')
+    ? absolute(amount(values, 'box_13_other_portfolio_deductions')) + absolute(amount(values, 'box_13_management_fees'))
+    : absolute(amount(values, 'box_13_other_deductions'))
+  const deductions = sum(deductionKeys.map((key) => absolute(amount(values, key)))) + effectiveLine13
   const calculatedNetIncomeBeforeNondeductibleExpenses = sum(sectionLIncomeEffects) - deductions
   const distributions = absolute(amount(values, 'box_19_distributions'))
   const totalIncreases = contributions + incomeIncrease
@@ -248,6 +250,14 @@ export const calculateTrackerYear = (
     taxYear: year.taxYear,
     status,
     revision: year.revision,
+    capitalContributed: Object.hasOwn(values, 'capital_contributions')
+      ? centsToMoney(values.capital_contributions)
+      : Object.hasOwn(values, 'section_l_capital_contributed')
+        ? centsToMoney(values.section_l_capital_contributed)
+        : null,
+    distributions: Object.hasOwn(values, 'box_19_distributions')
+      ? centsToMoney(values.box_19_distributions == null ? null : absolute(values.box_19_distributions))
+      : null,
     endingOutsideBasis: centsToMoney(endingOutsideBasis),
     cumulativeSuspendedLoss: centsToMoney(cumulativeSuspendedLoss),
     taxableExcessDistribution: centsToMoney(taxableExcessDistribution),

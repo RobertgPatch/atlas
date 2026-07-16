@@ -21,10 +21,15 @@ export const PARTNERSHIP_TYPES = [
 
 export type PartnershipType = (typeof PARTNERSHIP_TYPES)[number]
 export type PartnershipTrackerMoney = string
+export type PartnershipTrackerRatio = string
 export const PARTNERSHIP_TRACKER_METRIC_AVAILABILITY = [
   'AVAILABLE',
   'MISSING_CONTRIBUTIONS',
+  'MISSING_DISTRIBUTIONS',
   'MISSING_NAV',
+  'MISSING_INCEPTION_DATE',
+  'MISSING_COMMITMENT',
+  'MISSING_OUTSIDE_BASIS',
   'NAV_PRECEDES_CASH_FLOWS',
   'INSUFFICIENT_CASH_FLOWS',
   'AMBIGUOUS_IRR',
@@ -34,6 +39,9 @@ export interface PartnershipTrackerPerformanceStatus {
   dpi: PartnershipTrackerMetricAvailability
   tvpi: PartnershipTrackerMetricAvailability
   irr: PartnershipTrackerMetricAvailability
+  annualizedCashOnCashYield: PartnershipTrackerMetricAvailability
+  unfundedCommitment: PartnershipTrackerMetricAvailability
+  unrealizedGain: PartnershipTrackerMetricAvailability
 }
 export type PartnershipTrackerWorkflowStatus =
   | Exclude<K1TrackerWorkflowStatus, 'IMPORTED'>
@@ -46,6 +54,8 @@ export interface PartnershipTrackerIdentity {
   partnershipType: PartnershipType
   status: PartnershipStatus
   notes: string | null
+  inceptionDate: string | null
+  managementFeeRate: PartnershipTrackerRatio | null
   createdAt: string
   updatedAt: string
 }
@@ -69,6 +79,13 @@ export interface PartnershipTrackerSummary {
   dpi: string | null
   tvpi: string | null
   irr: string | null
+  irrTerminalDate: string | null
+  irrUsesCarriedForwardNav: boolean
+  annualizedCashOnCashYield: PartnershipTrackerRatio | null
+  performanceAsOfDate: string
+  unfundedCommitmentAmount: PartnershipTrackerMoney | null
+  unfundedCommitmentPercentage: PartnershipTrackerRatio | null
+  unrealizedGain: PartnershipTrackerMoney | null
   performanceStatus: PartnershipTrackerPerformanceStatus
   warningCount: number
 }
@@ -132,14 +149,49 @@ export interface CreateTrackedPartnershipRequest {
   name: string
   partnershipType: PartnershipType
   notes?: string | null
+  inceptionDate?: string | null
+  managementFeeRate?: PartnershipTrackerRatio | null
 }
 
 export interface UpdateTrackedPartnershipRequest {
+  entityId?: string
   name?: string
   partnershipType?: PartnershipType
   status?: PartnershipStatus
   notes?: string | null
+  inceptionDate?: string | null
+  managementFeeRate?: PartnershipTrackerRatio | null
   expectedUpdatedAt: string
+}
+
+export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = [
+  'AVAILABLE',
+  'MISSING_INCEPTION_DATE',
+  'MISSING_MANAGEMENT_FEE_RATE',
+  'MISSING_COMMITMENT',
+] as const
+
+export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY)[number]
+
+export interface PartnershipManagementFeeAnnualRow {
+  calendarYear: number
+  periodStart: string
+  periodEnd: string
+  activeDays: number
+  daysInYear: 365 | 366
+  weightedCommittedCapital: PartnershipTrackerMoney | null
+  annualRate: PartnershipTrackerRatio
+  estimatedFee: PartnershipTrackerMoney | null
+}
+
+export interface PartnershipManagementFeeEstimate {
+  partnershipId: string
+  inceptionDate: string | null
+  annualRate: PartnershipTrackerRatio | null
+  asOfDate: string
+  status: PartnershipManagementFeeAvailability
+  annualRows: PartnershipManagementFeeAnnualRow[]
+  cumulativeEstimatedFee: PartnershipTrackerMoney | null
 }
 
 export interface CreatePartnershipCommitmentEntryRequest {

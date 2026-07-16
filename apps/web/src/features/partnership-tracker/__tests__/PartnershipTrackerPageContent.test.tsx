@@ -14,14 +14,15 @@ vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () 
 
 describe('PartnershipTrackerPageContent', () => {
   beforeEach(() => update.mockReset())
-  it('renders searchable selection and the bounded three-area workspace', () => {
+  it('renders searchable selection and the revised four-area workspace', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Partnership Tracker' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Search partnerships' })).toBeInTheDocument()
     expect(screen.getAllByText('Redwood Fund').length).toBeGreaterThan(0)
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'K-1 & Basis' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'K1 Entry' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Capital & NAV' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toBeInTheDocument()
     expect(screen.getAllByText('$1,000,000.00').length).toBeGreaterThan(0)
     expect(screen.getByText('Paid-in capital')).toBeInTheDocument()
     expect(screen.getByText('Distributions')).toBeInTheDocument()
@@ -29,6 +30,13 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByText('DPI')).toBeInTheDocument()
     expect(screen.getByText('TVPI')).toBeInTheDocument()
     expect(screen.getByText('IRR')).toBeInTheDocument()
+  })
+  it('restores the read-only Underlying Assets area from the URL', () => {
+    render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
+    expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('heading', { name: 'Underlying Assets' })).toBeInTheDocument()
+    expect(screen.getByText('Coming soon')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add asset/i })).not.toBeInTheDocument()
   })
   it('opens the identity editor from Overview', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)

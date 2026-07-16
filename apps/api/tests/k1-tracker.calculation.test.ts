@@ -52,6 +52,28 @@ describe('K1 tracker calculation', () => {
     expect(legacy.basis.contributions).toBe('30.00')
   })
 
+  it('projects comparison cash values with canonical, absolute, zero, and null semantics', () => {
+    const canonical = calculateTrackerYear({ id: 'canonical-summary', taxYear: 2024, revision: 1, status: 'IN_PROGRESS', values: values({ capital_contributions: '0.00', section_l_capital_contributed: '50.00', box_19_distributions: '-25.00' }) })
+    const legacy = calculateTrackerYear({ id: 'legacy-summary', taxYear: 2023, revision: 1, status: 'IN_PROGRESS', values: values({ section_l_capital_contributed: '30.00' }) })
+    const cleared = calculateTrackerYear({ id: 'cleared-summary', taxYear: 2022, revision: 1, status: 'IN_PROGRESS', values: { capital_contributions: null, section_l_capital_contributed: 5000n, box_19_distributions: null } })
+
+    expect(canonical.summary).toMatchObject({ capitalContributed: '0.00', distributions: '25.00' })
+    expect(legacy.summary).toMatchObject({ capitalContributed: '30.00', distributions: null })
+    expect(cleared.summary).toMatchObject({ capitalContributed: null, distributions: null })
+  })
+
+  it('uses split Line 13 fields exactly once with a presence-based legacy fallback', () => {
+    const legacy = calculateTrackerYear({ id: 'legacy-line-13', taxYear: 2022, revision: 1, status: 'IN_PROGRESS', values: values({ opening_outside_basis: '100.00', box_13_other_deductions: '50.00' }) })
+    const split = calculateTrackerYear({ id: 'split-line-13', taxYear: 2023, revision: 1, status: 'IN_PROGRESS', values: values({ opening_outside_basis: '100.00', box_13_other_deductions: '999.00', box_13_other_portfolio_deductions: '30.00', box_13_management_fees: '20.00' }) })
+    const cleared = calculateTrackerYear({ id: 'cleared-line-13', taxYear: 2024, revision: 1, status: 'IN_PROGRESS', values: { opening_outside_basis: 10000n, box_13_other_deductions: 5000n, box_13_management_fees: null } as any })
+
+    expect(legacy.basis.deductions).toBe('50.00')
+    expect(split.basis.deductions).toBe('50.00')
+    expect(split.lossLimitation.deductions).toBe('50.00')
+    expect(cleared.basis.deductions).toBe('0.00')
+    expect(split.calculationVersion).toContain('split-line-13')
+  })
+
   it('treats Box 18B tax-exempt income as a basis-only permanent difference', () => {
     const result = calculateTrackerYear({
       id: 'tax-exempt-income', taxYear: 2024, revision: 1, status: 'IN_PROGRESS',
@@ -168,7 +190,7 @@ describe('K1 tracker calculation', () => {
       const result = calculateTrackerYear({ id: `workbook-${importedYear.taxYear}`, taxYear: importedYear.taxYear, revision: 1, status: 'IMPORTED', values: importedValues }, previous)
 
       expect(result.basis.endingOutsideBasis).toBe(expectedEndingBasis[index])
-      expect(result.calculationVersion).toBe('irs-k1-basis-v6-inferred-box-18c-nondeductible-expense')
+      expect(result.calculationVersion).toBe('irs-k1-basis-v7-split-line-13')
       if (importedYear.taxYear === 2021) {
         expect(result.sectionL.calculatedNetIncome).toBe('-1067656.00')
         expect(result.checks.find((check) => check.key === 'section-l-net-income')?.status).toBe('PASS')
