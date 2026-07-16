@@ -79,6 +79,56 @@ export interface PartnershipTrackerDetail {
 }
 export interface PartnershipTrackerListResponse { items: PartnershipTrackerSummary[]; total: number; nextCursor: string | null }
 
+export const PARTNERSHIP_AGGREGATION_WORKFLOWS = ['NOT_STARTED', 'IN_PROGRESS', 'NEEDS_REVIEW', 'RECONCILED', 'NO_K1_YEAR'] as const
+export type PartnershipAggregationWorkflow = (typeof PARTNERSHIP_AGGREGATION_WORKFLOWS)[number]
+export const PARTNERSHIP_DATA_QUALITIES = ['COMPLETE', 'MISSING_DATA', 'WARNINGS'] as const
+export type PartnershipDataQuality = (typeof PARTNERSHIP_DATA_QUALITIES)[number]
+export const PARTNERSHIP_AGGREGATION_SORTS = ['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'latestTaxYear', 'warningCount'] as const
+export type PartnershipAggregationSort = (typeof PARTNERSHIP_AGGREGATION_SORTS)[number]
+export type PartnershipAggregationDirection = 'asc' | 'desc'
+export type PartnershipAggregationPageSize = 25 | 50 | 100
+export type PartnershipLifecycleStatus = PartnershipTrackerSummary['partnership']['status']
+
+export interface PartnershipAggregationQuery {
+  search?: string
+  ownerIds: string[]
+  partnershipTypes: PartnershipType[]
+  statuses: PartnershipLifecycleStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality[]
+  sort: PartnershipAggregationSort
+  direction: PartnershipAggregationDirection
+  page: number
+  pageSize: PartnershipAggregationPageSize
+}
+export interface PartnershipAggregateRow extends PartnershipTrackerSummary { dataQuality: PartnershipDataQuality }
+export interface PartnershipAggregationCoveredMoney { amount: string | null; knownCount: number; totalCount: number }
+export const PARTNERSHIP_AGGREGATION_RATIO_STATUSES = ['AVAILABLE', 'PARTIAL_COVERAGE', 'NO_DATA', 'ZERO_DENOMINATOR'] as const
+export type PartnershipAggregationRatioStatus = (typeof PARTNERSHIP_AGGREGATION_RATIO_STATUSES)[number]
+export interface PartnershipAggregationCoveredRatio { value: string | null; status: PartnershipAggregationRatioStatus; numeratorKnownCount: number; denominatorKnownCount: number; totalCount: number }
+export interface PartnershipPortfolioRollup {
+  partnershipCount: number
+  committedCapital: PartnershipAggregationCoveredMoney
+  paidInCapital: PartnershipAggregationCoveredMoney
+  distributions: PartnershipAggregationCoveredMoney
+  latestNav: PartnershipAggregationCoveredMoney
+  unfundedCommitment: PartnershipAggregationCoveredMoney
+  dpi: PartnershipAggregationCoveredRatio
+  tvpi: PartnershipAggregationCoveredRatio
+  asOfDate: string
+  navValuationRange: { earliest: string | null; latest: string | null }
+}
+export interface PartnershipAggregationFacetOption<T extends string = string> { value: T; label: string; count: number }
+export interface PartnershipAggregationFacetSet {
+  owners: PartnershipAggregationFacetOption<string>[]
+  partnershipTypes: PartnershipAggregationFacetOption<PartnershipType>[]
+  statuses: PartnershipAggregationFacetOption<PartnershipLifecycleStatus>[]
+  workflowStatuses: PartnershipAggregationFacetOption<PartnershipAggregationWorkflow>[]
+  dataQuality: PartnershipAggregationFacetOption<PartnershipDataQuality>[]
+}
+export interface PartnershipAggregationPageInfo { page: number; pageSize: PartnershipAggregationPageSize; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean }
+export interface PartnershipAggregationResponse { query: PartnershipAggregationQuery; rollup: PartnershipPortfolioRollup; facets: PartnershipAggregationFacetSet; items: PartnershipAggregateRow[]; pageInfo: PartnershipAggregationPageInfo }
+
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = ['AVAILABLE', 'MISSING_INCEPTION_DATE', 'MISSING_MANAGEMENT_FEE_RATE', 'MISSING_COMMITMENT'] as const
 export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY)[number]
 export interface PartnershipManagementFeeAnnualRow { calendarYear: number; periodStart: string; periodEnd: string; activeDays: number; daysInYear: 365 | 366; weightedCommittedCapital: string | null; annualRate: string; estimatedFee: string | null }

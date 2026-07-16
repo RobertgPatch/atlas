@@ -12,6 +12,7 @@ import { ManagementFeePanel } from './ManagementFeePanel'
 import { NavHistoryPanel } from './NavHistoryPanel'
 import { PartnershipOverview } from './PartnershipOverview'
 import { PartnershipPicker } from './PartnershipPicker'
+import { PartnershipViewSwitcher } from './PartnershipViewSwitcher'
 import { UnderlyingAssetsPlaceholder } from './UnderlyingAssetsPlaceholder'
 
 type Area = 'overview' | 'k1' | 'capital' | 'assets'
@@ -75,7 +76,7 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
   const created = (id: string) => { setAdding(false); setHasUnsavedK1Changes(false); updateUrl({ partnership: id, area: 'k1', year: undefined }) }
 
   return <>
-    <PageHeader title="Partnership Tracker" subtitle="Manage partnership identity, manual K-1 history, committed capital, and NAV from one bounded workspace." actions={canEdit ? <button type="button" onClick={() => setAdding(true)} className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-semibold text-white hover:bg-atlas-hover">Add partnership</button> : null} />
+    <PageHeader title="Partnership Tracker" subtitle="Manage partnership identity, manual K-1 history, committed capital, and NAV from one bounded workspace." actions={<><PartnershipViewSwitcher view="workspace" />{canEdit ? <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-lg bg-atlas-gold px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-atlas-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2">Add partnership</button> : null}</>} />
     <div className="grid gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
       <PartnershipPicker items={list.data?.items ?? []} selectedId={selectedId} search={search} loading={list.isLoading} error={list.isError ? errorText(list.error) : undefined} canEdit={canEdit} onSearch={setSearch} onSelect={selectPartnership} onAdd={() => setAdding(true)} />
       <main className="min-w-0" aria-label="Selected partnership workspace">

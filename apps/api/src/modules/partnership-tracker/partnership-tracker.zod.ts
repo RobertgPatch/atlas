@@ -1,6 +1,13 @@
 import { z } from 'zod'
 import { K1_TRACKER_FIELD_KEYS } from '../k1-tracker/k1-tracker.contracts.js'
-import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
+import {
+  PARTNERSHIP_AGGREGATION_SORTS,
+  PARTNERSHIP_AGGREGATION_WORKFLOWS,
+  PARTNERSHIP_DATA_QUALITIES,
+  PARTNERSHIP_TYPES,
+  type PartnershipAggregationPageSize,
+  type PartnershipAggregationQuery,
+} from './partnership-tracker.contracts.js'
 
 export const partnershipTrackerUuidSchema = z.string().uuid()
 export const partnershipTrackerMoneySchema = z.string().regex(/^-?\d+\.\d{2}$/, 'Use a money value with exactly two decimal places')
@@ -24,6 +31,54 @@ export const partnershipTrackerListQuerySchema = z.object({
   status: partnershipTrackerStatusSchema.optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   cursor: z.string().regex(/^\d+$/).optional(),
+})
+
+const aggregationCsv = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value]
+  return [...new Set(values.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean))]
+}
+
+const aggregationEnumValues = <T extends string>(value: unknown, allowed: readonly T[]): T[] => {
+  const accepted = new Set<string>(allowed)
+  return aggregationCsv(value).filter((item): item is T => accepted.has(item))
+}
+
+const aggregationPositiveInteger = (value: unknown, fallback: number) => {
+  const candidate = Number(Array.isArray(value) ? value[0] : value)
+  return Number.isInteger(candidate) && candidate > 0 ? candidate : fallback
+}
+
+export const partnershipAggregationQuerySchema = z.object({
+  search: z.unknown().optional(),
+  ownerIds: z.unknown().optional(),
+  partnershipTypes: z.unknown().optional(),
+  statuses: z.unknown().optional(),
+  workflowStatuses: z.unknown().optional(),
+  dataQuality: z.unknown().optional(),
+  sort: z.unknown().optional(),
+  direction: z.unknown().optional(),
+  page: z.unknown().optional(),
+  pageSize: z.unknown().optional(),
+}).transform((raw): PartnershipAggregationQuery => {
+  const searchValue = Array.isArray(raw.search) ? raw.search[0] : raw.search
+  const search = typeof searchValue === 'string' ? searchValue.trim().slice(0, 200) : ''
+  const ownerIds = aggregationCsv(raw.ownerIds).filter((value) => partnershipTrackerUuidSchema.safeParse(value).success).sort()
+  const sortValue = Array.isArray(raw.sort) ? raw.sort[0] : raw.sort
+  const directionValue = Array.isArray(raw.direction) ? raw.direction[0] : raw.direction
+  const requestedPageSize = aggregationPositiveInteger(raw.pageSize, 50)
+  const pageSize: PartnershipAggregationPageSize = requestedPageSize === 25 || requestedPageSize === 100 ? requestedPageSize : 50
+  return {
+    ...(search ? { search } : {}),
+    ownerIds,
+    partnershipTypes: aggregationEnumValues(raw.partnershipTypes, PARTNERSHIP_TYPES),
+    statuses: aggregationEnumValues(raw.statuses, ['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED'] as const),
+    workflowStatuses: aggregationEnumValues(raw.workflowStatuses, PARTNERSHIP_AGGREGATION_WORKFLOWS),
+    dataQuality: aggregationEnumValues(raw.dataQuality, PARTNERSHIP_DATA_QUALITIES),
+    sort: PARTNERSHIP_AGGREGATION_SORTS.includes(sortValue as never) ? sortValue as PartnershipAggregationQuery['sort'] : 'partnership',
+    direction: directionValue === 'desc' ? 'desc' : 'asc',
+    page: aggregationPositiveInteger(raw.page, 1),
+    pageSize,
+  }
 })
 export const partnershipTrackerPartnershipParamsSchema = z.object({ partnershipId: partnershipTrackerUuidSchema })
 export const partnershipTrackerYearParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ taxYear: partnershipTrackerTaxYearSchema })

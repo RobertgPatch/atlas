@@ -1,0 +1,469 @@
+openapi: 3.1.0
+info:
+  title: Atlas Partnership Aggregation API
+  version: 0.1.0
+  description: >-
+    Additive authenticated read contract for filtering, sorting, paginating, and
+    summarizing the complete permitted partnership scope. Money and ratios remain
+    exact strings; missing values are never coerced to zero.
+servers:
+  - url: /v1
+paths:
+  /partnership-tracker/aggregation:
+    get:
+      operationId: getPartnershipAggregation
+      summary: Return one partnership aggregation page with complete filtered rollup and base-scope facets
+      description: >-
+        Applies the caller's partnership scope before facet discovery, filters,
+        sorting, totals, or pagination. Invalid/unknown query values are removed
+        or replaced with documented defaults and normalized state is echoed in
+        the response.
+      parameters:
+        - name: search
+          in: query
+          description: Case-insensitive partnership or owner name search; trimmed to at most 200 characters.
+          schema:
+            type: string
+            maxLength: 200
+        - name: ownerIds
+          in: query
+          description: Comma-separated owner UUIDs. Unknown, malformed, or out-of-scope values are dropped.
+          style: form
+          explode: false
+          schema:
+            type: array
+            uniqueItems: true
+            items: { type: string, format: uuid }
+        - name: partnershipTypes
+          in: query
+          description: Comma-separated partnership types.
+          style: form
+          explode: false
+          schema:
+            type: array
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/PartnershipType' }
+        - name: statuses
+          in: query
+          description: Comma-separated lifecycle statuses.
+          style: form
+          explode: false
+          schema:
+            type: array
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/PartnershipStatus' }
+        - name: workflowStatuses
+          in: query
+          description: Comma-separated latest K-1 workflow statuses, including NO_K1_YEAR.
+          style: form
+          explode: false
+          schema:
+            type: array
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/AggregationWorkflowStatus' }
+        - name: dataQuality
+          in: query
+          description: Comma-separated exclusive data-quality buckets.
+          style: form
+          explode: false
+          schema:
+            type: array
+            uniqueItems: true
+            items: { $ref: '#/components/schemas/PartnershipDataQuality' }
+        - name: sort
+          in: query
+          schema:
+            $ref: '#/components/schemas/AggregationSort'
+          description: Defaults to partnership.
+        - name: direction
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+          description: Defaults to asc.
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            enum: [25, 50, 100]
+            default: 50
+      responses:
+        '200':
+          description: Internally consistent page, complete filtered rollup, facets, and normalized query state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnershipAggregationResponse'
+        '401':
+          description: Authentication required.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '403':
+          description: Partnership scope unavailable or forbidden.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '503':
+          description: PostgreSQL is required but unavailable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+components:
+  schemas:
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      examples: ['125000.00', '0.00', '-2500.00']
+    Ratio:
+      type: string
+      pattern: '^-?\d+\.\d{8}$'
+      examples: ['0.25000000', '1.50000000']
+    Date:
+      type: string
+      format: date
+    DateTime:
+      type: string
+      format: date-time
+    PartnershipType:
+      type: string
+      enum: [Private Equity, Real Estate, Hedge Fund, Venture Capital, Credit, Infrastructure, Other]
+    PartnershipStatus:
+      type: string
+      enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED]
+    TrackerWorkflowStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, NEEDS_REVIEW, RECONCILED]
+    AggregationWorkflowStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, NEEDS_REVIEW, RECONCILED, NO_K1_YEAR]
+    PartnershipDataQuality:
+      type: string
+      enum: [COMPLETE, MISSING_DATA, WARNINGS]
+    AggregationSort:
+      type: string
+      enum:
+        - partnership
+        - owner
+        - type
+        - status
+        - commitment
+        - paidIn
+        - distributions
+        - nav
+        - unfunded
+        - dpi
+        - tvpi
+        - irr
+        - latestTaxYear
+        - warningCount
+    MetricAvailability:
+      type: string
+      enum:
+        - AVAILABLE
+        - MISSING_CONTRIBUTIONS
+        - MISSING_DISTRIBUTIONS
+        - MISSING_NAV
+        - MISSING_INCEPTION_DATE
+        - MISSING_COMMITMENT
+        - MISSING_OUTSIDE_BASIS
+        - NAV_PRECEDES_CASH_FLOWS
+        - INSUFFICIENT_CASH_FLOWS
+        - AMBIGUOUS_IRR
+    PartnershipPerformanceStatus:
+      type: object
+      additionalProperties: false
+      required: [dpi, tvpi, irr, annualizedCashOnCashYield, unfundedCommitment, unrealizedGain]
+      properties:
+        dpi: { $ref: '#/components/schemas/MetricAvailability' }
+        tvpi: { $ref: '#/components/schemas/MetricAvailability' }
+        irr: { $ref: '#/components/schemas/MetricAvailability' }
+        annualizedCashOnCashYield: { $ref: '#/components/schemas/MetricAvailability' }
+        unfundedCommitment: { $ref: '#/components/schemas/MetricAvailability' }
+        unrealizedGain: { $ref: '#/components/schemas/MetricAvailability' }
+    OwnerRef:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    PartnershipIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - entity
+        - name
+        - partnershipType
+        - status
+        - notes
+        - inceptionDate
+        - managementFeeRate
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        entity: { $ref: '#/components/schemas/OwnerRef' }
+        name: { type: string }
+        partnershipType: { $ref: '#/components/schemas/PartnershipType' }
+        status: { $ref: '#/components/schemas/PartnershipStatus' }
+        notes: { type: [string, 'null'] }
+        inceptionDate:
+          oneOf:
+            - { $ref: '#/components/schemas/Date' }
+            - { type: 'null' }
+        managementFeeRate:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        createdAt: { $ref: '#/components/schemas/DateTime' }
+        updatedAt: { $ref: '#/components/schemas/DateTime' }
+    DatedMoney:
+      type: object
+      additionalProperties: false
+      required: [amount, date]
+      properties:
+        amount: { $ref: '#/components/schemas/Money' }
+        date: { $ref: '#/components/schemas/Date' }
+    NullableMoney:
+      oneOf:
+        - { $ref: '#/components/schemas/Money' }
+        - { type: 'null' }
+    NullableRatio:
+      oneOf:
+        - { $ref: '#/components/schemas/Ratio' }
+        - { type: 'null' }
+    PartnershipAggregateRow:
+      type: object
+      additionalProperties: false
+      required:
+        - partnership
+        - currentCommittedCapital
+        - latestNav
+        - earliestK1Year
+        - latestTaxYear
+        - latestWorkflowStatus
+        - latestEndingOutsideBasis
+        - latestSectionLCapital
+        - totalCapitalContributions
+        - totalDistributions
+        - dpi
+        - tvpi
+        - irr
+        - irrTerminalDate
+        - irrUsesCarriedForwardNav
+        - annualizedCashOnCashYield
+        - performanceAsOfDate
+        - unfundedCommitmentAmount
+        - unfundedCommitmentPercentage
+        - unrealizedGain
+        - performanceStatus
+        - warningCount
+        - dataQuality
+      properties:
+        partnership: { $ref: '#/components/schemas/PartnershipIdentity' }
+        currentCommittedCapital:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        latestNav:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        earliestK1Year: { type: [integer, 'null'] }
+        latestTaxYear: { type: [integer, 'null'] }
+        latestWorkflowStatus:
+          oneOf:
+            - { $ref: '#/components/schemas/TrackerWorkflowStatus' }
+            - { type: 'null' }
+        latestEndingOutsideBasis: { $ref: '#/components/schemas/NullableMoney' }
+        latestSectionLCapital: { $ref: '#/components/schemas/NullableMoney' }
+        totalCapitalContributions: { $ref: '#/components/schemas/NullableMoney' }
+        totalDistributions: { $ref: '#/components/schemas/NullableMoney' }
+        dpi: { $ref: '#/components/schemas/NullableRatio' }
+        tvpi: { $ref: '#/components/schemas/NullableRatio' }
+        irr: { $ref: '#/components/schemas/NullableRatio' }
+        irrTerminalDate:
+          oneOf:
+            - { $ref: '#/components/schemas/Date' }
+            - { type: 'null' }
+        irrUsesCarriedForwardNav: { type: boolean }
+        annualizedCashOnCashYield: { $ref: '#/components/schemas/NullableRatio' }
+        performanceAsOfDate: { $ref: '#/components/schemas/Date' }
+        unfundedCommitmentAmount: { $ref: '#/components/schemas/NullableMoney' }
+        unfundedCommitmentPercentage: { $ref: '#/components/schemas/NullableRatio' }
+        unrealizedGain: { $ref: '#/components/schemas/NullableMoney' }
+        performanceStatus: { $ref: '#/components/schemas/PartnershipPerformanceStatus' }
+        warningCount: { type: integer, minimum: 0 }
+        dataQuality: { $ref: '#/components/schemas/PartnershipDataQuality' }
+    CoveredMoney:
+      type: object
+      additionalProperties: false
+      required: [amount, knownCount, totalCount]
+      properties:
+        amount: { $ref: '#/components/schemas/NullableMoney' }
+        knownCount: { type: integer, minimum: 0 }
+        totalCount: { type: integer, minimum: 0 }
+    AggregateRatioStatus:
+      type: string
+      enum: [AVAILABLE, PARTIAL_COVERAGE, NO_DATA, ZERO_DENOMINATOR]
+    CoveredRatio:
+      type: object
+      additionalProperties: false
+      required: [value, status, numeratorKnownCount, denominatorKnownCount, totalCount]
+      properties:
+        value: { $ref: '#/components/schemas/NullableRatio' }
+        status: { $ref: '#/components/schemas/AggregateRatioStatus' }
+        numeratorKnownCount: { type: integer, minimum: 0 }
+        denominatorKnownCount: { type: integer, minimum: 0 }
+        totalCount: { type: integer, minimum: 0 }
+    NavValuationRange:
+      type: object
+      additionalProperties: false
+      required: [earliest, latest]
+      properties:
+        earliest:
+          oneOf:
+            - { $ref: '#/components/schemas/Date' }
+            - { type: 'null' }
+        latest:
+          oneOf:
+            - { $ref: '#/components/schemas/Date' }
+            - { type: 'null' }
+    PartnershipPortfolioRollup:
+      type: object
+      additionalProperties: false
+      required:
+        - partnershipCount
+        - committedCapital
+        - paidInCapital
+        - distributions
+        - latestNav
+        - unfundedCommitment
+        - dpi
+        - tvpi
+        - asOfDate
+        - navValuationRange
+      properties:
+        partnershipCount: { type: integer, minimum: 0 }
+        committedCapital: { $ref: '#/components/schemas/CoveredMoney' }
+        paidInCapital: { $ref: '#/components/schemas/CoveredMoney' }
+        distributions: { $ref: '#/components/schemas/CoveredMoney' }
+        latestNav: { $ref: '#/components/schemas/CoveredMoney' }
+        unfundedCommitment: { $ref: '#/components/schemas/CoveredMoney' }
+        dpi: { $ref: '#/components/schemas/CoveredRatio' }
+        tvpi: { $ref: '#/components/schemas/CoveredRatio' }
+        asOfDate: { $ref: '#/components/schemas/Date' }
+        navValuationRange: { $ref: '#/components/schemas/NavValuationRange' }
+    FacetOptionString:
+      type: object
+      additionalProperties: false
+      required: [value, label, count]
+      properties:
+        value: { type: string }
+        label: { type: string }
+        count: { type: integer, minimum: 0 }
+    FacetOptionUuid:
+      type: object
+      additionalProperties: false
+      required: [value, label, count]
+      properties:
+        value: { type: string, format: uuid }
+        label: { type: string }
+        count: { type: integer, minimum: 0 }
+    PartnershipAggregationFacets:
+      type: object
+      additionalProperties: false
+      required: [owners, partnershipTypes, statuses, workflowStatuses, dataQuality]
+      properties:
+        owners:
+          type: array
+          items: { $ref: '#/components/schemas/FacetOptionUuid' }
+        partnershipTypes:
+          type: array
+          items: { $ref: '#/components/schemas/FacetOptionString' }
+        statuses:
+          type: array
+          items: { $ref: '#/components/schemas/FacetOptionString' }
+        workflowStatuses:
+          type: array
+          items: { $ref: '#/components/schemas/FacetOptionString' }
+        dataQuality:
+          type: array
+          items: { $ref: '#/components/schemas/FacetOptionString' }
+    PartnershipAggregationQuery:
+      type: object
+      additionalProperties: false
+      required:
+        - ownerIds
+        - partnershipTypes
+        - statuses
+        - workflowStatuses
+        - dataQuality
+        - sort
+        - direction
+        - page
+        - pageSize
+      properties:
+        search: { type: string, maxLength: 200 }
+        ownerIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
+        partnershipTypes:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/PartnershipType' }
+        statuses:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/PartnershipStatus' }
+        workflowStatuses:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AggregationWorkflowStatus' }
+        dataQuality:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/PartnershipDataQuality' }
+        sort: { $ref: '#/components/schemas/AggregationSort' }
+        direction: { type: string, enum: [asc, desc] }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, enum: [25, 50, 100] }
+    PartnershipAggregationPageInfo:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, totalItems, totalPages, hasPreviousPage, hasNextPage]
+      properties:
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, enum: [25, 50, 100] }
+        totalItems: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        hasPreviousPage: { type: boolean }
+        hasNextPage: { type: boolean }
+    PartnershipAggregationResponse:
+      type: object
+      additionalProperties: false
+      required: [query, rollup, facets, items, pageInfo]
+      properties:
+        query: { $ref: '#/components/schemas/PartnershipAggregationQuery' }
+        rollup: { $ref: '#/components/schemas/PartnershipPortfolioRollup' }
+        facets: { $ref: '#/components/schemas/PartnershipAggregationFacets' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PartnershipAggregateRow' }
+        pageInfo: { $ref: '#/components/schemas/PartnershipAggregationPageInfo' }
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details: {}

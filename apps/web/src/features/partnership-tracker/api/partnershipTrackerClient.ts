@@ -1,9 +1,17 @@
+import {
+  PARTNERSHIP_AGGREGATION_SORTS,
+  PARTNERSHIP_AGGREGATION_WORKFLOWS,
+  PARTNERSHIP_DATA_QUALITIES,
+  PARTNERSHIP_TYPES,
+} from '../../../../../../packages/types/src/partnership-tracker'
 import type {
   CalculatePartnershipTrackerYearRequest,
   CreatePartnershipCommitmentEntryRequest,
   CreatePartnershipNavEntryRequest,
   CreateTrackedPartnershipRequest,
   K1TrackerCalculation,
+  PartnershipAggregationQuery,
+  PartnershipAggregationResponse,
   PartnershipCommitmentEntry,
   PartnershipManagementFeeEstimate,
   PartnershipNavEntry,
@@ -59,11 +67,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 const root = '/partnership-tracker/partnerships'
+const aggregationRoot = '/partnership-tracker/aggregation'
 export type PartnershipTrackerListParams = {
   search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit?: number; cursor?: string
 }
 
+export type PartnershipAggregationParams = Partial<PartnershipAggregationQuery>
+
+const canonicalValues = <T extends string>(values: readonly T[] | undefined, order: readonly T[]) => {
+  if (!values?.length) return []
+  const selected = new Set(values)
+  return order.filter((value) => selected.has(value))
+}
+
+export function serializePartnershipAggregationParams(params: PartnershipAggregationParams = {}): string {
+  const query = new URLSearchParams()
+  const search = params.search?.trim()
+  if (search) query.set('search', search.slice(0, 200))
+  const ownerIds = [...new Set(params.ownerIds ?? [])].sort()
+  if (ownerIds.length) query.set('ownerIds', ownerIds.join(','))
+  const partnershipTypes = canonicalValues(params.partnershipTypes, PARTNERSHIP_TYPES)
+  if (partnershipTypes.length) query.set('partnershipTypes', partnershipTypes.join(','))
+  const statuses = canonicalValues(params.statuses, ['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED'] as const)
+  if (statuses.length) query.set('statuses', statuses.join(','))
+  const workflowStatuses = canonicalValues(params.workflowStatuses, PARTNERSHIP_AGGREGATION_WORKFLOWS)
+  if (workflowStatuses.length) query.set('workflowStatuses', workflowStatuses.join(','))
+  const dataQuality = canonicalValues(params.dataQuality, PARTNERSHIP_DATA_QUALITIES)
+  if (dataQuality.length) query.set('dataQuality', dataQuality.join(','))
+  if (params.sort && params.sort !== 'partnership' && PARTNERSHIP_AGGREGATION_SORTS.includes(params.sort)) query.set('sort', params.sort)
+  if (params.direction === 'desc') query.set('direction', 'desc')
+  if (params.page && params.page > 1) query.set('page', String(Math.floor(params.page)))
+  if (params.pageSize === 25 || params.pageSize === 100) query.set('pageSize', String(params.pageSize))
+  return query.toString()
+}
+
 export const partnershipTrackerClient = {
+  aggregation(params: PartnershipAggregationParams = {}): Promise<PartnershipAggregationResponse> {
+    const query = serializePartnershipAggregationParams(params)
+    return request(`${aggregationRoot}${query ? `?${query}` : ''}`)
+  },
   list(params: PartnershipTrackerListParams = {}): Promise<PartnershipTrackerListResponse> {
     const query = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) if (value != null && value !== '') query.set(key, String(value))

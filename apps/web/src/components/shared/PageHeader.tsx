@@ -1,5 +1,5 @@
 import React, { Fragment } from 'react'
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 
 export interface PageHeaderProps {
@@ -11,10 +11,11 @@ export interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle, breadcrumbs, actions }: PageHeaderProps) {
   const isExternalUrl = (href: string) => /^([a-z][a-z\d+\-.]*:)?\/\//i.test(href)
+  const reduceMotion = useReducedMotion()
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: -10 }}
+      initial={reduceMotion ? false : { opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4"
     >

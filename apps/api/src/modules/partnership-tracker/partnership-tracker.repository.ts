@@ -7,6 +7,8 @@ import { k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
 import { recomputeActiveCommitmentMarker } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
+  PartnershipAggregationQuery,
+  PartnershipAggregationResponse,
   PartnershipCommitmentEntry,
   PartnershipManagementFeeEstimate,
   PartnershipNavEntry,
@@ -17,6 +19,7 @@ import type {
   PartnershipType,
 } from './partnership-tracker.contracts.js'
 import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
+import { composePartnershipAggregation } from './partnership-aggregation.js'
 import { composePartnershipPerformance, type PartnershipAnnualPerformanceValue } from './partnership-performance.js'
 import { calculateManagementFeeEstimate } from './management-fee.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
@@ -127,7 +130,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
 
 const summaryRows = async (
   scope: PartnershipTrackerScope,
-  filters: { search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit: number; offset: number; partnershipId?: string },
+  filters: { search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit?: number; offset?: number; partnershipId?: string },
 ): Promise<PartnershipRow[]> => {
   const params: unknown[] = []
   const where: string[] = []
@@ -137,9 +140,13 @@ const summaryRows = async (
   if (filters.entityId) { params.push(filters.entityId); where.push(`p.entity_id = $${params.length}`) }
   if (filters.partnershipType) { params.push(filters.partnershipType); where.push(`p.asset_class = $${params.length}`) }
   if (filters.status) { params.push(filters.status); where.push(`p.status = $${params.length}`) }
-  params.push(filters.limit, filters.offset)
-  const limitIndex = params.length - 1
-  const offsetIndex = params.length
+  let pagination = ''
+  if (filters.limit != null) {
+    params.push(filters.limit, filters.offset ?? 0)
+    const limitIndex = params.length - 1
+    const offsetIndex = params.length
+    pagination = `limit $${limitIndex} offset $${offsetIndex}`
+  }
   return (await database().query<PartnershipRow>(`
     select p.id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
       p.inception_date, p.management_fee_rate, p.created_at, p.updated_at,
@@ -202,7 +209,7 @@ const summaryRows = async (
     ) latest_year on true
     ${where.length ? `where ${where.join(' and ')}` : ''}
     order by lower(p.name), p.id
-    limit $${limitIndex} offset $${offsetIndex}
+    ${pagination}
   `, params)).rows
 }
 
@@ -236,6 +243,11 @@ const mapNav = (row: NavRow): PartnershipNavEntry => ({
 })
 
 export const partnershipTrackerRepository = {
+  async getAggregation(scope: PartnershipTrackerScope, query: PartnershipAggregationQuery): Promise<PartnershipAggregationResponse> {
+    const rows = await summaryRows(scope, {})
+    return composePartnershipAggregation(rows.map(mapSummary), query)
+  },
+
   async listPartnerships(scope: PartnershipTrackerScope, filters: { search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit: number; cursor?: string }): Promise<PartnershipTrackerListResponse> {
     const offset = Number(filters.cursor ?? 0)
     const rows = await summaryRows(scope, { ...filters, offset })

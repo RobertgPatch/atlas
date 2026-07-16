@@ -24,6 +24,21 @@ describe('Partnership Tracker HTTP contract', () => {
     expect(badType.statusCode).toBe(400)
   })
 
+  it('protects the aggregation route and parses it before the partnership id route', async () => {
+    const unauthenticated = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/partnership-tracker/aggregation',
+    })
+    expect(unauthenticated.statusCode).toBe(401)
+
+    const authenticated = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/partnership-tracker/aggregation?page=invalid&pageSize=999&sort=unknown',
+      headers: { cookie: fixture.cookie },
+    })
+    expect(authenticated.statusCode).toBe(pool ? 200 : 503)
+  })
+
   it('validates inception dates and unit-ratio management fee configuration', () => {
     const validCreate = createTrackedPartnershipBodySchema.safeParse({
       entityId: fixture.entityIds[0],

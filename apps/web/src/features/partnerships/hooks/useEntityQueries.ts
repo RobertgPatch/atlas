@@ -8,6 +8,7 @@ const invalidateOwnerReads = (qc: ReturnType<typeof useQueryClient>) => Promise.
   qc.invalidateQueries({ queryKey: ['k1'] }),
   qc.invalidateQueries({ queryKey: ['k1-tracker'] }),
   qc.invalidateQueries({ queryKey: ['partnership-tracker'] }),
+  qc.invalidateQueries({ queryKey: ['partnership-tracker', 'aggregation'] }),
   qc.invalidateQueries({ queryKey: ['partnerships-list'] }),
   qc.invalidateQueries({ queryKey: ['partnership'] }),
   qc.invalidateQueries({ queryKey: ['dashboard'] }),

@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan:
-specs/017-partnership-tracker-revisions/plan.md
+specs/018-partnership-aggregation/plan.md
 <!-- SPECKIT END -->

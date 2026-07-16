@@ -144,6 +144,121 @@ export interface PartnershipTrackerListResponse {
   nextCursor: string | null
 }
 
+export const PARTNERSHIP_AGGREGATION_WORKFLOWS = [
+  'NOT_STARTED',
+  'IN_PROGRESS',
+  'NEEDS_REVIEW',
+  'RECONCILED',
+  'NO_K1_YEAR',
+] as const
+export type PartnershipAggregationWorkflow = (typeof PARTNERSHIP_AGGREGATION_WORKFLOWS)[number]
+
+export const PARTNERSHIP_DATA_QUALITIES = ['COMPLETE', 'MISSING_DATA', 'WARNINGS'] as const
+export type PartnershipDataQuality = (typeof PARTNERSHIP_DATA_QUALITIES)[number]
+
+export const PARTNERSHIP_AGGREGATION_SORTS = [
+  'partnership',
+  'owner',
+  'type',
+  'status',
+  'commitment',
+  'paidIn',
+  'distributions',
+  'nav',
+  'unfunded',
+  'dpi',
+  'tvpi',
+  'irr',
+  'latestTaxYear',
+  'warningCount',
+] as const
+export type PartnershipAggregationSort = (typeof PARTNERSHIP_AGGREGATION_SORTS)[number]
+export type PartnershipAggregationDirection = 'asc' | 'desc'
+export type PartnershipAggregationPageSize = 25 | 50 | 100
+
+export interface PartnershipAggregationQuery {
+  search?: string
+  ownerIds: string[]
+  partnershipTypes: PartnershipType[]
+  statuses: PartnershipStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality[]
+  sort: PartnershipAggregationSort
+  direction: PartnershipAggregationDirection
+  page: number
+  pageSize: PartnershipAggregationPageSize
+}
+
+export interface PartnershipAggregateRow extends PartnershipTrackerSummary {
+  dataQuality: PartnershipDataQuality
+}
+
+export interface PartnershipAggregationCoveredMoney {
+  amount: PartnershipTrackerMoney | null
+  knownCount: number
+  totalCount: number
+}
+
+export const PARTNERSHIP_AGGREGATION_RATIO_STATUSES = [
+  'AVAILABLE',
+  'PARTIAL_COVERAGE',
+  'NO_DATA',
+  'ZERO_DENOMINATOR',
+] as const
+export type PartnershipAggregationRatioStatus = (typeof PARTNERSHIP_AGGREGATION_RATIO_STATUSES)[number]
+
+export interface PartnershipAggregationCoveredRatio {
+  value: PartnershipTrackerRatio | null
+  status: PartnershipAggregationRatioStatus
+  numeratorKnownCount: number
+  denominatorKnownCount: number
+  totalCount: number
+}
+
+export interface PartnershipPortfolioRollup {
+  partnershipCount: number
+  committedCapital: PartnershipAggregationCoveredMoney
+  paidInCapital: PartnershipAggregationCoveredMoney
+  distributions: PartnershipAggregationCoveredMoney
+  latestNav: PartnershipAggregationCoveredMoney
+  unfundedCommitment: PartnershipAggregationCoveredMoney
+  dpi: PartnershipAggregationCoveredRatio
+  tvpi: PartnershipAggregationCoveredRatio
+  asOfDate: string
+  navValuationRange: { earliest: string | null; latest: string | null }
+}
+
+export interface PartnershipAggregationFacetOption<T extends string = string> {
+  value: T
+  label: string
+  count: number
+}
+
+export interface PartnershipAggregationFacetSet {
+  owners: PartnershipAggregationFacetOption<string>[]
+  partnershipTypes: PartnershipAggregationFacetOption<PartnershipType>[]
+  statuses: PartnershipAggregationFacetOption<PartnershipStatus>[]
+  workflowStatuses: PartnershipAggregationFacetOption<PartnershipAggregationWorkflow>[]
+  dataQuality: PartnershipAggregationFacetOption<PartnershipDataQuality>[]
+}
+
+export interface PartnershipAggregationPageInfo {
+  page: number
+  pageSize: PartnershipAggregationPageSize
+  totalItems: number
+  totalPages: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
+}
+
+export interface PartnershipAggregationResponse {
+  query: PartnershipAggregationQuery
+  rollup: PartnershipPortfolioRollup
+  facets: PartnershipAggregationFacetSet
+  items: PartnershipAggregateRow[]
+  pageInfo: PartnershipAggregationPageInfo
+}
+
 export interface CreateTrackedPartnershipRequest {
   entityId: string
   name: string

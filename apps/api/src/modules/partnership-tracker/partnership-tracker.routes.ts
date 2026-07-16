@@ -13,6 +13,7 @@ import {
   deleteNavHandler,
   getManualYearHandler,
   getManagementFeesHandler,
+  getPartnershipAggregationHandler,
   getPartnershipTrackerHandler,
   listCommitmentsHandler,
   listNavHandler,
@@ -27,6 +28,7 @@ import {
 export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Promise<void> => {
   const gated = { preHandler: [withSession, requireAuthenticated, requirePartnershipScope] }
   const root = '/partnership-tracker/partnerships'
+  app.get('/partnership-tracker/aggregation', gated, getPartnershipAggregationHandler)
   app.get(root, gated, listPartnershipTrackerHandler)
   app.post(root, gated, createPartnershipTrackerHandler)
   app.get(`${root}/:partnershipId`, gated, getPartnershipTrackerHandler)
