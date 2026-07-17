@@ -1,4 +1,5 @@
 import type {
+  PartnershipAggregateGroup,
   PartnershipAggregateRow,
   PartnershipAggregationCoveredMoney,
   PartnershipAggregationCoveredRatio,
@@ -184,22 +185,67 @@ const compareText = (left: string, right: string) => left.localeCompare(right, '
 
 const rank = <T extends string>(values: readonly T[], value: T) => values.indexOf(value)
 
-const sortValue = (row: PartnershipAggregateRow, sort: PartnershipAggregationQuery['sort']): string | number | bigint | null => {
+const normalizePartnershipName = (value: string) => value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US')
+
+const groupRows = (rows: PartnershipAggregateRow[], asOfDate: string): PartnershipAggregateGroup[] => {
+  const grouped = new Map<string, PartnershipAggregateRow[]>()
+  for (const row of rows) {
+    const groupKey = row.partnership.aggregationGroupId
+      ?? `${encodeURIComponent(row.partnership.partnershipType)}::${encodeURIComponent(normalizePartnershipName(row.partnership.name))}`
+    const members = grouped.get(groupKey)
+    if (members) members.push(row)
+    else grouped.set(groupKey, [row])
+  }
+
+  return [...grouped.entries()].map(([groupKey, unsortedMembers]) => {
+    const members = [...unsortedMembers].sort((left, right) => (
+      compareText(left.partnership.entity.name, right.partnership.entity.name)
+      || left.partnership.entity.id.localeCompare(right.partnership.entity.id)
+      || left.partnership.id.localeCompare(right.partnership.id)
+    ))
+    const representative = [...members].sort((left, right) => (
+      compareText(left.partnership.name, right.partnership.name) || left.partnership.id.localeCompare(right.partnership.id)
+    ))[0]
+    const lifecycleStatuses = LIFECYCLE_STATUSES.filter((status) => members.some((member) => member.partnership.status === status))
+    const workflowStatuses = PARTNERSHIP_AGGREGATION_WORKFLOWS.filter((status) => members.some((member) => (member.latestWorkflowStatus ?? 'NO_K1_YEAR') === status))
+    const ownerCount = new Set(members.map((member) => member.partnership.entity.id)).size
+    const latestTaxYears = members.flatMap((member) => member.latestTaxYear == null ? [] : [member.latestTaxYear])
+    const dataQuality = members.some((member) => member.dataQuality === 'WARNINGS')
+      ? 'WARNINGS'
+      : members.some((member) => member.dataQuality === 'MISSING_DATA') ? 'MISSING_DATA' : 'COMPLETE'
+
+    return {
+      groupKey,
+      name: representative.partnership.name.trim().replace(/\s+/g, ' '),
+      partnershipType: representative.partnership.partnershipType,
+      ownerCount,
+      lifecycleStatuses,
+      workflowStatuses,
+      dataQuality,
+      latestTaxYear: latestTaxYears.length ? Math.max(...latestTaxYears) : null,
+      warningCount: members.reduce((total, member) => total + member.warningCount, 0),
+      totals: rollupFor(members, asOfDate, 1),
+      members,
+    }
+  })
+}
+
+const sortValue = (group: PartnershipAggregateGroup, sort: PartnershipAggregationQuery['sort']): string | number | bigint | null => {
   switch (sort) {
-    case 'partnership': return row.partnership.name
-    case 'owner': return row.partnership.entity.name
-    case 'type': return rank(PARTNERSHIP_TYPES, row.partnership.partnershipType)
-    case 'status': return rank(LIFECYCLE_STATUSES, row.partnership.status)
-    case 'commitment': return row.currentCommittedCapital ? moneyToCents(row.currentCommittedCapital.amount) : null
-    case 'paidIn': return row.totalCapitalContributions == null ? null : moneyToCents(row.totalCapitalContributions)
-    case 'distributions': return row.totalDistributions == null ? null : moneyToCents(row.totalDistributions)
-    case 'nav': return row.latestNav == null ? null : moneyToCents(row.latestNav.amount)
-    case 'unfunded': return row.unfundedCommitmentAmount == null ? null : moneyToCents(row.unfundedCommitmentAmount)
-    case 'dpi': return row.dpi == null ? null : decimalToUnits(row.dpi)
-    case 'tvpi': return row.tvpi == null ? null : decimalToUnits(row.tvpi)
-    case 'irr': return row.irr == null ? null : decimalToUnits(row.irr)
-    case 'latestTaxYear': return row.latestTaxYear
-    case 'warningCount': return row.warningCount
+    case 'partnership': return group.name
+    case 'owner': return group.members[0]?.partnership.entity.name ?? null
+    case 'type': return rank(PARTNERSHIP_TYPES, group.partnershipType)
+    case 'status': return group.lifecycleStatuses.length === 1 ? rank(LIFECYCLE_STATUSES, group.lifecycleStatuses[0]) : null
+    case 'commitment': return group.totals.committedCapital.amount == null ? null : moneyToCents(group.totals.committedCapital.amount)
+    case 'paidIn': return group.totals.paidInCapital.amount == null ? null : moneyToCents(group.totals.paidInCapital.amount)
+    case 'distributions': return group.totals.distributions.amount == null ? null : moneyToCents(group.totals.distributions.amount)
+    case 'nav': return group.totals.latestNav.amount == null ? null : moneyToCents(group.totals.latestNav.amount)
+    case 'unfunded': return group.totals.unfundedCommitment.amount == null ? null : moneyToCents(group.totals.unfundedCommitment.amount)
+    case 'dpi': return group.totals.dpi.value == null ? null : decimalToUnits(group.totals.dpi.value)
+    case 'tvpi': return group.totals.tvpi.value == null ? null : decimalToUnits(group.totals.tvpi.value)
+    case 'irr': return group.members.length === 1 && group.members[0].irr != null ? decimalToUnits(group.members[0].irr) : null
+    case 'latestTaxYear': return group.latestTaxYear
+    case 'warningCount': return group.warningCount
   }
 }
 
@@ -208,19 +254,19 @@ const compareKnown = (left: string | number | bigint, right: string | number | b
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-const sortRows = (rows: PartnershipAggregateRow[], query: PartnershipAggregationQuery) => [...rows].sort((left, right) => {
+const sortGroups = (groups: PartnershipAggregateGroup[], query: PartnershipAggregationQuery) => [...groups].sort((left, right) => {
   const leftValue = sortValue(left, query.sort)
   const rightValue = sortValue(right, query.sort)
   if (leftValue == null || rightValue == null) {
-    if (leftValue == null && rightValue == null) return compareText(left.partnership.name, right.partnership.name) || left.partnership.id.localeCompare(right.partnership.id)
+    if (leftValue == null && rightValue == null) return compareText(left.name, right.name) || left.groupKey.localeCompare(right.groupKey)
     return leftValue == null ? 1 : -1
   }
   const primary = compareKnown(leftValue, rightValue)
   if (primary !== 0) return query.direction === 'desc' ? -primary : primary
-  return compareText(left.partnership.name, right.partnership.name) || left.partnership.id.localeCompare(right.partnership.id)
+  return compareText(left.name, right.name) || left.groupKey.localeCompare(right.groupKey)
 })
 
-const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string) => {
+const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershipCount = rows.length) => {
   const committedCapital = coveredMoney(rows, (row) => row.currentCommittedCapital?.amount)
   const paidInCapital = coveredMoney(rows, (row) => row.totalCapitalContributions)
   const distributions = coveredMoney(rows, (row) => row.totalDistributions)
@@ -249,7 +295,8 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string) => {
   )
   const navDates = rows.flatMap((row) => row.latestNav?.date ? [row.latestNav.date] : []).sort()
   return {
-    partnershipCount: rows.length,
+    partnershipCount,
+    ownerRecordCount: rows.length,
     committedCapital,
     paidInCapital,
     distributions,
@@ -271,14 +318,15 @@ export const composePartnershipAggregation = (
   const facets = composeFacets(baseRows)
   const query = normalizedQuery({ ...DEFAULT_PARTNERSHIP_AGGREGATION_QUERY, ...requestedQuery }, baseRows)
   const filtered = filterRows(baseRows, query)
-  const sorted = sortRows(filtered, query)
+  const grouped = groupRows(filtered, asOfDate)
+  const sorted = sortGroups(grouped, query)
   const totalPages = sorted.length === 0 ? 0 : Math.ceil(sorted.length / query.pageSize)
   const page = totalPages === 0 ? 1 : Math.min(query.page, totalPages)
   const start = (page - 1) * query.pageSize
   const normalized = { ...query, page }
   return {
     query: normalized,
-    rollup: rollupFor(filtered, asOfDate),
+    rollup: rollupFor(filtered, asOfDate, grouped.length),
     facets,
     items: sorted.slice(start, start + query.pageSize),
     pageInfo: {

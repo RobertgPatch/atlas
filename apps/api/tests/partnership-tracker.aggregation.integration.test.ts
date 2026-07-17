@@ -34,7 +34,7 @@ durable('Partnership aggregation PostgreSQL integration', () => {
 
     expect(response.statusCode).toBe(200)
     const body = response.json()
-    expect(body.items.map((row: { partnership: { name: string } }) => row.partnership.name)).toEqual([
+    expect(body.items.map((group: { name: string }) => group.name)).toEqual([
       'Alpha Growth I',
       'Beacon Credit',
       'Cedar Legacy',
@@ -74,7 +74,7 @@ durable('Partnership aggregation PostgreSQL integration', () => {
     const body = first.json()
     expect(body.query.ownerIds).toEqual([fixture.ownerIds.alder])
     expect(body.query.page).toBe(1)
-    expect(body.items.map((row: { partnership: { name: string } }) => row.partnership.name)).toEqual(['Alpha Growth I', 'Cedar Legacy'])
+    expect(body.items.map((group: { name: string }) => group.name)).toEqual(['Alpha Growth I', 'Cedar Legacy'])
     expect(body.rollup.partnershipCount).toBe(2)
     expect(body.facets.owners).toEqual(expect.arrayContaining([
       expect.objectContaining({ value: fixture.ownerIds.alder, count: 2 }),
@@ -103,14 +103,14 @@ durable('Partnership aggregation PostgreSQL integration', () => {
     const first = await app.inject({ method: 'GET', url: `/v1/partnership-tracker/aggregation?${baseQuery}`, headers: { cookie: fixture.adminCookie } })
     expect(first.statusCode).toBe(200)
     const firstBody = first.json()
-    const ids = firstBody.items.map((row: { partnership: { id: string } }) => row.partnership.id)
+    const ids = firstBody.items.map((group: { groupKey: string }) => group.groupKey)
     for (let page = 2; page <= firstBody.pageInfo.totalPages; page += 1) {
       const response = await app.inject({ method: 'GET', url: `/v1/partnership-tracker/aggregation?${baseQuery}&page=${page}`, headers: { cookie: fixture.adminCookie } })
       expect(response.statusCode).toBe(200)
       const body = response.json()
       expect(body.rollup).toEqual(firstBody.rollup)
       expect(body.facets).toEqual(firstBody.facets)
-      ids.push(...body.items.map((row: { partnership: { id: string } }) => row.partnership.id))
+      ids.push(...body.items.map((group: { groupKey: string }) => group.groupKey))
     }
     expect(ids).toHaveLength(firstBody.pageInfo.totalItems)
     expect(new Set(ids).size).toBe(ids.length)

@@ -94,6 +94,7 @@ export const createTrackedPartnershipBodySchema = z.object({
   entityId: partnershipTrackerUuidSchema,
   name: z.string().trim().min(1).max(120),
   partnershipType: partnershipTrackerTypeSchema,
+  existingPartnershipId: partnershipTrackerUuidSchema.optional(),
   notes: z.string().trim().max(10_000).nullable().optional(),
   inceptionDate: inceptionDateSchema.optional(),
   managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),

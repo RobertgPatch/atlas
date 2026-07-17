@@ -6,11 +6,11 @@ import { PartnershipAggregationTable } from '../components/aggregation/Partnersh
 import { partnershipLedgerColumns } from '../components/aggregation/partnershipAggregationColumns'
 import { aggregationResponseFixture } from './fixtures'
 
-function renderTable() {
+function renderTable(items = aggregationResponseFixture.items) {
   return render(
     <MemoryRouter>
       <PartnershipAggregationTable
-        items={aggregationResponseFixture.items}
+        items={items}
         rollup={aggregationResponseFixture.rollup}
         sort="partnership"
         direction="asc"
@@ -47,6 +47,43 @@ describe('PartnershipAggregationTable controls', () => {
     expect(partnershipColumn).toHaveStyle({ width: '304px' })
   })
 
+  it('shows one aggregated partnership row and expands its owner records', () => {
+    const first = structuredClone(aggregationResponseFixture.items[0]!)
+    const second = structuredClone(aggregationResponseFixture.items[1]!)
+    const group = {
+      ...first,
+      groupKey: 'ac-bell-group',
+      name: 'AC Bell Investors, LLC',
+      ownerCount: 2,
+      totals: {
+        ...first.totals,
+        ownerRecordCount: 2,
+        committedCapital: { amount: '300000.00', knownCount: 2, totalCount: 2 },
+        paidInCapital: { amount: '180000.00', knownCount: 2, totalCount: 2 },
+        distributions: { amount: '45000.00', knownCount: 2, totalCount: 2 },
+        latestNav: { amount: '225000.00', knownCount: 2, totalCount: 2 },
+        unfundedCommitment: { amount: '120000.00', knownCount: 2, totalCount: 2 },
+        dpi: { value: '0.25000000', status: 'AVAILABLE' as const, numeratorKnownCount: 2, denominatorKnownCount: 2, totalCount: 2 },
+        tvpi: { value: '1.50000000', status: 'AVAILABLE' as const, numeratorKnownCount: 2, denominatorKnownCount: 2, totalCount: 2 },
+        navValuationRange: { earliest: '2025-12-31', latest: '2026-03-31' },
+      },
+      members: [
+        { ...first.members[0]!, partnership: { ...first.members[0]!.partnership, name: 'AC Bell Investors, LLC' } },
+        { ...second.members[0]!, partnership: { ...second.members[0]!.partnership, name: 'AC Bell Investors, LLC' } },
+      ],
+    }
+    renderTable([group])
+
+    expect(screen.getByText('2 owners')).toBeInTheDocument()
+    expect(screen.getByText('$300,000')).toBeInTheDocument()
+    expect(screen.queryByText('Alder Family')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Expand AC Bell Investors, LLC owner details' }))
+    expect(screen.getByText('Alder Family')).toBeInTheDocument()
+    expect(screen.getByText('Beacon Holdings')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: /Open owner record/ })).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Collapse AC Bell Investors, LLC owner details' })).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('exports every visible row and the filtered rollup while honoring selected PDF columns', async () => {
     const write = vi.fn()
     const printWindow = {
@@ -77,7 +114,7 @@ describe('PartnershipAggregationTable controls', () => {
     expect(html).toContain('$350,000')
     expect(html).toContain('0.21×')
     expect(html).toContain('1.36×')
-    expect(html).toContain('3 of 4 partnerships')
+    expect(html).toContain('3 of 4 owner records')
     expect(html).toContain('4 visible partnerships')
     expect(html).toContain('Alpha Growth I')
     expect(html).toContain('Redwood Fund')
@@ -105,6 +142,6 @@ describe('PartnershipAggregationTable controls', () => {
     )
 
     expect(screen.getByText('$0')).toBeInTheDocument()
-    expect(screen.getByText('0 of 4 partnerships')).toBeInTheDocument()
+    expect(screen.getByText('0 of 4 owner records')).toBeInTheDocument()
   })
 })

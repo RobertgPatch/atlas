@@ -2,7 +2,7 @@
 
 ## Conventions
 
-- All models in this feature are authenticated, scoped read projections. No table or durable record is added.
+- Financial summaries remain authenticated, scoped read projections. A durable `partnerships.aggregation_group_id` identity links independent owner records without persisting calculated totals.
 - Public money is an exact decimal string with exactly two fractional digits, for example `"125000.00"`.
 - Public ratios are fixed-decimal unit-ratio strings with eight fractional digits, for example `"0.25000000"`; the web formats them as percentages or multiples according to the metric.
 - Dates are ISO `YYYY-MM-DD`; timestamps use existing ISO 8601 conventions.
@@ -67,7 +67,7 @@ PartnershipAggregationSort =
 
 ```text
 PartnershipAggregateRow
-  partnership: PartnershipTrackerIdentity
+  partnership: PartnershipTrackerIdentity (includes aggregationGroupId)
   currentCommittedCapital: DatedMoney | null
   latestNav: DatedMoney | null
   latestTaxYear: integer | null
@@ -93,6 +93,35 @@ The API may implement this as `PartnershipTrackerSummary & { dataQuality }`; the
 - Distributions and performance metrics reuse `composePartnershipPerformance` exactly; the aggregate feature does not recalculate row metrics.
 - Negative signed unfunded values remain negative.
 - A row is returned even if every optional financial value is missing.
+
+## 2A. Partnership Aggregate Group
+
+**Persistence**: only `partnerships.aggregation_group_id` is stored. Group totals and status summaries are derived on each request.
+
+```text
+PartnershipAggregateGroup
+  groupKey: UUID | legacy fallback key
+  name: string
+  partnershipType: PartnershipType
+  ownerCount: integer >= 1
+  lifecycleStatuses: PartnershipStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality
+  latestTaxYear: integer | null
+  warningCount: integer >= 0
+  totals: PartnershipPortfolioRollup
+  members: PartnershipAggregateRow[]
+```
+
+### Grouping Invariants
+
+- Scope and active filters apply to owner records first; remaining records are grouped before sorting and pagination.
+- New independent partnerships receive a new group UUID. `Existing partnership, new owner` creation inherits the selected in-scope record's group UUID, name, and type.
+- Migration 022 backfills legacy records with the same normalized name and partnership type to the earliest matching record ID as their shared group UUID.
+- `members` retain independent partnership IDs and all owner-specific K-1, commitment, NAV, status, notes, and performance values.
+- Additive parent values sum known member values as exact cents. Parent DPI and TVPI are recomputed from grouped totals.
+- Parent IRR is not calculated for multi-owner groups; the UI labels it as owner detail only.
+- Lifecycle and workflow arrays expose mixed parent states. Group quality uses warning priority, then missing data, then complete.
 
 ## 3. Partnership Data Quality
 
@@ -192,6 +221,7 @@ No aggregate IRR field exists.
 ```text
 PartnershipPortfolioRollup
   partnershipCount: integer >= 0
+  ownerRecordCount: integer >= 0
   committedCapital: CoveredMoney
   paidInCapital: CoveredMoney
   distributions: CoveredMoney
@@ -207,8 +237,9 @@ PartnershipPortfolioRollup
 
 ### Invariants
 
-- `partnershipCount` is the complete filtered count before pagination.
-- Every `CoveredMoney.totalCount` and `CoveredRatio.totalCount` equals `partnershipCount`.
+- `partnershipCount` is the complete grouped-partnership count before pagination.
+- `ownerRecordCount` is the number of filtered owner records contributing to group and portfolio calculations.
+- Every `CoveredMoney.totalCount` and `CoveredRatio.totalCount` equals `ownerRecordCount`.
 - KPI values are composed from the complete filtered row set, never the current page.
 - `asOfDate` is the common server calculation date from the summary projection/request.
 - NAV range uses only rows with known NAV values and dates; both ends are null when NAV coverage is zero.
@@ -252,7 +283,7 @@ PartnershipAggregationPageInfo
   hasNextPage: boolean
 ```
 
-- `totalItems` equals rollup `partnershipCount`.
+- `totalItems` equals rollup `partnershipCount` and counts groups, not owner records.
 - `totalPages = ceil(totalItems / pageSize)`, with `0` for an empty result.
 - Empty results normalize `page` to `1`, with both navigation flags false.
 - Filtering and sorting happen before page slicing.
@@ -265,7 +296,7 @@ PartnershipAggregationResponse
   query: PartnershipAggregationQuery
   rollup: PartnershipPortfolioRollup
   facets: PartnershipAggregationFacetSet
-  items: PartnershipAggregateRow[]
+  items: PartnershipAggregateGroup[]
   pageInfo: PartnershipAggregationPageInfo
 ```
 
@@ -290,8 +321,9 @@ authenticated request
   -> derive facets and quality
   -> normalize owner filter against base scope
   -> apply active filters
-  -> compose rollup
-  -> stable sort
+  -> group matching owner records
+  -> compose portfolio and group rollups
+  -> stable group sort
   -> page slice
   -> response
 ```

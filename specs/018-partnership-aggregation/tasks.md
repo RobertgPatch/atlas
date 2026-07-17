@@ -152,6 +152,19 @@
 
 ---
 
+## Phase 8: Multi-Owner Partnership Grouping
+
+**Goal**: Represent one investment once on All Partnerships while preserving every owner-specific Partnership workspace record and supporting intentional new-owner creation.
+
+- [X] T051 Add migration 022 with durable aggregation group IDs and legacy same-name/same-type backfill in apps/api/src/infra/db/migrations/022_partnership_aggregation_groups.sql
+- [X] T052 Extend shared/API/OpenAPI contracts with group identity, grouped response items, member rows, grouped totals, and owner-record coverage counts
+- [X] T053 Group filtered owner records before sorting/pagination and recompute exact group totals, DPI, and TVPI without averaging IRR in apps/api/src/modules/partnership-tracker/partnership-aggregation.ts
+- [X] T054 Add pure aggregation regression coverage for two AC Bell owner records producing one exact parent group in apps/api/tests/partnership-tracker.aggregation.test.ts
+- [X] T055 Build accessible expandable partnership parent rows and owner-detail child rows with individual workspace links in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationTable.tsx
+- [X] T056 Add `New partnership` / `Existing partnership, new owner` creation modes, inherited identity, unavailable-owner filtering, and focused UI coverage in AddPartnershipDialog.tsx and PartnershipCreationFlow.test.tsx
+- [X] T057 Validate existing-partnership references server-side, inherit their group/name/type, preserve independent owner records, and add group-aware repository projection behavior
+- [X] T058 Reconcile spec, plan, research, data model, quickstart, and OpenAPI documentation with grouped partnership semantics
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -291,6 +304,6 @@ After Foundation and US1 response props stabilize:
 
 - `[P]` means file-level parallelism after prerequisites, not permission to ignore dependency order.
 - Every user-story task includes its `[US#]` traceability label; Setup, Foundational, and Polish tasks intentionally do not.
-- There is no migration task: the feature adds read projections only.
+- Migration 022 persists only group identity; all financial totals remain read projections.
 - There is no export, chart, saved-view, bulk-edit, pooled-IRR, or persisted-summary task because those are explicitly out of scope.
 - Commit after each task or coherent test/implementation group; stop at each checkpoint to validate the story independently.

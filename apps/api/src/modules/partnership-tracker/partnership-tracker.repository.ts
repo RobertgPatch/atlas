@@ -25,7 +25,7 @@ import { calculateManagementFeeEstimate } from './management-fee.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
 
 type PartnershipRow = QueryResultRow & {
-  id: string; entity_id: string; entity_name: string; name: string; asset_class: string | null
+  id: string; aggregation_group_id: string; entity_id: string; entity_name: string; name: string; asset_class: string | null
   status: PartnershipTrackerSummary['partnership']['status']; notes: string | null
   inception_date: Date | string | null; management_fee_rate: string | null
   created_at: Date | string; updated_at: Date | string; current_commitment: string | null
@@ -92,6 +92,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
   return {
   partnership: {
     id: row.id,
+    aggregationGroupId: row.aggregation_group_id,
     entity: { id: row.entity_id, name: row.entity_name },
     name: row.name,
     partnershipType: partnershipType(row.asset_class),
@@ -148,7 +149,7 @@ const summaryRows = async (
     pagination = `limit $${limitIndex} offset $${offsetIndex}`
   }
   return (await database().query<PartnershipRow>(`
-    select p.id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
+    select p.id, p.aggregation_group_id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
       p.inception_date, p.management_fee_rate, p.created_at, p.updated_at,
       commitment.commitment_amount as current_commitment,
       commitment.effective_date as current_commitment_date,
@@ -275,17 +276,31 @@ export const partnershipTrackerRepository = {
     }
   },
 
-  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     validateInceptionDate(body.inceptionDate)
     const id = await withTransaction(async (client) => {
       const entity = (await client.query<{ id: string }>('select id from entities where id = $1', [body.entityId])).rows[0]
       if (!entity) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Entity was not found.')
       if (!scoped(body.entityId, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The entity is outside your scope.')
-      const duplicate = (await client.query('select 1 from partnerships where entity_id = $1 and lower(trim(name)) = lower(trim($2)) limit 1', [body.entityId, body.name])).rows[0]
+      const existing = body.existingPartnershipId == null ? null : (await client.query<{
+        id: string
+        entity_id: string
+        name: string
+        asset_class: string | null
+        aggregation_group_id: string
+      }>('select id, entity_id, name, asset_class, aggregation_group_id from partnerships where id = $1 for share', [body.existingPartnershipId])).rows[0]
+      if (body.existingPartnershipId && !existing) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'The existing partnership was not found.')
+      if (existing && !scoped(existing.entity_id, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The existing partnership is outside your scope.')
+      const resolvedName = existing?.name.trim() ?? body.name.trim()
+      const resolvedType = existing ? partnershipType(existing.asset_class) : body.partnershipType
+      const duplicate = (await client.query(`select 1 from partnerships
+        where entity_id = $1
+          and (lower(trim(name)) = lower(trim($2)) or ($3::uuid is not null and aggregation_group_id = $3::uuid))
+        limit 1`, [body.entityId, resolvedName, existing?.aggregation_group_id ?? null])).rows[0]
       if (duplicate) throw new PartnershipTrackerError('DUPLICATE_PARTNERSHIP_NAME', 409, 'A partnership with this name already exists for the entity.')
       const partnershipId = randomUUID()
-      const row = (await client.query(`insert into partnerships (id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate, created_at, updated_at)
-        values ($1,$2,$3,$4,'ACTIVE',$5,$6,$7,now(),now()) returning *`, [partnershipId, body.entityId, body.name.trim(), body.partnershipType, body.notes ?? null, body.inceptionDate ?? null, body.managementFeeRate ?? null])).rows[0]
+      const row = (await client.query(`insert into partnerships (id, aggregation_group_id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate, created_at, updated_at)
+        values ($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,now(),now()) returning *`, [partnershipId, existing?.aggregation_group_id ?? partnershipId, body.entityId, resolvedName, resolvedType, body.notes ?? null, body.inceptionDate ?? null, body.managementFeeRate ?? null])).rows[0]
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_CREATED, objectType: 'partnership', objectId: partnershipId, before: null, after: row }, client)
       return partnershipId
     })

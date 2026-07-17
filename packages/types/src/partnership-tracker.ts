@@ -49,6 +49,7 @@ export type PartnershipTrackerWorkflowStatus =
 
 export interface PartnershipTrackerIdentity {
   id: string
+  aggregationGroupId?: string
   entity: { id: string; name: string }
   name: string
   partnershipType: PartnershipType
@@ -217,6 +218,7 @@ export interface PartnershipAggregationCoveredRatio {
 
 export interface PartnershipPortfolioRollup {
   partnershipCount: number
+  ownerRecordCount: number
   committedCapital: PartnershipAggregationCoveredMoney
   paidInCapital: PartnershipAggregationCoveredMoney
   distributions: PartnershipAggregationCoveredMoney
@@ -226,6 +228,20 @@ export interface PartnershipPortfolioRollup {
   tvpi: PartnershipAggregationCoveredRatio
   asOfDate: string
   navValuationRange: { earliest: string | null; latest: string | null }
+}
+
+export interface PartnershipAggregateGroup {
+  groupKey: string
+  name: string
+  partnershipType: PartnershipType
+  ownerCount: number
+  lifecycleStatuses: PartnershipStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality
+  latestTaxYear: number | null
+  warningCount: number
+  totals: PartnershipPortfolioRollup
+  members: PartnershipAggregateRow[]
 }
 
 export interface PartnershipAggregationFacetOption<T extends string = string> {
@@ -255,7 +271,7 @@ export interface PartnershipAggregationResponse {
   query: PartnershipAggregationQuery
   rollup: PartnershipPortfolioRollup
   facets: PartnershipAggregationFacetSet
-  items: PartnershipAggregateRow[]
+  items: PartnershipAggregateGroup[]
   pageInfo: PartnershipAggregationPageInfo
 }
 
@@ -263,6 +279,7 @@ export interface CreateTrackedPartnershipRequest {
   entityId: string
   name: string
   partnershipType: PartnershipType
+  existingPartnershipId?: string
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null

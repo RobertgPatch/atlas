@@ -78,6 +78,25 @@ An investment administrator can review aggregate totals and locate partnerships 
 4. **Given** keyboard or assistive-technology use, **When** filters, sorting, pagination, and row links are operated, **Then** controls have labels, focus is visible, current sort is announced, and dynamic result counts are exposed without moving focus unexpectedly.
 5. **Given** reduced-motion preference, **When** results or filters change, **Then** nonessential transitions are disabled.
 
+---
+
+### User Story 5 - Consolidate One Partnership Across Owners (Priority: P1)
+
+An investment administrator sees one partnership-level row when the same investment is held by multiple owners, expands that row to review each owner record, and can deliberately add another owner record to an existing partnership aggregate.
+
+**Why this priority**: Owner-specific K-1s, commitments, NAV, and notes must remain independent in the workspace, but repeating the partnership in the portfolio ledger obscures the true partnership count and totals.
+
+**Independent Test**: Create two owner records for `AC Bell Investors, LLC` with different commitments, K-1 values, distributions, and NAV; verify one collapsed aggregate row shows exact summed values, expansion shows both linked owner records, and the individual workspace still lists two records.
+
+**Acceptance Scenarios**:
+
+1. **Given** two owner records share an aggregation group, **When** All Partnerships loads, **Then** one parent row represents the partnership and pagination counts it once.
+2. **Given** a collapsed multi-owner row, **When** it renders, **Then** additive amounts and DPI/TVPI are recomputed from all in-scope owner records while IRR is identified as owner-detail-only.
+3. **Given** a multi-owner row, **When** the user expands it, **Then** one child row per owner record shows that record's original values and links to its independent Partnership workspace.
+4. **Given** the Add Partnership dialog, **When** the administrator chooses `Existing partnership, new owner`, **Then** they select an existing partnership and an owner who does not already have that record; name and type are inherited and the new record joins the selected aggregate.
+5. **Given** the administrator chooses `New partnership`, **When** creation succeeds, **Then** a new aggregation identity is created even if a similarly named investment exists for another owner.
+6. **Given** duplicate legacy owner records with the same normalized name and partnership type, **When** the grouping migration runs, **Then** they receive one durable aggregation identity without merging their K-1, commitment, NAV, or other owner-specific data.
+
 ### Edge Cases
 
 - The scoped dataset is empty, or active filters match no partnerships.
@@ -90,6 +109,9 @@ An investment administrator can review aggregate totals and locate partnerships 
 - A partnership is created, renamed, reassigned, or deleted in another session while the aggregation page is open; refresh returns a stable, nonduplicated result set.
 - Signed unfunded commitment or unrealized gain can be negative and must retain its sign in row and portfolio totals.
 - Portfolio ratios are unavailable when the filtered set has no known, nonzero contributed capital; they are never coerced to zero.
+- A multi-owner group can contain mixed lifecycle/workflow/quality states; the parent discloses the mixed state and child rows retain exact statuses.
+- Filtering to one owner keeps the partnership group but recalculates its parent totals from only the matching owner records.
+- A selected existing partnership already has records for every available owner; creation is disabled and the interface explains why.
 
 ## Requirements *(mandatory)*
 
@@ -119,6 +141,12 @@ An investment administrator can review aggregate totals and locate partnerships 
 - **FR-021**: All money fields MUST remain exact two-decimal strings and all ratio fields MUST remain fixed-decimal unit-ratio strings at the API boundary.
 - **FR-022**: The UI MUST format money, percentages, dates, status, negative values, true zero, and unavailable values consistently with the existing tracker.
 - **FR-023**: A row with incomplete performance inputs MUST remain visible and MUST provide a human-readable data-quality indicator.
+- **FR-024**: The system MUST distinguish grouped partnership count from the count of underlying owner records used for financial coverage.
+- **FR-025**: Every persisted partnership owner record MUST have a durable aggregation-group identity that does not replace its independent partnership record ID.
+- **FR-026**: The aggregation endpoint MUST group matching owner records before sorting and pagination and MUST return each grouped partnership with its complete matching member rows.
+- **FR-027**: Parent-row commitment, paid-in capital, distributions, latest NAV, and unfunded commitment MUST be exact sums of known matching owner values; parent DPI and TVPI MUST be recomputed from grouped numerators and denominators.
+- **FR-028**: The system MUST NOT average owner-level IRRs for a grouped partnership; a multi-owner parent MUST direct the user to owner details for IRR.
+- **FR-029**: Filters MUST apply to owner records before grouped totals are composed so the parent row and rollup describe only the filtered scope.
 
 #### Filters, Sort, Pagination, and URL State
 
@@ -141,6 +169,9 @@ An investment administrator can review aggregate totals and locate partnerships 
 - **FR-044**: Loading, empty base scope, no filter matches, partial-data, error, and retry states MUST be distinct and actionable.
 - **FR-045**: Meaningful data must be present without animation; any transitions MUST respect `prefers-reduced-motion`.
 - **FR-046**: The visual treatment MUST stay within the established Atlas black, warm-white, gold, and gray palette while using tabular numerics, visible grid rules, and restrained motion to distinguish the aggregation surface from generic card dashboards.
+- **FR-047**: The add flow MUST offer explicit `New partnership` and `Existing partnership, new owner` modes rather than requiring users to infer grouping from typed names.
+- **FR-048**: Existing-partnership creation MUST inherit name, type, and aggregation identity from an in-scope source partnership and MUST reject an owner that already has that partnership.
+- **FR-049**: The Partnership workspace MUST continue to list and edit every owner record independently after those records are grouped on All Partnerships.
 
 #### Consistency and Performance
 

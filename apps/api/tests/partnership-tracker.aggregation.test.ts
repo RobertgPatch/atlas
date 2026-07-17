@@ -107,9 +107,10 @@ describe('partnership aggregation composition', () => {
 
   it('composes exact partial-coverage totals and recomputes portfolio ratios', () => {
     const result = composePartnershipAggregation(rows, query(), '2026-07-16')
-    expect(result.items.map((row) => row.partnership.name)).toEqual(['Alpha Growth I', 'Beacon Credit', 'Cedar Legacy', 'Delta Warning'])
+    expect(result.items.map((group) => group.name)).toEqual(['Alpha Growth I', 'Beacon Credit', 'Cedar Legacy', 'Delta Warning'])
     expect(result.rollup).toMatchObject({
       partnershipCount: 4,
+      ownerRecordCount: 4,
       committedCapital: { amount: '350000.00', knownCount: 3, totalCount: 4 },
       paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
       distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
@@ -135,7 +136,7 @@ describe('partnership aggregation composition', () => {
       statuses: ['ACTIVE', 'PENDING'],
       dataQuality: ['COMPLETE', 'WARNINGS'],
     }))
-    expect(result.items.map((row) => row.partnership.name)).toEqual(['Beacon Credit', 'Delta Warning'])
+    expect(result.items.map((group) => group.name)).toEqual(['Beacon Credit', 'Delta Warning'])
     expect(result.query.ownerIds).toEqual(['00000000-0000-4000-8000-000000000002'])
     expect(result.facets.owners).toHaveLength(2)
     expect(result.rollup.partnershipCount).toBe(2)
@@ -144,10 +145,51 @@ describe('partnership aggregation composition', () => {
   it('sorts known values globally, leaves null last in both directions, and clamps pages', () => {
     const ascending = composePartnershipAggregation(rows, query({ sort: 'nav', direction: 'asc', pageSize: 25 }))
     const descending = composePartnershipAggregation(rows, query({ sort: 'nav', direction: 'desc', pageSize: 25 }))
-    expect(ascending.items.map((row) => row.partnership.name)).toEqual(['Delta Warning', 'Alpha Growth I', 'Beacon Credit', 'Cedar Legacy'])
-    expect(descending.items.map((row) => row.partnership.name)).toEqual(['Beacon Credit', 'Alpha Growth I', 'Delta Warning', 'Cedar Legacy'])
+    expect(ascending.items.map((group) => group.name)).toEqual(['Delta Warning', 'Alpha Growth I', 'Beacon Credit', 'Cedar Legacy'])
+    expect(descending.items.map((group) => group.name)).toEqual(['Beacon Credit', 'Alpha Growth I', 'Delta Warning', 'Cedar Legacy'])
     expect(composePartnershipAggregation(rows, query({ page: 99, pageSize: 25 })).pageInfo.page).toBe(1)
     expect(composePartnershipAggregation([], query({ page: 99 })).pageInfo).toMatchObject({ page: 1, totalPages: 0, hasPreviousPage: false, hasNextPage: false })
+  })
+
+  it('groups owner records before sorting and pagination and aggregates their exact totals', () => {
+    const groupId = '00000000-0000-4000-8000-000000000900'
+    const first = summary({
+      id: '00000000-0000-4000-8000-000000000901',
+      name: 'AC Bell Investors, LLC',
+      partnership: { ...alpha.partnership, id: '00000000-0000-4000-8000-000000000901', aggregationGroupId: groupId, name: 'AC Bell Investors, LLC' },
+    })
+    const second = summary({
+      id: '00000000-0000-4000-8000-000000000902',
+      name: 'AC Bell Investors, LLC',
+      ownerId: '00000000-0000-4000-8000-000000000002',
+      ownerName: 'Beacon Holdings',
+      partnership: { ...alpha.partnership, id: '00000000-0000-4000-8000-000000000902', aggregationGroupId: groupId, name: 'AC Bell Investors, LLC', entity: { id: '00000000-0000-4000-8000-000000000002', name: 'Beacon Holdings' } },
+      currentCommittedCapital: { amount: '250000.00', date: '2022-01-01' },
+      totalCapitalContributions: '140000.00',
+      totalDistributions: '35000.00',
+      latestNav: { amount: '180000.00', date: '2026-03-31' },
+      unfundedCommitmentAmount: '110000.00',
+    })
+
+    const result = composePartnershipAggregation([first, second], query({ pageSize: 25 }), '2026-07-16')
+
+    expect(result.pageInfo.totalItems).toBe(1)
+    expect(result.rollup).toMatchObject({ partnershipCount: 1, ownerRecordCount: 2 })
+    expect(result.items[0]).toMatchObject({
+      groupKey: groupId,
+      name: 'AC Bell Investors, LLC',
+      ownerCount: 2,
+      totals: {
+        committedCapital: { amount: '350000.00', knownCount: 2, totalCount: 2 },
+        paidInCapital: { amount: '200000.00', knownCount: 2, totalCount: 2 },
+        distributions: { amount: '50000.00', knownCount: 2, totalCount: 2 },
+        latestNav: { amount: '255000.00', knownCount: 2, totalCount: 2 },
+        unfundedCommitment: { amount: '150000.00', knownCount: 2, totalCount: 2 },
+        dpi: { value: '0.25000000', status: 'AVAILABLE' },
+        tvpi: { value: '1.52500000', status: 'AVAILABLE' },
+      },
+    })
+    expect(result.items[0]?.members.map((member) => member.partnership.entity.name)).toEqual(['Alder Family', 'Beacon Holdings'])
   })
 
   it.each(['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'latestTaxYear', 'warningCount'] as const)('supports the %s sort key', (sort) => {

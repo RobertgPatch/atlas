@@ -7,7 +7,7 @@ export interface PartnershipRollupMetric {
   detail: string
 }
 
-const coverage = (known: number, total: number) => `${known} of ${total} partnerships`
+const coverage = (known: number, total: number) => `${known} of ${total} owner records`
 
 export function partnershipRollupMetrics(rollup: PartnershipPortfolioRollup): PartnershipRollupMetric[] {
   const navDetail = rollup.navValuationRange.earliest && rollup.navValuationRange.latest

@@ -9,6 +9,7 @@ const createPartnership = vi.hoisted(() => vi.fn())
 
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipAggregation: () => aggregationState.current,
+  usePartnershipTrackerList: () => ({ data: { items: aggregationResponseFixture.items.flatMap((group) => group.members), total: 4, nextCursor: null }, isLoading: false, isError: false }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: createPartnership, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Alder Family' }] }, isLoading: false, isError: false }) }))
@@ -25,7 +26,8 @@ describe('PartnershipAggregationPageContent', () => {
 
   it('renders exact rollups, coverage, rows, explicit missing values, and no portfolio IRR', () => {
     const data = structuredClone(aggregationResponseFixture)
-    data.items[0]!.unfundedCommitmentAmount = '0.00'
+    data.items[0]!.members[0]!.unfundedCommitmentAmount = '0.00'
+    data.items[0]!.totals.unfundedCommitment.amount = '0.00'
     aggregationState.current = loadedState(data)
     renderPage()
 
@@ -33,7 +35,7 @@ describe('PartnershipAggregationPageContent', () => {
     expect(screen.getByText('$350,000')).toBeInTheDocument()
     expect(screen.getByText('0.21×')).toBeInTheDocument()
     expect(screen.getByText('1.36×')).toBeInTheDocument()
-    expect(screen.getAllByText('3 of 4 partnerships').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('3 of 4 owner records').length).toBeGreaterThan(0)
     expect(screen.getAllByText('$0').length).toBeGreaterThan(0)
     expect(screen.getByText('-$5,000')).toBeInTheDocument()
     expect(screen.getAllByText('0.25×').length).toBeGreaterThan(0)

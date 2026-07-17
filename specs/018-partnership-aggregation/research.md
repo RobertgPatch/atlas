@@ -12,6 +12,18 @@
 - Replace the picker with an aggregate table on the current route: rejected because the persistent picker is efficient for editing several individual partnerships and should remain intact.
 - Add a second primary sidebar item: rejected for the first release because the view switcher provides discovery without crowding the four-item application navigation.
 
+## Decision 1A: Persist Group Identity, Not Group Totals
+
+**Decision**: Add `partnerships.aggregation_group_id`, backfill legacy same-name/same-type owner records into one group, and reuse the selected group ID when an Admin chooses `Existing partnership, new owner`.
+
+**Rationale**: Name-only grouping solves the immediate duplicate display but is fragile under whitespace, renames, and deliberate same-name investments. A durable identity preserves independent owner records while making the aggregate relationship explicit. Financial totals stay request-derived so K-1, commitment, and NAV source-of-truth rules remain unchanged.
+
+**Alternatives considered**:
+
+- Group only by normalized name and type: rejected as the long-term identity because later renames could split one partnership and unrelated same-name investments could merge.
+- Merge owner records into one partnership row: rejected because K-1s, commitments, NAV, workflow, notes, and workspace navigation are owner-specific.
+- Persist aggregate totals: rejected because every owner-record mutation would create synchronization and audit risk.
+
 ## Decision 2: Add a Purpose-Built Aggregate Read Contract
 
 **Decision**: Add `GET /v1/partnership-tracker/aggregation` rather than overloading the existing paged partnership directory endpoint. The response contains one page of aggregate rows, a rollup for the complete filtered scope, base-scope filter facets, normalized query state, and pagination metadata.

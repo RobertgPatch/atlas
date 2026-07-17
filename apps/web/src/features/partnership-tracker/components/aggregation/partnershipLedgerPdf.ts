@@ -1,4 +1,4 @@
-import type { PartnershipAggregateRow, PartnershipPortfolioRollup } from '../../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipAggregateGroup, PartnershipPortfolioRollup } from '../../../../../../../packages/types/src/partnership-tracker'
 import { formatLedgerDate } from './aggregationFormatters'
 import { partnershipLedgerExportValue, type PartnershipLedgerColumn } from './partnershipAggregationColumns'
 import { partnershipRollupMetrics } from './partnershipAggregationRollup'
@@ -11,7 +11,7 @@ const escapeHtml = (value: string) => value
   .replaceAll("'", '&#39;')
 
 export function createPartnershipLedgerPrintDocument(
-  rows: PartnershipAggregateRow[],
+  rows: PartnershipAggregateGroup[],
   columns: readonly PartnershipLedgerColumn[],
   rollup: PartnershipPortfolioRollup,
 ) {
@@ -48,7 +48,7 @@ export function createPartnershipLedgerPrintDocument(
     tr { break-inside: avoid; }
   </style></head><body>
     <section class="rollup">
-      <div class="rollup-header"><h2>Filtered portfolio rollup</h2><span class="rollup-as-of">As of ${escapeHtml(formatLedgerDate(rollup.asOfDate))}</span></div>
+      <div class="rollup-header"><h2>Filtered portfolio rollup</h2><span class="rollup-as-of">As of ${escapeHtml(formatLedgerDate(rollup.asOfDate) ?? 'Not available')}</span></div>
       <dl class="rollup-grid">${rollupMetricCards}</dl>
     </section>
     <h1>All Partnerships</h1><p>${rows.length} visible ${rows.length === 1 ? 'partnership' : 'partnerships'} | Generated ${escapeHtml(generatedAt)}</p>
@@ -57,7 +57,7 @@ export function createPartnershipLedgerPrintDocument(
 }
 
 export function openPartnershipLedgerPdf(
-  rows: PartnershipAggregateRow[],
+  rows: PartnershipAggregateGroup[],
   columns: readonly PartnershipLedgerColumn[],
   rollup: PartnershipPortfolioRollup,
 ) {

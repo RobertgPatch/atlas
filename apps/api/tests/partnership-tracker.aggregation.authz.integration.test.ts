@@ -39,7 +39,7 @@ durable('Partnership aggregation authorization', () => {
     const body = response.json()
     expect(body.query.ownerIds).toEqual([])
     expect(body.items).toHaveLength(4)
-    expect(body.items.map((row: { partnership: { name: string } }) => row.partnership.name)).not.toContain('External Fund')
+    expect(body.items.map((group: { name: string }) => group.name)).not.toContain('External Fund')
     expect(body.rollup).toMatchObject({
       partnershipCount: 4,
       committedCapital: { amount: '350000.00' },
@@ -60,7 +60,7 @@ durable('Partnership aggregation authorization', () => {
     expect(response.statusCode).toBe(200)
     const body = response.json()
     expect(body.pageInfo.totalItems).toBe(5)
-    expect(body.items.map((row: { partnership: { name: string } }) => row.partnership.name)).toContain('External Fund')
+    expect(body.items.map((group: { name: string }) => group.name)).toContain('External Fund')
     expect(body.facets.owners).toContainEqual(expect.objectContaining({ value: fixture.ownerIds.outside, label: 'Outside Owner', count: 1 }))
   })
 })

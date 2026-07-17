@@ -199,6 +199,7 @@ components:
       additionalProperties: false
       required:
         - id
+        - aggregationGroupId
         - entity
         - name
         - partnershipType
@@ -210,6 +211,7 @@ components:
         - updatedAt
       properties:
         id: { type: string, format: uuid }
+        aggregationGroupId: { type: string, format: uuid }
         entity: { $ref: '#/components/schemas/OwnerRef' }
         name: { type: string }
         partnershipType: { $ref: '#/components/schemas/PartnershipType' }
@@ -303,6 +305,42 @@ components:
         performanceStatus: { $ref: '#/components/schemas/PartnershipPerformanceStatus' }
         warningCount: { type: integer, minimum: 0 }
         dataQuality: { $ref: '#/components/schemas/PartnershipDataQuality' }
+    PartnershipAggregateGroup:
+      type: object
+      additionalProperties: false
+      required:
+        - groupKey
+        - name
+        - partnershipType
+        - ownerCount
+        - lifecycleStatuses
+        - workflowStatuses
+        - dataQuality
+        - latestTaxYear
+        - warningCount
+        - totals
+        - members
+      properties:
+        groupKey: { type: string, description: Durable aggregation-group UUID for persisted records; legacy fallback keys may be non-UUID. }
+        name: { type: string }
+        partnershipType: { $ref: '#/components/schemas/PartnershipType' }
+        ownerCount: { type: integer, minimum: 1 }
+        lifecycleStatuses:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/PartnershipStatus' }
+        workflowStatuses:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AggregationWorkflowStatus' }
+        dataQuality: { $ref: '#/components/schemas/PartnershipDataQuality' }
+        latestTaxYear: { type: [integer, 'null'] }
+        warningCount: { type: integer, minimum: 0 }
+        totals: { $ref: '#/components/schemas/PartnershipPortfolioRollup' }
+        members:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/PartnershipAggregateRow' }
     CoveredMoney:
       type: object
       additionalProperties: false
@@ -342,6 +380,7 @@ components:
       additionalProperties: false
       required:
         - partnershipCount
+        - ownerRecordCount
         - committedCapital
         - paidInCapital
         - distributions
@@ -353,6 +392,7 @@ components:
         - navValuationRange
       properties:
         partnershipCount: { type: integer, minimum: 0 }
+        ownerRecordCount: { type: integer, minimum: 0 }
         committedCapital: { $ref: '#/components/schemas/CoveredMoney' }
         paidInCapital: { $ref: '#/components/schemas/CoveredMoney' }
         distributions: { $ref: '#/components/schemas/CoveredMoney' }
@@ -444,7 +484,7 @@ components:
       properties:
         page: { type: integer, minimum: 1 }
         pageSize: { type: integer, enum: [25, 50, 100] }
-        totalItems: { type: integer, minimum: 0 }
+        totalItems: { type: integer, minimum: 0, description: Number of grouped partnerships after filtering. }
         totalPages: { type: integer, minimum: 0 }
         hasPreviousPage: { type: boolean }
         hasNextPage: { type: boolean }
@@ -458,7 +498,7 @@ components:
         facets: { $ref: '#/components/schemas/PartnershipAggregationFacets' }
         items:
           type: array
-          items: { $ref: '#/components/schemas/PartnershipAggregateRow' }
+          items: { $ref: '#/components/schemas/PartnershipAggregateGroup' }
         pageInfo: { $ref: '#/components/schemas/PartnershipAggregationPageInfo' }
     Error:
       type: object

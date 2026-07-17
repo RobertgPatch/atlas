@@ -26,7 +26,7 @@ describe('partnership aggregation responsive structure', () => {
 
   it('wraps KPI coverage and constrains wide-ledger overflow to a sticky-identity table viewport', () => {
     const { container } = render(<MemoryRouter><PartnershipAggregationKpis rollup={aggregationResponseFixture.rollup} /><PartnershipAggregationTable items={aggregationResponseFixture.items} rollup={aggregationResponseFixture.rollup} sort="partnership" direction="asc" pageInfo={aggregationResponseFixture.pageInfo} onSort={vi.fn()} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} /></MemoryRouter>)
-    expect(screen.getAllByText('3 of 4 partnerships').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('3 of 4 owner records').length).toBeGreaterThan(0)
     expect(screen.getByTestId('aggregation-table-viewport')).toHaveClass('overflow-x-auto', 'max-w-full')
     expect(container.querySelector('th.sticky.left-0')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Alpha Growth I/ })).toHaveClass('min-h-11')

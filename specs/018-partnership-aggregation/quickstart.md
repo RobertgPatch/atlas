@@ -9,7 +9,7 @@ npm install
 npm run dev:db
 ```
 
-Set `ATLAS_TEST_DATABASE_URL` to the local test database used by the existing API integration suites. This feature has no migration of its own, but the database must include migrations through `021_partnership_tracker_revisions.sql` because aggregate rows reuse spec 017 fields and calculations.
+Set `ATLAS_TEST_DATABASE_URL` to the local test database used by the existing API integration suites. The database must include migrations through `022_partnership_aggregation_groups.sql`; migration 022 backfills a durable group identity while preserving every owner-specific partnership record.
 
 Confirm the selected planning context:
 
@@ -89,7 +89,7 @@ TVPI = (50,000 + 270,000) / 235,000 = 1.361702127... -> 1.36170213
 
 Also verify:
 
-- `items.length` is 4 and rows are ordered Alpha, Beacon, Cedar, Delta.
+- `items.length` is 4 grouped partnerships and rows are ordered Alpha, Beacon, Cedar, Delta.
 - `pageInfo.totalItems` and `rollup.partnershipCount` are both 4.
 - No rollup field named `irr` exists.
 - External Fund affects no amount, facet count, owner option, result count, or date range.
@@ -134,7 +134,7 @@ GET /v1/partnership-tracker/aggregation?search=a&ownerIds={alderOwnerId}&partner
 Verify:
 
 - Categories use AND; values inside lifecycle and quality use OR.
-- Row count, rollup, and `pageInfo.totalItems` describe the same filtered rows.
+- Grouped result count, owner-record coverage, rollup, and `pageInfo.totalItems` describe the same filtered scope.
 - Facets retain all four base-scope counts/options rather than shrinking to the active result.
 - A malformed/out-of-scope owner UUID and unknown enum are absent from response `query` and do not cause a 500.
 - Changing any filter in the UI resets `page` to 1.
@@ -183,6 +183,18 @@ Open `/partnership-aggregation` and verify:
 6. `Partnership workspace` switches to the existing tracker without rendering aggregation inside its editor.
 7. Admin sees Add partnership; creating one routes to its individual workspace and a later aggregate visit includes it.
 8. A User does not see add/edit actions.
+
+### Multi-owner grouping and creation
+
+Create two independent owner records for `AC Bell Investors, LLC` with one shared `aggregation_group_id`, different owners, and different commitment/K-1/NAV values. Verify:
+
+1. All Partnerships shows one collapsed AC Bell row and `pageInfo.totalItems` counts it once.
+2. Parent commitment, paid in, distributions, NAV, unfunded, DPI, and TVPI equal exact compositions of both owner records.
+3. Parent IRR says to use owner detail rather than averaging the two IRRs.
+4. Expanding the parent shows two owner rows and each link opens its own partnership ID in the workspace.
+5. The Partnership workspace still lists both owner records independently.
+6. In Add Partnership, select `Existing partnership, new owner`, choose AC Bell, and confirm owners already represented are unavailable.
+7. Creating the available owner record inherits AC Bell's name, type, and aggregation group, then opens the new independent workspace record.
 
 ## 9. Verify Cache Consistency
 
@@ -267,3 +279,13 @@ Implementation and automated verification were completed on branch `018-partners
 - Focused ESLint across all new and directly modified aggregation files: passed.
 
 Environment-only checks still requiring a workstation with Docker/PostgreSQL are the durable integration/performance cases above. Docker Desktop was unavailable during this run. A live Chrome responsive smoke check was also attempted against the local route, but Chrome blocked automation while another extension panel was open. Automated JSDOM coverage verified the 17rem desktop rail, 44px mobile trigger, focus-managed Escape/return lifecycle, sticky identity column, local table overflow, one-h1 hierarchy, live results, and reduced-motion classes; the 1440/1024/768/390 visual pass should be repeated once the browser panel and database are available.
+
+## 14. Multi-Owner Grouping Verification — 2026-07-17
+
+- Pure API grouping coverage verifies two `AC Bell Investors, LLC` owner records return one page item, retain two members, sum exact money values, and recompute DPI/TVPI; all 20 aggregation composer tests pass.
+- Focused API aggregation/contract run: 23 passed and 11 PostgreSQL-only tests skipped because `ATLAS_TEST_DATABASE_URL` is not set in the shell.
+- Full Partnership Tracker web suite: 20 files and 55 tests passed, including collapsed parent totals, two expanded owner links, creation modes, accessibility, URL state, and unchanged workspace behavior.
+- Full web regression: 52 files and 143 tests passed.
+- Full API regression: 82 files and 306 tests passed, with 47 database-dependent tests skipped. The same unrelated `partnerships.accounting-values.integration.test.ts` missing-environment guard remains the only failure.
+- API and web production builds passed; Vite emitted only the existing large-chunk advisory. Focused ESLint across all modified aggregation/create-flow files passed.
+- Local Docker PostgreSQL is healthy and migration `022_partnership_aggregation_groups.sql` is recorded as applied. The authenticated visual route redirected to sign-in after the local API restart invalidated the prior in-memory session; browser console inspection found no application errors, and interactive rendering remains covered by the passing component suites.

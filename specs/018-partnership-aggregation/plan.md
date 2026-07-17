@@ -7,18 +7,18 @@
 
 Add a dedicated `/partnership-aggregation` portfolio ledger beside the existing individual Partnership Tracker. The authenticated page will show complete filtered-scope KPIs, coverage, facets, and one sortable row per partnership, while row links and a shared view switcher preserve the established `/partnership-tracker?partnership={id}` editing workflow.
 
-Implement one additive `GET /v1/partnership-tracker/aggregation` contract. Refactor the existing set-based partnership summary projection so aggregation reuses canonical performance derivations, then compose exact-cent totals, partial-coverage metadata, recomputed portfolio DPI/TVPI, derived filters, stable sort, and pagination in a pure API module. No portfolio IRR is inferred and no summary data is persisted. The React page uses an Atlas-aligned industrial ledger treatment: gold index rail, compact segmented KPI band, desktop filter rail/mobile drawer, tabular numerics, a sticky identity column, table-local overflow, URL-owned query state, and accessible loading/empty/error behavior.
+Implement one additive `GET /v1/partnership-tracker/aggregation` contract. Refactor the existing set-based partnership summary projection so aggregation reuses canonical performance derivations, then group independent owner records by a durable partnership aggregation identity before composing exact-cent totals, partial-coverage metadata, recomputed DPI/TVPI, derived filters, stable sort, and pagination. No portfolio or multi-owner IRR is inferred and no summary data is persisted. The React page uses an Atlas-aligned industrial ledger treatment: gold index rail, compact segmented KPI band, desktop filter rail/mobile drawer, expandable parent/owner rows, tabular numerics, a sticky identity column, table-local overflow, URL-owned query state, and accessible loading/empty/error behavior.
 
 ## Technical Context
 
 **Language/Version**: TypeScript (`^5.7.2` API, `~6.0.2` web), Node.js 22+, PostgreSQL SQL reads.
 **Primary Dependencies**: API: Fastify 5, Zod 3, `pg` 8, existing session/RBAC/scope middleware and `composePartnershipPerformance`. Web: React 19, React Router 7, TanStack Query 5, Tailwind CSS 3, Headless UI 2, Framer Motion 12, Lucide, existing Atlas shared components.
-**Storage**: Existing PostgreSQL `partnerships`, `entities`, commitment, FMV snapshot, K-1 tracker year, and active value-revision tables. No migration, aggregate table, materialized view, or saved-filter persistence.
+**Storage**: Existing PostgreSQL `partnerships`, `entities`, commitment, FMV snapshot, K-1 tracker year, and active value-revision tables, plus migration 022's `partnerships.aggregation_group_id`. No aggregate table, materialized view, calculated-total persistence, or saved-filter persistence.
 **Testing**: Vitest pure aggregation/contract tests; PostgreSQL integration and authz tests via `ATLAS_TEST_DATABASE_URL`; React Testing Library/Vitest for URL state, filters, sort, pagination, cache invalidation, responsive structure, and accessibility; API/web builds.
 **Target Platform**: Existing Atlas browser application and Fastify `/v1` API, local Docker PostgreSQL, and AWS staging/production PostgreSQL deployments.
 **Project Type**: npm-workspace monorepo with Fastify backend, React frontend, shared TypeScript wire contracts, and versioned SQL migrations.
 **Performance Goals**: A 500-partnership scoped request returns the requested page, complete filtered rollup, and base facets within 2 seconds in integration tests; one set-based database statement supplies candidates; the browser renders only a 25/50/100-row page and makes no per-partnership requests.
-**Constraints**: Exact decimal-string money; fixed-decimal unit ratios; missing differs from zero; coverage accompanies partial totals; portfolio DPI/TVPI are recomputed from totals; partnership IRRs are never averaged; scope applies before filters/facets; null sorts last; stable pagination; no browser or persisted summary source of truth; no page-level horizontal overflow; existing individual tracker and unsaved-change guard remain intact.
+**Constraints**: Exact decimal-string money; fixed-decimal unit ratios; missing differs from zero; coverage accompanies partial totals; group and portfolio DPI/TVPI are recomputed from totals; partnership IRRs are never averaged; owner filtering precedes grouping; groups sort and paginate as units; no browser or persisted summary source of truth; no page-level horizontal overflow; existing individual tracker records and unsaved-change guard remain intact.
 **Scale/Scope**: Internal Atlas users, hundreds of partnerships (500-row primary fixture), one new web page/route, one additive read endpoint, five multi-select facet families, 14 sortable row fields, exact portfolio rollups, shared navigation, and focused cache/accessibility changes.
 
 ## Constitution Check
@@ -123,12 +123,12 @@ packages/types/src/
 8. Return stable base-scope facets, including `NO_K1_YEAR`, without a separate entity/facet request.
 9. Use an Atlas industrial ledger aesthetic with a gold index rail, segmented KPI band, desktop filter rail, mobile filter drawer, dense ruled table, and tabular numerics.
 10. Invalidate the aggregate query family from every mutation that changes identity, scope, capital, NAV, K-1 facts, or warnings.
-11. Add no migration, summary table, materialized view, saved view, export, chart, bulk edit, or pooled IRR.
+11. Add only the durable group-identity migration; add no summary table, materialized view, saved view, chart, bulk edit, or pooled IRR.
 
 ## Phase 1: Design Outcomes
 
 - `PartnershipAggregationQuery` defines search, five multi-select filter sets, 14 sort keys, direction, 1-based page, and page sizes 25/50/100; the response echoes normalized state.
-- `PartnershipAggregateRow` reuses `PartnershipTrackerSummary` facts and adds one exclusive `dataQuality` classification rather than inventing new financial values.
+- `PartnershipAggregateRow` reuses `PartnershipTrackerSummary` facts and adds one exclusive `dataQuality` classification; `PartnershipAggregateGroup` wraps matching owner rows with exact derived parent totals.
 - `PartnershipPortfolioRollup` provides five covered money totals, two covered derived ratios, as-of date, and NAV date range for the complete filtered set.
 - `PartnershipAggregationFacetSet` returns stable owner/type/lifecycle/workflow/quality values and counts after authorization scope but before active filters.
 - The repository executes one complete set-based summary projection; a pure composer filters derived properties, sorts exact money/ratios with null-last behavior, composes the rollup, and slices the requested page.
@@ -137,7 +137,7 @@ packages/types/src/
 - The page owns filters in `useSearchParams`; search is debounced for requests while URL changes remain replace-based until explicit navigation/page changes.
 - Desktop uses a wide `AppShell` content option, a sticky 17rem filter rail, responsive KPI grid, and table-local scroll; mobile uses a focus-managed filter dialog and persistent row links.
 - Aggregate create reuses `AddPartnershipDialog`, then routes to the individual tracker; all relevant mutation refresh paths invalidate aggregation keys.
-- No data entity, state transition, audit event, or migration is introduced because aggregation is an authenticated read projection.
+- One durable `aggregation_group_id` is added to partnership records so grouping survives spelling differences after explicit existing-partnership creation; calculated aggregate values remain authenticated read projections.
 
 ## Implementation Sequence
 

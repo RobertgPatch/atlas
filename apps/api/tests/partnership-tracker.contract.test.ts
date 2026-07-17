@@ -48,6 +48,12 @@ describe('Partnership Tracker HTTP contract', () => {
       managementFeeRate: '0.02000000',
     })
     expect(validCreate.success).toBe(true)
+    expect(createTrackedPartnershipBodySchema.safeParse({
+      entityId: fixture.entityIds[0],
+      name: 'Inherited by the server',
+      partnershipType: 'Other',
+      existingPartnershipId: '00000000-0000-4000-8000-000000000123',
+    }).success).toBe(true)
 
     const validClear = updateTrackedPartnershipBodySchema.safeParse({
       inceptionDate: null,
@@ -101,6 +107,35 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
       irr: null,
       performanceStatus: { dpi: 'MISSING_CONTRIBUTIONS', tvpi: 'MISSING_CONTRIBUTIONS', irr: 'MISSING_CONTRIBUTIONS' },
     })
+  })
+
+  it('creates a new owner record in the selected partnership aggregation group', async () => {
+    const source = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, { isAdmin: true, entityIds: [] })
+    const created = await partnershipTrackerRepository.createPartnership({
+      entityId: fixture.targetEntityId,
+      name: 'This value is intentionally ignored',
+      partnershipType: 'Other',
+      existingPartnershipId: fixture.partnershipId,
+    }, fixture.adminUserId, { isAdmin: true, entityIds: [] })
+
+    expect(created.partnership.partnership).toMatchObject({
+      aggregationGroupId: source.summary.partnership.aggregationGroupId,
+      name: source.summary.partnership.name,
+      partnershipType: source.summary.partnership.partnershipType,
+      entity: { id: fixture.targetEntityId },
+    })
+    expect(created.partnership.partnership.id).not.toBe(fixture.partnershipId)
+
+    const aggregation = await partnershipTrackerRepository.getAggregation({ isAdmin: true, entityIds: [] }, {
+      ownerIds: [], partnershipTypes: [], statuses: [], workflowStatuses: [], dataQuality: [],
+      search: source.summary.partnership.name, sort: 'partnership', direction: 'asc', page: 1, pageSize: 25,
+    })
+    expect(aggregation.items).toHaveLength(1)
+    expect(aggregation.items[0]).toMatchObject({ ownerCount: 2 })
+    expect(aggregation.items[0]?.members).toHaveLength(2)
+
+    const workspace = await partnershipTrackerRepository.listPartnerships({ isAdmin: true, entityIds: [] }, { search: source.summary.partnership.name, limit: 25 })
+    expect(workspace.items).toHaveLength(2)
   })
 
   it('returns a scoped, derived-only management-fee schedule with validated as-of dates', async () => {

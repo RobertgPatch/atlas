@@ -29,6 +29,7 @@ export type PartnershipTrackerWorkflowStatus = 'NOT_STARTED' | 'IN_PROGRESS' | '
 export interface PartnershipTrackerSummary {
   partnership: {
     id: string
+    aggregationGroupId?: string
     entity: { id: string; name: string }
     name: string
     partnershipType: PartnershipType
@@ -108,6 +109,7 @@ export type PartnershipAggregationRatioStatus = (typeof PARTNERSHIP_AGGREGATION_
 export interface PartnershipAggregationCoveredRatio { value: string | null; status: PartnershipAggregationRatioStatus; numeratorKnownCount: number; denominatorKnownCount: number; totalCount: number }
 export interface PartnershipPortfolioRollup {
   partnershipCount: number
+  ownerRecordCount: number
   committedCapital: PartnershipAggregationCoveredMoney
   paidInCapital: PartnershipAggregationCoveredMoney
   distributions: PartnershipAggregationCoveredMoney
@@ -118,6 +120,19 @@ export interface PartnershipPortfolioRollup {
   asOfDate: string
   navValuationRange: { earliest: string | null; latest: string | null }
 }
+export interface PartnershipAggregateGroup {
+  groupKey: string
+  name: string
+  partnershipType: PartnershipType
+  ownerCount: number
+  lifecycleStatuses: PartnershipLifecycleStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality
+  latestTaxYear: number | null
+  warningCount: number
+  totals: PartnershipPortfolioRollup
+  members: PartnershipAggregateRow[]
+}
 export interface PartnershipAggregationFacetOption<T extends string = string> { value: T; label: string; count: number }
 export interface PartnershipAggregationFacetSet {
   owners: PartnershipAggregationFacetOption<string>[]
@@ -127,7 +142,7 @@ export interface PartnershipAggregationFacetSet {
   dataQuality: PartnershipAggregationFacetOption<PartnershipDataQuality>[]
 }
 export interface PartnershipAggregationPageInfo { page: number; pageSize: PartnershipAggregationPageSize; totalItems: number; totalPages: number; hasPreviousPage: boolean; hasNextPage: boolean }
-export interface PartnershipAggregationResponse { query: PartnershipAggregationQuery; rollup: PartnershipPortfolioRollup; facets: PartnershipAggregationFacetSet; items: PartnershipAggregateRow[]; pageInfo: PartnershipAggregationPageInfo }
+export interface PartnershipAggregationResponse { query: PartnershipAggregationQuery; rollup: PartnershipPortfolioRollup; facets: PartnershipAggregationFacetSet; items: PartnershipAggregateGroup[]; pageInfo: PartnershipAggregationPageInfo }
 
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = ['AVAILABLE', 'MISSING_INCEPTION_DATE', 'MISSING_MANAGEMENT_FEE_RATE', 'MISSING_COMMITMENT'] as const
 export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY)[number]

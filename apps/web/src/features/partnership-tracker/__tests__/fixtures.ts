@@ -1,4 +1,4 @@
-import type { PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
 import type { K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
@@ -64,11 +64,47 @@ const aggregateRow = (
   name: string,
   owner: { id: string; name: string },
   overrides: Partial<PartnershipTrackerSummary> & { dataQuality: 'COMPLETE' | 'MISSING_DATA' | 'WARNINGS' },
-) => ({
+): PartnershipAggregateRow => ({
   ...summaryFixture,
   ...overrides,
   partnership: { ...summaryFixture.partnership, id, name, entity: owner, ...(overrides.partnership ?? {}) },
 })
+
+const aggregateGroup = (row: PartnershipAggregateRow): PartnershipAggregateGroup => {
+  const coveredMoney = (amount: string | null | undefined) => ({ amount: amount ?? null, knownCount: amount == null ? 0 : 1, totalCount: 1 })
+  const ratio = (value: string | null, numeratorKnownCount: number, denominatorKnownCount: number) => ({
+    value,
+    status: value == null ? 'NO_DATA' as const : 'AVAILABLE' as const,
+    numeratorKnownCount,
+    denominatorKnownCount,
+    totalCount: 1,
+  })
+  return {
+    groupKey: row.partnership.aggregationGroupId ?? row.partnership.id,
+    name: row.partnership.name,
+    partnershipType: row.partnership.partnershipType,
+    ownerCount: 1,
+    lifecycleStatuses: [row.partnership.status],
+    workflowStatuses: [row.latestWorkflowStatus ?? 'NO_K1_YEAR'],
+    dataQuality: row.dataQuality,
+    latestTaxYear: row.latestTaxYear,
+    warningCount: row.warningCount,
+    totals: {
+      partnershipCount: 1,
+      ownerRecordCount: 1,
+      committedCapital: coveredMoney(row.currentCommittedCapital?.amount),
+      paidInCapital: coveredMoney(row.totalCapitalContributions),
+      distributions: coveredMoney(row.totalDistributions),
+      latestNav: coveredMoney(row.latestNav?.amount),
+      unfundedCommitment: coveredMoney(row.unfundedCommitmentAmount),
+      dpi: ratio(row.dpi, row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      tvpi: ratio(row.tvpi, row.latestNav == null || row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      asOfDate: row.performanceAsOfDate,
+      navValuationRange: { earliest: row.latestNav?.date ?? null, latest: row.latestNav?.date ?? null },
+    },
+    members: [row],
+  }
+}
 
 export const aggregationResponseFixture: PartnershipAggregationResponse = {
   query: {
@@ -84,6 +120,7 @@ export const aggregationResponseFixture: PartnershipAggregationResponse = {
   },
   rollup: {
     partnershipCount: 4,
+    ownerRecordCount: 4,
     committedCapital: { amount: '350000.00', knownCount: 3, totalCount: 4 },
     paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
     distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
@@ -102,10 +139,10 @@ export const aggregationResponseFixture: PartnershipAggregationResponse = {
     dataQuality: [{ value: 'COMPLETE', label: 'Complete', count: 2 }, { value: 'MISSING_DATA', label: 'Missing data', count: 1 }, { value: 'WARNINGS', label: 'Warnings', count: 1 }],
   },
   items: [
-    aggregateRow('p-alpha', 'Alpha Growth I', { id: 'e-1', name: 'Alder Family' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '100000.00', date: '2021-01-01' }, totalCapitalContributions: '60000.00', totalDistributions: '15000.00', latestNav: { amount: '75000.00', date: '2025-12-31' }, unfundedCommitmentAmount: '40000.00', dpi: '0.25000000', tvpi: '1.50000000' }),
-    aggregateRow('p-beacon', 'Beacon Credit', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '200000.00', date: '2022-01-01' }, totalCapitalContributions: '120000.00', totalDistributions: '30000.00', latestNav: { amount: '150000.00', date: '2026-03-31' }, unfundedCommitmentAmount: '80000.00', dpi: '0.25000000', tvpi: '1.50000000' }),
-    aggregateRow('p-cedar', 'Cedar Legacy', { id: 'e-1', name: 'Alder Family' }, { ...unavailablePerformanceSummaryFixture, dataQuality: 'MISSING_DATA', warningCount: 0 }),
-    aggregateRow('p-delta', 'Delta Warning', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'WARNINGS', warningCount: 2, currentCommittedCapital: { amount: '50000.00', date: '2023-01-01' }, totalCapitalContributions: '55000.00', totalDistributions: '5000.00', latestNav: { amount: '45000.00', date: '2024-12-31' }, unfundedCommitmentAmount: '-5000.00' }),
+    aggregateGroup(aggregateRow('p-alpha', 'Alpha Growth I', { id: 'e-1', name: 'Alder Family' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '100000.00', date: '2021-01-01' }, totalCapitalContributions: '60000.00', totalDistributions: '15000.00', latestNav: { amount: '75000.00', date: '2025-12-31' }, unfundedCommitmentAmount: '40000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
+    aggregateGroup(aggregateRow('p-beacon', 'Beacon Credit', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '200000.00', date: '2022-01-01' }, totalCapitalContributions: '120000.00', totalDistributions: '30000.00', latestNav: { amount: '150000.00', date: '2026-03-31' }, unfundedCommitmentAmount: '80000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
+    aggregateGroup(aggregateRow('p-cedar', 'Cedar Legacy', { id: 'e-1', name: 'Alder Family' }, { ...unavailablePerformanceSummaryFixture, dataQuality: 'MISSING_DATA', warningCount: 0 })),
+    aggregateGroup(aggregateRow('p-delta', 'Delta Warning', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'WARNINGS', warningCount: 2, currentCommittedCapital: { amount: '50000.00', date: '2023-01-01' }, totalCapitalContributions: '55000.00', totalDistributions: '5000.00', latestNav: { amount: '45000.00', date: '2024-12-31' }, unfundedCommitmentAmount: '-5000.00' })),
   ],
   pageInfo: { page: 1, pageSize: 50, totalItems: 4, totalPages: 1, hasPreviousPage: false, hasNextPage: false },
 }
