@@ -61,7 +61,11 @@ durable('Partnership aggregation PostgreSQL integration', () => {
       { isAdmin: true, entityIds: [] },
       DEFAULT_PARTNERSHIP_AGGREGATION_QUERY,
     )
-    expect(query).toHaveBeenCalledTimes(1)
+    const candidateQueries = query.mock.calls.filter(([statement]) => {
+      const sql = typeof statement === 'string' ? statement : statement && typeof statement === 'object' && 'text' in statement ? String(statement.text) : ''
+      return sql.includes('from partnerships p')
+    })
+    expect(candidateQueries).toHaveLength(1)
   })
 
   it('keeps base facets stable, removes unavailable owners, and clamps final pages', async () => {

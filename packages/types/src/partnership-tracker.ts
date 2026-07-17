@@ -57,6 +57,14 @@ export interface PartnershipTrackerIdentity {
   notes: string | null
   inceptionDate: string | null
   managementFeeRate: PartnershipTrackerRatio | null
+  ein: string | null
+  fundManager: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  addressCity: string | null
+  addressRegion: string | null
+  addressPostalCode: string | null
+  addressCountry: string | null
   createdAt: string
   updatedAt: string
 }
@@ -170,6 +178,7 @@ export const PARTNERSHIP_AGGREGATION_SORTS = [
   'dpi',
   'tvpi',
   'irr',
+  'cashYield',
   'latestTaxYear',
   'warningCount',
 ] as const
@@ -226,6 +235,7 @@ export interface PartnershipPortfolioRollup {
   unfundedCommitment: PartnershipAggregationCoveredMoney
   dpi: PartnershipAggregationCoveredRatio
   tvpi: PartnershipAggregationCoveredRatio
+  annualizedCashOnCashYield: PartnershipAggregationCoveredRatio
   asOfDate: string
   navValuationRange: { earliest: string | null; latest: string | null }
 }
@@ -283,6 +293,16 @@ export interface CreateTrackedPartnershipRequest {
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null
+  ein?: string | null
+  fundManager?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  addressCity?: string | null
+  addressRegion?: string | null
+  addressPostalCode?: string | null
+  addressCountry?: string | null
+  initialValuationAmount?: PartnershipTrackerMoney | null
+  initialValuationDate?: string | null
 }
 
 export interface UpdateTrackedPartnershipRequest {
@@ -293,7 +313,22 @@ export interface UpdateTrackedPartnershipRequest {
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null
+  ein?: string | null
+  fundManager?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  addressCity?: string | null
+  addressRegion?: string | null
+  addressPostalCode?: string | null
+  addressCountry?: string | null
   expectedUpdatedAt: string
+}
+
+export interface CreatePartnershipCashFlowRequest {
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION'
+  activityDate: string
+  amount: PartnershipTrackerMoney
+  note?: string | null
 }
 
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = [

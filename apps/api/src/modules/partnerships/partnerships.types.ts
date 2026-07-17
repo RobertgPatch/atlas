@@ -5,6 +5,7 @@ export type CapitalDataSource = 'manual' | 'parsed' | 'calculated'
 export type CapitalActivityEventType =
   | 'capital_call'
   | 'funded_contribution'
+  | 'distribution'
   | 'other_adjustment'
 export type PartnershipAssetSource = 'manual' | 'imported' | 'plaid'
 export type AssetFmvSource =

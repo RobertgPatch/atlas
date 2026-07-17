@@ -161,6 +161,7 @@ components:
         - dpi
         - tvpi
         - irr
+        - cashYield
         - latestTaxYear
         - warningCount
     MetricAvailability:
@@ -207,6 +208,14 @@ components:
         - notes
         - inceptionDate
         - managementFeeRate
+        - ein
+        - fundManager
+        - addressLine1
+        - addressLine2
+        - addressCity
+        - addressRegion
+        - addressPostalCode
+        - addressCountry
         - createdAt
         - updatedAt
       properties:
@@ -225,6 +234,14 @@ components:
           oneOf:
             - { $ref: '#/components/schemas/Ratio' }
             - { type: 'null' }
+        ein: { type: [string, 'null'], pattern: '^\d{9}$' }
+        fundManager: { type: [string, 'null'] }
+        addressLine1: { type: [string, 'null'] }
+        addressLine2: { type: [string, 'null'] }
+        addressCity: { type: [string, 'null'] }
+        addressRegion: { type: [string, 'null'] }
+        addressPostalCode: { type: [string, 'null'] }
+        addressCountry: { type: [string, 'null'] }
         createdAt: { $ref: '#/components/schemas/DateTime' }
         updatedAt: { $ref: '#/components/schemas/DateTime' }
     DatedMoney:
@@ -388,6 +405,7 @@ components:
         - unfundedCommitment
         - dpi
         - tvpi
+        - annualizedCashOnCashYield
         - asOfDate
         - navValuationRange
       properties:
@@ -400,6 +418,7 @@ components:
         unfundedCommitment: { $ref: '#/components/schemas/CoveredMoney' }
         dpi: { $ref: '#/components/schemas/CoveredRatio' }
         tvpi: { $ref: '#/components/schemas/CoveredRatio' }
+        annualizedCashOnCashYield: { $ref: '#/components/schemas/CoveredRatio' }
         asOfDate: { $ref: '#/components/schemas/Date' }
         navValuationRange: { $ref: '#/components/schemas/NavValuationRange' }
     FacetOptionString:

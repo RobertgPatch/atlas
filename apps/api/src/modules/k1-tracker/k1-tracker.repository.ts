@@ -3,6 +3,7 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import type {
   K1TrackerFieldChange,
+  K1TrackerCashFlowEvent,
   K1TrackerImportDecision,
   K1TrackerImportPreview,
   K1TrackerPartnershipDetail,
@@ -21,6 +22,7 @@ import { isInScope, K1TrackerError, type Queryable, type TrackerScope, type Trac
 type PartnershipRow = { id: string; entity_id: string; partnership_name: string; entity_name: string }
 type ImportRow = { id: string; entity_id: string; target_partnership_id: string | null; preview_payload: K1TrackerImportPreview; expires_at: Date | string; status: string; commit_decisions: K1TrackerImportDecision[] | null }
 type SignoffRow = { signoff_type: 'PREPARED' | 'REVIEWED' | 'INVALIDATED'; signed_by_email: string | null; created_at: Date | string; reason: string | null }
+type CashFlowRow = { id: string; partnership_id: string; activity_date: Date | string; event_type: 'funded_contribution' | 'distribution'; amount: string; notes: string | null; created_at: Date | string; updated_at: Date | string }
 
 const db = (): NonNullable<typeof pool> => {
   if (!pool) throw new K1TrackerError('DATABASE_REQUIRED')
@@ -48,12 +50,74 @@ const assertPartnership = async (partnershipId: string, scope: TrackerScope, cli
 
 const activeValues = async (yearIds: string[], client: Queryable): Promise<TrackerValueRow[]> => {
   if (!yearIds.length) return []
-  return (await client.query<TrackerValueRow>(`
+  const stored = (await client.query<TrackerValueRow>(`
     select v.*, u.email as created_by_email
     from k1_tracker_value_revisions v
     left join users u on u.id = v.created_by_user_id
     where v.tracker_year_id = any($1::uuid[]) and v.is_active = true
     order by v.created_at asc`, [yearIds])).rows
+  const activity = (await client.query<{
+    tracker_year_id: string
+    event_type: CashFlowRow['event_type']
+    amount: string
+    last_updated: Date | string
+  }>(`
+    select y.id as tracker_year_id, e.event_type, sum(abs(e.amount))::text as amount, max(e.updated_at) as last_updated
+    from k1_tracker_years y
+    join capital_activity_events e
+      on e.partnership_id = y.partnership_id
+      and extract(year from e.activity_date)::int = y.tax_year
+      and e.event_type in ('funded_contribution', 'distribution')
+    where y.id = any($1::uuid[])
+    group by y.id, e.event_type
+  `, [yearIds])).rows
+  const managedKeys = new Set(activity.map((row) => `${row.tracker_year_id}:${row.event_type === 'funded_contribution' ? 'capital_contributions' : 'box_19_distributions'}`))
+  const visible = stored.filter((row) => !managedKeys.has(`${row.tracker_year_id}:${row.field_key}`))
+  for (const row of activity) {
+    const fieldKey = row.event_type === 'funded_contribution' ? 'capital_contributions' : 'box_19_distributions'
+    visible.push({
+      id: `cash-flow-${row.tracker_year_id}-${fieldKey}`,
+      tracker_year_id: row.tracker_year_id,
+      field_key: fieldKey,
+      amount: row.amount,
+      original_source_text: 'Dated cash activity rollup',
+      source_type: 'MANUAL_ENTRY',
+      source_k1_document_id: null,
+      source_k1_field_value_id: null,
+      import_batch_id: null,
+      source_sheet: null,
+      source_cell: null,
+      carryforward_from_year_id: null,
+      override_reason: null,
+      is_active: true,
+      created_by_user_id: null,
+      created_by_email: null,
+      created_at: row.last_updated,
+    })
+  }
+  return visible
+}
+
+const cashFlowEventsFor = async (partnershipId: string, taxYear: number, client: Queryable): Promise<K1TrackerCashFlowEvent[]> => {
+  const rows = (await client.query<CashFlowRow>(`
+    select id, partnership_id, activity_date, event_type, amount, notes, created_at, updated_at
+    from capital_activity_events
+    where partnership_id = $1
+      and extract(year from activity_date)::int = $2
+      and event_type in ('funded_contribution', 'distribution')
+    order by activity_date, created_at, id
+  `, [partnershipId, taxYear])).rows
+  return rows.map((row) => ({
+    id: row.id,
+    partnershipId: row.partnership_id,
+    taxYear,
+    kind: row.event_type === 'funded_contribution' ? 'CAPITAL_CALL' : 'DISTRIBUTION',
+    activityDate: row.activity_date instanceof Date ? row.activity_date.toISOString().slice(0, 10) : String(row.activity_date).slice(0, 10),
+    amount: centsToMoney(cents(row.amount))!,
+    note: row.notes,
+    createdAt: iso(row.created_at)!,
+    updatedAt: iso(row.updated_at)!,
+  }))
 }
 
 const sourceConflictsFor = async (
@@ -189,7 +253,9 @@ const detailFor = async (partnershipId: string, year: TrackerYearRow, allYears: 
   }
   return {
     partnershipId, taxYear: year.tax_year, status: year.workflow_status, revision: year.revision,
-    values: projectCanonicalContribution(valuesByYear.get(year.id) ?? []).map(mapValue), sourceConflicts,
+    values: projectCanonicalContribution(valuesByYear.get(year.id) ?? []).map(mapValue),
+    cashFlowEvents: await cashFlowEventsFor(partnershipId, year.tax_year, client),
+    sourceConflicts,
     calculation, signoff: await signoffFor(year, client),
   }
 }
@@ -220,6 +286,27 @@ const persistProjection = async (client: Queryable, years: TrackerYearRow[], act
       finalizedDocumentId: valueRows.find((value) => value.source_type === 'FINALIZED_K1')?.source_k1_document_id ?? null,
     })
   }
+}
+
+const refreshAfterCashFlowChange = async (client: Queryable, partnershipId: string, taxYear: number, actorUserId: string): Promise<void> => {
+  const years = await yearRowsFor(partnershipId, client, true)
+  const affected = years.filter((year) => year.tax_year >= taxYear)
+  if (!affected.length) throw new K1TrackerError('TRACKER_NOT_FOUND', 'Add the K-1 year before recording dated activity.')
+  await client.query(`
+    update k1_tracker_years
+    set revision = revision + 1,
+        workflow_status = case when tax_year > $2 or workflow_status = 'RECONCILED' then 'NEEDS_REVIEW' else workflow_status end,
+        updated_by_user_id = $3,
+        updated_at = now()
+    where id = any($1::uuid[])
+  `, [affected.map((year) => year.id), taxYear, actorUserId])
+  for (const year of affected) {
+    await client.query(`
+      insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason)
+      values ($1, $2, $3, 'INVALIDATED', $4, 'Dated cash activity changed')
+    `, [randomUUID(), year.id, year.revision + 1, actorUserId])
+  }
+  await persistProjection(client, await yearRowsFor(partnershipId, client), actorUserId)
 }
 
 const reviseValues = async (client: Queryable, yearId: string, changes: K1TrackerFieldChange[], actorUserId: string | null, source: 'MANUAL' | 'IMPORT' | 'FINALIZED' = 'MANUAL', importBatchId?: string, sourceSheet?: string, sourceDocumentId?: string, sourceFieldValueIds?: Map<K1TrackerFieldChange['fieldKey'], string>) : Promise<{ conflicts: K1TrackerFieldChange['fieldKey'][]; changed: boolean }> => {
@@ -358,6 +445,44 @@ export const k1TrackerRepository = {
       const year = years.find((row) => row.tax_year === taxYear)
       if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND')
       return detailFor(partnershipId, year, years, client)
+    })
+  },
+
+  async createCashFlow(partnershipId: string, taxYear: number, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }, actorUserId: string, scope: TrackerScope): Promise<K1TrackerCashFlowEvent> {
+    db()
+    if (Number(body.activityDate.slice(0, 4)) !== taxYear) throw new K1TrackerError('INVALID_IMPORT', 'Activity date must fall within the selected tax year.')
+    return withTransaction(async (client) => {
+      const partnership = await assertPartnership(partnershipId, scope, client)
+      const year = (await client.query<TrackerYearRow>('select * from k1_tracker_years where partnership_id = $1 and tax_year = $2 for update', [partnershipId, taxYear])).rows[0]
+      if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND', 'Add the K-1 year before recording dated activity.')
+      const row = (await client.query<CashFlowRow>(`
+        insert into capital_activity_events
+          (id, entity_id, partnership_id, activity_date, event_type, amount, source_type, notes, created_by_user_id, created_at, updated_at)
+        values ($1, $2, $3, $4, $5, $6, 'manual', $7, $8, now(), now())
+        returning id, partnership_id, activity_date, event_type, amount, notes, created_at, updated_at
+      `, [randomUUID(), partnership.entity_id, partnershipId, body.activityDate, body.kind === 'CAPITAL_CALL' ? 'funded_contribution' : 'distribution', body.amount, body.note ?? null, actorUserId])).rows[0]!
+      await refreshAfterCashFlowChange(client, partnershipId, taxYear, actorUserId)
+      await auditRepository.record({ actorUserId, eventName: 'partnership_tracker.cash_flow.created', objectType: 'capital_activity_event', objectId: row.id, before: null, after: row }, client as never)
+      return (await cashFlowEventsFor(partnershipId, taxYear, client)).find((event) => event.id === row.id)!
+    })
+  },
+
+  async deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: TrackerScope): Promise<void> {
+    db()
+    await withTransaction(async (client) => {
+      await assertPartnership(partnershipId, scope, client)
+      const before = (await client.query<CashFlowRow>(`
+        select id, partnership_id, activity_date, event_type, amount, notes, created_at, updated_at
+        from capital_activity_events
+        where id = $1 and partnership_id = $2 and extract(year from activity_date)::int = $3
+          and event_type in ('funded_contribution', 'distribution')
+        for update
+      `, [cashFlowId, partnershipId, taxYear])).rows[0]
+      if (!before) throw new K1TrackerError('TRACKER_NOT_FOUND', 'Dated cash activity was not found.')
+      if (iso(before.updated_at) !== new Date(expectedUpdatedAt).toISOString()) throw new K1TrackerError('STALE_TRACKER_REVISION')
+      await client.query('delete from capital_activity_events where id = $1', [cashFlowId])
+      await refreshAfterCashFlowChange(client, partnershipId, taxYear, actorUserId)
+      await auditRepository.record({ actorUserId, eventName: 'partnership_tracker.cash_flow.deleted', objectType: 'capital_activity_event', objectId: cashFlowId, before, after: null }, client as never)
     })
   },
 

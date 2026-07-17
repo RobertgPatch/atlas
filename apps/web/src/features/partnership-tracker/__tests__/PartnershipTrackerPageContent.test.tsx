@@ -29,7 +29,7 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByText('Capital account')).toBeInTheDocument()
     expect(screen.getByText('DPI')).toBeInTheDocument()
     expect(screen.getByText('TVPI')).toBeInTheDocument()
-    expect(screen.getByText('IRR')).toBeInTheDocument()
+    expect(screen.getByText('XIRR')).toBeInTheDocument()
   })
   it('restores the read-only Underlying Assets area from the URL', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)

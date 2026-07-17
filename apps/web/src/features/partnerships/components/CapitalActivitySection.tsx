@@ -14,6 +14,7 @@ interface CapitalActivitySectionProps {
 const EVENT_LABEL: Record<CapitalActivityEvent['eventType'], string> = {
   capital_call: 'Capital Call',
   funded_contribution: 'Funded Contribution',
+  distribution: 'Distribution',
   other_adjustment: 'Other Adjustment',
 }
 
@@ -25,6 +26,7 @@ const SOURCE_STYLE: Record<CapitalActivityEvent['sourceType'], string> = {
 const EVENT_STYLE: Record<CapitalActivityEvent['eventType'], string> = {
   capital_call: 'bg-amber-50 text-amber-700 border-amber-200',
   funded_contribution: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  distribution: 'bg-sky-50 text-sky-700 border-sky-200',
   other_adjustment: 'bg-violet-50 text-violet-700 border-violet-200',
 }
 

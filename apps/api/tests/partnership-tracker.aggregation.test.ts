@@ -118,6 +118,7 @@ describe('partnership aggregation composition', () => {
       unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
       dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE' },
       tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE' },
+      annualizedCashOnCashYield: { value: '0.05000000', status: 'PARTIAL_COVERAGE' },
       navValuationRange: { earliest: '2024-12-31', latest: '2026-03-31' },
     })
     expect(result.rollup).not.toHaveProperty('irr')
@@ -192,7 +193,7 @@ describe('partnership aggregation composition', () => {
     expect(result.items[0]?.members.map((member) => member.partnership.entity.name)).toEqual(['Alder Family', 'Beacon Holdings'])
   })
 
-  it.each(['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'latestTaxYear', 'warningCount'] as const)('supports the %s sort key', (sort) => {
+  it.each(['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'cashYield', 'latestTaxYear', 'warningCount'] as const)('supports the %s sort key', (sort) => {
     expect(composePartnershipAggregation(rows, query({ sort })).items).toHaveLength(4)
     expect(composePartnershipAggregation(rows, query({ sort, direction: 'desc' })).items).toHaveLength(4)
   })

@@ -25,7 +25,7 @@ export function PerformanceMetricStrip({ summary }: { summary: PartnershipTracke
     { label: 'NAV', value: money(summary.latestNav?.amount ?? null), detail: summary.latestNav ? `As of ${summary.latestNav.date}` : 'Latest valuation' },
     { label: 'DPI', value: multiple(summary.dpi, status.dpi), detail: 'Distributions / paid-in' },
     { label: 'TVPI', value: multiple(summary.tvpi, status.tvpi), detail: '(Distributions + NAV) / paid-in' },
-    { label: 'IRR', value: percent(summary.irr, status.irr), detail: 'Dated K-1 cash flows and NAV' },
+    { label: 'XIRR', value: percent(summary.irr, status.irr), detail: 'Exact-dated cash flows and NAV' },
     { label: 'Annualized Cash on Cash Yield', value: percent(summary.annualizedCashOnCashYield, status.annualizedCashOnCashYield), detail: `Through ${summary.performanceAsOfDate}` },
     { label: 'Unfunded commitment', value: unfundedValue, detail: 'Commitment minus paid-in capital' },
     { label: 'Unrealized gain', value: money(summary.unrealizedGain), detail: 'NAV minus ending outside basis' },

@@ -21,6 +21,27 @@ interface AppShellProps {
   contentClassName?: string
 }
 
+type NavigationItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }> }
+const navigation: NavigationItem[] = [
+  { name: 'Liquidity', href: '/liquidity', icon: Landmark },
+  { name: 'Partnerships', href: '/partnership-tracker', icon: Building2 },
+  { name: 'TIC Registry', href: '/tic-registry', icon: Network },
+  { name: 'Entities', href: '/entities', icon: Building2 },
+]
+
+function NavItem({ item, currentPath, collapsed, showDetails }: { item: NavigationItem; currentPath: string; collapsed: boolean; showDetails: boolean }) {
+  const isActive = currentPath === item.href || currentPath.startsWith(`${item.href}/`) || (item.href === '/partnership-tracker' && currentPath === '/partnership-aggregation')
+  return <Link
+    to={item.href}
+    aria-label={item.name}
+    title={collapsed && !showDetails ? item.name : undefined}
+    className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${isActive ? 'border-atlas-gold bg-white/5 text-atlas-gold' : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white'}`}
+  >
+    <item.icon className={`h-5 w-5 flex-shrink-0 ${showDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${isActive ? 'text-atlas-gold' : 'text-gray-400 group-hover:text-gray-300'}`} />
+    <span className={`truncate ${showDetails ? '' : 'lg:hidden'}`}>{item.name}</span>
+  </Link>
+}
+
 export function AppShell({
   children,
   currentPath = '/liquidity',
@@ -42,36 +63,6 @@ export function AppShell({
   useEffect(() => {
     try { window.localStorage.setItem('atlas-sidebar-collapsed', String(isDesktopNavCollapsed)) } catch { /* Storage may be disabled. */ }
   }, [isDesktopNavCollapsed])
-
-  const navigation = [
-    { name: 'Liquidity', href: '/liquidity', icon: Landmark },
-    { name: 'Partnerships', href: '/partnership-tracker', icon: Building2 },
-    { name: 'TIC Registry', href: '/tic-registry', icon: Network },
-    { name: 'Entities', href: '/entities', icon: Building2 },
-  ]
-
-  const NavItem = ({ item }: { item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> } }) => {
-    const isActive = currentPath === item.href || currentPath.startsWith(`${item.href}/`) || (item.href === '/partnership-tracker' && currentPath === '/partnership-aggregation')
-    return (
-      <Link
-        to={item.href}
-        aria-label={item.name}
-        title={isDesktopNavCollapsed && !showDesktopNavDetails ? item.name : undefined}
-        className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDesktopNavDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${
-          isActive
-            ? 'bg-white/5 text-atlas-gold border-l-2 border-atlas-gold'
-            : 'text-gray-300 hover:bg-white/5 hover:text-white border-l-2 border-transparent'
-        }`}
-      >
-        <item.icon
-          className={`h-5 w-5 flex-shrink-0 ${showDesktopNavDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${
-            isActive ? 'text-atlas-gold' : 'text-gray-400 group-hover:text-gray-300'
-          }`}
-        />
-        <span className={`truncate ${showDesktopNavDetails ? '' : 'lg:hidden'}`}>{item.name}</span>
-      </Link>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -134,7 +125,7 @@ export function AppShell({
           <div className="flex-1 overflow-y-auto py-4 px-3 space-y-8">
             <nav className="space-y-1">
               {navigation.map((item) => (
-                <NavItem key={item.name} item={item} />
+                <NavItem key={item.name} item={item} currentPath={currentPath} collapsed={isDesktopNavCollapsed} showDetails={showDesktopNavDetails} />
               ))}
             </nav>
           </div>

@@ -7,6 +7,7 @@ import { formatLedgerDate, formatMultiple, formatPercent, formatWholeMoney, huma
 export type PartnershipLedgerColumnId =
   | 'partnership' | 'owner' | 'type' | 'lifecycle' | 'workflow' | 'commitment'
   | 'paidIn' | 'distributions' | 'nav' | 'unfunded' | 'dpi' | 'tvpi' | 'irr'
+  | 'cashYield'
   | 'taxYear' | 'warnings' | 'quality'
 
 export interface PartnershipLedgerColumn {
@@ -30,7 +31,8 @@ export const partnershipLedgerColumns: readonly PartnershipLedgerColumn[] = [
   { id: 'unfunded', label: 'Unfunded', sort: 'unfunded', width: 142, minWidth: 120 },
   { id: 'dpi', label: 'DPI', sort: 'dpi', width: 94, minWidth: 82 },
   { id: 'tvpi', label: 'TVPI', sort: 'tvpi', width: 94, minWidth: 82 },
-  { id: 'irr', label: 'IRR', sort: 'irr', width: 94, minWidth: 82 },
+  { id: 'irr', label: 'XIRR', sort: 'irr', width: 94, minWidth: 82 },
+  { id: 'cashYield', label: 'Annualized CoC', sort: 'cashYield', width: 140, minWidth: 120 },
   { id: 'taxYear', label: 'Tax year', sort: 'latestTaxYear', width: 100, minWidth: 88 },
   { id: 'warnings', label: 'Warnings', sort: 'warningCount', width: 100, minWidth: 88 },
   { id: 'quality', label: 'Quality', width: 130, minWidth: 105 },
@@ -65,6 +67,7 @@ export function partnershipLedgerExportValue(group: PartnershipAggregateGroup, c
     case 'dpi': return formatMultiple(group.totals.dpi.value) ?? unavailable(humanizeCode(group.totals.dpi.status))
     case 'tvpi': return formatMultiple(group.totals.tvpi.value) ?? unavailable(humanizeCode(group.totals.tvpi.status))
     case 'irr': return singleMember ? formatPercent(singleMember.irr) ?? unavailable(humanizeCode(singleMember.performanceStatus.irr)) : 'Owner detail only'
+    case 'cashYield': return formatPercent(group.totals.annualizedCashOnCashYield.value) ?? unavailable(humanizeCode(group.totals.annualizedCashOnCashYield.status))
     case 'taxYear': return group.latestTaxYear == null ? unavailable('No K-1 year') : String(group.latestTaxYear)
     case 'warnings': return String(group.warningCount)
     case 'quality': return humanizeCode(group.dataQuality)

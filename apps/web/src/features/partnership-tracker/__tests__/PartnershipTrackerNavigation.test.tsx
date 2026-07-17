@@ -61,6 +61,15 @@ describe('Partnership Tracker navigation', () => {
     expect(screen.getByRole('link', { name: 'Partnerships' }).querySelector('span')).toHaveClass('lg:hidden')
     expect(window.localStorage.getItem('atlas-sidebar-collapsed')).toBe('true')
   })
+
+  it('navigates on the first click while the collapsed rail expands on hover', () => {
+    render(<MemoryRouter initialEntries={['/liquidity']}><Routes><Route path="*" element={<AppShell currentPath="/liquidity"><LocationPath /></AppShell>} /></Routes></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
+    fireEvent.mouseEnter(screen.getByTestId('app-sidebar-frame'))
+    fireEvent.click(screen.getByRole('link', { name: 'Entities' }))
+    expect(screen.getByTestId('current-path')).toHaveTextContent('/entities')
+  })
 })
 
 function Location() { const location = useLocation(); return <span>{location.search}</span> }
+function LocationPath() { const location = useLocation(); return <span data-testid="current-path">{location.pathname}</span> }

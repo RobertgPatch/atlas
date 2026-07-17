@@ -121,6 +121,30 @@ const coveredRatio = (
   }
 }
 
+const weightedCashYield = (rows: PartnershipAggregateRow[]): PartnershipAggregationCoveredRatio => {
+  let weightedUnits = 0n
+  let weightCents = 0n
+  let knownCount = 0
+  for (const row of rows) {
+    if (row.annualizedCashOnCashYield == null || row.totalCapitalContributions == null) continue
+    const weight = moneyToCents(row.totalCapitalContributions)
+    if (weight <= 0n) continue
+    weightedUnits += decimalToUnits(row.annualizedCashOnCashYield) * weight
+    weightCents += weight
+    knownCount += 1
+  }
+  if (knownCount === 0) return { value: null, status: 'NO_DATA', numeratorKnownCount: 0, denominatorKnownCount: 0, totalCount: rows.length }
+  if (weightCents === 0n) return { value: null, status: 'ZERO_DENOMINATOR', numeratorKnownCount: knownCount, denominatorKnownCount: knownCount, totalCount: rows.length }
+  const units = weightedUnits / weightCents
+  return {
+    value: `${units < 0n ? '-' : ''}${(units < 0n ? -units : units) / RATIO_SCALE}.${String((units < 0n ? -units : units) % RATIO_SCALE).padStart(8, '0')}`,
+    status: knownCount === rows.length ? 'AVAILABLE' : 'PARTIAL_COVERAGE',
+    numeratorKnownCount: knownCount,
+    denominatorKnownCount: knownCount,
+    totalCount: rows.length,
+  }
+}
+
 const titleCaseStatus = (value: string) => value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
 const facetsFor = <T extends string>(
@@ -244,6 +268,7 @@ const sortValue = (group: PartnershipAggregateGroup, sort: PartnershipAggregatio
     case 'dpi': return group.totals.dpi.value == null ? null : decimalToUnits(group.totals.dpi.value)
     case 'tvpi': return group.totals.tvpi.value == null ? null : decimalToUnits(group.totals.tvpi.value)
     case 'irr': return group.members.length === 1 && group.members[0].irr != null ? decimalToUnits(group.members[0].irr) : null
+    case 'cashYield': return group.totals.annualizedCashOnCashYield.value == null ? null : decimalToUnits(group.totals.annualizedCashOnCashYield.value)
     case 'latestTaxYear': return group.latestTaxYear
     case 'warningCount': return group.warningCount
   }
@@ -304,6 +329,7 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershi
     unfundedCommitment,
     dpi,
     tvpi,
+    annualizedCashOnCashYield: weightedCashYield(rows),
     asOfDate,
     navValuationRange: { earliest: navDates.at(0) ?? null, latest: navDates.at(-1) ?? null },
   }

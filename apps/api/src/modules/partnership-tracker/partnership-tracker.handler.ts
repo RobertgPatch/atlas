@@ -8,12 +8,14 @@ import {
   commitmentListQuerySchema,
   managementFeeQuerySchema,
   createCommitmentBodySchema,
+  createPartnershipCashFlowBodySchema,
   createManualYearBodySchema,
   createNavBodySchema,
   createTrackedPartnershipBodySchema,
   deleteManualYearQuerySchema,
   expectedUpdatedAtQuerySchema,
   partnershipTrackerCommitmentParamsSchema,
+  partnershipTrackerCashFlowParamsSchema,
   partnershipAggregationQuerySchema,
   partnershipTrackerListQuerySchema,
   partnershipTrackerNavParamsSchema,
@@ -158,6 +160,21 @@ export const calculateManualYearHandler = async (request: FastifyRequest, reply:
   const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
   const body = parse(calculateManualYearBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.calculateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes ?? [], request.partnershipScope!)))
+}
+export const createPartnershipCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlow(params.partnershipId, params.taxYear, body, request.authUser!.userId, request.partnershipScope!)))
+}
+export const deletePartnershipCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerCashFlowParamsSchema, request.params, reply)
+  const query = parse(expectedUpdatedAtQuerySchema, request.query, reply); if (!params || !query) return
+  return run(reply, async () => {
+    await partnershipTrackerRepository.deleteCashFlow(params.partnershipId, params.taxYear, params.cashFlowId, query.expectedUpdatedAt, request.authUser!.userId, request.partnershipScope!)
+    return reply.code(204).send()
+  })
 }
 export const deleteManualYearHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

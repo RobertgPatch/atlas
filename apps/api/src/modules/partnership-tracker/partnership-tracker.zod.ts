@@ -84,11 +84,19 @@ export const partnershipTrackerPartnershipParamsSchema = z.object({ partnershipI
 export const partnershipTrackerYearParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ taxYear: partnershipTrackerTaxYearSchema })
 export const partnershipTrackerCommitmentParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ commitmentId: partnershipTrackerUuidSchema })
 export const partnershipTrackerNavParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ navEntryId: partnershipTrackerUuidSchema })
+export const partnershipTrackerCashFlowParamsSchema = partnershipTrackerYearParamsSchema.extend({ cashFlowId: partnershipTrackerUuidSchema })
 
 const inceptionDateSchema = partnershipTrackerDateSchema.nullable().refine(
   (value) => value == null || value <= new Date().toISOString().slice(0, 10),
   'Inception date cannot be in the future',
 )
+
+const nullableProfileText = (max: number) => z.string().trim().max(max).nullable().optional()
+const partnershipEinSchema = z.string().trim()
+  .regex(/^\d{2}-?\d{7}$/, 'Use a nine-digit EIN, optionally formatted as XX-XXXXXXX')
+  .transform((value) => value.replace('-', ''))
+  .nullable()
+  .optional()
 
 export const createTrackedPartnershipBodySchema = z.object({
   entityId: partnershipTrackerUuidSchema,
@@ -98,6 +106,20 @@ export const createTrackedPartnershipBodySchema = z.object({
   notes: z.string().trim().max(10_000).nullable().optional(),
   inceptionDate: inceptionDateSchema.optional(),
   managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),
+  ein: partnershipEinSchema,
+  fundManager: nullableProfileText(200),
+  addressLine1: nullableProfileText(200),
+  addressLine2: nullableProfileText(200),
+  addressCity: nullableProfileText(120),
+  addressRegion: nullableProfileText(120),
+  addressPostalCode: nullableProfileText(30),
+  addressCountry: nullableProfileText(120),
+  initialValuationAmount: partnershipTrackerNonnegativeMoneySchema.nullable().optional(),
+  initialValuationDate: partnershipTrackerDateSchema.nullable().optional(),
+}).superRefine((body, context) => {
+  if ((body.initialValuationAmount == null) !== (body.initialValuationDate == null)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['initialValuationAmount'], message: 'Initial valuation amount and date must be entered together' })
+  }
 })
 export const updateTrackedPartnershipBodySchema = z.object({
   entityId: partnershipTrackerUuidSchema.optional(),
@@ -107,6 +129,14 @@ export const updateTrackedPartnershipBodySchema = z.object({
   notes: z.string().trim().max(10_000).nullable().optional(),
   inceptionDate: inceptionDateSchema.optional(),
   managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),
+  ein: partnershipEinSchema,
+  fundManager: nullableProfileText(200),
+  addressLine1: nullableProfileText(200),
+  addressLine2: nullableProfileText(200),
+  addressCity: nullableProfileText(120),
+  addressRegion: nullableProfileText(120),
+  addressPostalCode: nullableProfileText(30),
+  addressCountry: nullableProfileText(120),
   expectedUpdatedAt: partnershipTrackerDateTimeSchema,
 }).refine((body) => Object.keys(body).some((key) => key !== 'expectedUpdatedAt'), { message: 'At least one editable field is required' })
 
@@ -136,6 +166,13 @@ export const updateNavBodySchema = z.object({
 export const expectedUpdatedAtQuerySchema = z.object({ expectedUpdatedAt: partnershipTrackerDateTimeSchema })
 export const commitmentListQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
 export const managementFeeQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
+
+export const createPartnershipCashFlowBodySchema = z.object({
+  kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION']),
+  activityDate: partnershipTrackerDateSchema,
+  amount: partnershipTrackerNonnegativeMoneySchema.refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
+  note: z.string().trim().max(2_000).nullable().optional(),
+})
 
 export const manualFieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),

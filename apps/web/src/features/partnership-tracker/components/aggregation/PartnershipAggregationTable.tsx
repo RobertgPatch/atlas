@@ -73,6 +73,7 @@ function memberCellContent(row: PartnershipAggregateRow, column: PartnershipLedg
     case 'dpi': return <RatioCell value={row.dpi} status={row.performanceStatus.dpi} />
     case 'tvpi': return <RatioCell value={row.tvpi} status={row.performanceStatus.tvpi} />
     case 'irr': return <RatioCell value={row.irr} status={row.performanceStatus.irr} percent />
+    case 'cashYield': return <RatioCell value={row.annualizedCashOnCashYield} status={row.performanceStatus.annualizedCashOnCashYield} percent />
     case 'taxYear': return row.latestTaxYear ?? <MissingValue reason="No K-1 year" />
     case 'warnings': return row.warningCount
     case 'quality': return <span className={`inline-flex rounded-sm px-2 py-1 text-[0.68rem] font-bold uppercase tracking-wide ring-1 ring-inset ${qualityStyles[row.dataQuality]}`}>{humanizeCode(row.dataQuality)}</span>
@@ -90,7 +91,7 @@ function GroupPartnershipCell({ group, expanded, onToggle }: { group: Partnershi
       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${group.name} owner details`}
       title={`${expanded ? 'Collapse' : 'Expand'} owner details`}
       onClick={(event) => { event.stopPropagation(); onToggle() }}
-      className={`grid min-h-11 min-w-11 shrink-0 place-items-center rounded-sm border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2 ${expanded ? 'border-atlas-gold bg-atlas-gold/15 text-gray-950' : 'border-gray-300 bg-white text-gray-500 hover:border-gray-500 hover:text-gray-950'}`}
+      className={`grid h-7 w-7 shrink-0 place-items-center rounded-sm border-0 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2 ${expanded ? 'bg-atlas-gold/15 text-atlas-hover' : 'bg-transparent text-gray-400 hover:bg-gray-100 hover:text-gray-800'}`}
     >
       {expanded ? <Minus className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
     </button>
@@ -126,6 +127,7 @@ function groupCellContent(group: PartnershipAggregateGroup, column: PartnershipL
     case 'dpi': return <RatioCell value={group.totals.dpi.value} status={group.totals.dpi.status} />
     case 'tvpi': return <RatioCell value={group.totals.tvpi.value} status={group.totals.tvpi.status} />
     case 'irr': return singleMember ? <RatioCell value={singleMember.irr} status={singleMember.performanceStatus.irr} percent /> : <MissingValue reason="See owner rows" />
+    case 'cashYield': return <RatioCell value={group.totals.annualizedCashOnCashYield.value} status={group.totals.annualizedCashOnCashYield.status} percent />
     case 'taxYear': return group.latestTaxYear ?? <MissingValue reason="No K-1 year" />
     case 'warnings': return group.warningCount
     case 'quality': return <span className={`inline-flex rounded-sm px-2 py-1 text-[0.68rem] font-bold uppercase tracking-wide ring-1 ring-inset ${qualityStyles[group.dataQuality]}`}>{humanizeCode(group.dataQuality)}</span>

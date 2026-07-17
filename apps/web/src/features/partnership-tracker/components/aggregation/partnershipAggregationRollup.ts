@@ -1,5 +1,5 @@
 import type { PartnershipPortfolioRollup } from '../../../../../../../packages/types/src/partnership-tracker'
-import { formatLedgerDate, formatMultiple, formatWholeMoney, humanizeCode } from './aggregationFormatters'
+import { formatLedgerDate, formatMultiple, formatPercent, formatWholeMoney, humanizeCode } from './aggregationFormatters'
 
 export interface PartnershipRollupMetric {
   label: string
@@ -22,5 +22,6 @@ export function partnershipRollupMetrics(rollup: PartnershipPortfolioRollup): Pa
     { label: 'Unfunded', value: formatWholeMoney(rollup.unfundedCommitment.amount), detail: coverage(rollup.unfundedCommitment.knownCount, rollup.unfundedCommitment.totalCount) },
     { label: 'Portfolio DPI', value: formatMultiple(rollup.dpi.value), detail: humanizeCode(rollup.dpi.status) },
     { label: 'Portfolio TVPI', value: formatMultiple(rollup.tvpi.value), detail: humanizeCode(rollup.tvpi.status) },
+    { label: 'Annualized CoC', value: formatPercent(rollup.annualizedCashOnCashYield.value), detail: humanizeCode(rollup.annualizedCashOnCashYield.status) },
   ]
 }

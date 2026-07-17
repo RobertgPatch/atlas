@@ -29,4 +29,14 @@ describe('partnership aggregation client', () => {
     expect(response.query).toEqual(aggregationResponseFixture.query)
     expect(response.rollup.committedCapital.amount).toBe('350000.00')
   })
+
+  it('serializes initial valuation and exact-dated cash activity writes', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ id: 'flow-1' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    await partnershipTrackerClient.create({ entityId: 'e-1', name: 'Fund', partnershipType: 'Private Equity', initialValuationAmount: '$850,000', initialValuationDate: '2024-01-15' })
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ initialValuationAmount: '850000.00', initialValuationDate: '2024-01-15' })
+    await partnershipTrackerClient.createCashFlow('p-1', 2024, { kind: 'DISTRIBUTION', activityDate: '2024-09-30', amount: '$25,000', note: null })
+    expect(fetchMock.mock.calls[1]![0]).toBe('/v1/partnership-tracker/partnerships/p-1/years/2024/cash-flows')
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body)).toEqual({ kind: 'DISTRIBUTION', activityDate: '2024-09-30', amount: '25000.00', note: null })
+  })
 })

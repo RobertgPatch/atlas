@@ -37,6 +37,14 @@ export interface PartnershipTrackerSummary {
     notes: string | null
     inceptionDate: string | null
     managementFeeRate: PartnershipTrackerRatio | null
+    ein: string | null
+    fundManager: string | null
+    addressLine1: string | null
+    addressLine2: string | null
+    addressCity: string | null
+    addressRegion: string | null
+    addressPostalCode: string | null
+    addressCountry: string | null
     createdAt: string
     updatedAt: string
   }
@@ -84,7 +92,7 @@ export const PARTNERSHIP_AGGREGATION_WORKFLOWS = ['NOT_STARTED', 'IN_PROGRESS', 
 export type PartnershipAggregationWorkflow = (typeof PARTNERSHIP_AGGREGATION_WORKFLOWS)[number]
 export const PARTNERSHIP_DATA_QUALITIES = ['COMPLETE', 'MISSING_DATA', 'WARNINGS'] as const
 export type PartnershipDataQuality = (typeof PARTNERSHIP_DATA_QUALITIES)[number]
-export const PARTNERSHIP_AGGREGATION_SORTS = ['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'latestTaxYear', 'warningCount'] as const
+export const PARTNERSHIP_AGGREGATION_SORTS = ['partnership', 'owner', 'type', 'status', 'commitment', 'paidIn', 'distributions', 'nav', 'unfunded', 'dpi', 'tvpi', 'irr', 'cashYield', 'latestTaxYear', 'warningCount'] as const
 export type PartnershipAggregationSort = (typeof PARTNERSHIP_AGGREGATION_SORTS)[number]
 export type PartnershipAggregationDirection = 'asc' | 'desc'
 export type PartnershipAggregationPageSize = 25 | 50 | 100
@@ -117,6 +125,7 @@ export interface PartnershipPortfolioRollup {
   unfundedCommitment: PartnershipAggregationCoveredMoney
   dpi: PartnershipAggregationCoveredRatio
   tvpi: PartnershipAggregationCoveredRatio
+  annualizedCashOnCashYield: PartnershipAggregationCoveredRatio
   asOfDate: string
   navValuationRange: { earliest: string | null; latest: string | null }
 }
@@ -148,5 +157,7 @@ export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = ['AVAILABLE', 'MISSING_IN
 export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY)[number]
 export interface PartnershipManagementFeeAnnualRow { calendarYear: number; periodStart: string; periodEnd: string; activeDays: number; daysInYear: 365 | 366; weightedCommittedCapital: string | null; annualRate: string; estimatedFee: string | null }
 export interface PartnershipManagementFeeEstimate { partnershipId: string; inceptionDate: string | null; annualRate: string | null; asOfDate: string; status: PartnershipManagementFeeAvailability; annualRows: PartnershipManagementFeeAnnualRow[]; cumulativeEstimatedFee: string | null }
+
+export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }
 
 export type { K1TrackerCalculation, K1TrackerFieldChange, K1TrackerSignoffState, K1TrackerYearDetail }

@@ -23,9 +23,13 @@ describe('Add Partnership flow', () => {
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-1' } })
     fireEvent.change(screen.getByLabelText('Partnership name'), { target: { value: 'Redwood Fund' } })
     fireEvent.change(screen.getByLabelText('Partnership type'), { target: { value: 'Real Estate' } })
+    fireEvent.change(screen.getByLabelText(/EIN/), { target: { value: '12-3456789' } })
+    fireEvent.change(screen.getByLabelText('Fund manager'), { target: { value: 'Redwood Capital' } })
+    fireEvent.change(screen.getByLabelText('Initial valuation'), { target: { value: '$850,000.00' } })
+    fireEvent.change(screen.getByLabelText('Valuation date'), { target: { value: '2024-01-15' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create partnership' }))
     await waitFor(() => expect(created).toHaveBeenCalledWith('p-1'))
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'e-1', partnershipType: 'Real Estate' }))
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'e-1', partnershipType: 'Real Estate', ein: '12-3456789', fundManager: 'Redwood Capital', initialValuationAmount: '$850,000.00', initialValuationDate: '2024-01-15' }))
   })
 
   it('adds an independent owner record to an existing partnership aggregate', async () => {

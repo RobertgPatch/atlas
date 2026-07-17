@@ -6,10 +6,12 @@ import {
   calculateManualYearHandler,
   createCommitmentHandler,
   createManualYearHandler,
+  createPartnershipCashFlowHandler,
   createNavHandler,
   createPartnershipTrackerHandler,
   deleteCommitmentHandler,
   deleteManualYearHandler,
+  deletePartnershipCashFlowHandler,
   deleteNavHandler,
   getManualYearHandler,
   getManagementFeesHandler,
@@ -45,6 +47,8 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   app.post(`${root}/:partnershipId/years`, gated, createManualYearHandler)
   app.get(`${root}/:partnershipId/years/:taxYear`, gated, getManualYearHandler)
   app.patch(`${root}/:partnershipId/years/:taxYear`, gated, updateManualYearHandler)
+  app.post(`${root}/:partnershipId/years/:taxYear/cash-flows`, gated, createPartnershipCashFlowHandler)
+  app.delete(`${root}/:partnershipId/years/:taxYear/cash-flows/:cashFlowId`, gated, deletePartnershipCashFlowHandler)
   app.delete(`${root}/:partnershipId/years/:taxYear`, gated, deleteManualYearHandler)
   app.post(`${root}/:partnershipId/years/:taxYear/calculate`, gated, calculateManualYearHandler)
   app.post(`${root}/:partnershipId/years/:taxYear/signoffs`, gated, signoffManualYearHandler)

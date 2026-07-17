@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   CreatePartnershipCommitmentEntryRequest,
+  CreatePartnershipCashFlowRequest,
   CreatePartnershipNavEntryRequest,
   CreateTrackedPartnershipRequest,
   K1TrackerFieldChange,
@@ -83,6 +84,8 @@ export function usePartnershipTrackerActions() {
     updateYear: useMutation({ mutationFn: ({ id, year, expectedRevision, changes }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[] }) => partnershipTrackerClient.updateYear(id, year, { expectedRevision, changes }), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     deleteYear: useMutation({ mutationFn: ({ id, year, expectedRevision }: { id: string; year: number; expectedRevision: number }) => partnershipTrackerClient.deleteYear(id, year, expectedRevision), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     calculate: useMutation({ mutationFn: ({ id, year, expectedRevision, changes }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[] }) => partnershipTrackerClient.calculate(id, year, expectedRevision, { changes }) }),
+    createCashFlow: useMutation({ mutationFn: ({ id, year, body }: { id: string; year: number; body: CreatePartnershipCashFlowRequest }) => partnershipTrackerClient.createCashFlow(id, year, body), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year) }),
+    deleteCashFlow: useMutation({ mutationFn: ({ id, year, cashFlowId, expectedUpdatedAt }: { id: string; year: number; cashFlowId: string; expectedUpdatedAt: string }) => partnershipTrackerClient.deleteCashFlow(id, year, cashFlowId, expectedUpdatedAt), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     signoff: useMutation({ mutationFn: ({ id, year, expectedRevision, action, reason }: { id: string; year: number; expectedRevision: number; action: PartnershipTrackerSignoffAction; reason?: string }) => partnershipTrackerClient.signoff(id, year, expectedRevision, action, reason), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
   }
 }

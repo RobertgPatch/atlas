@@ -11,7 +11,7 @@ export function PartnershipAggregationKpis({ rollup }: { rollup: PartnershipPort
         <h2 id="portfolio-rollup-title" className="font-serif text-lg tracking-wide">Filtered portfolio rollup</h2>
         <p className="text-xs uppercase tracking-[0.18em] text-gray-400">As of {formatLedgerDate(rollup.asOfDate)}</p>
       </div>
-      <dl className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7">
+      <dl className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
         {metrics.map((metric) => (
           <div key={metric.label} className="min-w-0 border-b border-r border-gray-200 px-4 py-4 last:border-r-0 sm:px-5 xl:border-b-0">
             <dt className="text-[0.68rem] font-bold uppercase tracking-[0.14em] text-gray-500">{metric.label}</dt>

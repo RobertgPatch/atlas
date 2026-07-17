@@ -28,11 +28,14 @@ type PartnershipRow = QueryResultRow & {
   id: string; aggregation_group_id: string; entity_id: string; entity_name: string; name: string; asset_class: string | null
   status: PartnershipTrackerSummary['partnership']['status']; notes: string | null
   inception_date: Date | string | null; management_fee_rate: string | null
+  ein: string | null; fund_manager: string | null; address_line_1: string | null; address_line_2: string | null
+  address_city: string | null; address_region: string | null; address_postal_code: string | null; address_country: string | null
   created_at: Date | string; updated_at: Date | string; current_commitment: string | null
   current_commitment_date: Date | string | null; latest_nav: string | null; latest_nav_date: Date | string | null
   earliest_k1_year: number | null; latest_k1_year: number | null; latest_workflow_status: string | null
   latest_ending_basis: string | null; latest_section_l_capital: string | null; warning_count: string; total_count: string
   annual_performance: PartnershipAnnualPerformanceValue[] | null
+  dated_cash_flows: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string }> | null
 }
 type CommitmentRow = QueryResultRow & {
   id: string; partnership_id: string; commitment_amount: string; effective_date: Date | string
@@ -84,6 +87,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
   })) : []
   const performance = composePartnershipPerformance({
     annualValues,
+    cashFlowEvents: Array.isArray(row.dated_cash_flows) ? row.dated_cash_flows : [],
     latestNav,
     inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
     currentCommitment: money(row.current_commitment),
@@ -100,6 +104,14 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
     notes: row.notes ?? null,
     inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
     managementFeeRate: ratio(row.management_fee_rate),
+    ein: row.ein,
+    fundManager: row.fund_manager,
+    addressLine1: row.address_line_1,
+    addressLine2: row.address_line_2,
+    addressCity: row.address_city,
+    addressRegion: row.address_region,
+    addressPostalCode: row.address_postal_code,
+    addressCountry: row.address_country,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   },
@@ -150,7 +162,8 @@ const summaryRows = async (
   }
   return (await database().query<PartnershipRow>(`
     select p.id, p.aggregation_group_id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
-      p.inception_date, p.management_fee_rate, p.created_at, p.updated_at,
+      p.inception_date, p.management_fee_rate, p.ein, p.fund_manager, p.address_line_1, p.address_line_2,
+      p.address_city, p.address_region, p.address_postal_code, p.address_country, p.created_at, p.updated_at,
       commitment.commitment_amount as current_commitment,
       commitment.effective_date as current_commitment_date,
       nav.fmv_amount as latest_nav,
@@ -161,6 +174,7 @@ const summaryRows = async (
       latest_year.ending_outside_basis as latest_ending_basis,
       latest_year.latest_section_l_capital,
       years.annual_performance,
+      cash_flows.events as dated_cash_flows,
       coalesce(years.warning_count, 0)::text as warning_count,
       count(*) over()::text as total_count
     from partnerships p
@@ -181,10 +195,10 @@ const summaryRows = async (
         coalesce(sum(y.warning_count), 0) as warning_count,
         jsonb_agg(jsonb_build_object(
           'taxYear', y.tax_year,
-          'hasCanonicalContribution', coalesce(annual.has_canonical_contribution, false),
-          'capitalContributions', annual.capital_contributions::text,
+          'hasCanonicalContribution', coalesce(activity.contribution_count, 0) > 0 or coalesce(annual.has_canonical_contribution, false),
+          'capitalContributions', case when coalesce(activity.contribution_count, 0) > 0 then activity.capital_contributions::text else annual.capital_contributions::text end,
           'legacyCapitalContributions', annual.legacy_capital_contributions::text,
-          'distributions', annual.distributions::text
+          'distributions', case when coalesce(activity.distribution_count, 0) > 0 then activity.distributions::text else annual.distributions::text end
         ) order by y.tax_year) filter (where y.id is not null) as annual_performance
       from k1_tracker_years y
       left join lateral (
@@ -196,8 +210,28 @@ const summaryRows = async (
         from k1_tracker_value_revisions v
         where v.tracker_year_id = y.id and v.is_active = true
       ) annual on true
+      left join lateral (
+        select
+          count(*) filter (where event_type = 'funded_contribution') as contribution_count,
+          count(*) filter (where event_type = 'distribution') as distribution_count,
+          sum(abs(amount)) filter (where event_type = 'funded_contribution') as capital_contributions,
+          sum(abs(amount)) filter (where event_type = 'distribution') as distributions
+        from capital_activity_events
+        where partnership_id = y.partnership_id
+          and extract(year from activity_date)::int = y.tax_year
+          and event_type in ('funded_contribution', 'distribution')
+      ) activity on true
       where y.partnership_id = p.id
     ) years on true
+    left join lateral (
+      select jsonb_agg(jsonb_build_object(
+        'kind', case when event_type = 'funded_contribution' then 'CAPITAL_CALL' else 'DISTRIBUTION' end,
+        'activityDate', activity_date::text,
+        'amount', abs(amount)::text
+      ) order by activity_date, created_at, id) as events
+      from capital_activity_events
+      where partnership_id = p.id and event_type in ('funded_contribution', 'distribution')
+    ) cash_flows on true
     left join lateral (
       select y.workflow_status, y.ending_outside_basis,
         (
@@ -276,7 +310,7 @@ export const partnershipTrackerRepository = {
     }
   },
 
-  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; initialValuationAmount?: string | null; initialValuationDate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     validateInceptionDate(body.inceptionDate)
     const id = await withTransaction(async (client) => {
       const entity = (await client.query<{ id: string }>('select id from entities where id = $1', [body.entityId])).rows[0]
@@ -288,7 +322,19 @@ export const partnershipTrackerRepository = {
         name: string
         asset_class: string | null
         aggregation_group_id: string
-      }>('select id, entity_id, name, asset_class, aggregation_group_id from partnerships where id = $1 for share', [body.existingPartnershipId])).rows[0]
+        inception_date: Date | string | null
+        management_fee_rate: string | null
+        ein: string | null
+        fund_manager: string | null
+        address_line_1: string | null
+        address_line_2: string | null
+        address_city: string | null
+        address_region: string | null
+        address_postal_code: string | null
+        address_country: string | null
+      }>(`select id, entity_id, name, asset_class, aggregation_group_id, inception_date, management_fee_rate,
+          ein, fund_manager, address_line_1, address_line_2, address_city, address_region, address_postal_code, address_country
+        from partnerships where id = $1 for share`, [body.existingPartnershipId])).rows[0]
       if (body.existingPartnershipId && !existing) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'The existing partnership was not found.')
       if (existing && !scoped(existing.entity_id, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The existing partnership is outside your scope.')
       const resolvedName = existing?.name.trim() ?? body.name.trim()
@@ -299,8 +345,24 @@ export const partnershipTrackerRepository = {
         limit 1`, [body.entityId, resolvedName, existing?.aggregation_group_id ?? null])).rows[0]
       if (duplicate) throw new PartnershipTrackerError('DUPLICATE_PARTNERSHIP_NAME', 409, 'A partnership with this name already exists for the entity.')
       const partnershipId = randomUUID()
-      const row = (await client.query(`insert into partnerships (id, aggregation_group_id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate, created_at, updated_at)
-        values ($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,now(),now()) returning *`, [partnershipId, existing?.aggregation_group_id ?? partnershipId, body.entityId, resolvedName, resolvedType, body.notes ?? null, body.inceptionDate ?? null, body.managementFeeRate ?? null])).rows[0]
+      const row = (await client.query(`insert into partnerships (
+          id, aggregation_group_id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate,
+          ein, fund_manager, address_line_1, address_line_2, address_city, address_region, address_postal_code, address_country,
+          created_at, updated_at)
+        values ($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now(),now()) returning *`, [
+        partnershipId, existing?.aggregation_group_id ?? partnershipId, body.entityId, resolvedName, resolvedType, body.notes ?? null,
+        existing?.inception_date ?? body.inceptionDate ?? null, existing?.management_fee_rate ?? body.managementFeeRate ?? null,
+        existing?.ein ?? body.ein ?? null, existing?.fund_manager ?? body.fundManager ?? null,
+        existing?.address_line_1 ?? body.addressLine1 ?? null, existing?.address_line_2 ?? body.addressLine2 ?? null,
+        existing?.address_city ?? body.addressCity ?? null, existing?.address_region ?? body.addressRegion ?? null,
+        existing?.address_postal_code ?? body.addressPostalCode ?? null, existing?.address_country ?? body.addressCountry ?? null,
+      ])).rows[0]
+      if (body.initialValuationAmount && body.initialValuationDate) {
+        await client.query(`insert into partnership_fmv_snapshots
+          (id, partnership_id, valuation_date, fmv_amount, source_type, notes, created_by, created_at, updated_at)
+          values ($1,$2,$3,$4,'manual','Initial valuation entered with partnership profile',$5,now(),now())`,
+        [randomUUID(), partnershipId, body.initialValuationDate, body.initialValuationAmount, actorUserId])
+      }
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_CREATED, objectType: 'partnership', objectId: partnershipId, before: null, after: row }, client)
       return partnershipId
     })
@@ -308,7 +370,7 @@ export const partnershipTrackerRepository = {
     return { partnership: mapSummary(rows[0]!), nextAction: 'ADD_K1_YEAR' as const }
   },
 
-  async updatePartnership(partnershipId: string, patch: { entityId?: string; name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
+  async updatePartnership(partnershipId: string, patch: { entityId?: string; name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
     validateInceptionDate(patch.inceptionDate)
     await withTransaction(async (client) => {
       await assertPartnership(partnershipId, scope, client)
@@ -329,9 +391,31 @@ export const partnershipTrackerRepository = {
           notes = case when $6::boolean then $7 else notes end,
           inception_date = case when $8::boolean then $9::date else inception_date end,
           management_fee_rate = case when $10::boolean then $11::numeric else management_fee_rate end,
+          ein = case when $12::boolean then $13 else ein end,
+          fund_manager = case when $14::boolean then $15 else fund_manager end,
+          address_line_1 = case when $16::boolean then $17 else address_line_1 end,
+          address_line_2 = case when $18::boolean then $19 else address_line_2 end,
+          address_city = case when $20::boolean then $21 else address_city end,
+          address_region = case when $22::boolean then $23 else address_region end,
+          address_postal_code = case when $24::boolean then $25 else address_postal_code end,
+          address_country = case when $26::boolean then $27 else address_country end,
           updated_at = now()
-        where id = $1 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $12::timestamptz)
-        returning *`, [partnershipId, targetEntityId, patch.name?.trim() ?? null, patch.partnershipType ?? null, patch.status ?? null, Object.hasOwn(patch, 'notes'), patch.notes ?? null, Object.hasOwn(patch, 'inceptionDate'), patch.inceptionDate ?? null, Object.hasOwn(patch, 'managementFeeRate'), patch.managementFeeRate ?? null, patch.expectedUpdatedAt])
+        where id = $1 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $28::timestamptz)
+        returning *`, [
+        partnershipId, targetEntityId, patch.name?.trim() ?? null, patch.partnershipType ?? null, patch.status ?? null,
+        Object.hasOwn(patch, 'notes'), patch.notes ?? null,
+        Object.hasOwn(patch, 'inceptionDate'), patch.inceptionDate ?? null,
+        Object.hasOwn(patch, 'managementFeeRate'), patch.managementFeeRate ?? null,
+        Object.hasOwn(patch, 'ein'), patch.ein ?? null,
+        Object.hasOwn(patch, 'fundManager'), patch.fundManager ?? null,
+        Object.hasOwn(patch, 'addressLine1'), patch.addressLine1 ?? null,
+        Object.hasOwn(patch, 'addressLine2'), patch.addressLine2 ?? null,
+        Object.hasOwn(patch, 'addressCity'), patch.addressCity ?? null,
+        Object.hasOwn(patch, 'addressRegion'), patch.addressRegion ?? null,
+        Object.hasOwn(patch, 'addressPostalCode'), patch.addressPostalCode ?? null,
+        Object.hasOwn(patch, 'addressCountry'), patch.addressCountry ?? null,
+        patch.expectedUpdatedAt,
+      ])
       if (!result.rows[0]) throw new PartnershipTrackerError('STALE_PARTNERSHIP_REVISION', 409, 'The partnership was changed by another user. Reload and try again.')
       const childRowCounts: Record<string, number> = {}
       if (ownerChanged) {
@@ -530,6 +614,12 @@ export const partnershipTrackerRepository = {
   },
   calculateYear(partnershipId: string, taxYear: number, expectedRevision: number, changes: K1TrackerFieldChange[], scope: PartnershipTrackerScope) {
     return k1TrackerRepository.calculateDraft(partnershipId, taxYear, expectedRevision, changes, scope)
+  },
+  createCashFlow(partnershipId: string, taxYear: number, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.createCashFlow(partnershipId, taxYear, body, actorUserId, scope)
+  },
+  deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.deleteCashFlow(partnershipId, taxYear, cashFlowId, expectedUpdatedAt, actorUserId, scope)
   },
   deleteYear(partnershipId: string, taxYear: number, expectedRevision: number, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.deleteYear(partnershipId, taxYear, expectedRevision, actorUserId, scope)

@@ -25,6 +25,11 @@ const EVENT_TYPE_OPTIONS: Array<{ value: CapitalActivityEventType; label: string
     hint: 'Actual amount funded by the entity',
   },
   {
+    value: 'distribution',
+    label: 'Distribution',
+    hint: 'Cash returned to the owner.',
+  },
+  {
     value: 'other_adjustment',
     label: 'Other Adjustment',
     hint: 'Manual adjustment for reporting context',

@@ -10,9 +10,8 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 
 /**
  * Entity management routes (Admin-only writes; list is visible to any user
- * scoped into the entity). Uses the in-memory k1Repository store — this is the
- * canonical entity store for local dev and is also written to by the K-1
- * upload flow for auto-created partnerships.
+ * scoped into the entity). PostgreSQL is canonical when configured; the
+ * in-memory k1Repository remains the fallback for database-free local dev.
  */
 
 interface EntityListItem {
@@ -247,6 +246,44 @@ const deleteEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     return reply.status(403).send({ error: 'FORBIDDEN_ROLE' })
   }
   const params = paramsSchema.parse(req.params)
+
+  if (pool) {
+    const deleted = await withTransaction(async (client) => {
+      const before = (await client.query<{ id: string; name: string }>(
+        'select id, name from entities where id = $1 for update',
+        [params.id],
+      )).rows[0]
+      if (!before) return null
+
+      const hasPartnerships = (await client.query(
+        'select 1 from partnerships where entity_id = $1 limit 1',
+        [params.id],
+      )).rows.length > 0
+      if (hasPartnerships) return 'HAS_PARTNERSHIPS' as const
+
+      await client.query('delete from k1_tracker_import_batches where entity_id = $1', [params.id])
+      await client.query('delete from entity_memberships where entity_id = $1', [params.id])
+      await client.query('delete from entities where id = $1', [params.id])
+      await auditRepository.record({
+        actorUserId: req.authUser?.userId,
+        eventName: 'entity.deleted',
+        objectType: 'entity',
+        objectId: before.id,
+        before,
+        after: null,
+      }, client)
+      return before
+    })
+
+    if (deleted == null) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
+    if (deleted === 'HAS_PARTNERSHIPS') return reply.status(409).send({ error: 'ENTITY_HAS_PARTNERSHIPS' })
+
+    // Reconcile process-local development state when the entity happens to be
+    // present there; PostgreSQL remains authoritative in database-backed mode.
+    k1Repository.deleteEntity(params.id)
+    return reply.status(204).send()
+  }
+
   const before = k1Repository.listEntities().find((e) => e.id === params.id)
   if (!before) return reply.status(404).send({ error: 'ENTITY_NOT_FOUND' })
 
@@ -255,17 +292,6 @@ const deleteEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
   }
 
   k1Repository.deleteEntity(params.id)
-
-  if (pool) {
-    try {
-      await pool.query(`delete from entities where id = $1`, [params.id])
-    } catch (error) {
-      console.warn(
-        'Failed to mirror entity delete into Postgres:',
-        error instanceof Error ? error.message : String(error),
-      )
-    }
-  }
 
   await auditRepository.record({
     actorUserId: req.authUser?.userId,

@@ -7,7 +7,7 @@ export const ownerFixtures = [
 ]
 
 export const summaryFixture: PartnershipTrackerSummary = {
-  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Atlas Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Atlas Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', ein: '123456789', fundManager: 'Redwood Capital', addressLine1: '100 Market Street', addressLine2: null, addressCity: 'San Francisco', addressRegion: 'CA', addressPostalCode: '94105', addressCountry: 'United States', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
   currentCommittedCapital: { amount: '1000000.00', date: '2024-01-01' },
   latestNav: { amount: '950000.00', date: '2024-12-31' },
   earliestK1Year: 2021,
@@ -99,6 +99,7 @@ const aggregateGroup = (row: PartnershipAggregateRow): PartnershipAggregateGroup
       unfundedCommitment: coveredMoney(row.unfundedCommitmentAmount),
       dpi: ratio(row.dpi, row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
       tvpi: ratio(row.tvpi, row.latestNav == null || row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      annualizedCashOnCashYield: ratio(row.annualizedCashOnCashYield, row.annualizedCashOnCashYield == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
       asOfDate: row.performanceAsOfDate,
       navValuationRange: { earliest: row.latestNav?.date ?? null, latest: row.latestNav?.date ?? null },
     },
@@ -128,6 +129,7 @@ export const aggregationResponseFixture: PartnershipAggregationResponse = {
     unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
     dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
     tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
+    annualizedCashOnCashYield: { value: '0.05000000', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
     asOfDate: '2026-07-16',
     navValuationRange: { earliest: '2024-12-31', latest: '2026-03-31' },
   },
