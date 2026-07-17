@@ -18,7 +18,7 @@ const barColors: Record<string, string> = {
 function formatCompactCurrency(value: number): string {
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
   if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}K`
-  return `$${value.toFixed(2)}`
+  return `$${Math.round(value).toLocaleString()}`
 }
 
 function timeAgo(dateStr: string | null): string {

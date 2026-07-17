@@ -29,7 +29,7 @@ describe('manual K-1 workflow', () => {
     const save = vi.fn().mockRejectedValue(new Error('This K-1 year changed in another session.'))
     const dirty = vi.fn()
     render(<K1YearEntryForm detail={carryforwardDetail} canEdit pending={false} onCalculate={vi.fn()} onSave={save} onDirtyChange={dirty} />)
-    expect(screen.getByText('Carried from the prior year: $500.00')).toBeInTheDocument()
+    expect(screen.getByText('Carried from the prior year: $500')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Capital contributions'), { target: { value: '1000' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save revisions' }))
     await waitFor(() => expect(save).toHaveBeenCalledWith([

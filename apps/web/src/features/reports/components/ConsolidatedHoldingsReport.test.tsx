@@ -211,7 +211,7 @@ describe('ConsolidatedHoldingsSummaryCards', () => {
     render(<ConsolidatedHoldingsSummaryCards kpis={consolidatedHoldingsFixture.kpis} />)
 
     expect(screen.getByText('Total Portfolio Value')).toBeInTheDocument()
-    expect(screen.getByText('$12,250.00')).toBeInTheDocument()
+    expect(screen.getByText('$12,250')).toBeInTheDocument()
     expect(screen.getByText('Connected Accounts')).toBeInTheDocument()
   })
 })

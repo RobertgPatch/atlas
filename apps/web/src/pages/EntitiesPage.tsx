@@ -20,7 +20,7 @@ function formatUsd(value: number | null | undefined): string {
   if (value == null || value === 0) return '—'
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 export function errorMessage(err: unknown, fallback = 'Action failed. Please try again.'): string {

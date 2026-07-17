@@ -23,7 +23,7 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByRole('tab', { name: 'K1 Entry' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Capital & NAV' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toBeInTheDocument()
-    expect(screen.getAllByText('$1,000,000.00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$1,000,000').length).toBeGreaterThan(0)
     expect(screen.getByText('Paid-in capital')).toBeInTheDocument()
     expect(screen.getByText('Distributions')).toBeInTheDocument()
     expect(screen.getByText('Capital account')).toBeInTheDocument()

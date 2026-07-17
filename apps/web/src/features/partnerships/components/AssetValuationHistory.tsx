@@ -12,7 +12,7 @@ const columns: Column<AssetFmvSnapshot>[] = [
     key: 'amountUsd',
     header: 'FMV (USD)',
     align: 'right',
-    render: (row) => <span className="font-medium tabular-nums">${row.amountUsd.toLocaleString()}</span>,
+    render: (row) => <span className="font-medium tabular-nums">${row.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>,
   },
   {
     key: 'source',

@@ -53,7 +53,7 @@ const COLUMNS: Column<CapitalActivityEvent>[] = [
     header: 'Amount',
     align: 'right',
     render: (row) => (
-      <span className="font-medium tabular-nums">{`$${row.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
+      <span className="font-medium tabular-nums">{`$${row.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}</span>
     ),
   },
   {

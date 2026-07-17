@@ -5,7 +5,7 @@ import { PartnershipTrackerApiError } from '../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions } from '../hooks/usePartnershipTracker'
 import { CommitmentEntryDialog } from './CommitmentEntryDialog'
 
-const currency = (value: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
+const currency = (value: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 const displayDate = (value: string) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
 
 export function CommitmentHistoryPanel({ partnershipId, items, canEdit }: { partnershipId: string; items: PartnershipCommitmentEntry[]; canEdit: boolean }) {

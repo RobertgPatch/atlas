@@ -37,7 +37,7 @@ const COLUMNS: Column<K1Row>[] = [
     align: 'right',
     render: (row) =>
       row.reportedDistributionUsd != null ? (
-        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString()}</span>
+        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
       ) : (
         <span className="text-text-tertiary">—</span>
       ),

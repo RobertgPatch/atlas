@@ -27,7 +27,7 @@ const COLUMNS: Column<FmvSnapshot>[] = [
     align: 'right',
     render: (row) => (
       <span className="tabular-nums font-medium">
-        ${row.amountUsd.toLocaleString()}
+        ${row.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
       </span>
     ),
   },

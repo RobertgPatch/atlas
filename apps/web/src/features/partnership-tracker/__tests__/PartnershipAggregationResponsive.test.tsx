@@ -16,7 +16,7 @@ describe('partnership aggregation responsive structure', () => {
     expect(screen.getByTestId('aggregation-filter-rail')).toHaveClass('h-[calc(100vh-8rem)]', 'overflow-hidden')
     expect(screen.getByTestId('aggregation-filter-scroll')).toHaveClass('min-h-0', 'overflow-y-auto')
     expect(screen.getByRole('button', { name: 'Filters' })).toHaveClass('min-h-11', 'lg:hidden')
-    expect(screen.getByText('Sector')).toBeInTheDocument()
+    expect(screen.getByText('Partnership type')).toBeInTheDocument()
     for (const partnershipType of PARTNERSHIP_TYPES) expect(screen.getByRole('checkbox', { name: partnershipType })).toBeInTheDocument()
     const privateEquity = screen.getByRole('checkbox', { name: 'Private Equity' })
     expect(privateEquity).toBeInTheDocument()
@@ -25,7 +25,7 @@ describe('partnership aggregation responsive structure', () => {
   })
 
   it('wraps KPI coverage and constrains wide-ledger overflow to a sticky-identity table viewport', () => {
-    const { container } = render(<MemoryRouter><PartnershipAggregationKpis rollup={aggregationResponseFixture.rollup} /><PartnershipAggregationTable items={aggregationResponseFixture.items} sort="partnership" direction="asc" pageInfo={aggregationResponseFixture.pageInfo} onSort={vi.fn()} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} /></MemoryRouter>)
+    const { container } = render(<MemoryRouter><PartnershipAggregationKpis rollup={aggregationResponseFixture.rollup} /><PartnershipAggregationTable items={aggregationResponseFixture.items} rollup={aggregationResponseFixture.rollup} sort="partnership" direction="asc" pageInfo={aggregationResponseFixture.pageInfo} onSort={vi.fn()} onPageChange={vi.fn()} onPageSizeChange={vi.fn()} /></MemoryRouter>)
     expect(screen.getAllByText('3 of 4 partnerships').length).toBeGreaterThan(0)
     expect(screen.getByTestId('aggregation-table-viewport')).toHaveClass('overflow-x-auto', 'max-w-full')
     expect(container.querySelector('th.sticky.left-0')).toBeInTheDocument()

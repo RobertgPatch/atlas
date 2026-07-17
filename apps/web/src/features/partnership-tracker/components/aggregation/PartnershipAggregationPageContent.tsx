@@ -110,10 +110,10 @@ export function PartnershipAggregationPageContent({ canEdit }: { canEdit: boolea
           ) : aggregation.data ? (
             <div className="space-y-5">
               <PartnershipAggregationKpis rollup={aggregation.data.rollup} />
-              {hasPartialData && <div className="flex items-start gap-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Partial data in this page.</strong> Coverage labels show which totals are complete; missing row values are never treated as zero.</p></div>}
+              {hasPartialData && <div className="flex items-start gap-3 border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /><p><strong>Partial data in this page.</strong> Coverage labels show which totals are complete; unreported distributions display as $0 while other missing values remain explicit.</p></div>}
               {aggregation.data.pageInfo.totalItems === 0 ? (
                 <section className="border border-dashed border-gray-400 bg-white px-6 py-14 text-center"><h2 className="font-serif text-2xl font-semibold text-gray-950">No partnerships match these filters</h2><p className="mt-3 text-sm text-gray-600">The portfolio is still intact. Clear one or more filters to widen the result set.</p><button type="button" onClick={clearAll} className="mt-5 min-h-11 rounded-md border border-gray-400 bg-white px-4 text-sm font-bold text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold">Clear all filters</button></section>
-              ) : <PartnershipAggregationTable items={aggregation.data.items} sort={aggregation.data.query.sort} direction={aggregation.data.query.direction} pageInfo={aggregation.data.pageInfo} onSort={sortBy} onPageChange={(page) => setQuery({ ...query, page }, false)} onPageSizeChange={(pageSize) => setQuery({ ...query, pageSize, page: 1 })} />}
+              ) : <PartnershipAggregationTable items={aggregation.data.items} rollup={aggregation.data.rollup} sort={aggregation.data.query.sort} direction={aggregation.data.query.direction} pageInfo={aggregation.data.pageInfo} onSort={sortBy} onPageChange={(page) => setQuery({ ...query, page }, false)} onPageSizeChange={(pageSize) => setQuery({ ...query, pageSize, page: 1 })} />}
             </div>
           ) : null}
         </main>

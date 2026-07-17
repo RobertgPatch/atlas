@@ -22,7 +22,7 @@ interface PartnershipAggregationFiltersProps {
 
 const groupLabels: Array<{ key: AggregationFilterKey; label: string; facet: keyof PartnershipAggregationFacetSet; description?: string }> = [
   { key: 'ownerIds', label: 'Owner', facet: 'owners' },
-  { key: 'partnershipTypes', label: 'Sector', facet: 'partnershipTypes', description: 'Filter by the partnership classifications in your portfolio.' },
+  { key: 'partnershipTypes', label: 'Partnership type', facet: 'partnershipTypes', description: 'Filter by the partnership classifications in your portfolio.' },
   { key: 'statuses', label: 'Lifecycle', facet: 'statuses' },
   { key: 'workflowStatuses', label: 'K-1 workflow', facet: 'workflowStatuses' },
   { key: 'dataQuality', label: 'Data quality', facet: 'dataQuality' },

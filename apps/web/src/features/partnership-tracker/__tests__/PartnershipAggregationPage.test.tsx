@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PartnershipAggregationPageContent } from '../components/aggregation/PartnershipAggregationPageContent'
@@ -30,11 +30,18 @@ describe('PartnershipAggregationPageContent', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { level: 1, name: 'Partnership aggregation' })).toBeInTheDocument()
-    expect(screen.getByText('$350,000.00')).toBeInTheDocument()
+    expect(screen.getByText('$350,000')).toBeInTheDocument()
+    expect(screen.getByText('0.21×')).toBeInTheDocument()
+    expect(screen.getByText('1.36×')).toBeInTheDocument()
     expect(screen.getAllByText('3 of 4 partnerships').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('$0.00').length).toBeGreaterThan(0)
-    expect(screen.getByText('-$5,000.00')).toBeInTheDocument()
+    expect(screen.getAllByText('$0').length).toBeGreaterThan(0)
+    expect(screen.getByText('-$5,000')).toBeInTheDocument()
+    expect(screen.getAllByText('0.25×').length).toBeGreaterThan(0)
     expect(screen.getAllByText(/No commitment/).length).toBeGreaterThan(0)
+    const missingDistributionRow = screen.getByRole('link', { name: /Redwood Fund/ }).closest('tr')
+    expect(missingDistributionRow).not.toBeNull()
+    expect(within(missingDistributionRow!).getByText('$0')).toBeInTheDocument()
+    expect(within(missingDistributionRow!).queryByText(/No distribution data/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Alpha Growth I/ })).toHaveAttribute('href', '/partnership-tracker?partnership=p-alpha')
     expect(screen.getByText(/Partial data in this page/)).toBeInTheDocument()
     expect(screen.queryByText('Portfolio IRR')).not.toBeInTheDocument()

@@ -21,7 +21,7 @@ describe('Partnership Tracker large-directory rendering', () => {
     expect(screen.getByText('7.87%')).toBeInTheDocument()
     expect(screen.getByText('5.00%')).toBeInTheDocument()
     expect(screen.getByText('Unfunded commitment')).toBeInTheDocument()
-    expect(screen.getByText('$525,000.00')).toBeInTheDocument()
+    expect(screen.getByText('$525,000')).toBeInTheDocument()
   })
 
   it('shows NAV once on the overview', () => {

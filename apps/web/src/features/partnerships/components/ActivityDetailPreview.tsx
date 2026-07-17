@@ -49,7 +49,7 @@ const COLUMNS: Column<ActivityDetailRow>[] = [
     align: 'right',
     render: (row) =>
       row.reportedDistributionUsd != null ? (
-        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString()}</span>
+        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
       ) : (
         <span className="text-text-tertiary">—</span>
       ),
@@ -60,7 +60,7 @@ const COLUMNS: Column<ActivityDetailRow>[] = [
     align: 'right',
     render: (row) =>
       row.paidInUsd != null ? (
-        <span className="tabular-nums">${row.paidInUsd.toLocaleString()}</span>
+        <span className="tabular-nums">${row.paidInUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
       ) : (
         <span className="text-text-tertiary">—</span>
       ),

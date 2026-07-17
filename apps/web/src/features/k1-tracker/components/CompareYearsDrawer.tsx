@@ -4,7 +4,7 @@ import type { K1TrackerYearSummary } from '../../../../../packages/types/src/k1-
 
 const currency = (value: string | null) => value == null
   ? 'Not available'
-  : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
+  : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 
 const rows: Array<{ label: string; render: (year: K1TrackerYearSummary) => string }> = [
   { label: 'Capital Contributed', render: (year) => currency(year.capitalContributed) },

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import type { PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
 import { usePartnershipManagementFees, usePartnershipTrackerActions } from '../hooks/usePartnershipTracker'
 
-const money = (value: string | null) => value == null ? 'Not available' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
+const money = (value: string | null) => value == null ? 'Not available' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 const date = (value: string) => new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
 const statusText: Record<string, string> = {
   MISSING_INCEPTION_DATE: 'Add a partnership inception date to calculate fees.',

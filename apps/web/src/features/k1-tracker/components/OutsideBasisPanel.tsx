@@ -1,6 +1,6 @@
 import type { K1TrackerCalculation, K1TrackerYearDetail } from '../../../../../packages/types/src/k1-tracker'
 
-const currency = (value: unknown) => typeof value === 'string' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : 'not available'
+const currency = (value: unknown) => typeof value === 'string' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value)) : 'not available'
 const sourceText = (detail: K1TrackerYearDetail, fieldKeys: string[]) => {
   const sources = detail.values.filter((value) => fieldKeys.includes(value.fieldKey) && value.amount != null)
   return sources.length ? sources.map((value) => `${value.sourceType.replaceAll('_', ' ')}${value.sourceSheet ? ` - ${value.sourceSheet}${value.sourceCell ? `!${value.sourceCell}` : ''}` : ''}`).join('; ') : 'Calculated or carried forward'

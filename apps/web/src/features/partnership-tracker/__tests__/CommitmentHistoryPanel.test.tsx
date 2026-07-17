@@ -9,7 +9,7 @@ describe('CommitmentHistoryPanel', () => {
   it('shows the current total and a chronological, accessible history', () => {
     render(<CommitmentHistoryPanel partnershipId="p-1" items={commitmentFixtures} canEdit />)
     expect(screen.getByText('Current commitment')).toBeInTheDocument()
-    expect(screen.getAllByText('$1,000,000.00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$1,000,000').length).toBeGreaterThan(0)
     const rows = screen.getAllByRole('row')
     expect(rows[1]).toHaveTextContent('Jan 1, 2022')
     expect(rows[2]).toHaveTextContent('Jan 1, 2024')

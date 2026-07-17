@@ -1,6 +1,6 @@
 import type { PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
 
-const money = (value: string | null) => value == null ? 'Not entered' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
+const money = (value: string | null) => value == null ? 'Not entered' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 const availability = (value: string) => value.replaceAll('_', ' ').toLowerCase().replace(/(^|\s)\w/g, (letter) => letter.toUpperCase())
 const multiple = (value: string | null, status: string) => value == null ? availability(status) : `${Number(value).toFixed(2)}x`
 const percent = (value: string | null, status: string) => value == null ? availability(status) : `${(Number(value) * 100).toFixed(2)}%`

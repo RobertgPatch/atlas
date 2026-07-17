@@ -44,7 +44,7 @@ const columns: Column<PartnershipAssetRow>[] = [
     align: 'right',
     render: (row) => (
       <span className="font-medium text-text-primary tabular-nums">
-        {row.latestFmv ? `$${row.latestFmv.amountUsd.toLocaleString()}` : '—'}
+        {row.latestFmv ? `$${row.latestFmv.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}
       </span>
     ),
   },
@@ -128,7 +128,7 @@ export function AssetsSection({
           <div className="rounded-xl border border-border bg-white px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-text-tertiary">Total Latest Asset FMV</p>
             <p className="mt-1 text-lg font-semibold text-text-primary tabular-nums">
-              {totalLatestAssetFmvUsd == null ? '—' : `$${totalLatestAssetFmvUsd.toLocaleString()}`}
+              {totalLatestAssetFmvUsd == null ? '—' : `$${totalLatestAssetFmvUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-white px-4 py-3">

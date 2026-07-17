@@ -1,6 +1,6 @@
-export const formatExactMoney = (value: string | null | undefined) => value == null
+export const formatWholeMoney = (value: string | null | undefined) => value == null
   ? null
-  : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value))
+  : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 
 export const formatMultiple = (value: string | null | undefined) => value == null ? null : `${Number(value).toFixed(2)}×`
 

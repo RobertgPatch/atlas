@@ -69,7 +69,7 @@ export function AssetDetailDrawer({ open, onClose, partnershipId, assetId, isAdm
                             <div>
                               <p className="text-xs uppercase tracking-wide text-text-tertiary">Latest FMV</p>
                               <p className="mt-1 text-sm font-medium text-text-primary tabular-nums">
-                                {detail.latestFmv ? `$${detail.latestFmv.amountUsd.toLocaleString()}` : '—'}
+                                {detail.latestFmv ? `$${detail.latestFmv.amountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '—'}
                               </p>
                             </div>
                             <div>
