@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
+import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import type {
   K1TrackerFieldChange,
   K1TrackerCashFlowEvent,
@@ -400,6 +401,69 @@ const syncFinalizedSources = async (
     changed ||= revised.changed
   }
   if (changed) await persistProjection(client, await yearRowsFor(partnership.id, client), null)
+}
+
+export const copyK1TrackerYears = async (
+  client: Queryable,
+  sourcePartnershipId: string,
+  destinationPartnershipId: string,
+  taxYears: number[],
+  actorUserId: string,
+  scope: TrackerScope,
+): Promise<number[]> => {
+  const source = await assertPartnership(sourcePartnershipId, scope, client)
+  const destination = await assertPartnership(destinationPartnershipId, scope, client)
+  const requestedYears = [...new Set(taxYears)].sort((left, right) => left - right)
+  const sourceYears = (await client.query<TrackerYearRow>(`
+    select * from k1_tracker_years
+    where partnership_id = $1 and tax_year = any($2::int[])
+    order by tax_year
+    for share
+  `, [sourcePartnershipId, requestedYears])).rows
+  const foundYears = new Set(sourceYears.map((year) => year.tax_year))
+  const missingYears = requestedYears.filter((taxYear) => !foundYears.has(taxYear))
+  if (missingYears.length) {
+    throw new K1TrackerError('TRACKER_NOT_FOUND', `K-1 year${missingYears.length === 1 ? '' : 's'} ${missingYears.join(', ')} could not be copied from the source partnership.`)
+  }
+
+  for (const sourceYear of sourceYears) {
+    const destinationYearId = randomUUID()
+    await client.query(`
+      insert into k1_tracker_years
+        (id, entity_id, partnership_id, tax_year, workflow_status, revision, source_conflict_count,
+         warning_count, created_by_user_id, updated_by_user_id, created_at, updated_at)
+      values ($1, $2, $3, $4, 'IN_PROGRESS', 1, 0, 0, $5, $5, now(), now())
+    `, [destinationYearId, destination.entity_id, destinationPartnershipId, sourceYear.tax_year, actorUserId])
+    await client.query(`
+      insert into k1_tracker_value_revisions
+        (id, tracker_year_id, field_key, amount, original_source_text, source_type, is_active,
+         created_by_user_id, created_at)
+      select gen_random_uuid(), $1, field_key, amount, $2, 'MANUAL_ENTRY', true, $3, now()
+      from k1_tracker_value_revisions
+      where tracker_year_id = $4 and is_active = true
+    `, [destinationYearId, `Copied from ${source.partnership_name} ${sourceYear.tax_year}`, actorUserId, sourceYear.id])
+    await client.query(`
+      insert into capital_activity_events
+        (id, entity_id, partnership_id, activity_date, event_type, amount, source_type, notes,
+         created_by_user_id, created_at, updated_at)
+      select gen_random_uuid(), $1, $2, activity_date, event_type, amount, 'manual', notes, $3, now(), now()
+      from capital_activity_events
+      where partnership_id = $4
+        and extract(year from activity_date)::int = $5
+        and event_type in ('funded_contribution', 'distribution')
+    `, [destination.entity_id, destinationPartnershipId, actorUserId, sourcePartnershipId, sourceYear.tax_year])
+    await auditRepository.record({
+      actorUserId,
+      eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.K1_YEAR_COPIED,
+      objectType: 'k1_tracker_year',
+      objectId: destinationYearId,
+      before: null,
+      after: { sourcePartnershipId, destinationPartnershipId, taxYear: sourceYear.tax_year },
+    }, client as never)
+  }
+
+  await persistProjection(client, await yearRowsFor(destinationPartnershipId, client), actorUserId)
+  return requestedYears
 }
 
 export const k1TrackerRepository = {

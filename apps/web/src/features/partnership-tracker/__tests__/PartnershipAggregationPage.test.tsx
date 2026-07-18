@@ -10,6 +10,7 @@ const createPartnership = vi.hoisted(() => vi.fn())
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipAggregation: () => aggregationState.current,
   usePartnershipTrackerList: () => ({ data: { items: aggregationResponseFixture.items.flatMap((group) => group.members), total: 4, nextCursor: null }, isLoading: false, isError: false }),
+  usePartnershipTrackerDetail: () => ({ data: undefined, isLoading: false, isError: false }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: createPartnership, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Alder Family' }] }, isLoading: false, isError: false }) }))

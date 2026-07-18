@@ -3,7 +3,7 @@ import type { PoolClient, QueryResultRow } from 'pg'
 import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
-import { k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
+import { copyK1TrackerYears, k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
 import { recomputeActiveCommitmentMarker } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
@@ -310,7 +310,7 @@ export const partnershipTrackerRepository = {
     }
   },
 
-  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; initialValuationAmount?: string | null; initialValuationDate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; copyK1YearsFrom?: { partnershipId: string; taxYears: number[] }; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; initialValuationAmount?: string | null; initialValuationDate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     validateInceptionDate(body.inceptionDate)
     const id = await withTransaction(async (client) => {
       const entity = (await client.query<{ id: string }>('select id from entities where id = $1', [body.entityId])).rows[0]
@@ -362,6 +362,16 @@ export const partnershipTrackerRepository = {
           (id, partnership_id, valuation_date, fmv_amount, source_type, notes, created_by, created_at, updated_at)
           values ($1,$2,$3,$4,'manual','Initial valuation entered with partnership profile',$5,now(),now())`,
         [randomUUID(), partnershipId, body.initialValuationDate, body.initialValuationAmount, actorUserId])
+      }
+      if (body.copyK1YearsFrom) {
+        await copyK1TrackerYears(
+          client,
+          body.copyK1YearsFrom.partnershipId,
+          partnershipId,
+          body.copyK1YearsFrom.taxYears,
+          actorUserId,
+          scope,
+        )
       }
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_CREATED, objectType: 'partnership', objectId: partnershipId, before: null, after: row }, client)
       return partnershipId

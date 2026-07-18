@@ -7,8 +7,16 @@ import { summaryFixture } from './fixtures'
 
 const create = vi.fn().mockResolvedValue({ partnership: summaryFixture, nextAction: 'ADD_K1_YEAR' })
 const update = vi.fn().mockResolvedValue(summaryFixture)
+const sourceDetail = {
+  summary: summaryFixture,
+  years: [
+    { taxYear: 2024, status: 'IN_PROGRESS', revision: 1, warningCount: 0 },
+    { taxYear: 2023, status: 'RECONCILED', revision: 2, warningCount: 0 },
+  ],
+}
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerList: () => ({ data: { items: [summaryFixture], total: 1, nextCursor: null }, isLoading: false, isError: false }),
+  usePartnershipTrackerDetail: (id?: string) => ({ data: id ? sourceDetail : undefined, isLoading: false, isError: false }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: create, isPending: false }, updatePartnership: { mutateAsync: update, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Atlas Family Trust' }, { id: 'e-2', name: 'Atlas Holdings' }] }, isLoading: false, isError: false }) }))
@@ -44,6 +52,25 @@ describe('Add Partnership flow', () => {
       existingPartnershipId: 'p-1',
       name: 'Redwood Fund',
       partnershipType: 'Real Estate',
+    })))
+  })
+
+  it('selects every source K-1 year by default and copies only the retained selection', async () => {
+    render(<MemoryRouter><AddPartnershipDialog open onClose={vi.fn()} onCreated={vi.fn()} /></MemoryRouter>)
+    fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-1' } })
+    fireEvent.change(screen.getByLabelText('Partnership name'), { target: { value: 'Parallel Fund' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Copy K-1 entry years/ }))
+    fireEvent.change(screen.getByLabelText('Source partnership'), { target: { value: 'p-1' } })
+
+    await waitFor(() => {
+      expect(screen.getByRole('checkbox', { name: '2024' })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: '2023' })).toBeChecked()
+    })
+    fireEvent.click(screen.getByRole('checkbox', { name: '2023' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create partnership' }))
+
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      copyK1YearsFrom: { partnershipId: 'p-1', taxYears: [2024] },
     })))
   })
 

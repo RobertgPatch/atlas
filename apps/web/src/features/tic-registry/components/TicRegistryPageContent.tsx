@@ -9,6 +9,7 @@ import type {
   TicRegistryQuery,
 } from '../../../../../../packages/types/src/tic-registry'
 import { PageHeader } from '../../../components/shared/PageHeader'
+import { ConfirmationDialog } from '../../../components/shared/ConfirmationDialog'
 import { TicRegistryApiError } from '../api/ticRegistryClient'
 import {
   useDeleteTicInterest,
@@ -41,6 +42,11 @@ type OwnerDialogState = {
   owner: TicOwner | null
 }
 
+type DeleteTarget =
+  | { kind: 'property'; record: TicProperty }
+  | { kind: 'interest'; record: TicInterest }
+  | { kind: 'owner'; record: TicOwner }
+
 function describeError(error: unknown): string {
   if (error instanceof TicRegistryApiError) {
     if (error.code === 'DATABASE_REQUIRED') {
@@ -64,6 +70,7 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
   const [propertyDialog, setPropertyDialog] = useState<TicProperty | null | undefined>()
   const [interestDialog, setInterestDialog] = useState<InterestDialogState | null>(null)
   const [ownerDialog, setOwnerDialog] = useState<OwnerDialogState | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [pageError, setPageError] = useState<string | null>(null)
 
   const query = useMemo<TicRegistryQuery>(
@@ -112,42 +119,30 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
       },
     ].filter((issue) => issue.count > 0)
   }, [summary])
-  async function handleDeleteProperty(property: TicProperty) {
-    if (!window.confirm(`Delete ${property.name}?`)) return
+  async function handleDelete() {
+    if (!deleteTarget) return
     setPageError(null)
     try {
-      await deleteProperty.mutateAsync({
-        propertyId: property.id,
-        expectedUpdatedAt: property.updatedAt,
-      })
+      if (deleteTarget.kind === 'property') {
+        await deleteProperty.mutateAsync({
+          propertyId: deleteTarget.record.id,
+          expectedUpdatedAt: deleteTarget.record.updatedAt,
+        })
+      } else if (deleteTarget.kind === 'interest') {
+        await deleteInterest.mutateAsync({
+          interestId: deleteTarget.record.id,
+          expectedUpdatedAt: deleteTarget.record.updatedAt,
+        })
+      } else {
+        await deleteOwner.mutateAsync({
+          ownerId: deleteTarget.record.id,
+          expectedUpdatedAt: deleteTarget.record.updatedAt,
+        })
+      }
     } catch (error) {
       setPageError(describeError(error))
-    }
-  }
-
-  async function handleDeleteInterest(interest: TicInterest) {
-    if (!window.confirm(`Delete ${interest.name}?`)) return
-    setPageError(null)
-    try {
-      await deleteInterest.mutateAsync({
-        interestId: interest.id,
-        expectedUpdatedAt: interest.updatedAt,
-      })
-    } catch (error) {
-      setPageError(describeError(error))
-    }
-  }
-
-  async function handleDeleteOwner(owner: TicOwner) {
-    if (!window.confirm(`Delete ${owner.name}?`)) return
-    setPageError(null)
-    try {
-      await deleteOwner.mutateAsync({
-        ownerId: owner.id,
-        expectedUpdatedAt: owner.updatedAt,
-      })
-    } catch (error) {
-      setPageError(describeError(error))
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -269,21 +264,21 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
               property={property}
               canEdit={canEdit}
               onEditProperty={(selectedProperty) => setPropertyDialog(selectedProperty)}
-              onDeleteProperty={handleDeleteProperty}
+              onDeleteProperty={(record) => setDeleteTarget({ kind: 'property', record })}
               onAddInterest={(selectedProperty) =>
                 setInterestDialog({ property: selectedProperty, interest: null })
               }
               onEditInterest={(selectedProperty, selectedInterest) =>
                 setInterestDialog({ property: selectedProperty, interest: selectedInterest })
               }
-              onDeleteInterest={handleDeleteInterest}
+              onDeleteInterest={(record) => setDeleteTarget({ kind: 'interest', record })}
               onAddOwner={(selectedInterest) =>
                 setOwnerDialog({ interest: selectedInterest, owner: null })
               }
               onEditOwner={(selectedInterest, selectedOwner) =>
                 setOwnerDialog({ interest: selectedInterest, owner: selectedOwner })
               }
-              onDeleteOwner={handleDeleteOwner}
+              onDeleteOwner={(record) => setDeleteTarget({ kind: 'owner', record })}
             />
           ))}
         </div>
@@ -339,6 +334,24 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
         interest={ownerDialog?.interest ?? null}
         owner={ownerDialog?.owner ?? null}
         onClose={() => setOwnerDialog(null)}
+      />
+      <ConfirmationDialog
+        open={Boolean(deleteTarget)}
+        title={`Delete ${deleteTarget?.record.name ?? 'record'}?`}
+        description={
+          deleteTarget?.kind === 'property' ? (
+            <p>This permanently deletes the property, all of its TIC interests, and every underlying owner allocation.</p>
+          ) : deleteTarget?.kind === 'interest' ? (
+            <p>This permanently deletes the TIC interest and every owner allocation recorded beneath it.</p>
+          ) : (
+            <p>This permanently deletes the underlying owner allocation from this TIC interest.</p>
+          )
+        }
+        confirmLabel={`Delete ${deleteTarget?.kind ?? 'record'}`}
+        pending={deleteProperty.isPending || deleteInterest.isPending || deleteOwner.isPending}
+        pendingLabel="Deleting record…"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
       />
     </>
   )

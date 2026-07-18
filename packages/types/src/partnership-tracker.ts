@@ -290,6 +290,10 @@ export interface CreateTrackedPartnershipRequest {
   name: string
   partnershipType: PartnershipType
   existingPartnershipId?: string
+  copyK1YearsFrom?: {
+    partnershipId: string
+    taxYears: number[]
+  }
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null

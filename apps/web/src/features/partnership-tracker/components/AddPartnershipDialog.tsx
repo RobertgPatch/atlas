@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { PARTNERSHIP_TYPES, type PartnershipTrackerSummary, type PartnershipType } from '../../../../../../packages/types/src/partnership-tracker'
 import { useEntityList } from '../../partnerships/hooks/useEntityQueries'
 import { PartnershipTrackerApiError } from '../api/partnershipTrackerClient'
-import { usePartnershipTrackerActions, usePartnershipTrackerList } from '../hooks/usePartnershipTracker'
+import { usePartnershipTrackerActions, usePartnershipTrackerDetail, usePartnershipTrackerList } from '../hooks/usePartnershipTracker'
 import { CurrencyInput } from '../../../components/shared/CurrencyField'
 
 type CreationMode = 'new' | 'existing'
@@ -32,6 +32,9 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
   const [addressCountry, setAddressCountry] = useState('United States')
   const [initialValuationAmount, setInitialValuationAmount] = useState('')
   const [initialValuationDate, setInitialValuationDate] = useState('')
+  const [copyK1Years, setCopyK1Years] = useState(false)
+  const [copySourcePartnershipId, setCopySourcePartnershipId] = useState('')
+  const [excludedCopyYears, setExcludedCopyYears] = useState<number[]>([])
   const [error, setError] = useState<string>()
   const nameRef = useRef<HTMLInputElement>(null)
   const existingRef = useRef<HTMLSelectElement>(null)
@@ -53,6 +56,15 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
     .filter((summary) => selectedGroupKey && groupKey(summary) === selectedGroupKey)
     .map((summary) => summary.partnership.entity.id)), [partnerships.data?.items, selectedGroupKey])
   const availableOwners = (entities.data?.items ?? []).filter((entity) => mode === 'new' || !currentOwnerIds.has(entity.id))
+  const copySource = usePartnershipTrackerDetail(copyK1Years ? copySourcePartnershipId : undefined)
+  const availableCopyYears = useMemo(
+    () => [...(copySource.data?.years ?? [])].sort((left, right) => right.taxYear - left.taxYear),
+    [copySource.data?.years],
+  )
+  const selectedCopyYears = useMemo(() => availableCopyYears
+    .map((year) => year.taxYear)
+    .filter((taxYear) => !excludedCopyYears.includes(taxYear))
+    .sort((left, right) => left - right), [availableCopyYears, excludedCopyYears])
 
   useEffect(() => {
     if (!open) return
@@ -67,8 +79,31 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
     setMode(nextMode)
     setError(undefined)
     setEntityId('')
+    setCopyK1Years(false)
+    setCopySourcePartnershipId('')
+    setExcludedCopyYears([])
     if (nextMode === 'new') setExistingPartnershipId('')
   }
+
+  const chooseCopySource = (partnershipId: string) => {
+    setCopySourcePartnershipId(partnershipId)
+    setExcludedCopyYears([])
+    setError(undefined)
+  }
+
+  const toggleCopyYear = (taxYear: number) => {
+    setExcludedCopyYears((current) => current.includes(taxYear)
+      ? current.filter((year) => year !== taxYear)
+      : [...current, taxYear])
+  }
+
+  const copySelectionInvalid = copyK1Years && (
+    !copySourcePartnershipId
+    || copySource.isLoading
+    || copySource.isError
+    || !availableCopyYears.length
+    || !selectedCopyYears.length
+  )
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -76,6 +111,8 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
     if (!entityId) { setError('Choose the owner of this partnership.'); return }
     if (mode === 'existing' && !selectedPartnership) { setError('Choose the existing partnership to add for this owner.'); return }
     if (mode === 'new' && Boolean(initialValuationAmount) !== Boolean(initialValuationDate)) { setError('Enter both the initial valuation and its valuation date.'); return }
+    if (copyK1Years && !copySourcePartnershipId) { setError('Choose the partnership whose K-1 years should be copied.'); return }
+    if (copyK1Years && !selectedCopyYears.length) { setError('Select at least one K-1 year to copy.'); return }
     try {
       const inherited = selectedPartnership?.partnership
       const result = await actions.createPartnership.mutateAsync({
@@ -83,6 +120,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         name: inherited?.name ?? name.trim(),
         partnershipType: inherited?.partnershipType ?? type,
         ...(mode === 'existing' && inherited ? { existingPartnershipId: inherited.id } : {}),
+        ...(copyK1Years ? { copyK1YearsFrom: { partnershipId: copySourcePartnershipId, taxYears: selectedCopyYears } } : {}),
         notes: notes.trim() || null,
         ...(mode === 'new' ? {
           inceptionDate: inceptionDate || null,
@@ -105,6 +143,9 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
       setName('')
       setType('Private Equity')
       setNotes('')
+      setCopyK1Years(false)
+      setCopySourcePartnershipId('')
+      setExcludedCopyYears([])
       setInceptionDate(''); setEin(''); setFundManager(''); setAddressLine1(''); setAddressLine2(''); setAddressCity(''); setAddressRegion(''); setAddressPostalCode(''); setAddressCountry('United States'); setInitialValuationAmount(''); setInitialValuationDate('')
     } catch (caught) {
       setError(caught instanceof PartnershipTrackerApiError && caught.code === 'DUPLICATE_PARTNERSHIP_NAME'
@@ -134,11 +175,11 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         </fieldset>
 
         {mode === 'existing' ? <label className="block text-sm font-medium text-gray-800">Existing partnership
-          <select ref={existingRef} value={existingPartnershipId} required onChange={(event) => { setExistingPartnershipId(event.target.value); setEntityId('') }} disabled={partnerships.isLoading || !existingOptions.length} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30">
+          <select ref={existingRef} value={existingPartnershipId} required onChange={(event) => { const nextId = event.target.value; setExistingPartnershipId(nextId); setEntityId(''); if (copyK1Years) chooseCopySource(nextId) }} disabled={partnerships.isLoading || !existingOptions.length} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30">
             <option value="">{partnerships.isLoading ? 'Loading partnerships...' : 'Select a partnership'}</option>
             {existingOptions.map((summary) => <option key={groupKey(summary)} value={summary.partnership.id}>{summary.partnership.name} — {summary.partnership.partnershipType}</option>)}
           </select>
-          {selectedPartnership && <span className="mt-2 block border-l-2 border-atlas-gold pl-3 text-xs leading-5 text-gray-500">The new record will appear under <strong className="text-gray-700">{selectedPartnership.partnership.name}</strong> on All Partnerships. K-1s, commitments, NAV, and notes remain owner-specific.</span>}
+          {selectedPartnership && <span className="mt-2 block border-l-2 border-atlas-gold pl-3 text-xs leading-5 text-gray-500">The new record will appear under <strong className="text-gray-700">{selectedPartnership.partnership.name}</strong> on All Partnerships. K-1s remain owner-specific unless you copy selected years below.</span>}
         </label> : <>
           <label className="block text-sm font-medium text-gray-800">Partnership name<input ref={nameRef} value={name} required maxLength={120} onChange={(event) => setName(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30" /></label>
           <label className="block text-sm font-medium text-gray-800">Partnership type<select value={type} onChange={(event) => setType(event.target.value as PartnershipType)} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30">{PARTNERSHIP_TYPES.map((option) => <option key={option}>{option}</option>)}</select></label>
@@ -147,6 +188,40 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         <label className="block text-sm font-medium text-gray-800">Owner<select value={entityId} required onChange={(event) => setEntityId(event.target.value)} disabled={entities.isLoading || !availableOwners.length || (mode === 'existing' && !selectedPartnership)} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30"><option value="">{entities.isLoading ? 'Loading owners...' : mode === 'existing' && !selectedPartnership ? 'Select a partnership first' : 'Select an owner'}</option>{availableOwners.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label>
         {mode === 'existing' && selectedPartnership && !availableOwners.length ? <p className="border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-950">Every available owner already has a record for this partnership.</p> : null}
         {entities.isError ? <p role="alert" className="text-sm text-red-700">Owners could not be loaded. Refresh and try again.</p> : !entities.isLoading && !entities.data?.items.length ? <p className="text-sm text-gray-600">Create an <Link to="/entities" className="font-medium text-atlas-gold underline">owner</Link> before adding a partnership.</p> : null}
+        <section aria-labelledby="copy-k1-years-heading" className="relative overflow-hidden rounded-md border border-gray-200 bg-gray-50/70 p-4 pl-5">
+          <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-atlas-gold" />
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={copyK1Years}
+              onChange={(event) => {
+                const checked = event.target.checked
+                setCopyK1Years(checked)
+                chooseCopySource(checked && mode === 'existing' ? existingPartnershipId : '')
+              }}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-atlas-gold focus:ring-atlas-gold"
+            />
+            <span><span id="copy-k1-years-heading" className="block text-sm font-bold text-gray-950">Copy K-1 entry years</span><span className="mt-1 block text-xs leading-5 text-gray-500">Start with another partnership's current K-1 values and dated cash activity.</span></span>
+          </label>
+          {copyK1Years ? <div className="mt-4 space-y-4 border-t border-gray-200 pt-4">
+            <label className="block text-sm font-medium text-gray-800">Source partnership
+              <select value={copySourcePartnershipId} required onChange={(event) => chooseCopySource(event.target.value)} disabled={partnerships.isLoading} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30">
+                <option value="">{partnerships.isLoading ? 'Loading partnerships...' : 'Select a source partnership'}</option>
+                {(partnerships.data?.items ?? []).map((summary) => <option key={summary.partnership.id} value={summary.partnership.id}>{summary.partnership.name} — {summary.partnership.entity.name}</option>)}
+              </select>
+            </label>
+            {copySource.isLoading ? <p aria-live="polite" className="text-sm text-gray-600">Loading available K-1 years…</p> : copySource.isError ? <p role="alert" className="text-sm text-red-700">The source partnership's K-1 years could not be loaded.</p> : copySourcePartnershipId && !availableCopyYears.length ? <p className="text-sm text-amber-800">This partnership does not have any K-1 entry years to copy.</p> : availableCopyYears.length ? <fieldset>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <legend className="text-sm font-bold text-gray-900">Years to copy <span className="font-normal text-gray-500">({selectedCopyYears.length} of {availableCopyYears.length})</span></legend>
+                <span className="flex gap-3 text-xs font-semibold"><button type="button" onClick={() => setExcludedCopyYears([])} className="text-atlas-hover underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold">Select all</button><button type="button" onClick={() => setExcludedCopyYears(availableCopyYears.map((year) => year.taxYear))} className="text-gray-600 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold">Clear</button></span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {availableCopyYears.map((year) => <label key={year.taxYear} className={`flex min-h-11 cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm font-semibold ${selectedCopyYears.includes(year.taxYear) ? 'border-atlas-gold bg-white text-gray-950 ring-1 ring-atlas-gold/40' : 'border-gray-300 bg-white/60 text-gray-600'}`}><span>{year.taxYear}</span><input type="checkbox" checked={selectedCopyYears.includes(year.taxYear)} onChange={() => toggleCopyYear(year.taxYear)} className="h-4 w-4 rounded border-gray-300 text-atlas-gold focus:ring-atlas-gold" /></label>)}
+              </div>
+              <p className="mt-3 text-xs leading-5 text-gray-500">All years are selected by default. Copied years open in progress for review; sign-offs, uploaded files, and revision history stay with the source.</p>
+            </fieldset> : null}
+          </div> : null}
+        </section>
         {mode === 'new' && <>
           <section aria-labelledby="partnership-profile-heading" className="border-t border-gray-200 pt-5">
             <div><h3 id="partnership-profile-heading" className="font-serif text-lg font-semibold text-gray-950">Partnership profile</h3><p className="mt-1 text-xs text-gray-500">Enter shared fund details once. They will appear on the partnership overview and carry to future owner records.</p></div>
@@ -166,7 +241,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         </>}
         <label className="block text-sm font-medium text-gray-800">Notes <span className="font-normal text-gray-500">(optional, owner-specific)</span><textarea value={notes} maxLength={10_000} rows={3} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-atlas-gold focus:ring-2 focus:ring-atlas-gold/30" /></label>
         {error && <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold">Cancel</button><button type="submit" disabled={actions.createPartnership.isPending || !availableOwners.length} className="min-h-11 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2">{actions.createPartnership.isPending ? 'Creating…' : mode === 'existing' ? 'Add owner record' : 'Create partnership'}</button></div>
+        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold">Cancel</button><button type="submit" disabled={actions.createPartnership.isPending || !availableOwners.length || copySelectionInvalid} className="min-h-11 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2">{actions.createPartnership.isPending ? 'Creating…' : mode === 'existing' ? 'Add owner record' : 'Create partnership'}</button></div>
       </form>
     </div>
   </div>

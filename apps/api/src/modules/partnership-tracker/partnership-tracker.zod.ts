@@ -103,6 +103,11 @@ export const createTrackedPartnershipBodySchema = z.object({
   name: z.string().trim().min(1).max(120),
   partnershipType: partnershipTrackerTypeSchema,
   existingPartnershipId: partnershipTrackerUuidSchema.optional(),
+  copyK1YearsFrom: z.object({
+    partnershipId: partnershipTrackerUuidSchema,
+    taxYears: z.array(partnershipTrackerTaxYearSchema).min(1).max(201)
+      .transform((years) => [...new Set(years)].sort((left, right) => left - right)),
+  }).optional(),
   notes: z.string().trim().max(10_000).nullable().optional(),
   inceptionDate: inceptionDateSchema.optional(),
   managementFeeRate: partnershipTrackerRatioSchema.nullable().optional(),

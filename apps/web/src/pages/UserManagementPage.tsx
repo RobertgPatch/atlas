@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Database, Loader2, Plus, ShieldAlert, Trash2, UserCog } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/shared/AppShell'
+import { ConfirmationDialog } from '../components/shared/ConfirmationDialog'
 import { DataTable, type Column } from '../components/shared/DataTable'
 import { FilterToolbar } from '../components/shared/FilterToolbar'
 import { LoadingState } from '../components/LoadingState'
@@ -22,6 +23,7 @@ export function UserManagementPage() {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<AtlasRole>('User')
   const [devAction, setDevAction] = useState<null | 'clear' | 'seed'>(null)
+  const [confirmDevAction, setConfirmDevAction] = useState<null | 'clear' | 'seed'>(null)
   const [devMessage, setDevMessage] = useState<string | null>(null)
 
   const loadUsers = async () => {
@@ -55,11 +57,6 @@ export function UserManagementPage() {
 
   const handleDev = async (action: 'clear' | 'seed') => {
     if (devAction) return
-    const confirmMsg =
-      action === 'clear'
-        ? 'This will permanently delete every entity, partnership, K-1 document, commitment, capital activity event, and FMV snapshot. Users will remain so you can sign in, but you will need to create a new entity before you can do anything. Continue?'
-        : 'Replace the current dataset with the full demo fixtures (entities, partnerships, K-1s, commitments, capital activity, and FMVs)?'
-    if (!window.confirm(confirmMsg)) return
     setDevAction(action)
     setDevMessage(null)
     try {
@@ -74,6 +71,7 @@ export function UserManagementPage() {
       setDevMessage('Action failed. Please try again.')
     } finally {
       setDevAction(null)
+      setConfirmDevAction(null)
     }
   }
 
@@ -207,7 +205,7 @@ export function UserManagementPage() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => void handleDev('clear')}
+                onClick={() => setConfirmDevAction('clear')}
                 disabled={devAction !== null}
                 className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50 disabled:opacity-60 disabled:cursor-wait"
               >
@@ -219,7 +217,7 @@ export function UserManagementPage() {
                 Clear all data
               </button>
               <button
-                onClick={() => void handleDev('seed')}
+                onClick={() => setConfirmDevAction('seed')}
                 disabled={devAction !== null}
                 className="inline-flex items-center px-3 py-2 rounded-lg bg-text-primary text-white text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-wait"
               >
@@ -253,6 +251,31 @@ export function UserManagementPage() {
           onRowClick={(row) => navigate(`/admin/users/${row.id}`)}
         />
       )}
+      <ConfirmationDialog
+        open={confirmDevAction !== null}
+        eyebrow="Development data"
+        title={confirmDevAction === 'seed' ? 'Replace with demo data?' : 'Clear all development data?'}
+        description={
+          confirmDevAction === 'seed' ? (
+            <p>
+              This permanently replaces the current dataset with the full demo fixtures, including entities,
+              partnerships, K-1s, commitments, capital activity, and FMVs.
+            </p>
+          ) : (
+            <p>
+              This permanently deletes every entity, partnership, K-1 document, commitment, capital activity
+              event, and FMV snapshot. User accounts remain, but you will need to create a new entity to continue.
+            </p>
+          )
+        }
+        confirmLabel={confirmDevAction === 'seed' ? 'Replace data' : 'Clear all data'}
+        pending={devAction !== null}
+        pendingLabel={devAction === 'seed' ? 'Replacing data…' : 'Clearing data…'}
+        onClose={() => setConfirmDevAction(null)}
+        onConfirm={() => {
+          if (confirmDevAction) return handleDev(confirmDevAction)
+        }}
+      />
     </AppShell>
   )
 }
