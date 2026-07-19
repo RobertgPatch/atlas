@@ -37,6 +37,11 @@ const BAR_COLORS = [
   'bg-cyan-500',
 ]
 
+function propertyLocation(property: TicProperty): string | null {
+  const parts = [property.city, property.state].filter(Boolean)
+  return parts.length ? parts.join(', ') : null
+}
+
 export function TicPropertyCard({
   property,
   canEdit,
@@ -49,6 +54,8 @@ export function TicPropertyCard({
   onEditOwner,
   onDeleteOwner,
 }: TicPropertyCardProps) {
+  const location = propertyLocation(property)
+
   return (
     <article className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="px-4 py-5 sm:px-5">
@@ -56,12 +63,21 @@ export function TicPropertyCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-xl font-semibold text-gray-950">{property.name}</h2>
+              {property.propertyCode && (
+                <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                  {property.propertyCode}
+                </span>
+              )}
             </div>
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500">
+              {location && <span>{location}</span>}
               <span>{PROPERTY_TYPE_LABELS[property.propertyType]}</span>
               <span>acquired {formatDate(property.acquiredDate)}</span>
-              {property.estimatedValueUsd != null && (
-                <span>{formatCurrency(property.estimatedValueUsd)}</span>
+              {property.acquisitionPriceUsd != null && (
+                <span>acquisition {formatCurrency(property.acquisitionPriceUsd)}</span>
+              )}
+              {property.numberOfUnits != null && (
+                <span>{property.numberOfUnits.toLocaleString()} units</span>
               )}
               <span>{property.interests.length} TIC interests</span>
             </div>

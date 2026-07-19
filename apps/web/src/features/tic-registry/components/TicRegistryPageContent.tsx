@@ -170,10 +170,16 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
         }
       />
 
-      <div className="mb-6 grid gap-4 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 lg:grid-cols-5">
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Properties</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">{summary?.propertyCount ?? 0}</p>
+        </div>
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Total Units</p>
+          <p className="mt-2 text-2xl font-semibold text-gray-950">
+            {(summary?.totalUnits ?? 0).toLocaleString()}
+          </p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-gray-500">TIC Interests</p>
@@ -184,9 +190,9 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
           <p className="mt-2 text-2xl font-semibold text-gray-950">{summary?.ownerCount ?? 0}</p>
         </div>
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Est. Held Value</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Held Acquisition Price</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
-            {formatCurrency(summary?.estimatedHeldValueUsd ?? 0)}
+            {formatCurrency(summary?.heldAcquisitionPriceUsd ?? 0)}
           </p>
         </div>
       </div>

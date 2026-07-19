@@ -65,10 +65,14 @@ export interface TicInterest {
 export interface TicProperty {
   id: string
   name: string
+  city: string | null
+  state: string | null
+  propertyCode: string | null
+  numberOfUnits: number | null
   propertyType: TicPropertyType
   status: TicPropertyStatus
   acquiredDate: string | null
-  estimatedValueUsd: number | null
+  acquisitionPriceUsd: number | null
   notes: string | null
   allocation: TicAllocationStatus
   interests: TicInterest[]
@@ -78,9 +82,10 @@ export interface TicProperty {
 
 export interface TicRegistrySummary {
   propertyCount: number
+  totalUnits: number
   ticInterestCount: number
   ownerCount: number
-  estimatedHeldValueUsd: number
+  heldAcquisitionPriceUsd: number
   underAllocatedPropertyCount: number
   overAllocatedPropertyCount: number
   underAllocatedInterestCount: number
@@ -100,19 +105,27 @@ export interface TicRegistryQuery {
 
 export interface CreateTicPropertyRequest {
   name: string
+  city?: string | null
+  state?: string | null
+  propertyCode?: string | null
+  numberOfUnits?: number | null
   propertyType: TicPropertyType
   status?: TicPropertyStatus
   acquiredDate?: string | null
-  estimatedValueUsd?: number | null
+  acquisitionPriceUsd?: number | null
   notes?: string | null
 }
 
 export interface UpdateTicPropertyRequest {
   name?: string
+  city?: string | null
+  state?: string | null
+  propertyCode?: string | null
+  numberOfUnits?: number | null
   propertyType?: TicPropertyType
   status?: TicPropertyStatus
   acquiredDate?: string | null
-  estimatedValueUsd?: number | null
+  acquisitionPriceUsd?: number | null
   notes?: string | null
   expectedUpdatedAt?: string
 }
@@ -164,10 +177,14 @@ export type Queryable = Pool | PoolClient
 export interface TicPropertyRow {
   id: string
   name: string
+  city: string | null
+  state: string | null
+  property_code: string | null
+  number_of_units: number | string | null
   property_type: TicPropertyType
   status: TicPropertyStatus
   acquired_date: Date | string | null
-  estimated_value_usd: string | number | null
+  acquisition_price_usd: string | number | null
   notes: string | null
   created_at: Date | string
   updated_at: Date | string

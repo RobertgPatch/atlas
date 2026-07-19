@@ -29,12 +29,13 @@ export function AppShell({
 
   const navigation = [
     { name: 'Liquidity', href: '/liquidity', icon: Landmark },
+    { name: 'Partnership Tracker', href: '/partnership-tracker', icon: Building2 },
     { name: 'TIC Registry', href: '/tic-registry', icon: Network },
     { name: 'Entities', href: '/entities', icon: Building2 },
   ]
 
   const NavItem = ({ item }: { item: { name: string; href: string; icon: React.ComponentType<{ className?: string }> } }) => {
-    const isActive = currentPath === item.href
+    const isActive = currentPath === item.href || currentPath.startsWith(`${item.href}/`)
     return (
       <Link
         to={item.href}

@@ -22,10 +22,10 @@ interface InMemoryFmvSnapshotRecord {
 const inMemoryFmvSnapshots = new Map<string, InMemoryFmvSnapshotRecord[]>()
 
 const snapshotSort = (a: InMemoryFmvSnapshotRecord, b: InMemoryFmvSnapshotRecord) => {
-  const byCreated = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-  if (byCreated !== 0) return byCreated
   const byAsOfDate = b.asOfDate.localeCompare(a.asOfDate)
   if (byAsOfDate !== 0) return byAsOfDate
+  const byCreated = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  if (byCreated !== 0) return byCreated
   return b.id.localeCompare(a.id)
 }
 
@@ -70,7 +70,7 @@ export const fmvRepository = {
       from partnership_fmv_snapshots fmv
       left join users u on u.id = fmv.created_by
       where fmv.partnership_id = $1
-      order by fmv.created_at desc, fmv.valuation_date desc, fmv.id desc
+      order by fmv.valuation_date desc, fmv.created_at desc, fmv.id desc
       `,
       [partnershipId],
     )

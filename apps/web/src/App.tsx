@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useParams,
 } from 'react-router-dom'
 import { authClient } from './auth/authClient'
 import { sessionStore, useSession } from './auth/sessionStore'
@@ -16,13 +17,12 @@ import { UserManagementPage } from './pages/UserManagementPage'
 import { UserDetailPage } from './pages/UserDetailPage'
 import { K1Dashboard } from './pages/K1Dashboard'
 import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
-import { PartnershipDirectory } from './pages/PartnershipDirectory'
-import { PartnershipDetail } from './pages/PartnershipDetail'
 import { EntityDetail } from './pages/EntityDetail'
 import { EntitiesPage } from './pages/EntitiesPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { LiquidityPage } from './pages/LiquidityPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
+import { PartnershipTrackerPage } from './pages/PartnershipTrackerPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -59,6 +59,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
   if (status === 'unknown') return null
   if (status !== 'authenticated') return <Navigate to="/" replace />
   return children
+}
+
+export const LegacyPartnershipRedirect = ({ detail = false }: { detail?: boolean }) => {
+  const { id } = useParams()
+  const location = useLocation()
+  const query = new URLSearchParams(location.search)
+  if (detail && id) query.set('partnership', id)
+  if (!query.has('partnership') && query.has('partnershipId')) query.set('partnership', query.get('partnershipId')!)
+  if (!query.has('year') && query.has('taxYear')) query.set('year', query.get('taxYear')!)
+  query.delete('partnershipId')
+  query.delete('taxYear')
+  return <Navigate to={`/partnership-tracker${query.size ? `?${query}` : ''}`} replace />
 }
 
 const AdminRoute = ({ children }: { children: React.ReactElement }) => {
@@ -145,7 +157,7 @@ export function App() {
             path="/partnerships"
             element={
               <ProtectedRoute>
-                <PartnershipDirectory />
+                <LegacyPartnershipRedirect />
               </ProtectedRoute>
             }
           />
@@ -153,7 +165,7 @@ export function App() {
             path="/partnerships/:id"
             element={
               <ProtectedRoute>
-                <PartnershipDetail />
+                <LegacyPartnershipRedirect detail />
               </ProtectedRoute>
             }
           />
@@ -194,6 +206,22 @@ export function App() {
             element={
               <ProtectedRoute>
                 <TicRegistryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/partnership-tracker"
+            element={
+              <ProtectedRoute>
+                <PartnershipTrackerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/k1-tracker"
+            element={
+              <ProtectedRoute>
+                <LegacyPartnershipRedirect />
               </ProtectedRoute>
             }
           />

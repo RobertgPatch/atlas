@@ -1,0 +1,14 @@
+import type { K1TrackerCalculation, K1TrackerYearDetail } from '../../../../../packages/types/src/k1-tracker'
+
+const currency = (value: unknown) => typeof value === 'string' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : 'not available'
+const change = (beginning: unknown, ending: unknown) => typeof beginning === 'string' && typeof ending === 'string' ? (Number(ending) - Number(beginning)).toFixed(2) : null
+const source = (detail: K1TrackerYearDetail, keys: string[]) => detail.values.filter((value) => keys.includes(value.fieldKey) && value.amount != null).map((value) => `${value.sourceType.replaceAll('_', ' ')}${value.sourceCell ? ` ${value.sourceCell}` : ''}`).join('; ') || 'Calculated carryforward'
+
+export function LiabilitiesPanel({ calculation, detail }: { calculation: K1TrackerCalculation; detail: K1TrackerYearDetail }) {
+  const rows: Array<[string, unknown, unknown, string[]]> = [
+    ['Nonrecourse', calculation.liabilities.nonrecourseBeginning, calculation.liabilities.nonrecourseEnding, ['liability_nonrecourse_beginning', 'liability_nonrecourse_ending']],
+    ['Qualified nonrecourse', calculation.liabilities.qualifiedNonrecourseBeginning, calculation.liabilities.qualifiedNonrecourseEnding, ['liability_qualified_nonrecourse_beginning', 'liability_qualified_nonrecourse_ending']],
+    ['Recourse', calculation.liabilities.recourseBeginning, calculation.liabilities.recourseEnding, ['liability_recourse_beginning', 'liability_recourse_ending']],
+  ]
+  return <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"><h3 className="text-sm font-semibold text-gray-950">Liabilities</h3><p className="mt-1 text-sm text-gray-600">All three Item K categories carry separately into the next tax year for manual reference.</p><div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead className="text-xs uppercase text-gray-500"><tr><th className="pb-2">Category</th><th className="pb-2">Beginning</th><th className="pb-2">Ending</th><th className="pb-2">Change</th></tr></thead><tbody>{rows.map(([label, beginning, ending, keys]) => <tr key={String(label)} className="border-t border-gray-100 align-top"><td className="py-3 pr-3 text-gray-700"><div>{label}</div><div className="mt-1 text-xs text-gray-500">{source(detail, keys)}</div></td><td className="py-3">{currency(beginning)}</td><td className="py-3">{currency(ending)}</td><td className="py-3 font-medium">{currency(change(beginning, ending))}</td></tr>)}</tbody></table></div><p className="mt-3 text-xs text-gray-500">Net liability change: {currency(calculation.liabilities.netChange)}. These balances do not affect basis, distributions, warnings, workflow status, or sign-off.</p></div>
+}

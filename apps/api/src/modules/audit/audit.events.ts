@@ -40,3 +40,37 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
 
 export type PartnershipAuditEventName =
   (typeof PARTNERSHIP_AUDIT_EVENTS)[keyof typeof PARTNERSHIP_AUDIT_EVENTS]
+
+export const K1_TRACKER_AUDIT_EVENTS = {
+  YEAR_CREATED: 'k1_tracker.year_created',
+  YEAR_UPDATED: 'k1_tracker.year_updated',
+  YEAR_DELETED: 'k1_tracker.year_deleted',
+  IMPORT_COMMITTED: 'k1_tracker.import_committed',
+  SIGNOFF_PREPARED: 'k1_tracker.signoff_prepared',
+  SIGNOFF_REVIEWED: 'k1_tracker.signoff_reviewed',
+  SIGNOFF_INVALIDATED: 'k1_tracker.signoff_invalidated',
+} as const
+
+export type K1TrackerAuditEventName =
+  (typeof K1_TRACKER_AUDIT_EVENTS)[keyof typeof K1_TRACKER_AUDIT_EVENTS]
+
+export const PARTNERSHIP_TRACKER_AUDIT_EVENTS = {
+  PARTNERSHIP_CREATED: 'partnership_tracker.partnership.created',
+  PARTNERSHIP_UPDATED: 'partnership_tracker.partnership.updated',
+  MANUAL_YEAR_CREATED: 'partnership_tracker.manual_year.created',
+  MANUAL_YEAR_UPDATED: 'partnership_tracker.manual_year.updated',
+  MANUAL_YEAR_DELETED: 'partnership_tracker.manual_year.deleted',
+  COMMITMENT_CREATED: 'partnership_tracker.commitment.created',
+  COMMITMENT_UPDATED: 'partnership_tracker.commitment.updated',
+  COMMITMENT_DELETED: 'partnership_tracker.commitment.deleted',
+  NAV_CREATED: 'partnership_tracker.nav.created',
+  NAV_UPDATED: 'partnership_tracker.nav.updated',
+  NAV_DELETED: 'partnership_tracker.nav.deleted',
+  DRAFT_RECALCULATED: 'partnership_tracker.year.recalculated',
+  SIGNOFF_PREPARED: 'partnership_tracker.signoff.prepared',
+  SIGNOFF_REVIEWED: 'partnership_tracker.signoff.reviewed',
+  SIGNOFF_INVALIDATED: 'partnership_tracker.signoff.invalidated',
+} as const
+
+export type PartnershipTrackerAuditEventName =
+  (typeof PARTNERSHIP_TRACKER_AUDIT_EVENTS)[keyof typeof PARTNERSHIP_TRACKER_AUDIT_EVENTS]

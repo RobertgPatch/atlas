@@ -111,7 +111,12 @@ const propertyWhere = (
 
   if (filters.search) {
     params.push(`%${filters.search.trim()}%`)
-    clauses.push(`p.name ilike $${params.length}`)
+    clauses.push(`(
+      p.name ilike $${params.length}
+      or p.city ilike $${params.length}
+      or p.state ilike $${params.length}
+      or p.property_code ilike $${params.length}
+    )`)
   }
 
   return clauses.length ? `where ${clauses.join(' and ')}` : ''
@@ -185,9 +190,10 @@ const hydrateProperties = async (
     return {
       summary: {
         propertyCount: 0,
+        totalUnits: 0,
         ticInterestCount: 0,
         ownerCount: 0,
-        estimatedHeldValueUsd: 0,
+        heldAcquisitionPriceUsd: 0,
         underAllocatedPropertyCount: 0,
         overAllocatedPropertyCount: 0,
         underAllocatedInterestCount: 0,
@@ -271,10 +277,14 @@ const hydrateProperties = async (
     return {
       id: propertyRow.id,
       name: propertyRow.name,
+      city: propertyRow.city,
+      state: propertyRow.state,
+      propertyCode: propertyRow.property_code,
+      numberOfUnits: toNumber(propertyRow.number_of_units),
       propertyType: propertyRow.property_type,
       status: propertyRow.status,
       acquiredDate: toIsoDateString(propertyRow.acquired_date),
-      estimatedValueUsd: toNumber(propertyRow.estimated_value_usd),
+      acquisitionPriceUsd: toNumber(propertyRow.acquisition_price_usd),
       notes: propertyRow.notes,
       allocation: allocationFor(ticSum),
       interests: propertyInterests,
@@ -286,8 +296,9 @@ const hydrateProperties = async (
   const summary = mappedProperties.reduce(
     (acc, property) => {
       acc.propertyCount += 1
+      acc.totalUnits += property.numberOfUnits ?? 0
       if (property.status !== 'sold') {
-        acc.estimatedHeldValueUsd += property.estimatedValueUsd ?? 0
+        acc.heldAcquisitionPriceUsd += property.acquisitionPriceUsd ?? 0
       }
       if (property.allocation.status === 'under') acc.underAllocatedPropertyCount += 1
       if (property.allocation.status === 'over') acc.overAllocatedPropertyCount += 1
@@ -303,9 +314,10 @@ const hydrateProperties = async (
     },
     {
       propertyCount: 0,
+      totalUnits: 0,
       ticInterestCount: 0,
       ownerCount: 0,
-      estimatedHeldValueUsd: 0,
+      heldAcquisitionPriceUsd: 0,
       underAllocatedPropertyCount: 0,
       overAllocatedPropertyCount: 0,
       underAllocatedInterestCount: 0,
@@ -377,23 +389,31 @@ export const ticRegistryRepository = {
       `
       insert into tic_properties (
         name,
+        city,
+        state,
+        property_code,
+        number_of_units,
         property_type,
         status,
         acquired_date,
-        estimated_value_usd,
+        acquisition_price_usd,
         notes,
         created_by_user_id,
         updated_by_user_id
       )
-      values ($1, $2, $3, $4, $5, $6, $7, $7)
+      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
       returning *
       `,
       [
         body.name.trim(),
+        normalizeText(body.city),
+        normalizeText(body.state),
+        normalizeText(body.propertyCode),
+        body.numberOfUnits ?? null,
         body.propertyType,
         body.status ?? 'held',
         body.acquiredDate ?? null,
-        toNumericString(body.estimatedValueUsd, 2),
+        toNumericString(body.acquisitionPriceUsd, 2),
         normalizeText(body.notes),
         actorUserId,
       ],
@@ -416,12 +436,16 @@ export const ticRegistryRepository = {
       update tic_properties
       set
         name = coalesce($2, name),
-        property_type = coalesce($3, property_type),
-        status = coalesce($4, status),
-        acquired_date = case when $5::boolean then $6::date else acquired_date end,
-        estimated_value_usd = case when $7::boolean then $8::numeric else estimated_value_usd end,
-        notes = case when $9::boolean then $10::text else notes end,
-        updated_by_user_id = $11,
+        city = case when $3::boolean then $4::text else city end,
+        state = case when $5::boolean then $6::text else state end,
+        property_code = case when $7::boolean then $8::text else property_code end,
+        number_of_units = case when $9::boolean then $10::integer else number_of_units end,
+        property_type = coalesce($11, property_type),
+        status = coalesce($12, status),
+        acquired_date = case when $13::boolean then $14::date else acquired_date end,
+        acquisition_price_usd = case when $15::boolean then $16::numeric else acquisition_price_usd end,
+        notes = case when $17::boolean then $18::text else notes end,
+        updated_by_user_id = $19,
         updated_at = now()
       where id = $1
       returning *
@@ -429,12 +453,20 @@ export const ticRegistryRepository = {
       [
         propertyId,
         body.name?.trim() ?? null,
+        Object.prototype.hasOwnProperty.call(body, 'city'),
+        normalizeText(body.city),
+        Object.prototype.hasOwnProperty.call(body, 'state'),
+        normalizeText(body.state),
+        Object.prototype.hasOwnProperty.call(body, 'propertyCode'),
+        normalizeText(body.propertyCode),
+        Object.prototype.hasOwnProperty.call(body, 'numberOfUnits'),
+        body.numberOfUnits ?? null,
         body.propertyType ?? null,
         body.status ?? null,
         Object.prototype.hasOwnProperty.call(body, 'acquiredDate'),
         body.acquiredDate ?? null,
-        Object.prototype.hasOwnProperty.call(body, 'estimatedValueUsd'),
-        toNumericString(body.estimatedValueUsd, 2),
+        Object.prototype.hasOwnProperty.call(body, 'acquisitionPriceUsd'),
+        toNumericString(body.acquisitionPriceUsd, 2),
         Object.prototype.hasOwnProperty.call(body, 'notes'),
         normalizeText(body.notes),
         actorUserId,

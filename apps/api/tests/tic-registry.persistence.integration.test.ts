@@ -20,9 +20,13 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
       headers: { cookie: f.cookie },
       payload: {
         name: 'Harbor View TIC',
+        city: 'Oakland',
+        state: 'CA',
+        propertyCode: 'HV-101',
+        numberOfUnits: 24,
         propertyType: 'multifamily',
         status: 'held',
-        estimatedValueUsd: 1_250_000,
+        acquisitionPriceUsd: 1_250_000,
       },
     })
     expect(propertyRes.statusCode).toBe(201)
@@ -63,16 +67,24 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
     expect(listRes.statusCode).toBe(200)
     const listPayload = listRes.json()
     expect(listPayload.properties).toHaveLength(1)
-    expect(listPayload.properties[0].name).toBe('Harbor View TIC')
+    expect(listPayload.properties[0]).toMatchObject({
+      name: 'Harbor View TIC',
+      city: 'Oakland',
+      state: 'CA',
+      propertyCode: 'HV-101',
+      numberOfUnits: 24,
+      acquisitionPriceUsd: 1_250_000,
+    })
     expect(listPayload.properties[0].interests[0].owners[0]).toMatchObject({
       name: 'Atlas Family Trust',
       effectivePropertyPercentage: 20,
     })
     expect(listPayload.summary).toMatchObject({
       propertyCount: 1,
+      totalUnits: 24,
       ticInterestCount: 1,
       ownerCount: 1,
-      estimatedHeldValueUsd: 1_250_000,
+      heldAcquisitionPriceUsd: 1_250_000,
       underAllocatedPropertyCount: 1,
       overAllocatedPropertyCount: 0,
       underAllocatedInterestCount: 1,

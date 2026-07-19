@@ -120,6 +120,26 @@ function buildFilterClauses(
   return { clauses, params }
 }
 
+/**
+ * K-1 source values are text and can preserve accounting formatting such as
+ * "$1,250.00" or "(10.00)". The directory reports distributions as a
+ * positive outflow, regardless of their source display sign. Only cast strings
+ * that match a supported money representation so one malformed legacy field
+ * cannot make the directory query fail for every partnership.
+ */
+const accountingAmountSql = (valueSql: string): string => `
+  case
+    when btrim(${valueSql}) ~ '^[[:space:]]*[(][[:space:]]*[$]?[[:space:]]*[0-9][0-9,]*(\\.[0-9]+)?[[:space:]]*[)][[:space:]]*$'
+      then regexp_replace(btrim(${valueSql}), '[^0-9.]', '', 'g')::numeric
+    when btrim(${valueSql}) ~ '^[[:space:]]*[$]?[[:space:]]*-?[[:space:]]*[0-9][0-9,]*(\\.[0-9]+)?[[:space:]]*$'
+      then regexp_replace(btrim(${valueSql}), '[^0-9.]', '', 'g')::numeric
+    else null
+  end
+`
+
+const nullableNumber = (value: unknown): number | null =>
+  value == null ? null : Number(value)
+
 // ---------------------------------------------------------------------------
 // Core CTE used by list, totals, and export
 // ---------------------------------------------------------------------------
@@ -135,7 +155,7 @@ const BASE_CTE = `
       kd.tax_year as latest_k1_year,
       coalesce(
         krd.reported_distribution_amount,
-        (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
+        (select ${accountingAmountSql('coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)')}
            from k1_field_values fv
           where fv.k1_document_id = kd.id
             and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
@@ -377,7 +397,7 @@ export const partnershipsRepository = {
       assetClass: r.asset_class ?? null,
       status: r.status,
       latestK1Year: r.latest_k1_year ?? null,
-      latestDistributionUsd: r.latest_distribution_usd ?? null,
+      latestDistributionUsd: nullableNumber(r.latest_distribution_usd),
       latestFmv: r.fmv_amount_usd != null
         ? { amountUsd: Number(r.fmv_amount_usd), asOfDate: r.fmv_as_of_date, createdAt: r.fmv_created_at }
         : null,
@@ -445,7 +465,7 @@ export const partnershipsRepository = {
       assetClass: r.asset_class ?? null,
       status: r.status,
       latestK1Year: r.latest_k1_year ?? null,
-      latestDistributionUsd: r.latest_distribution_usd ?? null,
+      latestDistributionUsd: nullableNumber(r.latest_distribution_usd),
       latestFmv: r.fmv_amount_usd != null
         ? { amountUsd: Number(r.fmv_amount_usd), asOfDate: r.fmv_as_of_date, createdAt: r.fmv_created_at }
         : null,
@@ -621,7 +641,7 @@ export const partnershipsRepository = {
              and kd.tax_year is not null)           as latest_k1_year,
           (select coalesce(
              krd.reported_distribution_amount,
-             (select nullif(coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value), '')::numeric
+             (select ${accountingAmountSql('coalesce(fv.reviewer_corrected_value, fv.normalized_value, fv.raw_value)')}
                 from k1_field_values fv
                where fv.k1_document_id = kd2.id
                  and fv.field_name in ('box_19a_distribution', 'box_19_distributions')
@@ -708,20 +728,20 @@ export const partnershipsRepository = {
       },
       kpis: {
         latestK1Year: k.latest_k1_year ?? null,
-        latestDistributionUsd: k.latest_distribution_usd ?? null,
-        latestFmvUsd: k.latest_fmv_usd ?? null,
+        latestDistributionUsd: nullableNumber(k.latest_distribution_usd),
+        latestFmvUsd: nullableNumber(k.latest_fmv_usd),
         cumulativeReportedDistributionsUsd: Number(k.cumulative_usd ?? 0),
       },
       k1History: k1HistResult.rows.map((r) => ({
         k1DocumentId: r.k1_document_id,
         taxYear: r.tax_year,
         processingStatus: r.processing_status,
-        reportedDistributionUsd: r.reported_distribution_usd ?? null,
+        reportedDistributionUsd: nullableNumber(r.reported_distribution_usd),
         finalizedAt: r.finalized_at ?? null,
       })),
       expectedDistributionHistory: expDistResult.rows.map((r) => ({
         taxYear: r.tax_year,
-        reportedDistributionUsd: r.reported_distribution_usd ?? null,
+        reportedDistributionUsd: nullableNumber(r.reported_distribution_usd),
         finalizedFromK1DocumentId: r.finalized_from_k1_document_id ?? null,
       })),
       fmvSnapshots: fmvResult.rows.map((r) => ({

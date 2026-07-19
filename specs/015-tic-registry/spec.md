@@ -95,7 +95,7 @@ An authorized user marks whether a TIC interest was acquired through cash purcha
 
 - **FR-001**: System MUST add a "TIC Registry" destination to the side navigation for authenticated users with registry access.
 - **FR-002**: System MUST display a TIC Registry page that follows the existing Atlas application layout, navigation behavior, typography, spacing, and control patterns.
-- **FR-003**: System MUST show a registry summary with total properties, total TIC interests, total underlying owners, and estimated held value.
+- **FR-003**: System MUST show a registry summary with total properties, total units, total TIC interests, total underlying owners, and held acquisition price.
 - **FR-004**: System MUST allow authorized users to create, view, edit, and delete property records.
 - **FR-005**: Property records MUST include property name or address, property type, status, acquisition date, estimated value, and optional notes when supported by the form.
 - **FR-006**: System MUST allow authorized users to create, view, edit, and delete TIC interests under a property.

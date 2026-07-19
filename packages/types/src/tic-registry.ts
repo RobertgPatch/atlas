@@ -65,10 +65,14 @@ export interface TicInterest {
 export interface TicProperty {
   id: string
   name: string
+  city: string | null
+  state: string | null
+  propertyCode: string | null
+  numberOfUnits: number | null
   propertyType: TicPropertyType
   status: TicPropertyStatus
   acquiredDate: string | null
-  estimatedValueUsd: number | null
+  acquisitionPriceUsd: number | null
   notes: string | null
   allocation: TicAllocationStatus
   interests: TicInterest[]
@@ -78,9 +82,10 @@ export interface TicProperty {
 
 export interface TicRegistrySummary {
   propertyCount: number
+  totalUnits: number
   ticInterestCount: number
   ownerCount: number
-  estimatedHeldValueUsd: number
+  heldAcquisitionPriceUsd: number
   underAllocatedPropertyCount: number
   overAllocatedPropertyCount: number
   underAllocatedInterestCount: number
@@ -94,19 +99,27 @@ export interface TicRegistryResponse {
 
 export interface CreateTicPropertyRequest {
   name: string
+  city?: string | null
+  state?: string | null
+  propertyCode?: string | null
+  numberOfUnits?: number | null
   propertyType: TicPropertyType
   status?: TicPropertyStatus
   acquiredDate?: string | null
-  estimatedValueUsd?: number | null
+  acquisitionPriceUsd?: number | null
   notes?: string | null
 }
 
 export interface UpdateTicPropertyRequest {
   name?: string
+  city?: string | null
+  state?: string | null
+  propertyCode?: string | null
+  numberOfUnits?: number | null
   propertyType?: TicPropertyType
   status?: TicPropertyStatus
   acquiredDate?: string | null
-  estimatedValueUsd?: number | null
+  acquisitionPriceUsd?: number | null
   notes?: string | null
   expectedUpdatedAt?: string
 }
