@@ -14,7 +14,7 @@ export type PartnershipAnnualPerformanceValue = {
 
 export type PartnershipPerformanceInput = {
   annualValues: PartnershipAnnualPerformanceValue[]
-  cashFlowEvents?: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string }>
+  cashFlowEvents?: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }>
   latestNav: { amount: string; date: string } | null
   inceptionDate?: string | null
   currentCommitment?: string | null
@@ -137,7 +137,7 @@ export const composePartnershipPerformance = ({
     taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),
   }))
-  const datedDistributions = cashFlowEvents.filter((event) => event.kind === 'DISTRIBUTION').map((event) => ({
+  const datedDistributions = cashFlowEvents.filter((event) => event.kind === 'DISTRIBUTION' || event.kind === 'RECALLABLE_DISTRIBUTION').map((event) => ({
     date: event.activityDate,
     taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),

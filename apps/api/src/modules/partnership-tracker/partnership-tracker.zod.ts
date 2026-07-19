@@ -173,7 +173,7 @@ export const commitmentListQuerySchema = z.object({ asOfDate: partnershipTracker
 export const managementFeeQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
 
 export const createPartnershipCashFlowBodySchema = z.object({
-  kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION']),
+  kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION', 'RECALLABLE_DISTRIBUTION']),
   activityDate: partnershipTrackerDateSchema,
   amount: partnershipTrackerNonnegativeMoneySchema.refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
   note: z.string().trim().max(2_000).nullable().optional(),

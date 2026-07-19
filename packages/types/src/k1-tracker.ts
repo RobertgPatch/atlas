@@ -150,7 +150,7 @@ export interface K1TrackerSignoffState {
   }>
 }
 
-export type K1TrackerCashFlowKind = 'CAPITAL_CALL' | 'DISTRIBUTION'
+export type K1TrackerCashFlowKind = 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
 
 export interface K1TrackerCashFlowEvent {
   id: string

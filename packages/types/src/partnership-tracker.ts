@@ -106,6 +106,7 @@ export interface PartnershipCommitmentEntry {
   effectiveDate: string
   sourceType: 'manual' | 'parsed'
   isCurrent: boolean
+  sourceCashFlowEventId: string | null
   note: string | null
   createdAt: string
   updatedAt: string
@@ -329,7 +330,7 @@ export interface UpdateTrackedPartnershipRequest {
 }
 
 export interface CreatePartnershipCashFlowRequest {
-  kind: 'CAPITAL_CALL' | 'DISTRIBUTION'
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
   activityDate: string
   amount: PartnershipTrackerMoney
   note?: string | null

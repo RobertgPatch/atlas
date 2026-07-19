@@ -165,8 +165,8 @@ export const yearSummaryFixtures = (count: 4 | 10): K1TrackerYearSummary[] =>
   }))
 
 export const commitmentFixtures: PartnershipCommitmentEntry[] = [
-  { id: 'c-1', partnershipId: 'p-1', amount: '750000.00', effectiveDate: '2022-01-01', sourceType: 'manual', note: 'Initial close', isCurrent: false, createdAt: '2022-01-01T00:00:00.000Z', updatedAt: '2022-01-01T00:00:00.000Z' },
-  { id: 'c-2', partnershipId: 'p-1', amount: '1000000.00', effectiveDate: '2024-01-01', sourceType: 'manual', note: null, isCurrent: true, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'c-1', partnershipId: 'p-1', amount: '750000.00', effectiveDate: '2022-01-01', sourceType: 'manual', sourceCashFlowEventId: null, note: 'Initial close', isCurrent: false, createdAt: '2022-01-01T00:00:00.000Z', updatedAt: '2022-01-01T00:00:00.000Z' },
+  { id: 'c-2', partnershipId: 'p-1', amount: '1000000.00', effectiveDate: '2024-01-01', sourceType: 'manual', sourceCashFlowEventId: null, note: null, isCurrent: true, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
 ]
 
 export const navFixtures: PartnershipNavEntry[] = [

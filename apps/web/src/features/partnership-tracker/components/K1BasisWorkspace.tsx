@@ -78,7 +78,7 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
     } catch (error) { setMessage(errorText(error)) }
     finally { setConfirmDeleteYear(false) }
   }
-  const createCashFlow = async (body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }) => {
+  const createCashFlow = async (body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }) => {
     if (effectiveYear == null) return
     await actions.createCashFlow.mutateAsync({ id: partnershipId, year: effectiveYear, body })
   }

@@ -108,18 +108,19 @@ describe('Partnership Tracker performance', () => {
   })
 
   it('uses exact capital call and distribution dates for XIRR without double-counting annual totals', () => {
-    const annual = [{ taxYear: 2024, hasCanonicalContribution: true, capitalContributions: '100000.00', legacyCapitalContributions: null, distributions: '110000.00' }]
+    const annual = [{ taxYear: 2024, hasCanonicalContribution: true, capitalContributions: '100000.00', legacyCapitalContributions: null, distributions: '115000.00' }]
     const yearEnd = composePartnershipPerformance({ annualValues: annual, latestNav: { amount: '0.00', date: '2024-12-31' } })
     const dated = composePartnershipPerformance({
       annualValues: annual,
       cashFlowEvents: [
         { kind: 'CAPITAL_CALL', activityDate: '2024-01-01', amount: '100000.00' },
         { kind: 'DISTRIBUTION', activityDate: '2024-07-01', amount: '110000.00' },
+        { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-09-01', amount: '5000.00' },
       ],
       latestNav: { amount: '0.00', date: '2024-12-31' },
     })
     expect(dated.totalCapitalContributions).toBe('100000.00')
-    expect(dated.totalDistributions).toBe('110000.00')
+    expect(dated.totalDistributions).toBe('115000.00')
     expect(dated.irr).not.toBe(yearEnd.irr)
     expect(Number(dated.irr)).toBeGreaterThan(0.2)
   })

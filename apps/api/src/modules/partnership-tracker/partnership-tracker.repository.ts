@@ -4,7 +4,7 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { copyK1TrackerYears, k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
-import { recomputeActiveCommitmentMarker } from '../partnerships/capital.repository.js'
+import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
   PartnershipAggregationQuery,
@@ -35,12 +35,12 @@ type PartnershipRow = QueryResultRow & {
   earliest_k1_year: number | null; latest_k1_year: number | null; latest_workflow_status: string | null
   latest_ending_basis: string | null; latest_section_l_capital: string | null; warning_count: string; total_count: string
   annual_performance: PartnershipAnnualPerformanceValue[] | null
-  dated_cash_flows: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string }> | null
+  dated_cash_flows: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }> | null
 }
 type CommitmentRow = QueryResultRow & {
   id: string; partnership_id: string; commitment_amount: string; effective_date: Date | string
   source_type: 'manual' | 'parsed'; notes: string | null; created_at: Date | string; updated_at: Date | string
-  is_current: boolean
+  source_cash_flow_event_id: string | null; is_current: boolean
 }
 type NavRow = QueryResultRow & {
   id: string; partnership_id: string; fmv_amount: string; valuation_date: Date | string
@@ -213,24 +213,28 @@ const summaryRows = async (
       left join lateral (
         select
           count(*) filter (where event_type = 'funded_contribution') as contribution_count,
-          count(*) filter (where event_type = 'distribution') as distribution_count,
+          count(*) filter (where event_type in ('distribution', 'recallable_distribution')) as distribution_count,
           sum(abs(amount)) filter (where event_type = 'funded_contribution') as capital_contributions,
-          sum(abs(amount)) filter (where event_type = 'distribution') as distributions
+          sum(abs(amount)) filter (where event_type in ('distribution', 'recallable_distribution')) as distributions
         from capital_activity_events
         where partnership_id = y.partnership_id
           and extract(year from activity_date)::int = y.tax_year
-          and event_type in ('funded_contribution', 'distribution')
+          and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
       ) activity on true
       where y.partnership_id = p.id
     ) years on true
     left join lateral (
       select jsonb_agg(jsonb_build_object(
-        'kind', case when event_type = 'funded_contribution' then 'CAPITAL_CALL' else 'DISTRIBUTION' end,
+        'kind', case
+          when event_type = 'funded_contribution' then 'CAPITAL_CALL'
+          when event_type = 'recallable_distribution' then 'RECALLABLE_DISTRIBUTION'
+          else 'DISTRIBUTION'
+        end,
         'activityDate', activity_date::text,
         'amount', abs(amount)::text
       ) order by activity_date, created_at, id) as events
       from capital_activity_events
-      where partnership_id = p.id and event_type in ('funded_contribution', 'distribution')
+      where partnership_id = p.id and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
     ) cash_flows on true
     left join lateral (
       select y.workflow_status, y.ending_outside_basis,
@@ -261,6 +265,7 @@ const mapCommitment = (row: CommitmentRow): PartnershipCommitmentEntry => ({
   amount: money(row.commitment_amount)!,
   effectiveDate: dateOnly(row.effective_date),
   sourceType: row.source_type,
+  sourceCashFlowEventId: row.source_cash_flow_event_id,
   note: row.notes ?? null,
   isCurrent: row.is_current,
   createdAt: iso(row.created_at),
@@ -508,7 +513,7 @@ export const partnershipTrackerRepository = {
       const row = (await client.query(`insert into partnership_commitments
         (id, entity_id, partnership_id, commitment_amount, commitment_date, status, source_type, notes, created_by_user_id, created_at, updated_at)
         values ($1,$2,$3,$4,$5,'INACTIVE','manual',$6,$7,now(),now()) returning *`, [id, partnership.entity_id, partnershipId, body.amount, body.effectiveDate, body.note ?? null, actorUserId])).rows[0]
-      await recomputeActiveCommitmentMarker(client, partnershipId)
+      await recomputeRecallableCommitments(client, partnershipId)
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.COMMITMENT_CREATED, objectType: 'partnership_commitment', objectId: id, before: null, after: row }, client)
     })
     return (await this.listCommitments(partnershipId, scope)).items.find((entry) => entry.id === id)!
@@ -519,13 +524,14 @@ export const partnershipTrackerRepository = {
       await assertPartnership(partnershipId, scope, client)
       const before = (await client.query('select * from partnership_commitments where id = $1 and partnership_id = $2 for update', [commitmentId, partnershipId])).rows[0]
       if (!before) throw new PartnershipTrackerError('COMMITMENT_NOT_FOUND', 404, 'Committed-capital entry was not found.')
+      if (before.source_cash_flow_event_id) throw new PartnershipTrackerError('LINKED_COMMITMENT_READ_ONLY', 409, 'Delete the recallable distribution from Net Cash Activity to reverse this commitment increase.')
       const result = await client.query(`update partnership_commitments set
           commitment_amount = coalesce($3, commitment_amount), commitment_date = coalesce($4, commitment_date),
           notes = case when $5::boolean then $6 else notes end, updated_at = now()
         where id = $1 and partnership_id = $2 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $7::timestamptz)
         returning *`, [commitmentId, partnershipId, patch.amount ?? null, patch.effectiveDate ?? null, Object.hasOwn(patch, 'note'), patch.note ?? null, patch.expectedUpdatedAt])
       if (!result.rows[0]) throw new PartnershipTrackerError('STALE_COMMITMENT_REVISION', 409, 'The committed-capital entry changed. Reload and try again.')
-      await recomputeActiveCommitmentMarker(client, partnershipId)
+      await recomputeRecallableCommitments(client, partnershipId)
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.COMMITMENT_UPDATED, objectType: 'partnership_commitment', objectId: commitmentId, before, after: result.rows[0] }, client)
     })
     return (await this.listCommitments(partnershipId, scope)).items.find((entry) => entry.id === commitmentId)!
@@ -534,13 +540,15 @@ export const partnershipTrackerRepository = {
   async deleteCommitment(partnershipId: string, commitmentId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
     await withTransaction(async (client) => {
       await assertPartnership(partnershipId, scope, client)
+      const linked = (await client.query('select source_cash_flow_event_id from partnership_commitments where id = $1 and partnership_id = $2 for update', [commitmentId, partnershipId])).rows[0]
+      if (linked?.source_cash_flow_event_id) throw new PartnershipTrackerError('LINKED_COMMITMENT_READ_ONLY', 409, 'Delete the recallable distribution from Net Cash Activity to reverse this commitment increase.')
       const row = (await client.query(`delete from partnership_commitments where id = $1 and partnership_id = $2
         and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $3::timestamptz) returning *`, [commitmentId, partnershipId, expectedUpdatedAt])).rows[0]
       if (!row) {
         const exists = (await client.query('select 1 from partnership_commitments where id = $1 and partnership_id = $2', [commitmentId, partnershipId])).rows[0]
         throw new PartnershipTrackerError(exists ? 'STALE_COMMITMENT_REVISION' : 'COMMITMENT_NOT_FOUND', exists ? 409 : 404, exists ? 'The committed-capital entry changed. Reload and try again.' : 'Committed-capital entry was not found.')
       }
-      await recomputeActiveCommitmentMarker(client, partnershipId)
+      await recomputeRecallableCommitments(client, partnershipId)
       await auditRepository.record({ actorUserId, eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.COMMITMENT_DELETED, objectType: 'partnership_commitment', objectId: commitmentId, before: row, after: null }, client)
     })
   },
@@ -625,7 +633,7 @@ export const partnershipTrackerRepository = {
   calculateYear(partnershipId: string, taxYear: number, expectedRevision: number, changes: K1TrackerFieldChange[], scope: PartnershipTrackerScope) {
     return k1TrackerRepository.calculateDraft(partnershipId, taxYear, expectedRevision, changes, scope)
   },
-  createCashFlow(partnershipId: string, taxYear: number, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  createCashFlow(partnershipId: string, taxYear: number, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createCashFlow(partnershipId, taxYear, body, actorUserId, scope)
   },
   deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
