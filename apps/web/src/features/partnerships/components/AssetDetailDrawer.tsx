@@ -86,7 +86,7 @@ export function AssetDetailDrawer({ open, onClose, partnershipId, assetId, isAdm
 
                           {isAdmin && (
                             <div className="mt-4 flex justify-end">
-                              <button onClick={onRecordFmv} className="rounded-lg bg-atlas-gold px-3 py-1.5 text-xs font-medium text-white hover:bg-atlas-hover">
+                              <button onClick={onRecordFmv} className="rounded-lg bg-jackson-gold px-3 py-1.5 text-xs font-medium text-white hover:bg-jackson-hover">
                                 Record FMV
                               </button>
                             </div>

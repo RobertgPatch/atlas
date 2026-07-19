@@ -69,19 +69,19 @@ export function EntityDetail() {
               <KpiCard
                 label="Commitment"
                 value={formatUsd(data.rollup.totalCommitmentUsd)}
-                icon={<TrendingUpIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<TrendingUpIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard
                 label="Paid-In"
                 value={formatUsd(data.rollup.totalPaidInUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard
                 label="Unfunded"
                 value={formatUsd(data.rollup.totalUnfundedUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard

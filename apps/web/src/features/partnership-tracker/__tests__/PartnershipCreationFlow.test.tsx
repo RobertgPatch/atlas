@@ -19,7 +19,7 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerDetail: (id?: string) => ({ data: id ? sourceDetail : undefined, isLoading: false, isError: false }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: create, isPending: false }, updatePartnership: { mutateAsync: update, isPending: false } }),
 }))
-vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Atlas Family Trust' }, { id: 'e-2', name: 'Atlas Holdings' }] }, isLoading: false, isError: false }) }))
+vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Jackson Family Trust' }, { id: 'e-2', name: 'Jackson Holdings' }] }, isLoading: false, isError: false }) }))
 
 describe('Add Partnership flow', () => {
   beforeEach(() => { create.mockClear(); update.mockClear() })
@@ -44,7 +44,7 @@ describe('Add Partnership flow', () => {
     render(<MemoryRouter><AddPartnershipDialog open onClose={vi.fn()} onCreated={vi.fn()} /></MemoryRouter>)
     fireEvent.click(screen.getByRole('radio', { name: /Existing partnership, new owner/ }))
     fireEvent.change(screen.getByLabelText('Existing partnership'), { target: { value: 'p-1' } })
-    expect(screen.queryByRole('option', { name: 'Atlas Family Trust' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Jackson Family Trust' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add owner record' }))
     await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({

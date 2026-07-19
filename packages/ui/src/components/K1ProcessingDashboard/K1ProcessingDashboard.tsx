@@ -22,7 +22,7 @@ import { LoadingState } from '../LoadingState';
 import { PageHeader } from '../PageHeader';
 import { RowActionMenu } from '../RowActionMenu';
 import { SectionCard } from '../SectionCard';
-import { StatusBadge, type AtlasStatus } from '../StatusBadge';
+import { StatusBadge, type JacksonStatus } from '../StatusBadge';
 
 export interface K1ProcessingDashboardRow {
   id: string;
@@ -30,7 +30,7 @@ export interface K1ProcessingDashboardRow {
   partnership: string;
   entity: string;
   taxYear: string;
-  status: AtlasStatus | (string & {});
+  status: JacksonStatus | (string & {});
   issuesCount: number;
   uploadedDate: string;
 }

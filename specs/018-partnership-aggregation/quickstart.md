@@ -167,7 +167,7 @@ Use the existing database query spy/instrumentation if available; otherwise wrap
 
 ## 8. Verify Web URL and Navigation
 
-Start Atlas:
+Start Jackson:
 
 ```powershell
 npm run dev:local

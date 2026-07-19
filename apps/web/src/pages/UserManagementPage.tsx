@@ -11,7 +11,7 @@ import { EmptyState } from '../components/EmptyState'
 import { PageHeader } from '../components/shared/PageHeader'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { RolePill } from '../components/shared/RolePill'
-import { authClient, type AtlasRole, type UserSummary } from '../auth/authClient'
+import { authClient, type JacksonRole, type UserSummary } from '../auth/authClient'
 import { useSession } from '../auth/sessionStore'
 
 export function UserManagementPage() {
@@ -21,7 +21,7 @@ export function UserManagementPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<AtlasRole>('User')
+  const [inviteRole, setInviteRole] = useState<JacksonRole>('User')
   const [devAction, setDevAction] = useState<null | 'clear' | 'seed'>(null)
   const [confirmDevAction, setConfirmDevAction] = useState<null | 'clear' | 'seed'>(null)
   const [devMessage, setDevMessage] = useState<string | null>(null)
@@ -97,7 +97,7 @@ export function UserManagementPage() {
               className="text-xs px-2 py-1 rounded border border-gray-200 hover:bg-gray-50"
               onClick={async (event) => {
                 event.stopPropagation()
-                const nextRole: AtlasRole = row.role === 'Admin' ? 'User' : 'Admin'
+                const nextRole: JacksonRole = row.role === 'Admin' ? 'User' : 'Admin'
                 await authClient.changeRole(row.id, nextRole)
                 await loadUsers()
               }}
@@ -164,13 +164,13 @@ export function UserManagementPage() {
         <input
           value={inviteEmail}
           onChange={(event) => setInviteEmail(event.target.value)}
-          placeholder="new.user@atlas.com"
+          placeholder="new.user@jackson.com"
           type="email"
           className="flex-1 px-3 py-2 border border-gray-200 rounded-lg"
         />
         <select
           value={inviteRole}
-          onChange={(event) => setInviteRole(event.target.value as AtlasRole)}
+          onChange={(event) => setInviteRole(event.target.value as JacksonRole)}
           className="px-3 py-2 border border-gray-200 rounded-lg"
         >
           <option value="User">User</option>
@@ -178,7 +178,7 @@ export function UserManagementPage() {
         </select>
         <button
           onClick={() => void handleInvite()}
-          className="inline-flex items-center px-4 py-2 rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover"
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white hover:bg-jackson-hover"
         >
           <Plus className="w-4 h-4 mr-2" />
           Invite
@@ -200,7 +200,7 @@ export function UserManagementPage() {
                 full demo set including asset classes, commitments, capital activity, and FMVs.
               </p>
               {devMessage && (
-                <p className="text-xs text-atlas-gold mt-2">{devMessage}</p>
+                <p className="text-xs text-jackson-gold mt-2">{devMessage}</p>
               )}
             </div>
             <div className="flex gap-2">

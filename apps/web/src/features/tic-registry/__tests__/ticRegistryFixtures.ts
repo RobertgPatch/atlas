@@ -42,7 +42,7 @@ export const ticRegistryFixture: TicRegistryResponse = {
             {
               id: 'owner-1',
               ticInterestId: 'interest-1',
-              name: 'Atlas Family Trust',
+              name: 'Jackson Family Trust',
               ownerType: 'trust',
               ticPercentage: 50,
               effectivePropertyPercentage: 20,

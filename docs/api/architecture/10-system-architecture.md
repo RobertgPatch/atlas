@@ -1,10 +1,10 @@
-# Atlas API Architecture Notes
+# Jackson API Architecture Notes
 
 ## Consolidated Holdings and Plaid
 
 The Consolidated Holdings feature adds a narrow Plaid boundary module under
-`apps/api/src/modules/plaid`. Browser code requests a Link token from Atlas,
-opens Plaid Link, and sends only the resulting public token back to Atlas. The
+`apps/api/src/modules/plaid`. Browser code requests a Link token from Jackson,
+opens Plaid Link, and sends only the resulting public token back to Jackson. The
 API exchanges that public token server-side and never returns Plaid access
 tokens to the browser.
 

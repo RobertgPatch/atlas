@@ -10,9 +10,11 @@ describe('Partnership Tracker navigation', () => {
 
   it('shows one consolidated active navigation item', () => {
     render(<MemoryRouter><AppShell currentPath="/partnership-tracker" userRole="Admin"><div>Workspace</div></AppShell></MemoryRouter>)
+    expect(screen.getByText('Jackson')).toBeInTheDocument()
+    expect(screen.queryByText('Atlas')).not.toBeInTheDocument()
     const link = screen.getByRole('link', { name: 'Partnerships' })
     expect(link).toHaveAttribute('href', '/partnership-tracker')
-    expect(link.className).toContain('text-atlas-gold')
+    expect(link.className).toContain('text-jackson-gold')
     expect(screen.getAllByRole('link', { name: 'Partnerships' })).toHaveLength(1)
     expect(screen.queryByRole('link', { name: 'Partnership Tracker' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /K1 Tracker/i })).not.toBeInTheDocument()
@@ -39,7 +41,7 @@ describe('Partnership Tracker navigation', () => {
 
   it('keeps the consolidated sidebar item active for the aggregate route', () => {
     render(<MemoryRouter><AppShell currentPath="/partnership-aggregation"><div>Aggregate</div></AppShell></MemoryRouter>)
-    expect(screen.getByRole('link', { name: 'Partnerships' }).className).toContain('text-atlas-gold')
+    expect(screen.getByRole('link', { name: 'Partnerships' }).className).toContain('text-jackson-gold')
   })
 
   it('collapses to an icon rail and temporarily reveals the full navigation on hover', () => {

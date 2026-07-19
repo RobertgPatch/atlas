@@ -5,7 +5,7 @@
 
 **Tests**: Test tasks are included because the specification requires calculation, contract, integration, authorization, performance, responsive, and accessibility verification. Write each story's tests first and confirm they fail for the intended reason before implementation.
 
-**Organization**: Tasks are grouped by user story so each story produces an independently testable increment. Exact paths follow the existing Atlas API/web/shared-type structure.
+**Organization**: Tasks are grouped by user story so each story produces an independently testable increment. Exact paths follow the existing Jackson API/web/shared-type structure.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -57,7 +57,7 @@
 - [X] T013 [US1] Compose default aggregation candidates, base-scope facets, complete rollup, and requested page through the shared summary projection in apps/api/src/modules/partnership-tracker/partnership-tracker.repository.ts
 - [X] T014 [US1] Add the authenticated GET /partnership-tracker/aggregation handler and register the static route without colliding with partnershipId routes in apps/api/src/modules/partnership-tracker/partnership-tracker.handler.ts and apps/api/src/modules/partnership-tracker/partnership-tracker.routes.ts
 - [X] T015 [US1] Add the aggregation GET client, query-key family, and basic TanStack Query hook in apps/web/src/features/partnership-tracker/api/partnershipTrackerClient.ts and apps/web/src/features/partnership-tracker/hooks/usePartnershipTracker.ts
-- [X] T016 [P] [US1] Build the segmented Atlas KPI band with exact money/ratio formatting, metric coverage, partial status, NAV range, and no IRR card in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationKpis.tsx
+- [X] T016 [P] [US1] Build the segmented Jackson KPI band with exact money/ratio formatting, metric coverage, partial status, NAV range, and no IRR card in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationKpis.tsx
 - [X] T017 [P] [US1] Build the semantic aggregate table with every required partnership/owner/workflow/capital/NAV/return/quality field and explicit missing-state text in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationTable.tsx
 - [X] T018 [US1] Compose the gold-index ledger header, base result count, KPI band, table, and distinct loading/base-empty/partial/error/retry states in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationPageContent.tsx and apps/web/src/features/partnership-tracker/components/aggregation/index.ts
 - [X] T019 [US1] Add the authenticated `/partnership-aggregation` page wrapper and application route while preserving the current tracker route in apps/web/src/pages/PartnershipAggregationPage.tsx and apps/web/src/App.tsx
@@ -134,7 +134,7 @@
 - [X] T042 [P] [US4] Add the sticky 17rem desktop rail and Headless UI focus-managed mobile filter drawer with 44px controls in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationFilters.tsx
 - [X] T043 [P] [US4] Finalize responsive KPI wrapping, tabular numerics, contrast, coverage text, and partial-state semantics in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationKpis.tsx
 - [X] T044 [P] [US4] Constrain horizontal scrolling to the table viewport, keep partnership identity sticky, preserve semantic headers/aria-sort, and expose touch/keyboard row actions in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationTable.tsx
-- [X] T045 [US4] Finalize the industrial Atlas gold-index layout, responsive filter trigger, focus order, one-h1 hierarchy, live result status, retry/empty states, and reduced-motion guards in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationPageContent.tsx
+- [X] T045 [US4] Finalize the industrial Jackson gold-index layout, responsive filter trigger, focus order, one-h1 hierarchy, live result status, retry/empty states, and reduced-motion guards in apps/web/src/features/partnership-tracker/components/aggregation/PartnershipAggregationPageContent.tsx
 
 **Checkpoint**: US4 passes automated accessibility/responsive tests and the manual viewport/keyboard checks in quickstart.md.
 

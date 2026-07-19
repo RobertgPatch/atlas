@@ -59,7 +59,7 @@ export function CapitalOverviewSection({
             <button
               type="button"
               onClick={onAddCapitalActivity}
-              className="px-3 py-1.5 rounded-lg bg-atlas-gold text-white text-xs font-medium hover:bg-atlas-hover"
+              className="px-3 py-1.5 rounded-lg bg-jackson-gold text-white text-xs font-medium hover:bg-jackson-hover"
             >
               Add Capital Activity
             </button>
@@ -71,37 +71,37 @@ export function CapitalOverviewSection({
         <KpiCard
           label="Original Commitment"
           value={formatUsd(overview.originalCommitmentUsd)}
-          icon={<LandmarkIcon className="w-4 h-4 text-atlas-gold" />}
+          icon={<LandmarkIcon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard
           label="Paid-In"
           value={formatUsd(overview.paidInUsd)}
-          icon={<HandCoinsIcon className="w-4 h-4 text-atlas-gold" />}
+          icon={<HandCoinsIcon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard
           label="% Called"
           value={formatPercent(overview.percentCalled)}
-          icon={<PieChartIcon className="w-4 h-4 text-atlas-gold" />}
+          icon={<PieChartIcon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard
           label="Unfunded"
           value={formatUsd(overview.unfundedUsd)}
-          icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+          icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard
           label="Reported Distributions"
           value={formatUsd(overview.reportedDistributionsUsd)}
-          icon={<ArrowRightLeftIcon className="w-4 h-4 text-atlas-gold" />}
+          icon={<ArrowRightLeftIcon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard
           label="Residual Value"
           value={formatUsd(overview.residualValueUsd)}
-          icon={<BarChart3Icon className="w-4 h-4 text-atlas-gold" />}
+          icon={<BarChart3Icon className="w-4 h-4 text-jackson-gold" />}
           accentColor="#C9A96E"
         />
         <KpiCard label="DPI" value={formatMultiple(overview.dpi)} accentColor="#C9A96E" />

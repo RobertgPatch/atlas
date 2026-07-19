@@ -115,7 +115,7 @@ export function AssetsSection({
             <button
               type="button"
               onClick={onAddAsset}
-              className="rounded-lg bg-atlas-gold px-3 py-1.5 text-xs font-medium text-white hover:bg-atlas-hover"
+              className="rounded-lg bg-jackson-gold px-3 py-1.5 text-xs font-medium text-white hover:bg-jackson-hover"
             >
               Add Asset
             </button>

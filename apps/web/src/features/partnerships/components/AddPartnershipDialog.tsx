@@ -127,7 +127,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                       value={entityId}
                       onChange={(e) => setEntityId(e.target.value)}
                       disabled={entitiesQuery.isLoading || !entitiesQuery.data?.items.length}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                     >
                       <option value="">
                         {entitiesQuery.isLoading ? 'Loading entities…' : 'Select an entity'}
@@ -144,7 +144,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                       </p>
                     ) : !entitiesQuery.isLoading && !entitiesQuery.data?.items.length ? (
                       <p className="mt-1 text-xs text-text-secondary">
-                        Create an <Link to="/entities" onClick={handleClose} className="font-medium text-atlas-gold underline">entity</Link> before adding a partnership.
+                        Create an <Link to="/entities" onClick={handleClose} className="font-medium text-jackson-gold underline">entity</Link> before adding a partnership.
                       </p>
                     ) : null}
                   </div>
@@ -160,7 +160,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                       maxLength={120}
                       value={name}
                       onChange={(e) => { setName(e.target.value); setNameError(null) }}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${nameError ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${nameError ? 'border-red-500' : 'border-gray-300'}`}
                     />
                     {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
                   </div>
@@ -171,7 +171,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                     <select
                       value={assetClass}
                       onChange={(e) => setAssetClass(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                     >
                       <option value="">— None —</option>
                       {ASSET_CLASSES.map((ac) => (
@@ -186,7 +186,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as PartnershipStatus)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                     >
                       {STATUS_OPTIONS.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -202,7 +202,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                       maxLength={10000}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                     />
                   </div>
 
@@ -221,7 +221,7 @@ export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProp
                     <button
                       type="submit"
                       disabled={isPending || entitiesQuery.isLoading || !entitiesQuery.data?.items.length}
-                      className="px-4 py-2 text-sm rounded-lg bg-atlas-gold text-white hover:bg-atlas-hover disabled:opacity-50"
+                      className="px-4 py-2 text-sm rounded-lg bg-jackson-gold text-white hover:bg-jackson-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Add Partnership'}
                     </button>

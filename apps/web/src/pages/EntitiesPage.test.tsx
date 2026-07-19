@@ -8,7 +8,7 @@ const update = vi.fn()
 const remove = vi.fn()
 vi.mock('../features/partnerships/hooks/useEntityQueries', () => ({
   useEntityList: () => ({
-    data: { items: [{ id: 'e-1', name: 'Atlas Family Trust', partnershipCount: 1, totalDistributionsUsd: 1000 }] },
+    data: { items: [{ id: 'e-1', name: 'Jackson Family Trust', partnershipCount: 1, totalDistributionsUsd: 1000 }] },
     isLoading: false,
     isError: false,
     refetch: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('../features/partnerships/hooks/useEntityQueries', () => ({
   useDeleteEntity: () => ({ mutateAsync: remove, isPending: false }),
 }))
 vi.mock('../auth/sessionStore', () => ({
-  useSession: () => ({ session: { role: 'Admin', user: { email: 'admin@atlas.test' } } }),
+  useSession: () => ({ session: { role: 'Admin', user: { email: 'admin@jackson.test' } } }),
   sessionStore: { setUnauthenticated: vi.fn() },
 }))
 vi.mock('../auth/authClient', () => ({ authClient: { logout: vi.fn().mockResolvedValue(undefined) } }))
@@ -33,7 +33,7 @@ describe('EntitiesPage owner rename', () => {
     update.mockResolvedValue({ id: 'e-1', name: 'Renamed Owner' })
     render(<MemoryRouter><EntitiesPage /></MemoryRouter>)
     fireEvent.click(screen.getByTitle('Rename'))
-    const input = screen.getByDisplayValue('Atlas Family Trust')
+    const input = screen.getByDisplayValue('Jackson Family Trust')
     fireEvent.change(input, { target: { value: 'Renamed Owner' } })
     await act(async () => { fireEvent.click(screen.getByTitle('Save')) })
     await waitFor(() => expect(update).toHaveBeenCalledWith({ id: 'e-1', name: 'Renamed Owner' }))
@@ -51,7 +51,7 @@ describe('EntitiesPage owner rename', () => {
     render(<MemoryRouter><EntitiesPage /></MemoryRouter>)
 
     fireEvent.click(screen.getByTitle('Remove all partnerships before deleting'))
-    expect(screen.getByRole('dialog', { name: 'Delete Atlas Family Trust?' })).toBeTruthy()
+    expect(screen.getByRole('dialog', { name: 'Delete Jackson Family Trust?' })).toBeTruthy()
     expect(remove).not.toHaveBeenCalled()
 
     await act(async () => {

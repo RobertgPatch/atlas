@@ -168,7 +168,7 @@ An investment administrator sees one partnership-level row when the same investm
 - **FR-043**: Sort controls MUST expose their current direction through text or accessible attributes, and result-count updates MUST be announced through a polite live region.
 - **FR-044**: Loading, empty base scope, no filter matches, partial-data, error, and retry states MUST be distinct and actionable.
 - **FR-045**: Meaningful data must be present without animation; any transitions MUST respect `prefers-reduced-motion`.
-- **FR-046**: The visual treatment MUST stay within the established Atlas black, warm-white, gold, and gray palette while using tabular numerics, visible grid rules, and restrained motion to distinguish the aggregation surface from generic card dashboards.
+- **FR-046**: The visual treatment MUST stay within the established Jackson black, warm-white, gold, and gray palette while using tabular numerics, visible grid rules, and restrained motion to distinguish the aggregation surface from generic card dashboards.
 - **FR-047**: The add flow MUST offer explicit `New partnership` and `Existing partnership, new owner` modes rather than requiring users to infer grouping from typed names.
 - **FR-048**: Existing-partnership creation MUST inherit name, type, and aggregation identity from an in-scope source partnership and MUST reject an owner that already has that partnership.
 - **FR-049**: The Partnership workspace MUST continue to list and edit every owner record independently after those records are grouped on All Partnerships.
@@ -202,7 +202,7 @@ An investment administrator sees one partnership-level row when the same investm
 
 ## Assumptions
 
-- Atlas reuses the existing React 19, React Router, TanStack Query, Tailwind, Fastify, Zod, PostgreSQL, session/RBAC, entity scope, and exact financial string conventions.
+- Jackson reuses the existing React 19, React Router, TanStack Query, Tailwind, Fastify, Zod, PostgreSQL, session/RBAC, entity scope, and exact financial string conventions.
 - The aggregation is a sibling page to the existing Partnership Tracker, not a replacement for the current selected-partnership editor.
 - The first release is read-only except for reusing the existing Admin add-partnership dialog and links into the existing detail workspace.
 - CSV/XLSX export, saved named views, bulk editing, pooled portfolio IRR, charts, and time-series trend analysis are outside this feature.

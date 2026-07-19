@@ -125,9 +125,9 @@
 
 ## Decision 10: Use an Industrial Financial-Ledger Interface
 
-**Decision**: Within the established Atlas palette and typography, use a wide industrial/editorial ledger: a black rule and gold index accent, compact segmented KPI band, sticky left filter rail on wide screens, active-filter chips, and a dense ruled table with tabular numerics and a sticky partnership column. Use a filter drawer below the wide breakpoint and a table-local horizontal scroller at narrow widths.
+**Decision**: Within the established Jackson palette and typography, use a wide industrial/editorial ledger: a black rule and gold index accent, compact segmented KPI band, sticky left filter rail on wide screens, active-filter chips, and a dense ruled table with tabular numerics and a sticky partnership column. Use a filter drawer below the wide breakpoint and a table-local horizontal scroller at narrow widths.
 
-**Rationale**: The interface is data-dense and benefits from visible alignment, strong numeric hierarchy, and minimal decoration. The signature gold index rail connects the aggregation view to Atlas without turning it into a generic grid of floating cards. Existing Inter/Playfair font assets avoid an additional web-font dependency.
+**Rationale**: The interface is data-dense and benefits from visible alignment, strong numeric hierarchy, and minimal decoration. The signature gold index rail connects the aggregation view to Jackson without turning it into a generic grid of floating cards. Existing Inter/Playfair font assets avoid an additional web-font dependency.
 
 **Alternatives considered**:
 

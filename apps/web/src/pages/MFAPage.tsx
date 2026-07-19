@@ -115,10 +115,10 @@ export function MFAPage() {
       >
         <div className="flex items-center gap-2 mb-8 justify-center">
           <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
-            <span className="text-atlas-gold font-serif font-bold text-lg">A</span>
+            <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
           </div>
           <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
-            Atlas
+            Jackson
           </span>
         </div>
 
@@ -156,7 +156,7 @@ export function MFAPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-atlas-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? (
                 <>

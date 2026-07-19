@@ -15,6 +15,6 @@ describe('Partnership navigation', () => {
 
     const link = screen.getByRole('link', { name: 'Partnerships' })
     expect(link).toHaveAttribute('href', '/partnership-tracker')
-    expect(link).toHaveClass('text-atlas-gold')
+    expect(link).toHaveClass('text-jackson-gold')
   })
 })

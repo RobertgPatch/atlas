@@ -87,7 +87,7 @@ export function K1UploadDialog({ open, onClose, onUploaded, initialFile }: K1Upl
                 <Link
                   to="/entities"
                   onClick={handleClose}
-                  className="inline-flex items-center mt-2 text-atlas-gold hover:text-atlas-hover font-medium"
+                  className="inline-flex items-center mt-2 text-jackson-gold hover:text-jackson-hover font-medium"
                 >
                   Go to Entities →
                 </Link>
@@ -99,7 +99,7 @@ export function K1UploadDialog({ open, onClose, onUploaded, initialFile }: K1Upl
               <select
                 value={entityId}
                 onChange={(e) => setEntityId(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
                 disabled={lookups.isLoading}
               >
                 <option value="">Select entity…</option>
@@ -147,7 +147,7 @@ export function K1UploadDialog({ open, onClose, onUploaded, initialFile }: K1Upl
           <button
             onClick={() => handleSubmit()}
             disabled={upload.isPending || !file || !entityId}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-atlas-gold text-white rounded-lg hover:bg-atlas-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-jackson-gold text-white rounded-lg hover:bg-jackson-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload className="w-4 h-4" />
             {upload.isPending ? 'Uploading…' : 'Upload'}

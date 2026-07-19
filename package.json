@@ -1,8 +1,8 @@
 {
-  "name": "atlas",
+  "name": "jackson",
   "private": true,
   "version": "0.1.0",
-  "description": "Atlas monorepo — Fastify API, Vite/React web, and shared TypeScript packages.",
+  "description": "Jackson monorepo — Fastify API, Vite/React web, and shared TypeScript packages.",
   "engines": {
     "node": ">=22.0.0"
   },

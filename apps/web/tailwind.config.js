@@ -11,7 +11,7 @@ export default {
         serif: ['"Playfair Display"', 'serif'],
       },
       colors: {
-        atlas: {
+        jackson: {
           gold: '#C9A96E',
           hover: '#B39359',
           light: '#FDFBF7',

@@ -35,9 +35,9 @@ function NavItem({ item, currentPath, collapsed, showDetails }: { item: Navigati
     to={item.href}
     aria-label={item.name}
     title={collapsed && !showDetails ? item.name : undefined}
-    className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${isActive ? 'border-atlas-gold bg-white/5 text-atlas-gold' : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white'}`}
+    className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${isActive ? 'border-jackson-gold bg-white/5 text-jackson-gold' : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white'}`}
   >
-    <item.icon className={`h-5 w-5 flex-shrink-0 ${showDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${isActive ? 'text-atlas-gold' : 'text-gray-400 group-hover:text-gray-300'}`} />
+    <item.icon className={`h-5 w-5 flex-shrink-0 ${showDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${isActive ? 'text-jackson-gold' : 'text-gray-400 group-hover:text-gray-300'}`} />
     <span className={`truncate ${showDetails ? '' : 'lg:hidden'}`}>{item.name}</span>
   </Link>
 }
@@ -91,11 +91,11 @@ export function AppShell({
           {/* Logo */}
           <div className={`flex h-16 items-center border-b border-gray-800 px-4 ${showDesktopNavDetails ? '' : 'lg:justify-center lg:px-2'}`}>
             <div className={`items-center gap-2 ${showDesktopNavDetails ? 'flex' : 'flex lg:hidden'}`}>
-              <div className="w-8 h-8 bg-atlas-gold rounded-lg flex items-center justify-center">
-                <span className="text-black font-serif font-bold text-lg">A</span>
+              <div className="w-8 h-8 bg-jackson-gold rounded-lg flex items-center justify-center">
+                <span className="text-black font-serif font-bold text-lg">J</span>
               </div>
               <span className="text-xl font-serif font-bold text-white tracking-widest uppercase">
-                Atlas
+                Jackson
               </span>
             </div>
             <button
@@ -115,7 +115,7 @@ export function AppShell({
                 setIsDesktopNavHovered(false)
                 setIsDesktopNavFocused(false)
               }}
-              className={`${showDesktopNavDetails ? 'ml-auto' : ''} hidden h-10 w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold lg:grid`}
+              className={`${showDesktopNavDetails ? 'ml-auto' : ''} hidden h-10 w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold lg:grid`}
             >
               {isDesktopNavCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
             </button>
@@ -147,7 +147,7 @@ export function AppShell({
                 aria-label="Sign out"
                 title={showDesktopNavDetails ? undefined : 'Sign out'}
                 onClick={onSignOut}
-                className={`${showDesktopNavDetails ? 'ml-2' : 'lg:ml-0'} grid min-h-10 min-w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold`}
+                className={`${showDesktopNavDetails ? 'ml-2' : 'lg:ml-0'} grid min-h-10 min-w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold`}
               >
                 <LogOut className="w-4 h-4" />
               </button>

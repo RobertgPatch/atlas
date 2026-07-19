@@ -1,7 +1,7 @@
-# Atlas System Constitution
+# Jackson System Constitution
 
 ## 1. Core Philosophy
-Atlas is a client-centric financial intelligence system, not a full accounting system.
+Jackson is a client-centric financial intelligence system, not a full accounting system.
 
 The system MUST:
 - model the client's owned financial position
@@ -15,7 +15,7 @@ The system MUST NOT:
 - bypass review workflows for financial data
 
 ## 2. Data Source Hierarchy
-All data in Atlas must be one of:
+All data in Jackson must be one of:
 1. Parsed Data
 2. Manual Data
 3. Calculated Data

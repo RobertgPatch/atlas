@@ -62,7 +62,7 @@ const DEFAULT_DRAWER_WIDTH = 260;
 /* ------------------------------------------------------------------ */
 
 export const AppShell: React.FC<AppShellProps> = ({
-  title = 'Atlas',
+  title = 'Jackson',
   logo,
   navItems = [],
   activeNavKey,

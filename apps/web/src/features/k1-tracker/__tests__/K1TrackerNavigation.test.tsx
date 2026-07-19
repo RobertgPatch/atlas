@@ -8,6 +8,6 @@ describe('Partnership Tracker navigation', () => {
     render(<MemoryRouter><AppShell currentPath="/partnership-tracker" userRole="Admin"><div>Tracker workspace</div></AppShell></MemoryRouter>)
     const link = screen.getByRole('link', { name: 'Partnerships' })
     expect(link).toHaveAttribute('href', '/partnership-tracker')
-    expect(link.className).toContain('text-atlas-gold')
+    expect(link.className).toContain('text-jackson-gold')
   })
 })

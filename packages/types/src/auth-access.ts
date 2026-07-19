@@ -1,4 +1,4 @@
-export type AtlasRole = 'Admin' | 'User'
+export type JacksonRole = 'Admin' | 'User'
 
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
 
@@ -22,7 +22,7 @@ export interface MfaVerifyRequest {
 export interface UserSummary {
   id: string
   email: string
-  role: AtlasRole
+  role: JacksonRole
   status: UserStatus
 }
 
@@ -34,7 +34,7 @@ export interface SessionPayload {
 
 export interface SessionResponse {
   user: UserSummary
-  role: AtlasRole
+  role: JacksonRole
   session: SessionPayload
 }
 
@@ -49,17 +49,17 @@ export interface LockoutResponse {
 
 export interface InviteUserRequest {
   email: string
-  role: AtlasRole
+  role: JacksonRole
 }
 
 export interface InvitationResponse {
   id: string
   email: string
-  role: AtlasRole
+  role: JacksonRole
   expiresAt: string
   status: 'Invited'
 }
 
 export interface RoleChangeRequest {
-  role: AtlasRole
+  role: JacksonRole
 }

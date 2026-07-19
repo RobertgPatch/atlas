@@ -179,6 +179,10 @@ export const createPartnershipCashFlowBodySchema = z.object({
   note: z.string().trim().max(2_000).nullable().optional(),
 })
 
+export const createPartnershipCashFlowsBodySchema = z.object({
+  entries: z.array(createPartnershipCashFlowBodySchema).min(1).max(50),
+})
+
 export const manualFieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),
   amount: partnershipTrackerMoneySchema.nullable(),

@@ -1,4 +1,4 @@
-# Atlas UI Constitution
+# Jackson UI Constitution
 
 ## 1. UI Stack
 All generated UI must use:
@@ -72,4 +72,4 @@ Use conditional navigation, actions, and visibility instead.
 
 ## 10. Magic Patterns Normalization Rule
 Magic Patterns output is a starting point, not production truth.
-Generated components must be normalized to the Atlas component catalog before merge.
+Generated components must be normalized to the Jackson component catalog before merge.

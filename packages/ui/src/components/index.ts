@@ -1,4 +1,4 @@
-// Atlas UI – shared component library
+// Jackson UI – shared component library
 // packages/ui/src/components barrel export
 
 export { AppShell, type AppShellProps, type NavItem } from './AppShell';
@@ -7,7 +7,7 @@ export { SectionCard, type SectionCardProps } from './SectionCard';
 export { KpiCard, type KpiCardProps } from './KpiCard';
 export { FilterToolbar, type FilterToolbarProps, type FilterField, type FilterOption } from './FilterToolbar';
 export { DataTable, type DataTableProps, type DataTableColumn, type SortDirection } from './DataTable';
-export { StatusBadge, type StatusBadgeProps, type AtlasStatus } from './StatusBadge';
+export { StatusBadge, type StatusBadgeProps, type JacksonStatus } from './StatusBadge';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { ErrorState, type ErrorStateProps } from './ErrorState';
 export { LoadingState, type LoadingStateProps, type LoadingVariant } from './LoadingState';

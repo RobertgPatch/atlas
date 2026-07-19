@@ -140,14 +140,14 @@ export function EntitiesPage() {
                   if (e.key === 'Enter') void handleCreate()
                 }}
                 placeholder="e.g. Whitfield Family Trust"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
               />
               {createError && <p className="mt-1 text-xs text-error">{createError}</p>}
             </div>
             <button
               onClick={() => void handleCreate()}
               disabled={create.isPending}
-              className={`inline-flex items-center px-4 py-2 rounded-lg bg-atlas-gold text-white text-sm hover:bg-atlas-hover sm:mt-[22px] ${
+              className={`inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover sm:mt-[22px] ${
                 create.isPending ? 'opacity-60 cursor-wait' : ''
               }`}
             >
@@ -217,7 +217,7 @@ export function EntitiesPage() {
                               if (e.key === 'Escape') cancelEdit()
                             }}
                             autoFocus
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
                           />
                           {rowErr && <p className="mt-1 text-xs text-error">{rowErr}</p>}
                         </div>
@@ -225,7 +225,7 @@ export function EntitiesPage() {
                         <button
                           type="button"
                           onClick={() => navigate(`/entities/${row.id}`)}
-                          className="text-atlas-gold hover:underline font-medium"
+                          className="text-jackson-gold hover:underline font-medium"
                         >
                           {row.name}
                         </button>

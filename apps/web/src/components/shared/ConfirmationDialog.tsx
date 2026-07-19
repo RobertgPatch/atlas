@@ -43,7 +43,7 @@ export function ConfirmationDialog({
           className="w-full overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-2xl transition duration-200 ease-out data-[closed]:translate-y-3 data-[closed]:scale-[0.98] data-[closed]:opacity-0 motion-reduce:transform-none motion-reduce:transition-none sm:max-w-md sm:rounded-xl"
         >
           <div aria-hidden="true" className="grid h-1 grid-cols-[4.5rem_1fr]">
-            <div className="bg-atlas-gold" />
+            <div className="bg-jackson-gold" />
             <div className="bg-red-600" />
           </div>
 
@@ -53,7 +53,7 @@ export function ConfirmationDialog({
                 <AlertTriangle className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-atlas-hover">
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">
                   {eyebrow}
                 </p>
                 <DialogTitle className="mt-1 font-serif text-xl font-semibold text-gray-950">
@@ -65,7 +65,7 @@ export function ConfirmationDialog({
                 aria-label="Close confirmation"
                 onClick={close}
                 disabled={pending}
-                className="grid min-h-11 min-w-11 place-items-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold disabled:cursor-not-allowed disabled:opacity-40"
+                className="grid min-h-11 min-w-11 place-items-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -82,7 +82,7 @@ export function ConfirmationDialog({
               autoFocus
               onClick={close}
               disabled={pending}
-              className="min-h-11 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-11 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Cancel
             </button>

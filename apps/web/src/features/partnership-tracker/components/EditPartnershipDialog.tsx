@@ -67,6 +67,6 @@ export function EditPartnershipDialog({ summary, onClose }: { summary: Partnersh
     </div></section>
     <label className="block text-sm font-medium">Notes<textarea value={notes} rows={3} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={actions.updatePartnership.isPending || owners.isLoading} className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{actions.updatePartnership.isPending ? 'Saving...' : 'Save changes'}</button></div>
+    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm">Cancel</button><button type="submit" disabled={actions.updatePartnership.isPending || owners.isLoading} className="rounded-lg bg-jackson-gold px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{actions.updatePartnership.isPending ? 'Saving...' : 'Save changes'}</button></div>
   </form></div></div>
 }

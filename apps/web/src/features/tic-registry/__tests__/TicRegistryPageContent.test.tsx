@@ -53,7 +53,7 @@ describe('TicRegistryPageContent', () => {
     expect(totalUnitsLabel).toBeInTheDocument()
     expect(totalUnitsLabel.nextElementSibling).toHaveTextContent('24')
     expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
-    expect(screen.getByText('Atlas Family Trust')).toBeInTheDocument()
+    expect(screen.getByText('Jackson Family Trust')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add property/i })).toBeInTheDocument()
   })
 

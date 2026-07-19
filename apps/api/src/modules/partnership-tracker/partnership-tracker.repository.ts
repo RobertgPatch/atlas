@@ -636,6 +636,9 @@ export const partnershipTrackerRepository = {
   createCashFlow(partnershipId: string, taxYear: number, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createCashFlow(partnershipId, taxYear, body, actorUserId, scope)
   },
+  createCashFlows(partnershipId: string, taxYear: number, entries: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }>, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.createCashFlows(partnershipId, taxYear, entries, actorUserId, scope)
+  },
   deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.deleteCashFlow(partnershipId, taxYear, cashFlowId, expectedUpdatedAt, actorUserId, scope)
   },

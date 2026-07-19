@@ -209,7 +209,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               maxLength={200}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
           <div>
@@ -219,7 +219,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               maxLength={50}
               value={propertyCode}
               onChange={(event) => setPropertyCode(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -232,7 +232,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               maxLength={100}
               value={city}
               onChange={(event) => setCity(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
           <div>
@@ -242,7 +242,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               maxLength={50}
               value={propertyState}
               onChange={(event) => setPropertyState(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -254,7 +254,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               id="tic-property-type"
               value={propertyType}
               onChange={(event) => setPropertyType(event.target.value as TicPropertyType)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             >
               {PROPERTY_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -269,7 +269,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               id="tic-property-status"
               value={status}
               onChange={(event) => setStatus(event.target.value as TicPropertyStatus)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             >
               {PROPERTY_STATUSES.map((option) => (
                 <option key={option} value={option}>
@@ -285,7 +285,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               type="date"
               value={acquiredDate}
               onChange={(event) => setAcquiredDate(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
           <div>
@@ -295,7 +295,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
               inputMode="numeric"
               value={numberOfUnits}
               onChange={(event) => setNumberOfUnits(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -307,7 +307,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
             inputMode="decimal"
             value={acquisitionPriceUsd}
             onChange={(event) => setAcquisitionPriceUsd(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           />
         </div>
 
@@ -319,7 +319,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
             maxLength={10000}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           />
         </div>
 
@@ -336,7 +336,7 @@ export function PropertyDialog({ open, property, onClose }: PropertyDialogProps)
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+            className="rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover disabled:opacity-50"
           >
             {isPending ? 'Saving...' : 'Save'}
           </button>
@@ -493,7 +493,7 @@ export function InterestDialog({
               maxLength={200}
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
           <div>
@@ -503,7 +503,7 @@ export function InterestDialog({
               inputMode="decimal"
               value={propertyPercentage}
               onChange={(event) => setPropertyPercentage(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -514,7 +514,7 @@ export function InterestDialog({
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as TicInterestStatus)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             >
               {INTEREST_STATUSES.map((option) => (
                 <option key={option} value={option}>
@@ -528,7 +528,7 @@ export function InterestDialog({
             <select
               value={acquisitionOrigin}
               onChange={(event) => setAcquisitionOrigin(event.target.value as TicAcquisitionOrigin)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             >
               {(['cash', 'exchange'] as TicAcquisitionOrigin[]).map((option) => (
                 <option key={option} value={option}>
@@ -543,7 +543,7 @@ export function InterestDialog({
               type="date"
               value={acquisitionDate}
               onChange={(event) => setAcquisitionDate(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -555,7 +555,7 @@ export function InterestDialog({
               <select
                 value={sourceMode}
                 onChange={(event) => setSourceMode(event.target.value as 'existing' | 'manual')}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
               >
                 <option value="existing">Existing TIC</option>
                 <option value="manual">External Source</option>
@@ -567,7 +567,7 @@ export function InterestDialog({
                 <select
                   value={sourceInterestId}
                   onChange={(event) => setSourceInterestId(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                 >
                   <option value="">Select a source</option>
                   {sourceOptions.map((source) => (
@@ -584,7 +584,7 @@ export function InterestDialog({
                   maxLength={200}
                   value={sourceName}
                   onChange={(event) => setSourceName(event.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                 />
               </div>
             )}
@@ -597,7 +597,7 @@ export function InterestDialog({
             inputMode="decimal"
             value={acquisitionValueUsd}
             onChange={(event) => setAcquisitionValueUsd(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           />
         </div>
 
@@ -608,7 +608,7 @@ export function InterestDialog({
             maxLength={10000}
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           />
         </div>
 
@@ -625,7 +625,7 @@ export function InterestDialog({
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+            className="rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover disabled:opacity-50"
           >
             {isPending ? 'Saving...' : 'Save'}
           </button>
@@ -718,7 +718,7 @@ export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps
             maxLength={200}
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           />
         </div>
 
@@ -728,7 +728,7 @@ export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps
             <select
               value={ownerType}
               onChange={(event) => setOwnerType(event.target.value as TicOwnerType)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             >
               {OWNER_TYPES.map((option) => (
                 <option key={option} value={option}>
@@ -744,7 +744,7 @@ export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps
               inputMode="decimal"
               value={ticPercentage}
               onChange={(event) => setTicPercentage(event.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </div>
         </div>
@@ -762,7 +762,7 @@ export function OwnerDialog({ open, interest, owner, onClose }: OwnerDialogProps
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover disabled:opacity-50"
+            className="rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover disabled:opacity-50"
           >
             {isPending ? 'Saving...' : 'Save'}
           </button>

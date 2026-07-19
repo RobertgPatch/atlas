@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Atlas Partnership Aggregation API
+  title: Jackson Partnership Aggregation API
   version: 0.1.0
   description: >-
     Additive authenticated read contract for filtering, sorting, paginating, and

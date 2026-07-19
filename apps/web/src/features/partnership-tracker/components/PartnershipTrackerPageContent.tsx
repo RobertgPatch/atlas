@@ -16,7 +16,7 @@ import { PartnershipViewSwitcher } from './PartnershipViewSwitcher'
 import { UnderlyingAssetsPlaceholder } from './UnderlyingAssetsPlaceholder'
 
 type Area = 'overview' | 'k1' | 'capital' | 'assets'
-const areas: Array<{ id: Area; label: string }> = [{ id: 'overview', label: 'Overview' }, { id: 'k1', label: 'K1 Entry' }, { id: 'capital', label: 'Capital & NAV' }, { id: 'assets', label: 'Underlying Assets' }]
+const areas: Array<{ id: Area; label: string }> = [{ id: 'overview', label: 'Overview' }, { id: 'k1', label: 'K1 & Cash Activity' }, { id: 'capital', label: 'Capital & NAV' }, { id: 'assets', label: 'Underlying Assets' }]
 const errorText = (error: unknown) => error instanceof PartnershipTrackerApiError && error.code === 'DATABASE_UNAVAILABLE'
   ? 'Partnership Tracker needs the configured database connection before it can load.'
   : 'There was a problem loading the partnership directory. Please try again.'
@@ -76,7 +76,7 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
   const created = (id: string) => { setAdding(false); setHasUnsavedK1Changes(false); updateUrl({ partnership: id, area: 'k1', year: undefined }) }
 
   return <>
-    <PageHeader title="Partnership Tracker" subtitle="Manage partnership identity, manual K-1 history, committed capital, and NAV from one bounded workspace." actions={<><PartnershipViewSwitcher view="workspace" />{canEdit ? <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-lg bg-atlas-gold px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-atlas-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-atlas-gold focus-visible:ring-offset-2">Add partnership</button> : null}</>} />
+    <PageHeader title="Partnership Tracker" subtitle="Manage partnership identity, manual K-1 history, committed capital, and NAV from one bounded workspace." actions={<><PartnershipViewSwitcher view="workspace" />{canEdit ? <button type="button" onClick={() => setAdding(true)} className="min-h-11 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-semibold text-gray-950 hover:bg-jackson-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2">Add partnership</button> : null}</>} />
     <div className="grid gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">
       <PartnershipPicker items={list.data?.items ?? []} selectedId={selectedId} search={search} loading={list.isLoading} error={list.isError ? errorText(list.error) : undefined} canEdit={canEdit} onSearch={setSearch} onSelect={selectPartnership} onAdd={() => setAdding(true)} />
       <main className="min-w-0" aria-label="Selected partnership workspace">

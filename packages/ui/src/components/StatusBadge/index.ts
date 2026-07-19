@@ -1,1 +1,1 @@
-export { StatusBadge, type StatusBadgeProps, type AtlasStatus } from './StatusBadge';
+export { StatusBadge, type StatusBadgeProps, type JacksonStatus } from './StatusBadge';

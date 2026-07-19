@@ -150,7 +150,7 @@ export function AddCapitalActivityDrawer({
                   </div>
 
                   <div className="px-6 py-5 overflow-y-auto flex-1">
-                    <div className="mb-5 rounded-lg border border-atlas-gold/30 bg-atlas-gold/10 px-4 py-3 text-sm text-text-secondary">
+                    <div className="mb-5 rounded-lg border border-jackson-gold/30 bg-jackson-gold/10 px-4 py-3 text-sm text-text-secondary">
                       Capital activity updates paid-in and unfunded metrics and contributes to activity detail rows.
                     </div>
 
@@ -160,7 +160,7 @@ export function AddCapitalActivityDrawer({
                         <select
                           value={eventType}
                           onChange={(e) => setEventType(e.target.value as CapitalActivityEventType)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                           disabled={isSubmitting}
                         >
                           {EVENT_TYPE_OPTIONS.map((option) => (
@@ -180,7 +180,7 @@ export function AddCapitalActivityDrawer({
                           type="date"
                           value={activityDate}
                           onChange={(e) => setActivityDate(e.target.value)}
-                          className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${dateError ? 'border-red-500' : 'border-gray-300'}`}
+                          className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${dateError ? 'border-red-500' : 'border-gray-300'}`}
                           disabled={isSubmitting}
                         />
                         {dateError && (
@@ -200,7 +200,7 @@ export function AddCapitalActivityDrawer({
                             step="0.01"
                             value={amountUsd}
                             onChange={(e) => setAmountUsd(e.target.value)}
-                            className={`w-full rounded-lg border px-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${amountError ? 'border-red-500' : 'border-gray-300'}`}
+                            className={`w-full rounded-lg border px-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${amountError ? 'border-red-500' : 'border-gray-300'}`}
                             placeholder="0.00"
                             disabled={isSubmitting}
                           />
@@ -219,7 +219,7 @@ export function AddCapitalActivityDrawer({
                           rows={3}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
                           placeholder="Optional context"
                           disabled={isSubmitting}
                         />
@@ -241,7 +241,7 @@ export function AddCapitalActivityDrawer({
                     <button
                       type="submit"
                       form="add-capital-activity-drawer-form"
-                      className="px-4 py-2 rounded-lg bg-atlas-gold text-white text-sm font-medium hover:bg-atlas-hover disabled:opacity-50 inline-flex items-center gap-2"
+                      className="px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm font-medium hover:bg-jackson-hover disabled:opacity-50 inline-flex items-center gap-2"
                       disabled={isSubmitting}
                     >
                       <ArrowRightLeftIcon className="w-4 h-4" />

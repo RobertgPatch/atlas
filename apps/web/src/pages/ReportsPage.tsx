@@ -235,7 +235,7 @@ export function ReportsPage() {
       const blobUrl = window.URL.createObjectURL(result.blob)
       const link = document.createElement('a')
       link.href = blobUrl
-      link.download = result.fileName ?? `atlas-${activeTab}.${format}`
+      link.download = result.fileName ?? `jackson-${activeTab}.${format}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

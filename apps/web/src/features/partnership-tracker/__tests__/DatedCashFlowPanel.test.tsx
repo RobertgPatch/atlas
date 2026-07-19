@@ -3,34 +3,40 @@ import { describe, expect, it, vi } from 'vitest'
 import { DatedCashFlowPanel } from '../components/DatedCashFlowPanel'
 
 describe('Dated cash activity', () => {
-  it('opens one Net Cash Activity dialog with all three activity choices', async () => {
+  it('starts with one row and adds another cash activity row', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined)
     render(<DatedCashFlowPanel taxYear={2024} events={[]} canEdit pending={false} onCreate={onCreate} onDelete={vi.fn()} />)
-    expect(screen.queryByRole('button', { name: 'Capital call' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Distribution' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Net Cash Activity' }))
-    expect(screen.getByRole('dialog', { name: 'Net Cash Activity' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Capital call/ })).toBeChecked()
-    expect(screen.getByRole('radio', { name: /^Distribution/ })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: /Recallable distribution/ })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Cash activity date'), { target: { value: '2024-03-15' } })
-    fireEvent.change(screen.getByLabelText('Cash activity amount'), { target: { value: '$125,000' } })
-    fireEvent.change(screen.getByLabelText('Cash activity note'), { target: { value: 'First close' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add Capital call' }))
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ kind: 'CAPITAL_CALL', activityDate: '2024-03-15', amount: '125000.00', note: 'First close' }))
-  })
 
-  it('submits a recallable distribution and explains the commitment effect', async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined)
-    render(<DatedCashFlowPanel taxYear={2024} events={[]} canEdit pending={false} onCreate={onCreate} onDelete={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Net Cash Activity' }))
-    fireEvent.click(screen.getByRole('radio', { name: /Recallable distribution/ }))
+    expect(screen.getByRole('dialog', { name: 'Net Cash Activity' })).toBeInTheDocument()
+    expect(screen.getAllByLabelText(/Cash activity date row/)).toHaveLength(1)
+    expect(screen.getAllByLabelText(/Cash activity amount row/)).toHaveLength(1)
+    expect(screen.getAllByRole('combobox', { name: /Cash activity type row/ })).toHaveLength(1)
+    expect(screen.getByLabelText('Cash activity type row 1')).toHaveValue('CAPITAL_CALL')
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Capital call',
+      'Distribution',
+      'Recallable distribution',
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add another row' }))
+    expect(screen.getAllByLabelText(/Cash activity date row/)).toHaveLength(2)
+    expect(screen.getAllByRole('combobox', { name: /Cash activity type row/ })).toHaveLength(2)
+
+    fireEvent.change(screen.getByLabelText('Cash activity date row 1'), { target: { value: '2024-03-15' } })
+    fireEvent.change(screen.getByLabelText('Cash activity amount row 1'), { target: { value: '$125,000' } })
+    fireEvent.change(screen.getByLabelText('Cash activity date row 2'), { target: { value: '2024-10-15' } })
+    fireEvent.change(screen.getByLabelText('Cash activity amount row 2'), { target: { value: '$10,000' } })
+    fireEvent.change(screen.getByLabelText('Cash activity type row 2'), { target: { value: 'RECALLABLE_DISTRIBUTION' } })
+
     expect(screen.getByText(/increases committed capital by the same amount/i)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Cash activity date'), { target: { value: '2024-10-15' } })
-    fireEvent.change(screen.getByLabelText('Cash activity amount'), { target: { value: '$10,000' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add Recallable distribution' }))
-    await waitFor(() => expect(onCreate).toHaveBeenCalledWith({ kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '10000.00', note: null }))
-    expect(await screen.findByRole('status')).toHaveTextContent(/commitment increased by \$10,000.00/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Add 2 activities' }))
+    await waitFor(() => expect(onCreate).toHaveBeenCalledWith([
+      { kind: 'CAPITAL_CALL', activityDate: '2024-03-15', amount: '125000.00', note: null },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '10000.00', note: null },
+    ]))
+    expect(await screen.findByRole('status')).toHaveTextContent(/2 cash activities added/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/recallable distribution also increased commitment/i)
   })
 
   it('shows annual totals and confirms deletion in the application modal', async () => {

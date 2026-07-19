@@ -43,7 +43,7 @@ durable('Partnership Tracker persistence compatibility', () => {
       partnershipType: 'Real Estate',
       inceptionDate: '2024-01-15',
       ein: '123456789',
-      fundManager: 'Atlas Fund Management',
+      fundManager: 'Jackson Fund Management',
       addressLine1: '100 Market Street',
       addressCity: 'San Francisco',
       addressRegion: 'CA',
@@ -55,7 +55,7 @@ durable('Partnership Tracker persistence compatibility', () => {
     const id = created.partnership.partnership.id
     try {
       const detail = await partnershipTrackerRepository.getPartnership(id, scope)
-      expect(detail.summary.partnership).toMatchObject({ ein: '123456789', fundManager: 'Atlas Fund Management', addressCity: 'San Francisco', addressRegion: 'CA' })
+      expect(detail.summary.partnership).toMatchObject({ ein: '123456789', fundManager: 'Jackson Fund Management', addressCity: 'San Francisco', addressRegion: 'CA' })
       expect(detail.summary.latestNav).toEqual({ amount: '850000.00', date: '2024-01-15' })
     } finally {
       await pool!.query('delete from audit_events where object_id = $1', [id])
@@ -68,10 +68,15 @@ durable('Partnership Tracker persistence compatibility', () => {
     await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
     await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2024-01-01' })
     await fixture.createNav(fixture.partnershipId, { amount: '110000.00', valuationDate: '2024-12-31' })
-    const call = await partnershipTrackerRepository.createCashFlow(fixture.partnershipId, 2024, { kind: 'CAPITAL_CALL', activityDate: '2024-01-15', amount: '100000.00', note: 'Initial call' }, fixture.adminUserId, scope)
-    await partnershipTrackerRepository.createCashFlow(fixture.partnershipId, 2024, { kind: 'DISTRIBUTION', activityDate: '2024-07-15', amount: '10000.00' }, fixture.adminUserId, scope)
-    const recallable = await partnershipTrackerRepository.createCashFlow(fixture.partnershipId, 2024, { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00' }, fixture.adminUserId, scope)
-    const secondRecallable = await partnershipTrackerRepository.createCashFlow(fixture.partnershipId, 2024, { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-11-15', amount: '2500.00' }, fixture.adminUserId, scope)
+    const created = await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
+      { kind: 'CAPITAL_CALL', activityDate: '2024-01-15', amount: '100000.00', note: 'Initial call' },
+      { kind: 'DISTRIBUTION', activityDate: '2024-07-15', amount: '10000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-11-15', amount: '2500.00' },
+    ], fixture.adminUserId, scope)
+    const call = created[0]!
+    const recallable = created[2]!
+    const secondRecallable = created[3]!
     const year = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
     expect(year.cashFlowEvents).toHaveLength(4)
     expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({ amount: '100000.00', originalSourceText: 'Dated cash activity rollup' })

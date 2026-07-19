@@ -7,6 +7,7 @@ import {
 import type {
   CalculatePartnershipTrackerYearRequest,
   CreatePartnershipCashFlowRequest,
+  CreatePartnershipCashFlowsRequest,
   CreatePartnershipCommitmentEntryRequest,
   CreatePartnershipNavEntryRequest,
   CreateTrackedPartnershipRequest,
@@ -162,6 +163,9 @@ export const partnershipTrackerClient = {
   },
   createCashFlow(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
     return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
+  },
+  createCashFlows(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
+    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
   },
   deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
     return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })

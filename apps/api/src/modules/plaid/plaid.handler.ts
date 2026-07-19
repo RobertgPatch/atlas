@@ -43,7 +43,7 @@ export const createPlaidLinkTokenHandler = async (
 
   const response = await plaidApi.linkTokenCreate({
     user: { client_user_id: request.authUser.userId },
-    client_name: 'Atlas',
+    client_name: 'Jackson',
     language: 'en',
     products: plaidClientConfig.products,
     country_codes: plaidClientConfig.countryCodes,

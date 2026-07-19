@@ -156,7 +156,7 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
             <button
               type="button"
               onClick={() => setPropertyDialog(null)}
-              className="inline-flex items-center gap-2 rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover"
+              className="inline-flex items-center gap-2 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover"
             >
               <Plus className="h-4 w-4" />
               Add Property
@@ -200,13 +200,13 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search properties, TICs, owners"
-              className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+              className="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
             />
           </label>
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as TicPropertyStatus | '')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           >
             <option value="">All statuses</option>
             {PROPERTY_STATUSES.map((option) => (
@@ -218,7 +218,7 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
           <select
             value={propertyType}
             onChange={(event) => setPropertyType(event.target.value as TicPropertyType | '')}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
           >
             <option value="">All types</option>
             {PROPERTY_TYPES.map((option) => (
@@ -292,7 +292,7 @@ export function TicRegistryPageContent({ canEdit }: TicRegistryPageContentProps)
             <button
               type="button"
               onClick={() => setPropertyDialog(null)}
-              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-atlas-gold px-4 py-2 text-sm font-medium text-white hover:bg-atlas-hover"
+              className="mt-5 inline-flex items-center gap-2 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover"
             >
               <Plus className="h-4 w-4" />
               Add Property

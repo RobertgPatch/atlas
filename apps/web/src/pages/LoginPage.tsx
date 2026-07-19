@@ -62,11 +62,11 @@ export function LoginPage() {
       {/* Left Branding Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-black flex-col justify-between p-12">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-atlas-gold rounded-lg flex items-center justify-center">
-            <span className="text-black font-serif font-bold text-xl">A</span>
+          <div className="w-10 h-10 bg-jackson-gold rounded-lg flex items-center justify-center">
+            <span className="text-black font-serif font-bold text-xl">J</span>
           </div>
           <span className="text-2xl font-serif font-bold text-white tracking-widest uppercase">
-            Atlas
+            Jackson
           </span>
         </div>
 
@@ -80,7 +80,7 @@ export function LoginPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-atlas-gold" />
+          <div className="w-1.5 h-1.5 rounded-full bg-jackson-gold" />
           <span className="text-gray-400 text-sm">SOC 2 Type II Certified</span>
           <div className="w-1.5 h-1.5 rounded-full bg-gray-600 ml-4" />
           <span className="text-gray-400 text-sm">256-bit AES Encryption</span>
@@ -98,16 +98,16 @@ export function LoginPage() {
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-atlas-gold font-serif font-bold text-lg">A</span>
+              <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
             </div>
             <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
-              Atlas
+              Jackson
             </span>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-1">Welcome back</h2>
-            <p className="text-gray-500 text-sm mb-8">Sign in to your Atlas account</p>
+            <p className="text-gray-500 text-sm mb-8">Sign in to your Jackson account</p>
 
             {error && (
               <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -172,7 +172,7 @@ export function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-atlas-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
                   <>
@@ -187,7 +187,7 @@ export function LoginPage() {
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-6">
-            &copy; {new Date().getFullYear()} Atlas Capital Management. All rights reserved.
+            &copy; {new Date().getFullYear()} Jackson Capital Management. All rights reserved.
           </p>
         </motion.div>
       </div>

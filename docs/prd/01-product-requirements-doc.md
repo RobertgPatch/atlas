@@ -1,7 +1,7 @@
-# Atlas Product Requirements Document
+# Jackson Product Requirements Document
 
 ## Product
-Atlas is a private, single-tenant, deployable financial intelligence system for family offices and similar sensitive clients.
+Jackson is a private, single-tenant, deployable financial intelligence system for family offices and similar sensitive clients.
 
 ## Users
 - admin

@@ -9,6 +9,7 @@ import {
   managementFeeQuerySchema,
   createCommitmentBodySchema,
   createPartnershipCashFlowBodySchema,
+  createPartnershipCashFlowsBodySchema,
   createManualYearBodySchema,
   createNavBodySchema,
   createTrackedPartnershipBodySchema,
@@ -166,6 +167,12 @@ export const createPartnershipCashFlowHandler = async (request: FastifyRequest, 
   const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
   const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlow(params.partnershipId, params.taxYear, body, request.authUser!.userId, request.partnershipScope!)))
+}
+export const createPartnershipCashFlowsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowsBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlows(params.partnershipId, params.taxYear, body.entries, request.authUser!.userId, request.partnershipScope!)))
 }
 export const deletePartnershipCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

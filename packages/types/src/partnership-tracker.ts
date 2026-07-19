@@ -336,6 +336,10 @@ export interface CreatePartnershipCashFlowRequest {
   note?: string | null
 }
 
+export interface CreatePartnershipCashFlowsRequest {
+  entries: CreatePartnershipCashFlowRequest[]
+}
+
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = [
   'AVAILABLE',
   'MISSING_INCEPTION_DATE',

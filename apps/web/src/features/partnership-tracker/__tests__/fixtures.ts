@@ -2,12 +2,12 @@ import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAgg
 import type { K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
-  { id: 'e-1', name: 'Atlas Family Trust' },
+  { id: 'e-1', name: 'Jackson Family Trust' },
   { id: 'e-2', name: 'Summit Holdings LLC' },
 ]
 
 export const summaryFixture: PartnershipTrackerSummary = {
-  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Atlas Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', ein: '123456789', fundManager: 'Redwood Capital', addressLine1: '100 Market Street', addressLine2: null, addressCity: 'San Francisco', addressRegion: 'CA', addressPostalCode: '94105', addressCountry: 'United States', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Jackson Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', ein: '123456789', fundManager: 'Redwood Capital', addressLine1: '100 Market Street', addressLine2: null, addressCity: 'San Francisco', addressRegion: 'CA', addressPostalCode: '94105', addressCountry: 'United States', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
   currentCommittedCapital: { amount: '1000000.00', date: '2024-01-01' },
   latestNav: { amount: '950000.00', date: '2024-12-31' },
   earliestK1Year: 2021,

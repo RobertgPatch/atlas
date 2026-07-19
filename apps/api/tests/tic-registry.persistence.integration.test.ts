@@ -52,7 +52,7 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
       url: `/v1/tic-registry/interests/${interest.id}/owners`,
       headers: { cookie: f.cookie },
       payload: {
-        name: 'Atlas Family Trust',
+        name: 'Jackson Family Trust',
         ownerType: 'trust',
         ticPercentage: 50,
       },
@@ -76,7 +76,7 @@ describe.skipIf(!config.databaseUrl)('TIC Registry persistence', () => {
       acquisitionPriceUsd: 1_250_000,
     })
     expect(listPayload.properties[0].interests[0].owners[0]).toMatchObject({
-      name: 'Atlas Family Trust',
+      name: 'Jackson Family Trust',
       effectivePropertyPercentage: 20,
     })
     expect(listPayload.summary).toMatchObject({
