@@ -7,9 +7,11 @@ interface ConfirmationDialogProps {
   title: string
   description: ReactNode
   confirmLabel: string
+  cancelLabel?: string
   pending?: boolean
   pendingLabel?: string
   eyebrow?: string
+  tone?: 'danger' | 'warning'
   onClose: () => void
   onConfirm: () => void | Promise<void>
 }
@@ -19,13 +21,16 @@ export function ConfirmationDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = 'Cancel',
   pending = false,
   pendingLabel = 'Working…',
-  eyebrow = 'Permanent action',
+  eyebrow,
+  tone = 'danger',
   onClose,
   onConfirm,
 }: ConfirmationDialogProps) {
   const descriptionId = useId()
+  const isWarning = tone === 'warning'
   const close = () => {
     if (!pending) onClose()
   }
@@ -44,17 +49,17 @@ export function ConfirmationDialog({
         >
           <div aria-hidden="true" className="grid h-1 grid-cols-[4.5rem_1fr]">
             <div className="bg-jackson-gold" />
-            <div className="bg-red-600" />
+            <div className={isWarning ? 'bg-gray-950' : 'bg-red-600'} />
           </div>
 
           <div className="px-5 pb-5 pt-5 sm:px-6">
             <div className="flex items-start gap-4">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-red-200 bg-red-50 text-red-700">
+              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-lg border ${isWarning ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
                 <AlertTriangle className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">
-                  {eyebrow}
+                  {eyebrow ?? (isWarning ? 'Unsaved changes' : 'Permanent action')}
                 </p>
                 <DialogTitle className="mt-1 font-serif text-xl font-semibold text-gray-950">
                   {title}
@@ -84,13 +89,13 @@ export function ConfirmationDialog({
               disabled={pending}
               className="min-h-11 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Cancel
+              {cancelLabel}
             </button>
             <button
               type="button"
               onClick={() => void onConfirm()}
               disabled={pending}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${isWarning ? 'bg-gray-950 hover:bg-gray-800 focus-visible:ring-jackson-gold' : 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-600'}`}
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
               {pending ? pendingLabel : confirmLabel}

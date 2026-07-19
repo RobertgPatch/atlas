@@ -115,6 +115,21 @@
 
 ---
 
+## Phase 7: Complete Standard Schedule K-1 Entry Amendment
+
+**Purpose**: Replace every static official landmark with typed, durable entry while preserving existing calculation semantics.
+
+- [X] T030 Inventory the supplied 2025 Schedule K-1 header, Part I, Part II Items E-N, and Part III lines 1-23 without copying private reference values.
+- [X] T031 Add shared and API official-form key/value contracts plus migration `apps/api/src/infra/db/migrations/025_k1_complete_form_data.sql`.
+- [X] T032 Add strict API validation and transactional full-replacement persistence with optimistic revision and sign-off invalidation.
+- [X] T033 Implement the 48-field official-form metadata inventory and reusable text, date, choice, percentage, money, checkbox, and repeatable code/detail controls.
+- [X] T034 Replace the Part I/II and Part III static cells with editable controls while retaining the 42 canonical calculation placements and supplemental workpaper.
+- [X] T035 Add field-inventory, formerly-static interaction, API contract, and isolated PostgreSQL persistence regression tests.
+- [X] T036 Run complete web/API regression suites, production builds, and responsive/keyboard visual verification.
+- [X] T037 Amend spec-019 design artifacts to make the user-requested complete-form behavior authoritative.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies

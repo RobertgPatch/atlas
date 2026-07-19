@@ -6,7 +6,7 @@ import { JournalEntryPanel } from '../components/JournalEntryPanel'
 describe('SignOffPanel', () => {
   it('explains why sign-off is unavailable until all checks pass', () => {
     render(<SignOffPanel state={{ yearRevision: 3, preparedByEmail: null, preparedAt: null, reviewedByEmail: null, reviewedAt: null, invalidatedAt: null, invalidationReason: null }} checksPassing={false} canEdit pending={false} onSignoff={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /prepare year/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /sign off year/i })).toBeDisabled()
     expect(screen.getByText(/resolve all checks/i)).toBeInTheDocument()
   })
   it('shows invalidation state for a changed revision', () => {

@@ -109,18 +109,18 @@ An Admin records manual NAV values with exact valuation dates, including multipl
 
 ### User Story 6 - Reconcile and Sign Off a Year (Priority: P3)
 
-The preparer traces outside basis and Section L, reviews tax-versus-book journal adjustments, resolves warnings, and records preparation and review sign-off for the selected year.
+The CPA traces outside basis and Section L, reviews tax-versus-book journal adjustments, resolves warnings, and records a single sign-off for the selected year.
 
 **Why this priority**: The tracker must remain an auditable CPA workpaper rather than a passive data-entry screen.
 
-**Independent Test**: Enter a complete year manually, verify calculated rollforwards and balanced journal entries, then complete preparer and reviewer sign-off.
+**Independent Test**: Enter a complete year manually, verify calculated rollforwards and balanced journal entries, then sign off the passing revision as the logged-in CPA.
 
 **Acceptance Scenarios**:
 
 1. **Given** complete manual K-1 values, **When** the year is calculated, **Then** beginning basis, increases, decreases, limitations, ending basis, and contributing fields are traceable.
 2. **Given** losses or distributions exceed basis, **When** calculations run, **Then** suspended loss and taxable excess distribution warnings are shown without allowing negative ending basis.
 3. **Given** Section L or the journal check differs by more than $1, **When** sign-off is attempted, **Then** the year remains Needs Review.
-4. **Given** all checks pass, **When** preparer and reviewer sign-off are completed, **Then** identities, dates, and the reviewed revision are retained.
+4. **Given** all checks pass, **When** the logged-in CPA signs off, **Then** the signer identity, date, and signed revision are retained and the year becomes Reconciled.
 
 ### Edge Cases
 
@@ -212,7 +212,7 @@ The preparer traces outside basis and Section L, reviews tax-versus-book journal
 - **NAV Entry**: A dated partnership-level net asset value, stored in the existing partnership FMV snapshot infrastructure and presented using NAV terminology.
 - **Basis Rollforward**: Ordered calculation from beginning basis through increases, decreases, limitations, distributions, and ending outside basis.
 - **Section L Reconciliation**: Reported capital movements, calculated movements, component variances, book-tax explanations, and status.
-- **Year Sign-off**: Preparer and reviewer identities, timestamps, reviewed revision, and invalidation state.
+- **Year Sign-off**: Signer identity, timestamp, signed revision, and invalidation state.
 - **Tracker Audit Event**: Immutable evidence of relevant create, update, delete, recalculate, and sign-off actions.
 
 ## Success Criteria *(mandatory)*

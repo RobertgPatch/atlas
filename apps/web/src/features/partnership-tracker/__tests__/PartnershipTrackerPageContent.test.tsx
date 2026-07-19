@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PartnershipTrackerPageContent } from '../components/PartnershipTrackerPageContent'
@@ -11,6 +11,11 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: vi.fn(), isPending: false }, updatePartnership: { mutateAsync: update, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Jackson Family Trust' }] }, isLoading: false, isError: false }) }))
+vi.mock('../components/K1BasisWorkspace', () => ({
+  K1BasisWorkspace: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
+    <button type="button" onClick={() => onDirtyChange(true)}>Make K-1 changes</button>
+  ),
+}))
 
 describe('PartnershipTrackerPageContent', () => {
   beforeEach(() => update.mockReset())
@@ -26,6 +31,10 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveClass('h-11')
     expect(within(screen.getByTestId('partnership-selector')).getByRole('button', { name: 'Add' })).toHaveClass('h-11')
     expect(screen.getAllByText('Redwood Fund').length).toBeGreaterThan(0)
+    const workspaceHeader = screen.getByTestId('partnership-workspace-header')
+    const tabs = screen.getByRole('tablist', { name: 'Partnership Tracker areas' })
+    expect(workspaceHeader.nextElementSibling).toBe(tabs)
+    expect(within(workspaceHeader).getByRole('button', { name: 'Edit Partnership' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Capital & NAV' })).toBeInTheDocument()
@@ -44,10 +53,31 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByRole('heading', { name: 'Underlying Assets' })).toBeInTheDocument()
     expect(screen.getByText('Coming soon')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add asset/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Partnership' })).toBeInTheDocument()
   })
-  it('opens the identity editor from Overview', () => {
-    render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
-    fireEvent.click(screen.getByRole('button', { name: 'Edit partnership' }))
+  it('opens the identity editor from the shared workspace header', () => {
+    render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Partnership' }))
     expect(screen.getByRole('dialog', { name: 'Edit partnership' })).toBeInTheDocument()
+  })
+  it('uses the application confirmation dialog before discarding K-1 edits', async () => {
+    const browserConfirm = vi.spyOn(window, 'confirm')
+    render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=k1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Make K-1 changes' }))
+    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+
+    expect(screen.getByRole('dialog', { name: 'Discard unsaved K-1 changes?' })).toBeInTheDocument()
+    expect(browserConfirm).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Discard unsaved K-1 changes?' })).not.toBeInTheDocument())
+    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toHaveAttribute('aria-selected', 'true')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true'))
+    browserConfirm.mockRestore()
   })
 })

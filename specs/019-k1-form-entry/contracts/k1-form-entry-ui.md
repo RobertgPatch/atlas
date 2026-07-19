@@ -1,8 +1,20 @@
 # UI Contract: K-1 Form-Inspired Annual Entry
 
+## Complete-Form Contract Amendment (2026-07-19)
+
+This section supersedes the read-only identity, reference-only landmark, and unchanged-API statements in the original contract below.
+
+- All 48 official-form keys are editable when `canEdit` is true and disabled when it is false.
+- Header controls cover final/amended status and tax-period dates. Part I covers A-D. Part II covers E, F, G, H1/H2, I1/I2, J percentages and sale/exchange, K2/K3, the L method, M, and N beginning/ending values.
+- Part III adds editable money controls for 4a, 4b, 6b, 6c, 9b, and 9c; repeatable code/detail rows for 11, 13, 14, 15, 17, 18, 19, 20, and 21; and checkboxes for 16, 22, and 23.
+- Existing calculation-backed fields still emit `K1TrackerFieldChange[]`. Official-form state is normalized into a full-replacement `officialFormData` object and may be saved with zero calculation changes.
+- The update response returns the saved official object. Official-only changes increment the selected-year revision and invalidate its sign-off without changing the calculation result.
+- API validation rejects unknown keys, incorrect per-field value kinds, malformed money/percentage/date values, unsupported choices, empty code rows, and mutually conflicting final/amended status.
+- Inventory tests require the union of header, identity, and Part III official placements to equal the complete official key set with no duplicates.
+
 ## Purpose
 
-This contract defines where existing Jackson fields appear and which interactions must remain stable. It is intentionally not an API contract: preview and save continue to use the existing `K1TrackerFieldChange[]` request bodies.
+This contract defines where existing Jackson fields and complete official-form data appear and which interactions remain stable.
 
 ## Form-Level Contract
 
@@ -23,7 +35,7 @@ This contract defines where existing Jackson fields appear and which interaction
 | Part II partner name | `summary.partnership.entity.name` | Not available |
 | Other official identity/tax cells | no existing source | Not available or Not tracked in Jackson |
 
-No identity cell is editable in this feature.
+Identity cells are editable under the complete-form amendment; existing values are defaults rather than locked text.
 
 ## Item K Mapping
 
@@ -74,14 +86,12 @@ Item K percentages, checkboxes, and other reference items without existing field
 
 The line 18 labels above deliberately preserve Jackson's existing historical field contract. This visual feature does not remap stored values to different tax semantics.
 
-## Part III Reference-Only Landmarks
+## Part III Reference-Only Landmarks (superseded)
 
-At minimum, the 2025 reference lines 4a, 4b, 6b, 6c, 9b, 9c, 14, 15, 16, 17, 20, 22, and 23 may appear to preserve line flow. Each must:
+These historical rules are replaced by the complete-form contract. Lines 4a, 4b, 6b, 6c, 9b, 9c, 14, 15, 16, 17, 20, 22, and 23 now render typed inputs and persist through `officialFormData`.
 
-- render no input element;
-- be visually subordinate to supported rows;
-- expose **Not tracked in Jackson** in visible text;
-- be absent from amount state, validation, preview, and save payloads.
+- They remain absent from the numeric calculation change set unless already mapped to a canonical calculation field.
+- They are present in official-form state, validation, dirty tracking, revert, and save behavior.
 
 ## Jackson Supplemental Workpaper Mapping
 
@@ -129,7 +139,7 @@ Each supported field retains, when applicable:
 5. Emit only values that differ from the initial normalized value.
 6. Use `MANUAL_ENTRY` unless manual override is enabled.
 7. When override is enabled, require and include the trimmed reason and use `MANUAL_OVERRIDE`.
-8. Do not emit unsupported reference cells or unavailable identity facts.
+8. Normalize and emit official-form state separately when any official value changed.
 
 ## Responsive and Accessibility Contract
 
@@ -140,11 +150,12 @@ Each supported field retains, when applicable:
 - Status is not communicated by color alone.
 - Focus is visible against both white and gray form cells.
 - Controls are keyboard operable and action buttons wrap without clipping.
-- Static unsupported cells are not added to the tab order.
+- Repeatable coded sections add and remove rows with keyboard-operable 44-pixel controls.
 
 ## As-Built Notes
 
-- The implemented writable placement inventory exactly matches the 42 canonical `K1_EDITABLE_FIELDS`; there are no field-key, normalization, source, calculation, API, or persistence deviations from this contract.
-- Part I and Part II reuse the already-loaded partnership summary for available identity context and render explicit **Not available** values without introducing another request or editable identity state.
-- Unsupported official landmarks remain static reference cells, and the supplemental opening-balance and book-tax inputs remain inside the same form and change set.
+- The calculation placement inventory exactly matches the 42 canonical `K1_EDITABLE_FIELDS`, while the official placement inventory exactly matches all 48 official-form keys.
+- Part I and Part II reuse the already-loaded partnership summary as editable defaults; saved tax-year-specific values take precedence.
+- No static **Not tracked in Jackson** landmarks remain. Official-only values use the optional update request property and migration 025 JSONB storage, while supplemental opening-balance and book-tax inputs remain in the canonical numeric change set.
+- Official-only updates are calculation-neutral, revisioned, audited, and sign-off invalidating.
 - The Net Cash Activity table keeps its intentional contained horizontal scroller on narrow screens. Its visually empty actions column now uses an accessible column label without an off-canvas screen-reader element, preventing page-level overflow at 390 CSS pixels.

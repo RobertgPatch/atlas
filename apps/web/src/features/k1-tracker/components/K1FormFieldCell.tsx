@@ -3,7 +3,6 @@ import type { K1TrackerValue } from '../../../../../../packages/types/src/k1-tra
 import type { K1TrackerWritableFieldKey } from '../../../../../../packages/types/src/k1-tracker'
 import { CurrencyInput } from '../../../components/shared/CurrencyField'
 import type { K1FieldDefinition } from '../k1FieldGroups'
-import type { K1FormReferenceCell as ReferenceCell } from '../k1FormLayout'
 
 const sourceLabel = (source: K1TrackerValue): string => {
   const sourceName = source.sourceType.replaceAll('_', ' ')
@@ -86,14 +85,4 @@ export function K1FormFieldCell({
       Source conflict: {conflictMessage}
     </span>}
   </label>
-}
-
-export function K1ReferenceCell({ reference, compact = false }: { reference: ReferenceCell; compact?: boolean }) {
-  return <div
-    data-k1-reference={reference.itemOrLine}
-    className={`min-w-0 bg-gray-100 text-gray-500 ${compact ? 'px-2 py-1.5' : 'px-3 py-2.5'}`}
-  >
-    <p className="text-[10px] font-medium leading-tight">{reference.label}</p>
-    <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-gray-500">Not tracked in Jackson</p>
-  </div>
 }

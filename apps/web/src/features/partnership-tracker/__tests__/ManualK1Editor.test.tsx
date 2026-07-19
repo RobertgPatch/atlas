@@ -15,7 +15,7 @@ describe('manual K-1 annual entry', () => {
     const calculate = vi.fn().mockResolvedValue(undefined)
     render(<K1YearEntryForm detail={detail} canEdit pending={false} onCalculate={calculate} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
     expect(screen.getByRole('heading', { name: 'Schedule K-1 (Form 1065)' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Item K — Partner’s Share of Liabilities' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "Partner's Share of Liabilities" })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Book-tax reconciliation' })).toBeInTheDocument()
     expect(screen.getAllByLabelText('Capital contributions')).toHaveLength(1)
     expect(screen.getByLabelText('Line 13 - Other Portfolio Deductions')).toBeInTheDocument()

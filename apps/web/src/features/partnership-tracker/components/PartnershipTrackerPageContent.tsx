@@ -1,6 +1,8 @@
-import { Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { Loader2, Pencil } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import type { PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
+import { ConfirmationDialog } from '../../../components/shared/ConfirmationDialog'
 import { PageHeader } from '../../../components/shared/PageHeader'
 import { PartnershipTrackerApiError } from '../api/partnershipTrackerClient'
 import { usePartnershipTrackerDetail, usePartnershipTrackerList } from '../hooks/usePartnershipTracker'
@@ -21,13 +23,33 @@ const errorText = (error: unknown) => error instanceof PartnershipTrackerApiErro
   ? 'Partnership Tracker needs the configured database connection before it can load.'
   : 'There was a problem loading the partnership directory. Please try again.'
 
+function PartnershipWorkspaceHeader({ summary, canEdit, onEdit }: { summary: PartnershipTrackerSummary; canEdit: boolean; onEdit: () => void }) {
+  const partnership = summary.partnership
+  return <section data-testid="partnership-workspace-header" aria-labelledby="selected-partnership-title" className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="selected-partnership-title" className="text-xl font-semibold text-gray-950">{partnership.name}</h2>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">{partnership.status}</span>
+        </div>
+        <p className="mt-1 text-sm text-gray-500">{partnership.entity.name} · {partnership.partnershipType}</p>
+        {partnership.notes && <p className="mt-3 max-w-3xl text-sm text-gray-700">{partnership.notes}</p>}
+      </div>
+      {canEdit && <button type="button" onClick={onEdit} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"><Pencil className="h-4 w-4" />Edit Partnership</button>}
+    </div>
+  </section>
+}
+
 export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean }) {
   const [params, setParams] = useSearchParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(false)
   const [hasUnsavedK1Changes, setHasUnsavedK1Changes] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const pendingDiscardAction = useRef<(() => void) | null>(null)
   const listParams = useMemo(() => ({ search: search.trim() || undefined, limit: 100 }), [search])
   const list = usePartnershipTrackerList(listParams)
   const requestedId = params.get('partnership') ?? undefined
@@ -38,6 +60,37 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
   const parsedYear = Number(params.get('year'))
   const selectedYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100 ? parsedYear : undefined
 
+  const updateUrl = useCallback((changes: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(changes)) {
+      if (value == null) next.delete(key)
+      else next.set(key, value)
+    }
+    setParams(next, { replace: true })
+  }, [params, setParams])
+
+  const requestK1Discard = useCallback((action: () => void) => {
+    if (!hasUnsavedK1Changes) {
+      action()
+      return
+    }
+    pendingDiscardAction.current = action
+    setConfirmDiscard(true)
+  }, [hasUnsavedK1Changes])
+
+  const cancelK1Discard = () => {
+    pendingDiscardAction.current = null
+    setConfirmDiscard(false)
+  }
+
+  const discardK1Changes = () => {
+    const action = pendingDiscardAction.current
+    pendingDiscardAction.current = null
+    setConfirmDiscard(false)
+    setHasUnsavedK1Changes(false)
+    action?.()
+  }
+
   useEffect(() => {
     if (!hasUnsavedK1Changes) return
     const guardRouteChange = (event: MouseEvent) => {
@@ -47,30 +100,16 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
       const destination = new URL(target.href, window.location.href)
       if (destination.origin !== window.location.origin) return
       if (destination.pathname === location.pathname && destination.search === location.search && destination.hash === location.hash) return
-      if (window.confirm('Discard unsaved K-1 changes?')) {
-        setHasUnsavedK1Changes(false)
-        return
-      }
       event.preventDefault()
       event.stopPropagation()
+      requestK1Discard(() => navigate(`${destination.pathname}${destination.search}${destination.hash}`))
     }
     document.addEventListener('click', guardRouteChange, true)
     return () => document.removeEventListener('click', guardRouteChange, true)
-  }, [hasUnsavedK1Changes, location.hash, location.pathname, location.search])
+  }, [hasUnsavedK1Changes, location.hash, location.pathname, location.search, navigate, requestK1Discard])
 
-  const updateUrl = (changes: Record<string, string | undefined>) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(changes)) {
-      if (value == null) next.delete(key)
-      else next.set(key, value)
-    }
-    setParams(next, { replace: true })
-  }
-  const confirmK1Discard = () => !hasUnsavedK1Changes || window.confirm('Discard unsaved K-1 changes?')
   const selectPartnership = (id: string) => {
-    if (!confirmK1Discard()) return
-    setHasUnsavedK1Changes(false)
-    updateUrl({ partnership: id, year: undefined })
+    requestK1Discard(() => updateUrl({ partnership: id, year: undefined }))
   }
   const selectYear = (year: number) => updateUrl({ partnership: selectedId, year: String(year), area: 'k1' })
   const created = (id: string) => { setAdding(false); setHasUnsavedK1Changes(false); updateUrl({ partnership: id, area: 'k1', year: undefined }) }
@@ -80,12 +119,22 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
     <div className="min-w-0 space-y-4" data-testid="partnership-workspace-layout">
       <PartnershipPicker items={list.data?.items ?? []} selectedId={selectedId} selected={detail.data?.summary} search={search} loading={list.isLoading} error={list.isError ? errorText(list.error) : undefined} canEdit={canEdit} onSearch={setSearch} onSelect={selectPartnership} onAdd={() => setAdding(true)} />
       <main className="min-w-0" aria-label="Selected partnership workspace">
-        {!selectedId && !list.isLoading ? <section className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center"><h2 className="font-semibold text-gray-900">No partnership selected</h2><p className="mt-2 text-sm text-gray-500">{canEdit ? 'Add a partnership to begin, or adjust the search.' : 'No partnership is available in your entity scope.'}</p></section> : detail.isLoading ? <div className="flex min-h-72 items-center justify-center rounded-xl border border-gray-200 bg-white" aria-label="Loading selected partnership"><Loader2 className="h-6 w-6 animate-spin text-gray-400 motion-reduce:animate-none" /></div> : detail.isError ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6"><h2 className="font-semibold text-red-900">Failed to load partnership</h2><p className="mt-2 text-sm text-red-700">{errorText(detail.error)}</p><button type="button" onClick={() => void detail.refetch()} className="mt-4 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-800">Try again</button></section> : detail.data ? <div className="space-y-4"><div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Partnership Tracker areas"><div className="flex min-w-max gap-1">{areas.map((item) => <button key={item.id} type="button" role="tab" aria-selected={area === item.id} onClick={() => { if (item.id !== area && !confirmK1Discard()) return; if (item.id !== area) setHasUnsavedK1Changes(false); updateUrl({ area: item.id }) }} className={`rounded-lg px-4 py-2.5 text-sm font-medium ${area === item.id ? 'bg-gray-950 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{item.label}</button>)}</div></div>
-          <div role="tabpanel">{area === 'overview' ? <PartnershipOverview summary={detail.data.summary} canEdit={canEdit} onEdit={() => setEditing(true)} /> : area === 'k1' ? <K1BasisWorkspace detail={detail.data} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={selectYear} onDirtyChange={setHasUnsavedK1Changes} /> : area === 'capital' ? <div className="space-y-5"><CommitmentHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.commitments} canEdit={canEdit} /><NavHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.navEntries} canEdit={canEdit} /><ManagementFeePanel summary={detail.data.summary} canEdit={canEdit} /></div> : <UnderlyingAssetsPlaceholder />}</div>
+        {!selectedId && !list.isLoading ? <section className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center"><h2 className="font-semibold text-gray-900">No partnership selected</h2><p className="mt-2 text-sm text-gray-500">{canEdit ? 'Add a partnership to begin, or adjust the search.' : 'No partnership is available in your entity scope.'}</p></section> : detail.isLoading ? <div className="flex min-h-72 items-center justify-center rounded-xl border border-gray-200 bg-white" aria-label="Loading selected partnership"><Loader2 className="h-6 w-6 animate-spin text-gray-400 motion-reduce:animate-none" /></div> : detail.isError ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6"><h2 className="font-semibold text-red-900">Failed to load partnership</h2><p className="mt-2 text-sm text-red-700">{errorText(detail.error)}</p><button type="button" onClick={() => void detail.refetch()} className="mt-4 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-800">Try again</button></section> : detail.data ? <div className="space-y-4"><PartnershipWorkspaceHeader summary={detail.data.summary} canEdit={canEdit} onEdit={() => setEditing(true)} /><div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Partnership Tracker areas"><div className="flex min-w-max gap-1">{areas.map((item) => <button key={item.id} type="button" role="tab" aria-selected={area === item.id} onClick={() => { if (item.id === area) return; requestK1Discard(() => updateUrl({ area: item.id })) }} className={`rounded-lg px-4 py-2.5 text-sm font-medium ${area === item.id ? 'bg-gray-950 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{item.label}</button>)}</div></div>
+          <div role="tabpanel">{area === 'overview' ? <PartnershipOverview summary={detail.data.summary} /> : area === 'k1' ? <K1BasisWorkspace detail={detail.data} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={selectYear} onDirtyChange={setHasUnsavedK1Changes} /> : area === 'capital' ? <div className="space-y-5"><CommitmentHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.commitments} canEdit={canEdit} /><NavHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.navEntries} canEdit={canEdit} /><ManagementFeePanel summary={detail.data.summary} canEdit={canEdit} /></div> : <UnderlyingAssetsPlaceholder />}</div>
         </div> : null}
       </main>
     </div>
     <AddPartnershipDialog open={adding} onClose={() => setAdding(false)} onCreated={created} />
     {editing && detail.data && <EditPartnershipDialog summary={detail.data.summary} onClose={() => setEditing(false)} />}
+    <ConfirmationDialog
+      open={confirmDiscard}
+      tone="warning"
+      title="Discard unsaved K-1 changes?"
+      description={<p>Your K-1 edits have not been saved. Leaving this workspace will discard the current draft.</p>}
+      confirmLabel="Discard changes"
+      cancelLabel="Keep editing"
+      onClose={cancelK1Discard}
+      onConfirm={discardK1Changes}
+    />
   </>
 }

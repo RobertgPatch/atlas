@@ -1,5 +1,7 @@
 # Phase 0 Research: K-1 Form-Inspired Data Entry
 
+> **2026-07-19 amendment:** The user explicitly replaced the static-landmark decision with a requirement to enter every standard Schedule K-1 field. The implementation therefore uses typed editable controls and JSONB official-form persistence; calculation-neutral fields remain excluded only from Jackson's financial formulas.
+
 ## Research Inputs
 
 - User goal: make annual K-1 data entry substantially easier to recognize by matching a real Schedule K-1 while preserving every existing behavior.

@@ -29,6 +29,8 @@ describe('first K-1 year flow', () => {
   it('opens a new selected year as an inline form without a drawer or Next control', () => {
     render(<K1YearEntryForm detail={inlineDetail} canEdit pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
     expect(screen.getByRole('heading', { name: 'Schedule K-1 (Form 1065)' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Tax period beginning')).toHaveValue('2024-01-01')
+    expect(screen.getByLabelText('Tax period ending')).toHaveValue('2024-12-31')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Next' })).not.toBeInTheDocument()
   })

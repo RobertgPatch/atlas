@@ -2,6 +2,7 @@ import type { PoolClient, QueryResultRow } from 'pg'
 import type {
   K1TrackerFieldChange,
   K1TrackerFieldKey,
+  K1TrackerOfficialFormData,
   K1TrackerSourceType,
   K1TrackerWorkflowStatus,
 } from './k1-tracker.contracts.js'
@@ -25,6 +26,7 @@ export interface TrackerYearRow extends QueryResultRow {
   section_l_difference: string | null
   created_at: Date | string
   updated_at: Date | string
+  official_form_data: K1TrackerOfficialFormData
 }
 
 export interface TrackerValueRow extends QueryResultRow {

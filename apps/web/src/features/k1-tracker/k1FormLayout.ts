@@ -1,4 +1,4 @@
-import type { K1TrackerWritableFieldKey } from '../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerOfficialFormFieldKey, K1TrackerWritableFieldKey } from '../../../../../packages/types/src/k1-tracker'
 
 export type K1FormRegion =
   | 'item-k'
@@ -17,12 +17,12 @@ export interface K1FormPlacement {
   sublabel?: string
 }
 
-export interface K1FormReferenceCell {
-  region: 'part-iii-left' | 'part-iii-right' | 'part-ii-reference'
+export interface K1FormOfficialPlacement {
+  fieldKey: K1TrackerOfficialFormFieldKey
+  region: 'part-iii-left' | 'part-iii-right'
   itemOrLine: string
   label: string
   order: number
-  status: 'NOT_TRACKED'
 }
 
 export interface K1FormIdentityContext {
@@ -90,37 +90,53 @@ export const K1_FORM_PLACEMENTS: K1FormPlacement[] = [
   placement('recon_other_permanent_differences', 'supplemental-book-tax', 'W11', 9),
 ]
 
-const reference = (
-  region: K1FormReferenceCell['region'],
+const officialPlacement = (
+  fieldKey: K1TrackerOfficialFormFieldKey,
+  region: K1FormOfficialPlacement['region'],
   itemOrLine: string,
   label: string,
   order: number,
-): K1FormReferenceCell => ({ region, itemOrLine, label, order, status: 'NOT_TRACKED' })
+): K1FormOfficialPlacement => ({ fieldKey, region, itemOrLine, label, order })
 
-export const K1_FORM_REFERENCE_CELLS: K1FormReferenceCell[] = [
-  reference('part-iii-left', '4a', 'Guaranteed payments for services', 401),
-  reference('part-iii-left', '4b', 'Guaranteed payments for capital', 402),
-  reference('part-iii-left', '6b', 'Qualified dividends', 602),
-  reference('part-iii-left', '6c', 'Dividend equivalents', 603),
-  reference('part-iii-left', '9b', 'Collectibles gain (loss)', 902),
-  reference('part-iii-left', '9c', 'Unrecaptured section 1250 gain', 903),
-  reference('part-iii-right', '14', 'Self-employment earnings (loss)', 1400),
-  reference('part-iii-right', '15', 'Credits', 1500),
-  reference('part-iii-right', '16', 'Schedule K-3 is attached if checked', 1600),
-  reference('part-iii-right', '17', 'Alternative minimum tax items', 1700),
-  reference('part-iii-right', '20', 'Other information', 2000),
-  reference('part-iii-right', '22', 'More than one activity for at-risk purposes', 2200),
-  reference('part-iii-right', '23', 'More than one activity for passive activity purposes', 2300),
-  reference('part-ii-reference', 'G', 'General or limited partner classification', 700),
-  reference('part-ii-reference', 'H', 'Domestic or foreign partner classification', 800),
-  reference('part-ii-reference', 'J', 'Partner profit, loss, and capital percentages', 1000),
-  reference('part-ii-reference', 'M', 'Built-in gain or loss contributing partner', 1300),
-  reference('part-ii-reference', 'N', 'Partner share of net unrecognized section 704(c) gain or loss', 1400),
+export const K1_FORM_OFFICIAL_PLACEMENTS: K1FormOfficialPlacement[] = [
+  officialPlacement('box_4a_guaranteed_payments_services', 'part-iii-left', '4a', 'Guaranteed payments for services', 401),
+  officialPlacement('box_4b_guaranteed_payments_capital', 'part-iii-left', '4b', 'Guaranteed payments for capital', 402),
+  officialPlacement('box_6b_qualified_dividends', 'part-iii-left', '6b', 'Qualified dividends', 602),
+  officialPlacement('box_6c_dividend_equivalents', 'part-iii-left', '6c', 'Dividend equivalents', 603),
+  officialPlacement('box_9b_collectibles_gain_loss', 'part-iii-left', '9b', 'Collectibles (28%) gain or loss', 902),
+  officialPlacement('box_9c_unrecaptured_section_1250_gain', 'part-iii-left', '9c', 'Unrecaptured Section 1250 gain', 903),
+  officialPlacement('box_11_entries', 'part-iii-left', '11', 'Other income code and statement details', 1190),
+  officialPlacement('box_13_entries', 'part-iii-left', '13', 'Other deduction code and statement details', 1390),
+  officialPlacement('box_14_entries', 'part-iii-right', '14', 'Self-employment earnings (loss)', 1400),
+  officialPlacement('box_15_entries', 'part-iii-right', '15', 'Credits', 1500),
+  officialPlacement('box_16_schedule_k3_attached', 'part-iii-right', '16', 'Schedule K-3 is attached', 1600),
+  officialPlacement('box_17_entries', 'part-iii-right', '17', 'Alternative minimum tax items', 1700),
+  officialPlacement('box_18_entries', 'part-iii-right', '18', 'Tax-exempt income and nondeductible expense code details', 1890),
+  officialPlacement('box_19_entries', 'part-iii-right', '19', 'Distribution code and statement details', 1990),
+  officialPlacement('box_20_entries', 'part-iii-right', '20', 'Other information', 2000),
+  officialPlacement('box_21_entries', 'part-iii-right', '21', 'Foreign tax code and statement details', 2190),
+  officialPlacement('box_22_more_than_one_at_risk_activity', 'part-iii-right', '22', 'More than one activity for at-risk purposes', 2200),
+  officialPlacement('box_23_more_than_one_passive_activity', 'part-iii-right', '23', 'More than one activity for passive activity purposes', 2300),
+]
+
+export const K1_FORM_HEADER_FIELD_KEYS: K1TrackerOfficialFormFieldKey[] = [
+  'k1_status_final', 'k1_status_amended', 'tax_period_beginning', 'tax_period_ending',
+]
+
+export const K1_FORM_IDENTITY_FIELD_KEYS: K1TrackerOfficialFormFieldKey[] = [
+  'part_i_a_partnership_ein', 'part_i_b_partnership_name_address', 'part_i_c_irs_center', 'part_i_d_publicly_traded_partnership',
+  'part_ii_e_partner_tin', 'part_ii_f_partner_name_address', 'part_ii_g_partner_classification', 'part_ii_h1_partner_residency',
+  'part_ii_h2_disregarded_entity', 'part_ii_h2_disregarded_entity_tin', 'part_ii_h2_disregarded_entity_name',
+  'part_ii_i1_partner_entity_type', 'part_ii_i2_retirement_plan',
+  'part_ii_j_profit_beginning_pct', 'part_ii_j_profit_ending_pct', 'part_ii_j_loss_beginning_pct', 'part_ii_j_loss_ending_pct',
+  'part_ii_j_capital_beginning_pct', 'part_ii_j_capital_ending_pct', 'part_ii_j_decrease_sale', 'part_ii_j_decrease_exchange',
+  'part_ii_k2_lower_tier_liabilities', 'part_ii_k3_guaranteed_liabilities',
+  'part_ii_m_built_in_gain_loss', 'part_ii_n_704c_gain_loss_beginning', 'part_ii_n_704c_gain_loss_ending',
 ]
 
 export const placementsForRegion = (region: K1FormRegion): K1FormPlacement[] =>
   K1_FORM_PLACEMENTS.filter((item) => item.region === region)
 
-export const referenceCellsForRegion = (region: K1FormReferenceCell['region']): K1FormReferenceCell[] =>
-  K1_FORM_REFERENCE_CELLS.filter((item) => item.region === region)
+export const officialPlacementsForRegion = (region: K1FormOfficialPlacement['region']): K1FormOfficialPlacement[] =>
+  K1_FORM_OFFICIAL_PLACEMENTS.filter((item) => item.region === region)
 

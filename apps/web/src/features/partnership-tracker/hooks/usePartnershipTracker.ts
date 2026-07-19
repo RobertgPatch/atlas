@@ -11,6 +11,7 @@ import type {
   UpdatePartnershipNavEntryRequest,
   UpdateTrackedPartnershipRequest,
 } from '../../../../../../packages/types/src/partnership-tracker'
+import type { K1TrackerOfficialFormData } from '../../../../../../packages/types/src/k1-tracker'
 import { partnershipTrackerClient, type PartnershipAggregationParams, type PartnershipTrackerListParams } from '../api/partnershipTrackerClient'
 
 export const partnershipTrackerKeys = {
@@ -82,7 +83,7 @@ export function usePartnershipTrackerActions() {
     updateNav: useMutation({ mutationFn: ({ id, entryId, body }: { id: string; entryId: string; body: UpdatePartnershipNavEntryRequest }) => partnershipTrackerClient.updateNav(id, entryId, body), onSuccess: (_, variables) => refreshNav(variables.id), onError: (_, variables) => refreshNav(variables.id) }),
     deleteNav: useMutation({ mutationFn: ({ id, entryId, expectedUpdatedAt }: { id: string; entryId: string; expectedUpdatedAt: string }) => partnershipTrackerClient.deleteNav(id, entryId, expectedUpdatedAt), onSuccess: (_, variables) => refreshNav(variables.id), onError: (_, variables) => refreshNav(variables.id) }),
     createYear: useMutation({ mutationFn: ({ id, year }: { id: string; year: number }) => partnershipTrackerClient.createYear(id, year), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year) }),
-    updateYear: useMutation({ mutationFn: ({ id, year, expectedRevision, changes }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[] }) => partnershipTrackerClient.updateYear(id, year, { expectedRevision, changes }), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
+    updateYear: useMutation({ mutationFn: ({ id, year, expectedRevision, changes, officialFormData }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[]; officialFormData?: K1TrackerOfficialFormData }) => partnershipTrackerClient.updateYear(id, year, { expectedRevision, changes, officialFormData }), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     deleteYear: useMutation({ mutationFn: ({ id, year, expectedRevision }: { id: string; year: number; expectedRevision: number }) => partnershipTrackerClient.deleteYear(id, year, expectedRevision), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     calculate: useMutation({ mutationFn: ({ id, year, expectedRevision, changes }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[] }) => partnershipTrackerClient.calculate(id, year, expectedRevision, { changes }) }),
     createCashFlow: useMutation({ mutationFn: ({ id, year, body }: { id: string; year: number; body: CreatePartnershipCashFlowRequest }) => partnershipTrackerClient.createCashFlow(id, year, body), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year) }),
