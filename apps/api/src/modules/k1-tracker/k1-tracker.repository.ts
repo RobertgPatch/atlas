@@ -214,7 +214,7 @@ const persistProjection = async (client: Queryable, years: TrackerYearRow[], act
       calc.summary.sectionLDifference, actorUserId,
     ])
     const valueRows = valuesByYear.get(year.id) ?? []
-    await upsertTrackerAnnualActivity(client, year, calc, {
+    await upsertTrackerAnnualActivity(client, year, calc, valueRows, {
       hasK1: valueRows.some((value) => value.source_type === 'FINALIZED_K1' || value.source_type === 'WORKBOOK_IMPORT'),
       hasManualInput: valueRows.some((value) => value.source_type === 'MANUAL_ENTRY' || value.source_type === 'MANUAL_OVERRIDE'),
       finalizedDocumentId: valueRows.find((value) => value.source_type === 'FINALIZED_K1')?.source_k1_document_id ?? null,
@@ -429,7 +429,37 @@ export const k1TrackerRepository = {
   },
 
   async deleteYear(partnershipId: string, taxYear: number, expectedRevision: number, actorUserId: string, scope: TrackerScope): Promise<void> {
-    db(); await withTransaction(async (client) => { await assertPartnership(partnershipId, scope, client); const years = await yearRowsFor(partnershipId, client, true); const year = years.find((item) => item.tax_year === taxYear); if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND'); if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION'); await client.query('delete from k1_tracker_years where id = $1', [year.id]); const remaining = await yearRowsFor(partnershipId, client); if (remaining.length) await persistProjection(client, remaining, actorUserId); await auditRepository.record({ actorUserId, eventName: 'k1_tracker.year_deleted', objectType: 'k1_tracker_year', objectId: year.id, before: { partnershipId, taxYear } }, client as never) })
+    db()
+    await withTransaction(async (client) => {
+      await assertPartnership(partnershipId, scope, client)
+      const years = await yearRowsFor(partnershipId, client, true)
+      const year = years.find((item) => item.tax_year === taxYear)
+      if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND')
+      if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION')
+      const downstream = years.filter((item) => item.tax_year > taxYear)
+      await client.query('delete from partnership_annual_activity where partnership_id = $1 and tax_year = $2', [partnershipId, taxYear])
+      await client.query('delete from k1_tracker_years where id = $1', [year.id])
+      if (downstream.length) {
+        await client.query(`
+          update k1_tracker_years
+          set revision = revision + 1,
+              workflow_status = 'NEEDS_REVIEW',
+              updated_by_user_id = $2,
+              updated_at = now()
+          where id = any($1::uuid[])
+        `, [downstream.map((item) => item.id), actorUserId])
+        for (const downstreamYear of downstream) {
+          await client.query(
+            `insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason)
+             values ($1, $2, $3, 'INVALIDATED', $4, 'Prior tracker year deleted')`,
+            [randomUUID(), downstreamYear.id, downstreamYear.revision + 1, actorUserId],
+          )
+        }
+      }
+      const remaining = await yearRowsFor(partnershipId, client)
+      if (remaining.length) await persistProjection(client, remaining, actorUserId)
+      await auditRepository.record({ actorUserId, eventName: 'k1_tracker.year_deleted', objectType: 'k1_tracker_year', objectId: year.id, before: { partnershipId, taxYear } }, client as never)
+    })
   },
 
   async signoff(partnershipId: string, taxYear: number, expectedRevision: number, action: 'PREPARED' | 'REVIEWED' | 'INVALIDATED', reason: string | null | undefined, actorUserId: string, scope: TrackerScope): Promise<K1TrackerSignoffState> {

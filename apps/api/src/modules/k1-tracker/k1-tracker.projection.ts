@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import type { K1TrackerCalculation } from './k1-tracker.contracts.js'
-import type { Queryable, TrackerYearRow } from './k1-tracker.types.js'
+import type { Queryable, TrackerValueRow, TrackerYearRow } from './k1-tracker.types.js'
 
 const money = (record: Record<string, unknown>, key: string): string | null => {
   const value = record[key]
   return typeof value === 'string' ? value : null
 }
+const valueMoney = (values: TrackerValueRow[], key: string): string | null => values.find((value) => value.field_key === key)?.amount ?? null
 
 /**
  * The tracker remains the canonical ledger. This projection only maintains the
@@ -15,6 +16,7 @@ export const upsertTrackerAnnualActivity = async (
   client: Queryable,
   year: TrackerYearRow,
   calculation: K1TrackerCalculation,
+  values: TrackerValueRow[],
   sources: { hasK1: boolean; hasManualInput: boolean; finalizedDocumentId: string | null },
 ): Promise<void> => {
   await client.query(`
@@ -40,7 +42,7 @@ export const upsertTrackerAnnualActivity = async (
       finalized_from_k1_document_id = excluded.finalized_from_k1_document_id, updated_at = now()
   `, [
     randomUUID(), year.entity_id, year.partnership_id, year.tax_year,
-    money(calculation.basis, 'incomeIncrease'), money(calculation.bookTax, 'endingBookCapital'),
+    valueMoney(values, 'box_5_interest_income'), valueMoney(values, 'box_6a_ordinary_dividends'),
     null, null, money(calculation.distribution, 'cashOrPropertyDistribution'), money(calculation.sectionL, 'reportedEnding'),
     money(calculation.basis, 'beginningOutsideBasis'), money(calculation.basis, 'contributions'),
     money(calculation.lossLimitation, 'cumulativeSuspendedLoss'), money(calculation.liabilities, 'netChange'),

@@ -25,15 +25,25 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState(false)
   const [hasUnsavedK1Changes, setHasUnsavedK1Changes] = useState(false)
+  const [defaultSelectedId, setDefaultSelectedId] = useState<string | undefined>()
   const listParams = useMemo(() => ({ search: search.trim() || undefined, limit: 100 }), [search])
   const list = usePartnershipTrackerList(listParams)
   const requestedId = params.get('partnership') ?? undefined
-  const selectedId = requestedId ?? list.data?.items[0]?.partnership.id
+  const firstListedId = list.data?.items[0]?.partnership.id
+  const selectedId = requestedId ?? defaultSelectedId
   const detail = usePartnershipTrackerDetail(selectedId)
   const parsedArea = params.get('area')
   const area: Area = parsedArea === 'k1' || parsedArea === 'capital' ? parsedArea : 'overview'
   const parsedYear = Number(params.get('year'))
   const selectedYear = Number.isInteger(parsedYear) && parsedYear >= 1900 && parsedYear <= 2100 ? parsedYear : undefined
+
+  useEffect(() => {
+    if (requestedId) {
+      setDefaultSelectedId(requestedId)
+      return
+    }
+    setDefaultSelectedId((current) => current ?? firstListedId)
+  }, [firstListedId, requestedId])
 
   useEffect(() => {
     if (!hasUnsavedK1Changes) return
