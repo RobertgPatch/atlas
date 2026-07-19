@@ -21,6 +21,7 @@ export const trackerListQuerySchema = z.object({
 export const fieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),
   amount: money.nullable(),
+  textValue: z.string().trim().max(2000).nullable().optional(),
   sourceType: z.enum(['MANUAL_ENTRY', 'MANUAL_OVERRIDE']),
   overrideReason: z.string().trim().min(1).max(2000).nullable().optional(),
 }).superRefine((value, ctx) => {

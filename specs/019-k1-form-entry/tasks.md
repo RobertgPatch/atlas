@@ -27,8 +27,8 @@
 
 **CRITICAL**: Complete this phase before implementing any story-specific form region.
 
-- [X] T002 Add failing inventory contract tests in `apps/web/src/features/k1-tracker/__tests__/K1FormLayout.test.tsx` for exactly 42 unique supported placements, set equality with `K1_EDITABLE_FIELDS`, exclusion of `box_13_other_deductions` and `section_l_capital_contributed`, valid per-region ordering, and field-key-free reference cells.
-- [X] T003 Implement `K1FormRegion`, `K1FormPlacement`, `K1FormReferenceCell`, `K1FormIdentityContext`, the exact 42-field placement inventory, and the 2025 reference-only landmarks in `apps/web/src/features/k1-tracker/k1FormLayout.ts` until T002 passes without duplicating validation or persistence rules from `apps/web/src/features/k1-tracker/k1FieldGroups.ts`.
+- [X] T002 Add inventory contract tests in `apps/web/src/features/k1-tracker/__tests__/K1FormLayout.test.tsx` for exactly 74 unique supported placements, set equality with `K1_EDITABLE_FIELDS`, exclusion of deprecated keys, and valid per-region ordering.
+- [X] T003 Implement `K1FormRegion`, `K1FormPlacement`, `K1FormIdentityContext`, and the exact 74-field placement inventory in `apps/web/src/features/k1-tracker/k1FormLayout.ts` without duplicating validation or persistence rules from `apps/web/src/features/k1-tracker/k1FieldGroups.ts`.
 - [X] T004 [P] Create the controlled supported-field foundation in `apps/web/src/features/k1-tracker/components/K1FormFieldCell.tsx`, accepting the canonical `K1FieldDefinition`, value/change callback, editable/derived state, source, carryforward, and conflict annotations while continuing to use the shared currency input and existing accessible field label.
 
 **Checkpoint**: The presentation contract covers every current editable field exactly once, and visual components can consume one shared field-cell API.
@@ -62,25 +62,25 @@
 
 ## Phase 4: User Story 2 - Understand Tracked, Derived, and Unsupported Values (Priority: P2)
 
-**Goal**: Make the K-1-like surface truthful by clearly distinguishing editable fields, cash-activity-derived totals, unsupported reference cells, provenance/carryforward states, historical line 13 data, and supplemental workpaper values.
+**Goal**: Make the K-1-like surface truthful by clearly distinguishing editable fields, cash-activity-derived totals, provenance/carryforward states, historical line 13 data, and supplemental workpaper values.
 
-**Independent Test**: Load a year with dated capital calls and distributions, confirm Section L contributions and Part III line 19 are read-only with a cash-activity explanation, then confirm an unsupported official line is visible but noninteractive and absent from preview/save changes.
+**Independent Test**: Load a year with dated capital calls and distributions, confirm Section L contributions and Part III line 19 are read-only with a cash-activity explanation, then edit a formerly omitted official line and confirm it enters preview/save changes.
 
 ### Tests for User Story 2
 
 - [X] T014 [P] [US2] Add failing derived-state and change-set exclusion tests for capital calls, distributions, and recallable distributions plus source/carryforward annotations in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Editor.test.tsx`.
-- [X] T015 [P] [US2] Add failing tests in `apps/web/src/features/k1-tracker/__tests__/K1FormLayout.test.tsx` that reference-only lines 4a, 4b, 6b, 6c, 9b, 9c, 14, 15, 16, 17, 20, 22, and 23 display `Not tracked in Jackson`, have no input role or field key, and cannot enter preview/save state.
+- [X] T015 [P] [US2] Add tests in `apps/web/src/features/k1-tracker/__tests__/K1FormLayout.test.tsx` that lines 4a, 4b, 6b, 6c, 9b, 9c, 14, 15, 16, 17, 20, 22, and 23 have typed controls, stable field keys, and enter preview/save state when edited.
 - [X] T016 [P] [US2] Extend `apps/web/src/features/partnership-tracker/__tests__/ManualK1Workflow.test.tsx` with failing regression cases for legacy combined line 13, split line 13 fields, provenance, manual override reason enforcement, draft calculation, revert, saved revision behavior, and the unsaved-change callback.
 
 ### Implementation for User Story 2
 
-- [X] T017 [US2] Complete supported, cash-derived, carried, sourced, conflicted, and static-reference visual variants in `apps/web/src/features/k1-tracker/components/K1FormFieldCell.tsx`, keeping derived controls disabled and reference cells nonfocusable with visible non-color status text.
-- [X] T018 [P] [US2] Merge the reference-only landmarks from `apps/web/src/features/k1-tracker/k1FormLayout.ts` into the correct numeric positions and preserve Jackson's existing line 13/18 labels and semantics in `apps/web/src/features/k1-tracker/components/K1PartThreeGrid.tsx`.
-- [X] T019 [P] [US2] Apply cash-activity-derived contribution state, liability provenance/carryforwards, unavailable identity states, and static Item K/Part II reference treatment in `apps/web/src/features/k1-tracker/components/K1FormIdentityPanel.tsx`.
+- [X] T017 [US2] Complete money, text/code, percentage, select, checkbox, cash-derived, carried, sourced, and conflicted variants in `apps/web/src/features/k1-tracker/components/K1FormFieldCell.tsx`, keeping derived controls disabled with visible non-color status text.
+- [X] T018 [P] [US2] Place every Part III input in numeric order and preserve Jackson's existing line 13/18 labels and semantics in `apps/web/src/features/k1-tracker/components/K1PartThreeGrid.tsx`.
+- [X] T019 [P] [US2] Apply editable Part II tax fields, cash-activity-derived contribution state, liability provenance/carryforwards, and unavailable identity states in `apps/web/src/features/k1-tracker/components/K1FormIdentityPanel.tsx`.
 - [X] T020 [US2] Build per-field presentation state from values, cash-flow events, calculations, and source conflicts; retain the historical combined line 13 notice, override audit controls, draft feedback, and distinct workpaper framing in `apps/web/src/features/k1-tracker/components/K1YearEntryForm.tsx` and `apps/web/src/features/k1-tracker/components/K1SupplementalWorkpaper.tsx`.
 - [X] T021 [US2] Run and fix the US2 suites in `apps/web/src/features/partnership-tracker/__tests__/ManualK1Editor.test.tsx`, `apps/web/src/features/partnership-tracker/__tests__/ManualK1Workflow.test.tsx`, and `apps/web/src/features/k1-tracker/__tests__/K1FormLayout.test.tsx` until the tracked/derived/unsupported independent test passes.
 
-**Checkpoint**: Users can reconcile the K-1-like layout without mistaking unsupported landmarks or dated cash totals for manually editable data.
+**Checkpoint**: Users can edit every displayed K-1 tax field without mistaking dated cash totals for manually editable data.
 
 ---
 
@@ -144,7 +144,7 @@ Polish T027-T029
 
 - **US1 (P1)** is the MVP and has no story dependency after the foundation.
 - **US2 (P2)** is independently testable but intentionally decorates the US1 form surfaces rather than duplicating them.
-- **US3 (P3)** is independently testable after the semantic form exists and should validate both supported and unsupported states.
+- **US3 (P3)** is independently testable after the semantic form exists and should validate all supported control types.
 
 ### Within Each User Story
 

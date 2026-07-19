@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { K1YearEntryForm } from '../components/K1YearEntryForm'
 import { K1_EDITABLE_FIELDS } from '../k1FieldGroups'
-import { K1_FORM_PLACEMENTS, K1_FORM_REFERENCE_CELLS } from '../k1FormLayout'
+import { K1_FORM_PLACEMENTS } from '../k1FormLayout'
 import { k1EntryDetailFixture, missingK1IdentitySummaryFixture, summaryFixture } from '../../partnership-tracker/__tests__/fixtures'
 
 describe('K-1 form layout contract', () => {
@@ -10,14 +10,14 @@ describe('K-1 form layout contract', () => {
     const placementKeys = K1_FORM_PLACEMENTS.map((placement) => placement.fieldKey)
     const editableKeys = K1_EDITABLE_FIELDS.map((field) => field.key)
 
-    expect(placementKeys).toHaveLength(42)
-    expect(new Set(placementKeys)).toHaveLength(42)
+    expect(placementKeys).toHaveLength(74)
+    expect(new Set(placementKeys)).toHaveLength(74)
     expect([...placementKeys].sort()).toEqual([...editableKeys].sort())
     expect(placementKeys).not.toContain('box_13_other_deductions')
     expect(placementKeys).not.toContain('section_l_capital_contributed')
   })
 
-  it('keeps each visual region ordered and reference cells free of writable keys', () => {
+  it('keeps each visual region ordered', () => {
     const regions = new Set(K1_FORM_PLACEMENTS.map((placement) => placement.region))
     for (const region of regions) {
       const orders = K1_FORM_PLACEMENTS
@@ -25,11 +25,6 @@ describe('K-1 form layout contract', () => {
         .map((placement) => placement.order)
       expect(orders).toEqual([...orders].sort((left, right) => left - right))
       expect(new Set(orders)).toHaveLength(orders.length)
-    }
-
-    for (const reference of K1_FORM_REFERENCE_CELLS) {
-      expect(reference).not.toHaveProperty('fieldKey')
-      expect(reference.status).toBe('NOT_TRACKED')
     }
   })
 
@@ -56,8 +51,8 @@ describe('K-1 form layout contract', () => {
     expect(screen.getByRole('heading', { name: 'Part III — Partner’s Share of Current Year Income, Deductions, Credits, and Other Items' })).toBeInTheDocument()
     expect(screen.getByText('Redwood Fund')).toBeInTheDocument()
     expect(screen.getByText('Jackson Family Trust')).toBeInTheDocument()
-    expect(screen.getByText('Beginning of year')).toBeInTheDocument()
-    expect(screen.getByText('End of year')).toBeInTheDocument()
+    expect(screen.getAllByText('Beginning of year').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('End of year').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Beginning capital account')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Jackson supplemental workpaper' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Opening basis and loss limitations' })).toBeInTheDocument()
@@ -84,9 +79,9 @@ describe('K-1 form layout contract', () => {
     expect(screen.queryByRole('button', { name: 'Save revisions' })).not.toBeInTheDocument()
   })
 
-  it('renders unsupported official lines as static landmarks that cannot enter a change set', () => {
+  it('renders every formerly untracked K-1 line as a persisted typed control', async () => {
     const calculate = vi.fn().mockResolvedValue(undefined)
-    const { container } = render(<K1YearEntryForm
+    render(<K1YearEntryForm
       detail={k1EntryDetailFixture}
       canEdit
       pending={false}
@@ -95,16 +90,23 @@ describe('K-1 form layout contract', () => {
       onDirtyChange={vi.fn()}
     />)
 
-    for (const line of ['4a', '4b', '6b', '6c', '9b', '9c', '14', '15', '16', '17', '20', '22', '23']) {
-      const landmark = container.querySelector(`[data-k1-reference="${line}"]`)
-      expect(landmark).toBeInTheDocument()
-      expect(landmark).toHaveTextContent('Not tracked in Jackson')
-      expect(landmark?.querySelector('input')).toBeNull()
-      expect(landmark).not.toHaveAttribute('tabindex')
-    }
+    expect(screen.queryByText('Not tracked in Jackson')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Line 4a - Guaranteed payments for services')).toBeInTheDocument()
+    expect(screen.getByLabelText('Line 14 - Code')).toBeInTheDocument()
+    expect(screen.getByLabelText('Line 16 - Schedule K-3 is attached')).toBeInTheDocument()
+    expect(screen.getByLabelText('Item G - Partner type')).toBeInTheDocument()
+    expect(screen.getByLabelText('Item J - Profit percentage, beginning')).toBeInTheDocument()
+    expect(screen.getByLabelText('Item M - Contributed property with built-in gain or loss')).toBeInTheDocument()
 
-    expect(screen.getAllByText('Not tracked in Jackson').length).toBeGreaterThanOrEqual(15)
+    fireEvent.change(screen.getByLabelText('Line 4a - Guaranteed payments for services'), { target: { value: '1250' } })
+    fireEvent.change(screen.getByLabelText('Item G - Partner type'), { target: { value: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER' } })
+    fireEvent.click(screen.getByLabelText('Line 16 - Schedule K-3 is attached'))
     fireEvent.click(screen.getByRole('button', { name: 'Preview calculation' }))
-    expect(calculate).not.toHaveBeenCalled()
+    expect(calculate).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ fieldKey: 'box_4a_guaranteed_payments_services', amount: '1250.00' }),
+      expect.objectContaining({ fieldKey: 'item_g_partner_type', amount: null, textValue: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER' }),
+      expect.objectContaining({ fieldKey: 'box_16_schedule_k3_attached', amount: null, textValue: 'true' }),
+    ]))
+    expect(await screen.findByText('Draft calculation completed.')).toBeInTheDocument()
   })
 })

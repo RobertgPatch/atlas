@@ -6,7 +6,7 @@ import type {
   K1TrackerWritableFieldKey,
   K1TrackerYearDetail,
 } from '../../../../../../packages/types/src/k1-tracker'
-import { K1_EDITABLE_FIELDS } from '../k1FieldGroups'
+import { K1_EDITABLE_FIELDS, type K1FieldDefinition } from '../k1FieldGroups'
 import type { K1FormIdentityContext } from '../k1FormLayout'
 import { K1FormHeader } from './K1FormHeader'
 import { type K1FormFieldStateGetter } from './K1FormFieldCell'
@@ -30,9 +30,28 @@ const editableFieldByKey = new Map(K1_EDITABLE_FIELDS.map((field) => [field.key,
 const initialAmounts = (detail: K1TrackerYearDetail): Record<string, string> => Object.fromEntries(
   K1_EDITABLE_FIELDS.map((field) => {
     const source = detail.values.find((value) => value.fieldKey === field.key)
-    return [field.key, source?.amount == null ? '' : formatCurrency(source.amount)]
+    return [field.key, field.inputKind === 'money'
+      ? source?.amount == null ? '' : formatCurrency(source.amount)
+      : source?.textValue ?? source?.originalSourceText ?? '']
   }),
 )
+
+const normalizeTextInput = (field: K1FieldDefinition, raw: string): { value: string | null; error?: string } => {
+  const value = raw.trim()
+  if (!value) return { value: null }
+  if (field.inputKind === 'checkbox') return { value: ['true', '1', 'yes', 'checked'].includes(value.toLowerCase()) ? 'true' : null }
+  if (field.inputKind === 'select' && !field.options?.some((option) => option.value === value)) {
+    return { value: null, error: 'Select one of the available options.' }
+  }
+  if (field.inputKind === 'percentage') {
+    if (!/^\d+(?:\.\d{1,6})?$/.test(value)) return { value: null, error: 'Use a percentage with up to six decimal places.' }
+    const percent = Number(value)
+    if (percent < 0 || percent > 100) return { value: null, error: 'Use a percentage from 0 through 100.' }
+    return { value: String(percent) }
+  }
+  if (field.maxLength && value.length > field.maxLength) return { value: null, error: `Use no more than ${field.maxLength} characters.` }
+  return { value }
+}
 
 const carryforwardFor = (detail: K1TrackerYearDetail, key: FieldKey): string | undefined => {
   const values: Partial<Record<FieldKey, unknown>> = {
@@ -95,8 +114,27 @@ export function K1YearEntryForm({
     const changes: K1TrackerFieldChange[] = []
     for (const field of K1_EDITABLE_FIELDS) {
       if (datedFields.has(field.key)) continue
-      const next = normalizeCurrencyInput(amounts[field.key] ?? '', field.allowNegative)
-      const prior = normalizeCurrencyInput(initial[field.key] ?? '', field.allowNegative)
+      if (field.inputKind === 'money') {
+        const next = normalizeCurrencyInput(amounts[field.key] ?? '', field.allowNegative)
+        const prior = normalizeCurrencyInput(initial[field.key] ?? '', field.allowNegative)
+        if (next.error) {
+          setNotice(`${field.label}: ${next.error}`)
+          return undefined
+        }
+        if (next.value !== prior.value) {
+          changes.push({
+            fieldKey: field.key,
+            amount: next.value,
+            textValue: null,
+            sourceType: override ? 'MANUAL_OVERRIDE' : 'MANUAL_ENTRY',
+            overrideReason: override ? reason.trim() : undefined,
+          })
+        }
+        continue
+      }
+
+      const next = normalizeTextInput(field, amounts[field.key] ?? '')
+      const prior = normalizeTextInput(field, initial[field.key] ?? '')
       if (next.error) {
         setNotice(`${field.label}: ${next.error}`)
         return undefined
@@ -104,7 +142,8 @@ export function K1YearEntryForm({
       if (next.value !== prior.value) {
         changes.push({
           fieldKey: field.key,
-          amount: next.value,
+          amount: null,
+          textValue: next.value,
           sourceType: override ? 'MANUAL_OVERRIDE' : 'MANUAL_ENTRY',
           overrideReason: override ? reason.trim() : undefined,
         })

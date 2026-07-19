@@ -186,6 +186,7 @@ export const createPartnershipCashFlowsBodySchema = z.object({
 export const manualFieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),
   amount: partnershipTrackerMoneySchema.nullable(),
+  textValue: z.string().trim().max(2_000).nullable().optional(),
   sourceType: z.enum(['MANUAL_ENTRY', 'MANUAL_OVERRIDE']),
   overrideReason: z.string().trim().min(1).max(2_000).nullable().optional(),
 }).superRefine((change, context) => {

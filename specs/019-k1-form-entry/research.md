@@ -33,14 +33,14 @@ The product should reproduce that information hierarchy, not the source document
 
 ## Decision 2: Familiar hierarchy with truthful Jackson boundaries
 
-**Decision**: Render a recognizable header, Part I, Part II, Item K, Section L, and Part III. Include unsupported official lines only as subdued, static landmarks labeled **Not tracked in Jackson**. Place app-only fields in a distinct **Jackson supplemental workpaper** beneath the form.
+**Decision**: Render a recognizable header, Part I, Part II, Item K, Section L, and Part III. Every displayed K-1 tax field is editable using an amount, text/code, percentage, select, or checkbox control appropriate to the source form. Place app-only fields in a distinct **Jackson supplemental workpaper** beneath the form.
 
-**Rationale**: Hiding every unsupported line would distort the spatial map users rely on, while editable-looking placeholders would falsely imply storage and calculation support. A separate workpaper retains opening-basis and book-tax functionality without pretending those values are literal K-1 cells.
+**Rationale**: Omitting official lines distorts the spatial map users rely on. Stable field keys plus typed values allow the complete source form to be retained without treating informational subsets as separate basis movements. A separate workpaper retains opening-basis and book-tax functionality without pretending those values are literal K-1 cells.
 
 **Alternatives considered**:
 
-- Omit unsupported official lines: rejected because supported lines would no longer appear where users expect them on the source form.
-- Add new writable fields for every official cell: rejected because that expands scope into new persistence, imports, calculations, and tax semantics.
+- Omit official lines without calculation mappings: rejected because users still need to record those source K-1 values.
+- Treat every new amount as a basis input: rejected because qualified dividends and specialized gain lines can be subsets of an already counted total, while coded boxes have context-dependent semantics.
 - Insert supplemental fields into visually convenient official boxes: rejected because it creates misleading tax-form semantics.
 
 ## Decision 3: One canonical editable inventory
@@ -123,4 +123,3 @@ The product should reproduce that information hierarchy, not the source document
 - **Should the layout exactly reproduce letter-size paper on mobile?** No. Desktop emphasizes resemblance; smaller screens emphasize readability and access.
 - **Should the source PDF be committed for tests or styling?** No. It is a local design reference only.
 - **Does Part I/Part II require invented or newly persisted tax profile data?** No. Existing facts render; missing facts are explicit.
-

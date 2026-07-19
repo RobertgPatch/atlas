@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
+import { manualFieldChangeSchema } from '../src/modules/partnership-tracker/partnership-tracker.zod.js'
 
 describe('manual K-1 route contract', () => {
   let fixture: TestFixture
@@ -24,6 +25,13 @@ describe('manual K-1 route contract', () => {
     })
     expect(response.statusCode).toBe(400)
     expect(response.body).toContain('capital_contributions')
+  })
+  it('accepts text-backed K-1 classifications, percentages, and checkboxes', () => {
+    for (const change of [
+      { fieldKey: 'item_g_partner_type', amount: null, textValue: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'item_j_profit_beginning_percent', amount: null, textValue: '25.125', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_16_schedule_k3_attached', amount: null, textValue: 'true', sourceType: 'MANUAL_ENTRY' },
+    ]) expect(manualFieldChangeSchema.safeParse(change).success).toBe(true)
   })
   it('has no import, upload, or source-sync endpoint under the new prefix', async () => {
     for (const suffix of ['imports/preview', 'upload', 'source-sync']) {

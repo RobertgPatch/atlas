@@ -29,9 +29,9 @@ npm run test:web
 ### Field inventory
 
 - The supported placement key set exactly equals `K1_EDITABLE_FIELDS`.
-- There are 42 unique writable placements.
+- There are 74 unique writable placements.
 - Deprecated `box_13_other_deductions` and `section_l_capital_contributed` are not writable placements.
-- Unsupported official landmarks render no textbox/spinbutton and never appear in a change set.
+- Formerly omitted Part II and Part III fields render type-appropriate controls and emit text- or amount-backed changes.
 
 ### Behavior preservation
 
@@ -53,8 +53,7 @@ npm run test:web
 ### Accessibility and structure
 
 - The form has one form landmark and semantic Part I, Part II, and Part III headings.
-- All 42 supported controls have stable accessible names.
-- Unsupported cells are visible but absent from the tab order.
+- All 74 supported controls have stable accessible names.
 - Notice/error text uses live status/alert semantics and remains associated with the relevant context.
 - Read-only users can inspect values and provenance but do not receive editing actions.
 
@@ -91,8 +90,8 @@ Verify:
 ### Keyboard-only pass
 
 1. Navigate from the year controls into the annual form using Tab/Shift+Tab.
-2. Confirm visible focus on every editable currency field and all actions.
-3. Confirm static unsupported cells are skipped.
+2. Confirm visible focus on every editable money, text, percentage, select, and checkbox field and all actions.
+3. Confirm the formerly omitted lines are reachable in official form order.
 4. Enable override, enter a reason, preview, revert, edit again, and save without a pointer.
 5. Attempt to change the year with unsaved edits and confirm the existing discard guard.
 
@@ -109,12 +108,12 @@ Use the same fixture or partnership year before and after the refactor:
 
 - Focused and full web tests pass.
 - Typecheck and production web build pass.
-- The 42-field inventory assertion passes.
+- The 74-field inventory assertion passes.
 - Desktop structure is recognizably K-1-like when compared with the reference.
 - The 390-pixel and keyboard checks pass.
 - No source PDF, rendered page, or private reference value appears in the Git diff.
 
-## Verification Results (2026-07-18)
+## Prior Verification Results (2026-07-18, before the all-fields-editable amendment)
 
 ### Automated
 
@@ -137,3 +136,12 @@ Use the same fixture or partnership year before and after the refactor:
 - Dated capital calls/distributions continued to own their derived annual fields; those fields were omitted from annual preview and save changes.
 - The final changed-file audit found no API, storage, calculation, migration, or shared-type changes and no PDF, PNG, JPEG, or WebP artifacts.
 - Direct reopening of the supplied local PDF was unavailable: Poppler and Python renderers were not installed, and the browser security policy blocked `file://` navigation. The live UI comparison therefore used the spec, plan, and UI contract previously derived from that supplied reference; the PDF and attempted renders never entered the repository.
+
+## All-Fields-Editable Amendment Verification (2026-07-18)
+
+- Complete web suite: **165 passed** across 56 files.
+- Focused K-1/form/workflow suite: **18 passed** across 5 files.
+- API text-value contract suite: **4 passed**; PostgreSQL-backed cases were skipped because no test database was configured.
+- API and production web builds: **passed**. The existing Vite large-chunk advisory remains non-blocking.
+- Complete API suite: **309 passed**, 53 skipped, and one unrelated durable accounting-value test failed because `ATLAS_TEST_DATABASE_URL` was not configured; the affected test also has a pre-existing cleanup error after fixture creation fails.
+- Scoped ESLint for all changed web implementation and test files: **passed**.

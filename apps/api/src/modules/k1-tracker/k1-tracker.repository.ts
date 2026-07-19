@@ -27,6 +27,17 @@ type SignoffRow = { signoff_type: 'PREPARED' | 'REVIEWED' | 'INVALIDATED'; signe
 type CashFlowRow = { id: string; partnership_id: string; activity_date: Date | string; event_type: 'funded_contribution' | 'distribution' | 'recallable_distribution'; amount: string; notes: string | null; created_at: Date | string; updated_at: Date | string }
 type CashFlowWrite = { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }
 
+const TEXT_VALUE_FIELD_KEYS: K1TrackerFieldChange['fieldKey'][] = [
+  'box_14_code', 'box_15_code', 'box_16_schedule_k3_attached', 'box_17_code', 'box_20_code',
+  'box_22_multiple_at_risk_activities', 'box_23_multiple_passive_activities',
+  'item_g_partner_type', 'item_h_partner_residency', 'item_h2_foreign_country_code',
+  'item_i1_partner_entity_type', 'item_i2_retirement_plan',
+  'item_j_profit_beginning_percent', 'item_j_profit_ending_percent',
+  'item_j_loss_beginning_percent', 'item_j_loss_ending_percent',
+  'item_j_capital_beginning_percent', 'item_j_capital_ending_percent',
+  'item_j_decrease_due_sale_exchange', 'item_m_contributed_property_with_built_in_gain_loss',
+]
+
 const db = (): NonNullable<typeof pool> => {
   if (!pool) throw new K1TrackerError('DATABASE_REQUIRED')
   return pool
@@ -173,7 +184,7 @@ const refreshConflictCount = async (client: Queryable, yearId: string): Promise<
 
 const mapValue = (row: TrackerValueRow): K1TrackerValue => ({
   id: row.id, fieldKey: row.field_key, amount: row.amount == null ? null : centsToMoney(cents(row.amount)),
-  originalSourceText: row.original_source_text, sourceType: row.source_type,
+  originalSourceText: row.original_source_text, textValue: row.original_source_text, sourceType: row.source_type,
   sourceK1DocumentId: row.source_k1_document_id, sourceK1FieldValueId: row.source_k1_field_value_id,
   importBatchId: row.import_batch_id, sourceSheet: row.source_sheet, sourceCell: row.source_cell,
   carryforwardFromTaxYear: null, overrideReason: row.override_reason, isActive: row.is_active,
@@ -320,19 +331,20 @@ const reviseValues = async (client: Queryable, yearId: string, changes: K1Tracke
   const conflicts: K1TrackerFieldChange['fieldKey'][] = []
   let changed = false
   for (const change of changes) {
+    const textValue = change.textValue?.trim() || null
     const current = (await client.query<TrackerValueRow>('select * from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and is_active', [yearId, change.fieldKey])).rows[0]
-    if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount === change.amount) continue
-    if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount !== change.amount) {
-      const priorCandidate = (await client.query<{ id: string }>(`select id from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and not is_active and source_type = $3 and amount is not distinct from $4 and import_batch_id is not distinct from $5 and source_k1_document_id is not distinct from $6 and source_k1_field_value_id is not distinct from $7 limit 1`, [
-        yearId, change.fieldKey, source === 'FINALIZED' ? 'FINALIZED_K1' : 'WORKBOOK_IMPORT', change.amount, importBatchId ?? null,
+    if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount === change.amount && current.original_source_text === textValue) continue
+    if ((source === 'IMPORT' || source === 'FINALIZED') && current && (current.amount !== change.amount || current.original_source_text !== textValue)) {
+      const priorCandidate = (await client.query<{ id: string }>(`select id from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and not is_active and source_type = $3 and amount is not distinct from $4 and original_source_text is not distinct from $5 and import_batch_id is not distinct from $6 and source_k1_document_id is not distinct from $7 and source_k1_field_value_id is not distinct from $8 limit 1`, [
+        yearId, change.fieldKey, source === 'FINALIZED' ? 'FINALIZED_K1' : 'WORKBOOK_IMPORT', change.amount, textValue, importBatchId ?? null,
         sourceDocumentId ?? null, sourceFieldValueIds?.get(change.fieldKey) ?? null,
       ])).rows[0]
       if (priorCandidate) { conflicts.push(change.fieldKey); continue }
       await client.query(`insert into k1_tracker_value_revisions (
-        id, tracker_year_id, field_key, amount, source_type, import_batch_id, source_sheet, source_cell,
+        id, tracker_year_id, field_key, amount, original_source_text, source_type, import_batch_id, source_sheet, source_cell,
         source_k1_document_id, source_k1_field_value_id, is_active, created_by_user_id
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11)`, [
-        randomUUID(), yearId, change.fieldKey, change.amount,
+      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,false,$12)`, [
+        randomUUID(), yearId, change.fieldKey, change.amount, textValue,
         source === 'FINALIZED' ? 'FINALIZED_K1' : 'WORKBOOK_IMPORT', importBatchId ?? null,
         source === 'IMPORT' ? sourceSheet ?? 'Imported workbook' : null,
         source === 'IMPORT' ? 'mapped' : null, sourceDocumentId ?? null,
@@ -344,10 +356,10 @@ const reviseValues = async (client: Queryable, yearId: string, changes: K1Tracke
     }
     await client.query('update k1_tracker_value_revisions set is_active = false where tracker_year_id = $1 and field_key = $2 and is_active', [yearId, change.fieldKey])
     await client.query(`insert into k1_tracker_value_revisions (
-      id, tracker_year_id, field_key, amount, source_type, import_batch_id, source_sheet, source_cell,
+      id, tracker_year_id, field_key, amount, original_source_text, source_type, import_batch_id, source_sheet, source_cell,
       override_reason, supersedes_value_revision_id, is_active, created_by_user_id, source_k1_document_id, source_k1_field_value_id
-    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13)`, [
-      randomUUID(), yearId, change.fieldKey, change.amount, source === 'IMPORT' ? 'WORKBOOK_IMPORT' : source === 'FINALIZED' ? 'FINALIZED_K1' : change.sourceType,
+    ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,true,$12,$13,$14)`, [
+      randomUUID(), yearId, change.fieldKey, change.amount, textValue, source === 'IMPORT' ? 'WORKBOOK_IMPORT' : source === 'FINALIZED' ? 'FINALIZED_K1' : change.sourceType,
       importBatchId ?? null, source === 'IMPORT' ? sourceSheet ?? 'Imported workbook' : null, source === 'IMPORT' ? 'mapped' : null,
       change.overrideReason?.trim() ?? null, current?.id ?? null, actorUserId,
       sourceDocumentId ?? null, sourceFieldValueIds?.get(change.fieldKey) ?? null,
@@ -444,10 +456,12 @@ export const copyK1TrackerYears = async (
       insert into k1_tracker_value_revisions
         (id, tracker_year_id, field_key, amount, original_source_text, source_type, is_active,
          created_by_user_id, created_at)
-      select gen_random_uuid(), $1, field_key, amount, $2, 'MANUAL_ENTRY', true, $3, now()
+      select gen_random_uuid(), $1, field_key, amount,
+        case when field_key = any($5::text[]) then original_source_text else $2 end,
+        'MANUAL_ENTRY', true, $3, now()
       from k1_tracker_value_revisions
       where tracker_year_id = $4 and is_active = true
-    `, [destinationYearId, `Copied from ${source.partnership_name} ${sourceYear.tax_year}`, actorUserId, sourceYear.id])
+    `, [destinationYearId, `Copied from ${source.partnership_name} ${sourceYear.tax_year}`, actorUserId, sourceYear.id, TEXT_VALUE_FIELD_KEYS])
     await client.query(`
       with copied_events as (
         insert into capital_activity_events
@@ -684,7 +698,7 @@ export const k1TrackerRepository = {
     await assertPartnership(partnershipId, scope, db()); const years = await yearRowsFor(partnershipId, db()); const year = years.find((item) => item.tax_year === taxYear)
     if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND'); if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION')
     const values = await activeValues(years.map((item) => item.id), db()); const target = values.filter((item) => item.tracker_year_id === year.id)
-    for (const change of changes) { const current = target.find((value) => value.field_key === change.fieldKey); if (current) current.amount = change.amount; else target.push({ id: `draft-${change.fieldKey}`, tracker_year_id: year.id, field_key: change.fieldKey, amount: change.amount, original_source_text: null, source_type: change.sourceType, source_k1_document_id: null, source_k1_field_value_id: null, import_batch_id: null, source_sheet: null, source_cell: null, carryforward_from_year_id: null, override_reason: change.overrideReason ?? null, is_active: true, created_by_user_id: null, created_at: new Date() }) }
+    for (const change of changes) { const current = target.find((value) => value.field_key === change.fieldKey); if (current) { current.amount = change.amount; current.original_source_text = change.textValue?.trim() || null } else target.push({ id: `draft-${change.fieldKey}`, tracker_year_id: year.id, field_key: change.fieldKey, amount: change.amount, original_source_text: change.textValue?.trim() || null, source_type: change.sourceType, source_k1_document_id: null, source_k1_field_value_id: null, import_batch_id: null, source_sheet: null, source_cell: null, carryforward_from_year_id: null, override_reason: change.overrideReason ?? null, is_active: true, created_by_user_id: null, created_at: new Date() }) }
     const withoutTarget = values.filter((item) => item.tracker_year_id !== year.id); return calculateRows(years, [...withoutTarget, ...target]).calculations.get(year.id)!
   },
 

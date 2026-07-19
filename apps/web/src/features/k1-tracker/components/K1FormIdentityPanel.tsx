@@ -21,6 +21,18 @@ function IdentityRow({ item, label, value, multiline = false }: { item: string; 
   </div>
 }
 
+function EditableIdentityRow({ item, fieldKey, fieldStateFor, label }: {
+  item: string
+  fieldKey: K1TrackerWritableFieldKey
+  fieldStateFor: K1FormFieldStateGetter
+  label?: string
+}) {
+  return <div className="grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] border-b border-gray-400">
+    <span className="flex items-start justify-center border-r border-gray-400 bg-gray-100 px-1 py-2 font-mono text-xs font-black text-gray-900">{item}</span>
+    <div className="min-w-0 p-2"><K1FormFieldCell {...fieldStateFor(fieldKey)} visibleLabel={label} compact /></div>
+  </div>
+}
+
 const itemKRows: Array<{ label: string; beginning: K1TrackerWritableFieldKey; ending: K1TrackerWritableFieldKey }> = [
   { label: 'Nonrecourse liabilities', beginning: 'liability_nonrecourse_beginning', ending: 'liability_nonrecourse_ending' },
   { label: 'Qualified nonrecourse financing', beginning: 'liability_qualified_nonrecourse_beginning', ending: 'liability_qualified_nonrecourse_ending' },
@@ -46,7 +58,33 @@ export function K1FormIdentityPanel({ identity, fieldStateFor }: {
       <PartHeading part="Part II" title="Information About the Partner" id="k1-part-ii-heading" />
       <IdentityRow item="E" label="Partner’s identifying number" value={null} />
       <IdentityRow item="F" label="Partner name" value={identity?.partnerName} />
-      <IdentityRow item="G–J" label="Partner classification and ownership percentages" value="Not tracked in Jackson" multiline />
+      <EditableIdentityRow item="G" fieldKey="item_g_partner_type" fieldStateFor={fieldStateFor} />
+      <EditableIdentityRow item="H1" fieldKey="item_h_partner_residency" fieldStateFor={fieldStateFor} />
+      <EditableIdentityRow item="H2" fieldKey="item_h2_foreign_country_code" fieldStateFor={fieldStateFor} />
+      <EditableIdentityRow item="I1" fieldKey="item_i1_partner_entity_type" fieldStateFor={fieldStateFor} />
+      <EditableIdentityRow item="I2" fieldKey="item_i2_retirement_plan" fieldStateFor={fieldStateFor} />
+
+      <section aria-labelledby="k1-item-j-heading" className="border-t-2 border-gray-950">
+        <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
+          <span className="flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white">J</span>
+          <h5 id="k1-item-j-heading" className="px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950">Partner’s Profit, Loss, and Capital</h5>
+        </div>
+        <div className="grid grid-cols-[minmax(5.5rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-500 bg-gray-100 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-gray-600">
+          <span className="border-r border-gray-400 px-2 py-1.5 text-left">Ownership</span>
+          <span className="border-r border-gray-400 px-1 py-1.5">Beginning</span>
+          <span className="px-1 py-1.5">Ending</span>
+        </div>
+        {([
+          ['Profit', 'item_j_profit_beginning_percent', 'item_j_profit_ending_percent'],
+          ['Loss', 'item_j_loss_beginning_percent', 'item_j_loss_ending_percent'],
+          ['Capital', 'item_j_capital_beginning_percent', 'item_j_capital_ending_percent'],
+        ] as const).map(([label, beginning, ending]) => <div key={label} className="grid min-w-0 grid-cols-[minmax(5.5rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-400">
+          <p className="border-r border-gray-400 px-2 py-2 text-[10px] font-semibold text-gray-700">{label}</p>
+          <div className="min-w-0 border-r border-gray-400 p-1.5"><K1FormFieldCell {...fieldStateFor(beginning)} visibleLabel={false} compact /></div>
+          <div className="min-w-0 p-1.5"><K1FormFieldCell {...fieldStateFor(ending)} visibleLabel={false} compact /></div>
+        </div>)}
+        <div className="p-2"><K1FormFieldCell {...fieldStateFor('item_j_decrease_due_sale_exchange')} visibleLabel={false} compact /></div>
+      </section>
 
       <section aria-labelledby="k1-item-k-heading" className="border-t-2 border-gray-950">
         <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
@@ -76,7 +114,17 @@ export function K1FormIdentityPanel({ identity, fieldStateFor }: {
         </div>)}
       </section>
 
-      <IdentityRow item="M–N" label="Built-in gain/loss and section 704(c) information" value="Not tracked in Jackson" multiline />
+      <EditableIdentityRow item="M" fieldKey="item_m_contributed_property_with_built_in_gain_loss" fieldStateFor={fieldStateFor} />
+      <section aria-labelledby="k1-item-n-heading" className="border-t-2 border-gray-950">
+        <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
+          <span className="flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white">N</span>
+          <h5 id="k1-item-n-heading" className="px-2.5 py-2 text-[11px] font-black uppercase leading-tight tracking-[0.035em] text-gray-950">Net Unrecognized Section 704(c) Gain or Loss</h5>
+        </div>
+        <div className="grid min-w-0 grid-cols-2">
+          <div className="min-w-0 border-r border-gray-400 p-1.5"><K1FormFieldCell {...fieldStateFor('item_n_unrecognized_section_704c_beginning')} visibleLabel="Beginning of year" compact /></div>
+          <div className="min-w-0 p-1.5"><K1FormFieldCell {...fieldStateFor('item_n_unrecognized_section_704c_ending')} visibleLabel="End of year" compact /></div>
+        </div>
+      </section>
     </section>
   </div>
 }

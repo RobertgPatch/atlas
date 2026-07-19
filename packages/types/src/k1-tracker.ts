@@ -25,12 +25,18 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_1_ordinary_income_loss',
   'box_2_net_rental_real_estate_income_loss',
   'box_3_other_net_rental_income_loss',
+  'box_4a_guaranteed_payments_services',
+  'box_4b_guaranteed_payments_capital',
   'box_4c_guaranteed_payments',
   'box_5_interest_income',
   'box_6a_ordinary_dividends',
+  'box_6b_qualified_dividends',
+  'box_6c_dividend_equivalents',
   'box_7_royalties',
   'box_8_net_short_term_capital_gain_loss',
   'box_9a_net_long_term_capital_gain_loss',
+  'box_9b_collectibles_gain_loss',
+  'box_9c_unrecaptured_section_1250_gain',
   'box_10_net_section_1231_gain_loss',
   'box_11_other_income_loss',
   'box_12_section_179_deduction',
@@ -42,6 +48,32 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_18c_nondeductible_expenses',
   'box_19_distributions',
   'box_21_foreign_taxes',
+  'box_14_code',
+  'box_14_self_employment_earnings_loss',
+  'box_15_code',
+  'box_15_credits',
+  'box_16_schedule_k3_attached',
+  'box_17_code',
+  'box_17_alternative_minimum_tax_items',
+  'box_20_code',
+  'box_20_other_information',
+  'box_22_multiple_at_risk_activities',
+  'box_23_multiple_passive_activities',
+  'item_g_partner_type',
+  'item_h_partner_residency',
+  'item_h2_foreign_country_code',
+  'item_i1_partner_entity_type',
+  'item_i2_retirement_plan',
+  'item_j_profit_beginning_percent',
+  'item_j_profit_ending_percent',
+  'item_j_loss_beginning_percent',
+  'item_j_loss_ending_percent',
+  'item_j_capital_beginning_percent',
+  'item_j_capital_ending_percent',
+  'item_j_decrease_due_sale_exchange',
+  'item_m_contributed_property_with_built_in_gain_loss',
+  'item_n_unrecognized_section_704c_beginning',
+  'item_n_unrecognized_section_704c_ending',
   'liability_nonrecourse_beginning',
   'liability_nonrecourse_ending',
   'liability_qualified_nonrecourse_beginning',
@@ -77,6 +109,7 @@ export interface K1TrackerValue {
   fieldKey: K1TrackerFieldKey
   amount: K1TrackerMoney | null
   originalSourceText: string | null
+  textValue?: string | null
   sourceType: K1TrackerSourceType
   sourceK1DocumentId: string | null
   sourceK1FieldValueId: string | null
@@ -198,6 +231,7 @@ export interface K1TrackerPartnershipDetail extends K1TrackerPartnershipSummary 
 export interface K1TrackerFieldChange {
   fieldKey: K1TrackerFieldKey
   amount: K1TrackerMoney | null
+  textValue?: string | null
   sourceType: Extract<K1TrackerSourceType, 'MANUAL_ENTRY' | 'MANUAL_OVERRIDE'>
   overrideReason?: string | null
 }

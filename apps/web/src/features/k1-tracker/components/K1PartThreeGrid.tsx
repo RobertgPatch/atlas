@@ -1,14 +1,11 @@
 import type { K1TrackerWritableFieldKey } from '../../../../../../packages/types/src/k1-tracker'
-import { placementsForRegion, referenceCellsForRegion, type K1FormPlacement, type K1FormReferenceCell } from '../k1FormLayout'
-import { K1FormFieldCell, K1ReferenceCell, type K1FormFieldStateGetter } from './K1FormFieldCell'
+import { placementsForRegion, type K1FormPlacement } from '../k1FormLayout'
+import { K1FormFieldCell, type K1FormFieldStateGetter } from './K1FormFieldCell'
 
-type PartThreeEntry =
-  | { kind: 'field'; order: number; placement: K1FormPlacement }
-  | { kind: 'reference'; order: number; reference: K1FormReferenceCell }
+type PartThreeEntry = { order: number; placement: K1FormPlacement }
 
 const entriesFor = (region: 'part-iii-left' | 'part-iii-right'): PartThreeEntry[] => [
-  ...placementsForRegion(region).map((placement) => ({ kind: 'field' as const, order: placement.order, placement })),
-  ...referenceCellsForRegion(region).map((reference) => ({ kind: 'reference' as const, order: reference.order, reference })),
+  ...placementsForRegion(region).map((placement) => ({ order: placement.order, placement })),
 ].sort((left, right) => left.order - right.order)
 
 const visibleLineLabel = (label: string): string => label.replace(/^Line\s+[^-]+\s+-\s+/, '')
@@ -19,13 +16,6 @@ function PartThreeColumn({ region, fieldStateFor }: {
 }) {
   return <div className="min-w-0 border-x border-b border-gray-950 first:border-l-2 last:border-r-2 lg:first:border-r-0" data-k1-column={region}>
     {entriesFor(region).map((entry) => {
-      if (entry.kind === 'reference') {
-        return <div key={`reference-${entry.reference.itemOrLine}`} className="grid min-w-0 grid-cols-[2.6rem_minmax(0,1fr)] border-b border-gray-400 last:border-b-0">
-          <span className="flex items-start justify-center border-r border-gray-400 bg-gray-100 px-1 py-2 font-mono text-xs font-black text-gray-700">{entry.reference.itemOrLine}</span>
-          <K1ReferenceCell reference={entry.reference} compact />
-        </div>
-      }
-
       const state = fieldStateFor(entry.placement.fieldKey as K1TrackerWritableFieldKey)
       const label = entry.placement.sublabel ?? visibleLineLabel(state.field.label)
       return <div key={entry.placement.fieldKey} className="grid min-w-0 grid-cols-[2.6rem_minmax(0,1fr)] border-b border-gray-500 last:border-b-0">
