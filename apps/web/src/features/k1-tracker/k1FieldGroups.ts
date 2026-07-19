@@ -54,7 +54,8 @@ export const K1_FIELD_GROUPS: K1FieldGroup[] = [
     signHint: 'Enter deductions and distributions as positive decrease amounts.',
     fields: [
       nonnegative('box_12_section_179_deduction', 'Line 12 - Section 179 deduction'),
-      nonnegative('box_13_other_deductions', 'Line 13 - Other deductions'),
+      nonnegative('box_13_other_portfolio_deductions', 'Line 13 - Other Portfolio Deductions'),
+      nonnegative('box_13_management_fees', 'Line 13 - Management Fees'),
       nonnegative('box_18a_nondeductible_expenses', 'Line 18A - Nondeductible expenses'),
       nonnegative('box_18c_nondeductible_expenses', 'Line 18C - Nondeductible expenses (basis decrease)'),
       nonnegative('box_19_distributions', 'Line 19 - Distributions'),

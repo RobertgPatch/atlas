@@ -2,6 +2,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { EntityDetail } from 'packages/types/src'
 import { entitiesClient, type EntityListItem } from '../api/entitiesClient'
 
+const invalidateOwnerReads = (qc: ReturnType<typeof useQueryClient>) => Promise.all([
+  qc.invalidateQueries({ queryKey: ['entity'] }),
+  qc.invalidateQueries({ queryKey: ['entities'] }),
+  qc.invalidateQueries({ queryKey: ['k1'] }),
+  qc.invalidateQueries({ queryKey: ['k1-tracker'] }),
+  qc.invalidateQueries({ queryKey: ['partnership-tracker'] }),
+  qc.invalidateQueries({ queryKey: ['partnerships-list'] }),
+  qc.invalidateQueries({ queryKey: ['partnership'] }),
+  qc.invalidateQueries({ queryKey: ['dashboard'] }),
+  qc.invalidateQueries({ queryKey: ['reports'] }),
+])
+
 export function useEntityDetail(id: string | undefined) {
   return useQuery<EntityDetail, Error>({
     queryKey: ['entity', id],
@@ -21,11 +33,7 @@ export function useCreateEntity() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (name: string) => entitiesClient.create(name),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['entities'] })
-      qc.invalidateQueries({ queryKey: ['k1', 'lookups'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-    },
+    onSuccess: () => invalidateOwnerReads(qc),
   })
 }
 
@@ -33,11 +41,7 @@ export function useUpdateEntity() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) => entitiesClient.update(id, name),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['entities'] })
-      qc.invalidateQueries({ queryKey: ['k1', 'lookups'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-    },
+    onSuccess: () => invalidateOwnerReads(qc),
   })
 }
 
@@ -45,10 +49,6 @@ export function useDeleteEntity() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => entitiesClient.remove(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['entities'] })
-      qc.invalidateQueries({ queryKey: ['k1', 'lookups'] })
-      qc.invalidateQueries({ queryKey: ['dashboard'] })
-    },
+    onSuccess: () => invalidateOwnerReads(qc),
   })
 }

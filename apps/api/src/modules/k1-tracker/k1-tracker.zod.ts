@@ -31,6 +31,13 @@ export const fieldChangeSchema = z.object({
       message: 'Use capital_contributions. Section L contributions is retained only for legacy provenance.',
     })
   }
+  if (value.fieldKey === 'box_13_other_deductions') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['fieldKey'],
+      message: 'Use Other Portfolio Deductions and Management Fees. The combined Line 13 field is retained only for legacy provenance.',
+    })
+  }
   if (value.sourceType === 'MANUAL_OVERRIDE' && !value.overrideReason?.trim()) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['overrideReason'], message: 'An override reason is required' })
   }

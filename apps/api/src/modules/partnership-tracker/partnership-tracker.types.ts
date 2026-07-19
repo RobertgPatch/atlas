@@ -4,6 +4,7 @@ export type PartnershipTrackerErrorCode =
   | 'DATABASE_UNAVAILABLE'
   | 'FORBIDDEN'
   | 'PARTNERSHIP_NOT_FOUND'
+  | 'OWNER_NOT_FOUND'
   | 'YEAR_NOT_FOUND'
   | 'COMMITMENT_NOT_FOUND'
   | 'NAV_NOT_FOUND'

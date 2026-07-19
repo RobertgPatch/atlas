@@ -39,9 +39,9 @@ durable('Partnership Tracker bounded list performance', () => {
     expect(detail.summary.totalCapitalContributions).toBe('3000000.00')
     expect(detail.summary.totalDistributions).toBe('190773.00')
     expect(detail.summary.latestSectionLCapital).toBe('2809227.00')
-    expect(detail.summary.dpi).toBe('0.0636')
-    expect(detail.summary.tvpi).toBe('1.0636')
-    expect(detail.summary.irr).toBe('0.0636')
+    expect(detail.summary.dpi).toBe('0.06359100')
+    expect(detail.summary.tvpi).toBe('1.06359100')
+    expect(detail.summary.irr).toBe('0.06363591')
   })
   it('loads 50 years, 50 commitments, and 200 NAV points as bounded detail reads', async () => {
     await pool!.query(`insert into k1_tracker_years (id, entity_id, partnership_id, tax_year, workflow_status)

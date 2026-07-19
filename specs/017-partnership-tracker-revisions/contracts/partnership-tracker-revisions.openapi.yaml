@@ -1,0 +1,539 @@
+openapi: 3.1.0
+info:
+  title: Atlas Partnership Tracker Revisions API
+  version: 1.2.0
+  description: >-
+    Changed and added Partnership Tracker surfaces for precise performance
+    metrics, management-fee estimates, split K-1 Line 13 values, database-backed
+    owner rename, and transactional partnership owner reassignment. Unchanged
+    endpoints retain the v1.1 contract in specs/016-k1-tracker.
+servers:
+  - url: /v1
+security:
+  - sessionCookie: []
+tags:
+  - name: Owners
+  - name: Partnership Tracker
+  - name: Management Fees
+  - name: K1 Entry
+
+paths:
+  /entities/{entityId}:
+    parameters:
+      - $ref: '#/components/parameters/EntityId'
+    patch:
+      tags: [Owners]
+      summary: Rename an owner
+      operationId: updateEntityOwner
+      description: >-
+        Admin only. PostgreSQL is canonical when configured. Partnership reads
+        resolve this name through entity_id; names are not copied to partnerships.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Owner renamed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OwnerSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Normalized owner name already exists
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /partnership-tracker/partnerships:
+    get:
+      tags: [Partnership Tracker]
+      summary: List scoped partnership summaries with revised metrics
+      operationId: listRevisedPartnershipTrackerPartnerships
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 200 }
+        - in: query
+          name: entityId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - in: query
+          name: cursor
+          schema: { type: string }
+      responses:
+        '200':
+          description: Scoped partnership result set
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+                  total: { type: integer, minimum: 0 }
+                  nextCursor: { type: [string, 'null'] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /partnership-tracker/partnerships/{partnershipId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      tags: [Partnership Tracker]
+      summary: Get revised partnership detail
+      operationId: getRevisedPartnershipTrackerDetail
+      responses:
+        '200':
+          description: Existing detail payload with revised summary and identity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [summary, years, commitments, navEntries, permissions]
+                properties:
+                  summary: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+                  years:
+                    type: array
+                    items: { $ref: '#/components/schemas/TrackerYearSummary' }
+                  commitments:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  navEntries:
+                    type: array
+                    items: { type: object, additionalProperties: true }
+                  permissions:
+                    type: object
+                    additionalProperties: { type: boolean }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Partnership Tracker]
+      summary: Edit partnership configuration or reassign its owner
+      operationId: updateRevisedPartnershipTrackerPartnership
+      description: >-
+        Admin only. An entityId change atomically updates every duplicated owner
+        scope row, invalidates active tracker-year sign-offs, and retains all IDs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdatePartnershipRequest' }
+      responses:
+        '200':
+          description: Updated partnership summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PartnershipTrackerSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+  /partnership-tracker/partnerships/{partnershipId}/management-fees:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      tags: [Management Fees]
+      summary: Calculate the partnership management-fee schedule
+      operationId: getPartnershipManagementFeeEstimate
+      parameters:
+        - in: query
+          name: asOfDate
+          description: Defaults to the server current date.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Deterministic estimate from inception, rate, and commitment history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManagementFeeEstimate' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /partnership-tracker/partnerships/{partnershipId}/years/{taxYear}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/TaxYear'
+    patch:
+      tags: [K1 Entry]
+      summary: Save K-1 values including split Line 13 deductions
+      operationId: updateRevisedManualK1Year
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, changes]
+              properties:
+                expectedRevision: { type: integer, minimum: 1 }
+                changes:
+                  type: array
+                  minItems: 1
+                  items: { $ref: '#/components/schemas/ManualFieldChange' }
+      responses:
+        '200':
+          description: Updated year using split-Line-13 compatibility calculation
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/StaleOrDuplicate' }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+
+  parameters:
+    EntityId:
+      in: path
+      name: entityId
+      required: true
+      schema: { type: string, format: uuid }
+    PartnershipId:
+      in: path
+      name: partnershipId
+      required: true
+      schema: { type: string, format: uuid }
+    TaxYear:
+      in: path
+      name: taxYear
+      required: true
+      schema: { type: integer, minimum: 1900, maximum: 2100 }
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Owner scope or Admin role does not permit the operation
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource does not exist within the caller's scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    StaleOrDuplicate:
+      description: Optimistic-concurrency or normalized-name conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      examples: ['1250000.00', '-25000.00']
+    NonnegativeMoney:
+      type: string
+      pattern: '^\d+\.\d{2}$'
+      examples: ['1250000.00']
+    Ratio:
+      type: string
+      pattern: '^-?\d+\.\d{4,8}$'
+      description: Unit ratio. Revised IRR and fee rates serialize to eight decimal places.
+      examples: ['0.07870000', '0.02000000']
+    MetricAvailability:
+      type: string
+      enum:
+        - AVAILABLE
+        - MISSING_CONTRIBUTIONS
+        - MISSING_DISTRIBUTIONS
+        - MISSING_NAV
+        - MISSING_INCEPTION_DATE
+        - MISSING_COMMITMENT
+        - MISSING_OUTSIDE_BASIS
+        - INSUFFICIENT_CASH_FLOWS
+        - AMBIGUOUS_IRR
+      description: NAV_PRECEDES_CASH_FLOWS is accepted from old cached payloads but is no longer emitted.
+    FeeAvailability:
+      type: string
+      enum: [AVAILABLE, MISSING_INCEPTION_DATE, MISSING_MANAGEMENT_FEE_RATE, MISSING_COMMITMENT]
+    OwnerSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 200 }
+    DatedMoney:
+      type: object
+      required: [amount, date]
+      properties:
+        amount: { $ref: '#/components/schemas/NonnegativeMoney' }
+        date: { type: string, format: date }
+    PartnershipIdentity:
+      type: object
+      required:
+        - id
+        - entity
+        - name
+        - partnershipType
+        - status
+        - notes
+        - inceptionDate
+        - managementFeeRate
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        entity: { $ref: '#/components/schemas/OwnerSummary' }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        partnershipType: { type: string }
+        status: { type: string, enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+        inceptionDate: { type: [string, 'null'], format: date }
+        managementFeeRate:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PerformanceStatus:
+      type: object
+      required: [dpi, tvpi, irr, annualizedCashOnCashYield, unfundedCommitment, unrealizedGain]
+      properties:
+        dpi: { $ref: '#/components/schemas/MetricAvailability' }
+        tvpi: { $ref: '#/components/schemas/MetricAvailability' }
+        irr: { $ref: '#/components/schemas/MetricAvailability' }
+        annualizedCashOnCashYield: { $ref: '#/components/schemas/MetricAvailability' }
+        unfundedCommitment: { $ref: '#/components/schemas/MetricAvailability' }
+        unrealizedGain: { $ref: '#/components/schemas/MetricAvailability' }
+    PartnershipTrackerSummary:
+      type: object
+      required:
+        - partnership
+        - currentCommittedCapital
+        - latestNav
+        - latestEndingOutsideBasis
+        - totalCapitalContributions
+        - totalDistributions
+        - dpi
+        - tvpi
+        - irr
+        - irrTerminalDate
+        - irrUsesCarriedForwardNav
+        - annualizedCashOnCashYield
+        - performanceAsOfDate
+        - unfundedCommitmentAmount
+        - unfundedCommitmentPercentage
+        - unrealizedGain
+        - performanceStatus
+      properties:
+        partnership: { $ref: '#/components/schemas/PartnershipIdentity' }
+        currentCommittedCapital:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        latestNav:
+          oneOf:
+            - { $ref: '#/components/schemas/DatedMoney' }
+            - { type: 'null' }
+        latestEndingOutsideBasis:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        totalCapitalContributions:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        totalDistributions:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        dpi: { $ref: '#/components/schemas/NullableRatio' }
+        tvpi: { $ref: '#/components/schemas/NullableRatio' }
+        irr: { $ref: '#/components/schemas/NullableRatio' }
+        irrTerminalDate: { type: [string, 'null'], format: date }
+        irrUsesCarriedForwardNav: { type: boolean }
+        annualizedCashOnCashYield: { $ref: '#/components/schemas/NullableRatio' }
+        performanceAsOfDate: { type: string, format: date }
+        unfundedCommitmentAmount:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        unfundedCommitmentPercentage: { $ref: '#/components/schemas/NullableRatio' }
+        unrealizedGain:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        performanceStatus: { $ref: '#/components/schemas/PerformanceStatus' }
+    NullableRatio:
+      oneOf:
+        - { $ref: '#/components/schemas/Ratio' }
+        - { type: 'null' }
+    UpdatePartnershipRequest:
+      type: object
+      required: [expectedUpdatedAt]
+      minProperties: 2
+      properties:
+        entityId:
+          type: string
+          format: uuid
+          description: Selecting a different owner triggers atomic reassignment and sign-off invalidation.
+        name: { type: string, minLength: 1, maxLength: 120 }
+        partnershipType: { type: string }
+        status: { type: string, enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+        inceptionDate: { type: [string, 'null'], format: date }
+        managementFeeRate:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        expectedUpdatedAt: { type: string, format: date-time }
+    ManagementFeeEstimate:
+      type: object
+      required:
+        - partnershipId
+        - inceptionDate
+        - annualRate
+        - asOfDate
+        - status
+        - annualRows
+        - cumulativeEstimatedFee
+      properties:
+        partnershipId: { type: string, format: uuid }
+        inceptionDate: { type: [string, 'null'], format: date }
+        annualRate:
+          oneOf:
+            - { $ref: '#/components/schemas/Ratio' }
+            - { type: 'null' }
+        asOfDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/FeeAvailability' }
+        annualRows:
+          type: array
+          items: { $ref: '#/components/schemas/ManagementFeeAnnualRow' }
+        cumulativeEstimatedFee:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+    ManagementFeeAnnualRow:
+      type: object
+      required:
+        - calendarYear
+        - periodStart
+        - periodEnd
+        - activeDays
+        - daysInYear
+        - weightedCommittedCapital
+        - annualRate
+        - estimatedFee
+      properties:
+        calendarYear: { type: integer, minimum: 1900, maximum: 2100 }
+        periodStart: { type: string, format: date }
+        periodEnd: { type: string, format: date }
+        activeDays: { type: integer, minimum: 1, maximum: 366 }
+        daysInYear: { type: integer, enum: [365, 366] }
+        weightedCommittedCapital:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        annualRate: { $ref: '#/components/schemas/Ratio' }
+        estimatedFee:
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+    TrackerYearSummary:
+      type: object
+      required:
+        - taxYear
+        - status
+        - revision
+        - capitalContributed
+        - distributions
+        - endingOutsideBasis
+        - cumulativeSuspendedLoss
+        - taxableExcessDistribution
+        - sectionLDifference
+        - warningCount
+        - sourceConflictCount
+      properties:
+        taxYear: { type: integer, minimum: 1900, maximum: 2100 }
+        status: { type: string, enum: [NOT_STARTED, IN_PROGRESS, NEEDS_REVIEW, RECONCILED] }
+        revision: { type: integer, minimum: 1 }
+        capitalContributed:
+          x-ui-label: Capital Contributed
+          description: Canonical annual capital contribution with legacy Section L fallback; null remains distinct from explicit zero.
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        distributions:
+          x-ui-label: Distributions
+          description: Absolute annual Box 19 distributions; null remains distinct from explicit zero.
+          oneOf:
+            - { $ref: '#/components/schemas/NonnegativeMoney' }
+            - { type: 'null' }
+        endingOutsideBasis:
+          x-ui-label: Ending Outside Basis
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        cumulativeSuspendedLoss:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        taxableExcessDistribution:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        sectionLDifference:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        warningCount: { type: integer, minimum: 0 }
+        sourceConflictCount: { type: integer, minimum: 0 }
+    ManualFieldChange:
+      type: object
+      required: [fieldKey, amount, sourceType]
+      properties:
+        fieldKey:
+          type: string
+          description: >-
+            Includes box_13_other_portfolio_deductions and
+            box_13_management_fees. New writes reject legacy
+            box_13_other_deductions and section_l_capital_contributed.
+        amount:
+          oneOf:
+            - { $ref: '#/components/schemas/Money' }
+            - { type: 'null' }
+        sourceType: { type: string, enum: [MANUAL_ENTRY, MANUAL_OVERRIDE] }
+        overrideReason: { type: [string, 'null'], maxLength: 2000 }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        issues:
+          type: array
+          items: { type: object, additionalProperties: true }

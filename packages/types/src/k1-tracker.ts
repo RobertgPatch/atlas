@@ -35,6 +35,8 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_11_other_income_loss',
   'box_12_section_179_deduction',
   'box_13_other_deductions',
+  'box_13_other_portfolio_deductions',
+  'box_13_management_fees',
   'box_18a_nondeductible_expenses',
   'box_18b_tax_exempt_income',
   'box_18c_nondeductible_expenses',
@@ -64,7 +66,7 @@ export const K1_TRACKER_FIELD_KEYS = [
 ] as const
 
 export type K1TrackerFieldKey = (typeof K1_TRACKER_FIELD_KEYS)[number]
-export const K1_TRACKER_DEPRECATED_WRITE_FIELD_KEYS = ['section_l_capital_contributed'] as const
+export const K1_TRACKER_DEPRECATED_WRITE_FIELD_KEYS = ['section_l_capital_contributed', 'box_13_other_deductions'] as const
 export type K1TrackerDeprecatedWriteFieldKey = (typeof K1_TRACKER_DEPRECATED_WRITE_FIELD_KEYS)[number]
 export type K1TrackerWritableFieldKey = Exclude<K1TrackerFieldKey, K1TrackerDeprecatedWriteFieldKey>
 export type K1TrackerMoney = string
@@ -102,6 +104,8 @@ export interface K1TrackerYearSummary {
   taxYear: number
   status: K1TrackerWorkflowStatus
   revision: number
+  capitalContributed: K1TrackerMoney | null
+  distributions: K1TrackerMoney | null
   endingOutsideBasis: K1TrackerMoney | null
   cumulativeSuspendedLoss: K1TrackerMoney | null
   taxableExcessDistribution: K1TrackerMoney | null

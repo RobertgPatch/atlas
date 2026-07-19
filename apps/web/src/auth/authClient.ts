@@ -97,13 +97,10 @@ const request = async <T>(
 
 export const authClient = {
   login(email: string, password: string) {
-    return request<SessionResponse | MfaChallengeResponse | MfaEnrollmentResponse>(
-      '/auth/login',
-      {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      },
-    )
+    return request<SessionResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
   },
 
   completeMfaEnrollment(enrollmentToken: string, code: string) {

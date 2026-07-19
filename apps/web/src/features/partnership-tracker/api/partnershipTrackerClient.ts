@@ -5,6 +5,7 @@ import type {
   CreateTrackedPartnershipRequest,
   K1TrackerCalculation,
   PartnershipCommitmentEntry,
+  PartnershipManagementFeeEstimate,
   PartnershipNavEntry,
   PartnershipTrackerDetail,
   PartnershipTrackerListResponse,
@@ -78,6 +79,10 @@ export const partnershipTrackerClient = {
   listCommitments(partnershipId: string, asOfDate?: string): Promise<{ items: PartnershipCommitmentEntry[]; effectiveEntry: PartnershipCommitmentEntry | null }> {
     const query = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : ''
     return request(`${root}/${partnershipId}/commitments${query}`)
+  },
+  managementFees(partnershipId: string, asOfDate?: string): Promise<PartnershipManagementFeeEstimate> {
+    const query = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : ''
+    return request(`${root}/${partnershipId}/management-fees${query}`)
   },
   createCommitment(partnershipId: string, body: CreatePartnershipCommitmentEntryRequest): Promise<PartnershipCommitmentEntry> {
     return request(`${root}/${partnershipId}/commitments`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })

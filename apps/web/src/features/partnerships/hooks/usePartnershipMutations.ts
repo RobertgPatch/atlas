@@ -8,6 +8,18 @@ import type {
   CreateCapitalActivityEventRequest,
 } from 'packages/types/src'
 
+const invalidatePartnershipReads = (qc: ReturnType<typeof useQueryClient>) => Promise.all([
+  qc.invalidateQueries({ queryKey: ['partnerships-list'] }),
+  qc.invalidateQueries({ queryKey: ['partnership'] }),
+  qc.invalidateQueries({ queryKey: ['entity'] }),
+  qc.invalidateQueries({ queryKey: ['entities'] }),
+  qc.invalidateQueries({ queryKey: ['k1'] }),
+  qc.invalidateQueries({ queryKey: ['k1-tracker'] }),
+  qc.invalidateQueries({ queryKey: ['partnership-tracker'] }),
+  qc.invalidateQueries({ queryKey: ['dashboard'] }),
+  qc.invalidateQueries({ queryKey: ['reports'] }),
+])
+
 // ---------------------------------------------------------------------------
 // Create Partnership
 // ---------------------------------------------------------------------------
@@ -55,11 +67,7 @@ export function useUpdatePartnership() {
     },
     onSuccess: (result, vars) => {
       if ('ok' in result && result.ok) {
-        void qc.invalidateQueries({ queryKey: ['partnerships-list'] })
-        void qc.invalidateQueries({ queryKey: ['partnership', vars.id] })
-        void qc.invalidateQueries({ queryKey: ['entity', vars.entityId] })
-        void qc.invalidateQueries({ queryKey: ['dashboard', 'summary'] })
-        void qc.invalidateQueries({ queryKey: ['reports'] })
+        void invalidatePartnershipReads(qc)
       }
     },
   })

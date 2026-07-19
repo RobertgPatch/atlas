@@ -3,7 +3,6 @@ import { authRepository } from './auth.repository.js'
 import { loginSchema } from './auth.schemas.js'
 import { lockoutService } from './lockout.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
-import { totpService } from './totp.service.js'
 import { config } from '../../config.js'
 
 export const loginHandler = async (
@@ -43,67 +42,7 @@ export const loginHandler = async (
   }
 
   await lockoutService.clear(email, 'PASSWORD')
-
-  if (config.authMfaDisabled) {
-    const { token, session } = authRepository.createSession(user.id)
-
-    await auditRepository.record({
-      actorUserId: user.id,
-      eventName: 'auth.login.succeeded',
-      objectType: 'user',
-      objectId: user.id,
-      after: { mfaDisabledForDevelopment: true },
-    })
-
-    reply.setCookie(config.sessionCookieName, token, {
-      httpOnly: true,
-      secure: config.sessionCookieSecure,
-      sameSite: config.sessionCookieSameSite,
-      path: '/',
-      maxAge: config.sessionAbsoluteTimeoutSeconds,
-    })
-
-    reply.send({
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-      },
-      role: user.role,
-      session: {
-        issuedAt: session.issuedAt.toISOString(),
-        idleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
-        absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
-      },
-    })
-    return
-  }
-
-  if (authRepository.isMfaEnrollmentRequired(user)) {
-    const secret = totpService.generateSecret()
-    const enrollment = authRepository.createMfaEnrollment(user.id, secret)
-    const otpAuthUrl = totpService.buildOtpAuthUrl(user.email, secret)
-    const qrCodeDataUrl = await totpService.buildQrCodeDataUrl(otpAuthUrl)
-
-    await auditRepository.record({
-      actorUserId: user.id,
-      eventName: 'auth.login.mfa_enrollment_required',
-      objectType: 'user',
-      objectId: user.id,
-    })
-
-    reply.send({
-      enrollmentToken: enrollment.id,
-      status: 'MFA_ENROLL_REQUIRED',
-      otpAuthUrl,
-      qrCodeDataUrl,
-      manualEntryKey: secret,
-    })
-    return
-  }
-
-  const challenge = authRepository.createMfaChallenge(user.id)
+  const { token, session } = authRepository.createSession(user.id)
 
   await auditRepository.record({
     actorUserId: user.id,
@@ -112,5 +51,26 @@ export const loginHandler = async (
     objectId: user.id,
   })
 
-  reply.send({ challengeId: challenge.id, status: 'MFA_REQUIRED' })
+  reply.setCookie(config.sessionCookieName, token, {
+    httpOnly: true,
+    secure: config.sessionCookieSecure,
+    sameSite: config.sessionCookieSameSite,
+    path: '/',
+    maxAge: config.sessionAbsoluteTimeoutSeconds,
+  })
+
+  reply.send({
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+    },
+    role: user.role,
+    session: {
+      issuedAt: session.issuedAt.toISOString(),
+      idleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
+      absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
+    },
+  })
 }

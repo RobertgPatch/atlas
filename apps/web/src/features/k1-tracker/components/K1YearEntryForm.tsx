@@ -35,6 +35,8 @@ export function K1YearEntryForm({ detail, canEdit, pending, onCalculate, onSave,
 }) {
   const initial = useMemo(() => initialAmounts(detail), [detail])
   const sourceByField = useMemo(() => new Map(detail.values.map((value) => [value.fieldKey, value])), [detail.values])
+  const legacyLine13 = sourceByField.get('box_13_other_deductions')
+  const usesSplitLine13 = sourceByField.has('box_13_other_portfolio_deductions') || sourceByField.has('box_13_management_fees')
   const [amounts, setAmounts] = useState<Record<string, string>>(initial)
   const [override, setOverride] = useState(false)
   const [reason, setReason] = useState('')
@@ -77,6 +79,7 @@ export function K1YearEntryForm({ detail, canEdit, pending, onCalculate, onSave,
 
   return <form onSubmit={(event) => { event.preventDefault(); void save() }} className="border border-gray-200 bg-white">
     <div className="border-b border-gray-200 px-5 py-4"><p className="text-xs font-medium uppercase tracking-wide text-gray-500">{detail.taxYear} K-1 annual entry</p><h3 className="mt-1 text-lg font-semibold text-gray-950">Manual K-1 inputs</h3><p className="mt-1 text-sm text-gray-600">All supported annual values are on this page. Each save appends an auditable revision.</p></div>
+    {legacyLine13 && !usesSplitLine13 && <p className="mx-5 mt-4 border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">Historical combined Line 13 value: {legacyLine13.amount == null ? 'Not available' : formatCurrency(legacyLine13.amount)} ({legacyLine13.sourceType.replaceAll('_', ' ')}). It remains effective until either new Line 13 field is saved.</p>}
     {notice && <p role="status" className="mx-5 mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">{notice}</p>}
     <div className="divide-y divide-gray-200">
       {K1_FIELD_GROUPS.map((group) => <section key={group.id} aria-labelledby={`${group.id}-heading`} className="px-5 py-6"><h4 id={`${group.id}-heading`} className="text-base font-semibold text-gray-950">{group.title}</h4><p className="mt-1 text-sm text-gray-600">{group.description}</p><p className="mt-2 text-xs text-sky-800">Sign guidance: {group.signHint}</p><div className="mt-4 grid gap-x-5 gap-y-4 md:grid-cols-2">{group.fields.map((field) => { const source = sourceByField.get(field.key); const carryforward = !source && field.carryforward ? carryforwardFor(detail, field.key) : undefined; return <label key={field.key} className="block"><span className="text-sm font-medium text-gray-800">{field.label}</span><CurrencyInput aria-label={field.label} disabled={!canEdit} allowNegative={field.allowNegative} value={amounts[field.key] ?? ''} onChange={(value) => setAmounts((current) => ({ ...current, [field.key]: value }))} placeholder={carryforward ? formatCurrency(carryforward) : '$0.00'} />{source ? <span className="mt-1 block text-xs text-gray-500">{source.sourceType.replaceAll('_', ' ')}</span> : carryforward ? <span className="mt-1 block text-xs text-gray-500">Carried from the prior year: {formatCurrency(carryforward)}</span> : null}</label> })}</div></section>)}

@@ -24,18 +24,18 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
   if (!open) return null
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setError(undefined)
-    if (!entityId) { setError('Choose the entity that owns this partnership.'); return }
+    if (!entityId) { setError('Choose the owner of this partnership.'); return }
     try {
       const result = await actions.createPartnership.mutateAsync({ entityId, name: name.trim(), partnershipType: type, notes: notes.trim() || null })
       onCreated(result.partnership.partnership.id)
       setEntityId(''); setName(''); setType('Private Equity'); setNotes('')
     } catch (caught) {
-      setError(caught instanceof PartnershipTrackerApiError && caught.code === 'DUPLICATE_PARTNERSHIP_NAME' ? 'A partnership with this name already exists for the selected entity.' : 'The partnership could not be created. Please try again.')
+      setError(caught instanceof PartnershipTrackerApiError && caught.code === 'DUPLICATE_PARTNERSHIP_NAME' ? 'A partnership with this name already exists for the selected owner.' : 'The partnership could not be created. Please try again.')
     }
   }
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation"><div role="dialog" aria-modal="true" aria-labelledby="add-partnership-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"><h2 id="add-partnership-title" className="text-lg font-semibold text-gray-950">Add partnership</h2><p className="mt-1 text-sm text-gray-500">Create the partnership first, then start any K-1 year.</p><form onSubmit={submit} className="mt-5 space-y-4">
-    <label className="block text-sm font-medium text-gray-800">Entity<select value={entityId} required onChange={(event) => setEntityId(event.target.value)} disabled={entities.isLoading || !entities.data?.items.length} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">{entities.isLoading ? 'Loading entities…' : 'Select an entity'}</option>{entities.data?.items.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label>
-    {entities.isError ? <p role="alert" className="text-sm text-red-700">Entities could not be loaded. Refresh and try again.</p> : !entities.isLoading && !entities.data?.items.length ? <p className="text-sm text-gray-600">Create an <Link to="/entities" className="font-medium text-atlas-gold underline">entity</Link> before adding a partnership.</p> : null}
+    <label className="block text-sm font-medium text-gray-800">Owner<select value={entityId} required onChange={(event) => setEntityId(event.target.value)} disabled={entities.isLoading || !entities.data?.items.length} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"><option value="">{entities.isLoading ? 'Loading owners...' : 'Select an owner'}</option>{entities.data?.items.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label>
+    {entities.isError ? <p role="alert" className="text-sm text-red-700">Owners could not be loaded. Refresh and try again.</p> : !entities.isLoading && !entities.data?.items.length ? <p className="text-sm text-gray-600">Create an <Link to="/entities" className="font-medium text-atlas-gold underline">owner</Link> before adding a partnership.</p> : null}
     <label className="block text-sm font-medium text-gray-800">Partnership name<input ref={nameRef} value={name} required maxLength={120} onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
     <label className="block text-sm font-medium text-gray-800">Partnership type<select value={type} onChange={(event) => setType(event.target.value as PartnershipType)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">{PARTNERSHIP_TYPES.map((option) => <option key={option}>{option}</option>)}</select></label>
     <label className="block text-sm font-medium text-gray-800">Notes <span className="font-normal text-gray-500">(optional)</span><textarea value={notes} maxLength={10_000} rows={3} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>

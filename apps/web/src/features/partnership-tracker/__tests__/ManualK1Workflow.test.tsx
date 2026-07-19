@@ -20,7 +20,7 @@ describe('manual K-1 workflow', () => {
     expect(screen.getByText(/does not have to be the next chronological year/i)).toBeInTheDocument()
   })
   it('keeps fifty nonconsecutive years in a horizontal compact rail', () => {
-    const years = Array.from({ length: 50 }, (_, index) => ({ taxYear: 1950 + index * 2, status: 'IN_PROGRESS' as const, revision: 1, endingOutsideBasis: null, cumulativeSuspendedLoss: null, taxableExcessDistribution: null, sectionLDifference: null, warningCount: 1, sourceConflictCount: 0 }))
+    const years = Array.from({ length: 50 }, (_, index) => ({ taxYear: 1950 + index * 2, status: 'IN_PROGRESS' as const, revision: 1, capitalContributed: null, distributions: null, endingOutsideBasis: null, cumulativeSuspendedLoss: null, taxableExcessDistribution: null, sectionLDifference: null, warningCount: 1, sourceConflictCount: 0 }))
     render(<YearRail years={years} selectedYear={years.at(-1)!.taxYear} onSelect={vi.fn()} />)
     expect(screen.getAllByRole('button')).toHaveLength(50)
     expect(screen.getAllByText('In progress')).toHaveLength(50)
