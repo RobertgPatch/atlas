@@ -11,8 +11,9 @@ describe('Partnership Tracker large-directory rendering', () => {
     const items = Array.from({ length: 100 }, (_, index) => ({ ...summaryFixture, partnership: { ...summaryFixture.partnership, id: `p-${index}`, name: `Partnership ${index}` } }))
     const started = performance.now()
     render(<MemoryRouter><PartnershipPicker items={items} selectedId="p-99" search="" loading={false} canEdit={false} onSearch={vi.fn()} onSelect={vi.fn()} onAdd={vi.fn()} /></MemoryRouter>)
-    expect(screen.getAllByRole('button')).toHaveLength(100)
-    expect(screen.getByRole('button', { name: /Partnership 99/ })).toHaveAttribute('aria-current', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'Open partnership options' }))
+    expect(screen.getAllByRole('option')).toHaveLength(100)
+    expect(screen.getByRole('option', { name: /Partnership 99/ })).toHaveAttribute('aria-selected', 'true')
     expect(performance.now() - started).toBeLessThan(2000)
   })
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PartnershipTrackerPageContent } from '../components/PartnershipTrackerPageContent'
@@ -17,7 +17,14 @@ describe('PartnershipTrackerPageContent', () => {
   it('renders searchable selection and the revised four-area workspace', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Partnership Tracker' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Search partnerships' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveValue('Redwood Fund')
+    const layout = screen.getByTestId('partnership-workspace-layout')
+    expect(layout).toHaveClass('min-w-0', 'space-y-4')
+    expect(layout).not.toHaveClass('grid', 'xl:grid-cols-[20rem_minmax(0,1fr)]')
+    expect(screen.getByTestId('partnership-selector').nextElementSibling).toBe(screen.getByRole('main', { name: 'Selected partnership workspace' }))
+    expect(screen.getByTestId('partnership-selector-controls')).toHaveClass('sm:items-start')
+    expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveClass('h-11')
+    expect(within(screen.getByTestId('partnership-selector')).getByRole('button', { name: 'Add' })).toHaveClass('h-11')
     expect(screen.getAllByText('Redwood Fund').length).toBeGreaterThan(0)
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toBeInTheDocument()

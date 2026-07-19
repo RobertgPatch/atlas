@@ -40,6 +40,22 @@ describe('Add Partnership flow', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'e-1', partnershipType: 'Real Estate', ein: '12-3456789', fundManager: 'Redwood Capital', initialValuationAmount: '$850,000.00', initialValuationDate: '2024-01-15' }))
   })
 
+  it('keeps Cancel and Create partnership outside the scrolling dialog body', () => {
+    const closed = vi.fn()
+    render(<MemoryRouter><AddPartnershipDialog open onClose={closed} onCreated={vi.fn()} /></MemoryRouter>)
+
+    const scrollBody = screen.getByTestId('add-partnership-form-scroll')
+    const footer = screen.getByTestId('add-partnership-dialog-footer')
+    expect(scrollBody).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
+    expect(footer).toHaveClass('shrink-0', 'bg-white')
+    expect(scrollBody).not.toContainElement(footer)
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Cancel' }))
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Create partnership' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(closed).toHaveBeenCalledOnce()
+  })
+
   it('adds an independent owner record to an existing partnership aggregate', async () => {
     render(<MemoryRouter><AddPartnershipDialog open onClose={vi.fn()} onCreated={vi.fn()} /></MemoryRouter>)
     fireEvent.click(screen.getByRole('radio', { name: /Existing partnership, new owner/ }))

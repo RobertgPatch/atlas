@@ -14,13 +14,34 @@ const inlineDetail = {
 } as unknown as PartnershipTrackerYearDetail
 
 describe('Partnership Tracker accessibility', () => {
-  it('gives the picker, search, selection, plot points, and textual chart alternative accessible names', () => {
+  it('gives the autocomplete, selection, plot points, and textual chart alternative accessible names', async () => {
+    const user = userEvent.setup()
     render(<MemoryRouter><PartnershipPicker items={[summaryFixture]} selectedId="p-1" search="" loading={false} canEdit onSearch={vi.fn()} onSelect={vi.fn()} onAdd={vi.fn()} /><NavHistoryChart items={navFixtures} /></MemoryRouter>)
-    expect(screen.getByLabelText('Partnership directory')).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Search partnerships' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Redwood Fund/ })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('partnership-selector')).toHaveAccessibleName('Partnership workspace')
+    expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveAttribute('aria-autocomplete', 'list')
+    await user.click(screen.getByRole('button', { name: 'Open partnership options' }))
+    expect(screen.getByRole('option', { name: /Redwood Fund/ })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByRole('img', { name: /NAV values plotted proportionally/i })).toBeInTheDocument()
     expect(screen.getByText(/NAV increased/i)).toBeInTheDocument()
+  })
+  it('searches and selects another partnership from the autocomplete', async () => {
+    const user = userEvent.setup()
+    const onSearch = vi.fn()
+    const onSelect = vi.fn()
+    const secondPartnership = {
+      ...summaryFixture,
+      partnership: { ...summaryFixture.partnership, id: 'p-2', name: 'Bluewater Credit Fund' },
+    }
+    render(<MemoryRouter><PartnershipPicker items={[summaryFixture, secondPartnership]} selectedId="p-1" search="" loading={false} canEdit={false} onSearch={onSearch} onSelect={onSelect} onAdd={vi.fn()} /></MemoryRouter>)
+
+    const input = screen.getByRole('combobox', { name: 'Partnership workspace' })
+    await user.click(input)
+    await user.clear(input)
+    await user.type(input, 'Bluewater')
+    expect(onSearch).toHaveBeenLastCalledWith('Bluewater')
+    await user.click(screen.getByRole('option', { name: /Bluewater Credit Fund/ }))
+    expect(onSelect).toHaveBeenCalledWith('p-2')
+    expect(onSearch).toHaveBeenLastCalledWith('')
   })
   it('keeps the continuous K-1 form labeled, keyboard reachable, and error-announcing', async () => {
     const user = userEvent.setup()

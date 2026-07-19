@@ -156,12 +156,13 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
 
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4" role="presentation">
     <div role="dialog" aria-modal="true" aria-labelledby="add-partnership-title" className="flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
-      <div className="border-b border-gray-200 px-6 py-5">
+      <div className="shrink-0 border-b border-gray-200 px-6 py-5">
         <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">Partnership workspace</p>
         <h2 id="add-partnership-title" className="mt-1 font-serif text-xl font-semibold text-gray-950">Add partnership</h2>
         <p className="mt-1 text-sm text-gray-500">Create an independent owner record or add another owner to an existing aggregate.</p>
       </div>
-      <form onSubmit={submit} className="space-y-5 overflow-y-auto px-6 py-5">
+      <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-5 [scrollbar-gutter:stable]" data-testid="add-partnership-form-scroll">
         <fieldset>
           <legend className="text-sm font-bold text-gray-900">What are you adding?</legend>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -240,8 +241,11 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
           <section aria-labelledby="entry-valuation-heading" className="border-t border-gray-200 pt-5"><h3 id="entry-valuation-heading" className="font-serif text-lg font-semibold text-gray-950">Entry valuation</h3><p className="mt-1 text-xs text-gray-500">Optional. This becomes the first dated NAV entry.</p><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="block text-sm font-medium text-gray-800">Initial valuation<CurrencyInput value={initialValuationAmount} onChange={setInitialValuationAmount} allowNegative={false} placeholder="$0.00" /></label><label className="block text-sm font-medium text-gray-800">Valuation date<input type="date" value={initialValuationDate} onChange={(event) => setInitialValuationDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 px-3 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30" /></label></div></section>
         </>}
         <label className="block text-sm font-medium text-gray-800">Notes <span className="font-normal text-gray-500">(optional, owner-specific)</span><textarea value={notes} maxLength={10_000} rows={3} onChange={(event) => setNotes(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30" /></label>
-        {error && <p role="alert" className="border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-        <div className="flex flex-col-reverse gap-3 border-t border-gray-200 pt-4 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold">Cancel</button><button type="submit" disabled={actions.createPartnership.isPending || !availableOwners.length || copySelectionInvalid} className="min-h-11 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2">{actions.createPartnership.isPending ? 'Creating…' : mode === 'existing' ? 'Add owner record' : 'Create partnership'}</button></div>
+        </div>
+        <div className="shrink-0 border-t border-gray-200 bg-white px-6 py-4 shadow-[0_-8px_20px_-16px_rgba(15,23,42,0.45)]" data-testid="add-partnership-dialog-footer">
+          {error && <p role="alert" className="mb-3 border-l-4 border-red-600 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-semibold text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold">Cancel</button><button type="submit" disabled={actions.createPartnership.isPending || !availableOwners.length || copySelectionInvalid} className="min-h-11 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2">{actions.createPartnership.isPending ? 'Creating…' : mode === 'existing' ? 'Add owner record' : 'Create partnership'}</button></div>
+        </div>
       </form>
     </div>
   </div>
