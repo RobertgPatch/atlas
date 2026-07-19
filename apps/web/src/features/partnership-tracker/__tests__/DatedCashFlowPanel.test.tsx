@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { DatedCashFlowPanel } from '../components/DatedCashFlowPanel'
 
@@ -8,7 +8,10 @@ describe('Dated cash activity', () => {
     render(<DatedCashFlowPanel taxYear={2024} events={[]} canEdit pending={false} onCreate={onCreate} onDelete={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: 'Net Cash Activity' }))
 
-    expect(screen.getByRole('dialog', { name: 'Net Cash Activity' })).toBeInTheDocument()
+    const dialog = screen.getByRole('dialog', { name: 'Net Cash Activity' })
+    expect(dialog).toBeInTheDocument()
+    expect(within(dialog).getByTestId('cash-activity-draft-list')).toHaveClass('pl-3', 'pt-3')
+    expect(within(dialog).getByTestId('cash-activity-row-number-1')).toHaveClass('-left-2', '-top-2', 'ring-2')
     expect(screen.getAllByLabelText(/Cash activity date row/)).toHaveLength(1)
     expect(screen.getAllByLabelText(/Cash activity amount row/)).toHaveLength(1)
     expect(screen.getAllByRole('combobox', { name: /Cash activity type row/ })).toHaveLength(1)
@@ -22,6 +25,7 @@ describe('Dated cash activity', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add another row' }))
     expect(screen.getAllByLabelText(/Cash activity date row/)).toHaveLength(2)
     expect(screen.getAllByRole('combobox', { name: /Cash activity type row/ })).toHaveLength(2)
+    expect(within(dialog).getByTestId('cash-activity-row-number-2')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Cash activity date row 1'), { target: { value: '2024-03-15' } })
     fireEvent.change(screen.getByLabelText('Cash activity amount row 1'), { target: { value: '$125,000' } })

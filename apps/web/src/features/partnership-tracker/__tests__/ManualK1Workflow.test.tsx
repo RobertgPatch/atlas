@@ -4,6 +4,7 @@ import type { PartnershipTrackerYearDetail } from '../../../../../../packages/ty
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
 import { AddYearDialog } from '../components/AddYearDialog'
 import { YearRail } from '../components/YearRail'
+import { k1EntryDetailFixture } from './fixtures'
 
 const carryforwardDetail = {
   partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'IN_PROGRESS', values: [],
@@ -38,5 +39,36 @@ describe('manual K-1 workflow', () => {
     expect(dirty).toHaveBeenCalledWith(true)
     expect(await screen.findByRole('status')).toHaveTextContent('changed in another session')
     expect(screen.getByLabelText('Capital contributions')).toHaveValue('1000')
+  })
+  it('preserves legacy line 13, override reasons, draft feedback, revert, and dirty state', async () => {
+    const calculate = vi.fn().mockResolvedValue(k1EntryDetailFixture.calculation)
+    const save = vi.fn().mockResolvedValue(undefined)
+    const dirty = vi.fn()
+    render(<K1YearEntryForm detail={k1EntryDetailFixture} canEdit pending={false} onCalculate={calculate} onSave={save} onDirtyChange={dirty} />)
+
+    expect(screen.getByText(/Historical combined line 13:/).closest('p')).toHaveTextContent('$3,250')
+    fireEvent.change(screen.getByLabelText('Line 13 - Management Fees'), { target: { value: '700' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Manual override/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Preview calculation' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('State why this source value is being overridden.')
+
+    fireEvent.change(screen.getByLabelText('Override reason'), { target: { value: '  Final K-1 correction  ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Preview calculation' }))
+    await waitFor(() => expect(calculate).toHaveBeenCalledWith([
+      expect.objectContaining({
+        fieldKey: 'box_13_management_fees',
+        amount: '700.00',
+        sourceType: 'MANUAL_OVERRIDE',
+        overrideReason: 'Final K-1 correction',
+      }),
+    ]))
+    expect(screen.getByText('Draft ending basis')).toBeInTheDocument()
+    expect(dirty).toHaveBeenCalledWith(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save revisions' }))
+    await waitFor(() => expect(save).toHaveBeenCalled())
+    fireEvent.click(screen.getByRole('button', { name: 'Revert' }))
+    expect(screen.getByLabelText('Line 13 - Management Fees')).toHaveValue('')
+    expect(screen.queryByLabelText('Override reason')).not.toBeInTheDocument()
   })
 })
