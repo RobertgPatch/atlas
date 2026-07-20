@@ -1,0 +1,708 @@
+openapi: 3.1.0
+info:
+  title: Jackson Multi-PDF K-1 Import API
+  version: 0.1.0
+  description: >-
+    Partnership-scoped upload, extraction review, evidence, retry, and atomic
+    application of one or more Schedule K-1 PDFs into existing tracker years.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /v1
+security:
+  - cookieAuth: []
+
+paths:
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+    get:
+      summary: List recent PDF import batches for the partnership
+      operationId: listK1PdfImportBatches
+      parameters:
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      responses:
+        '200':
+          description: Partnership-scoped batches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ImportBatchSummary' }
+                  nextCursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      summary: Create a batch and presigned upload slots
+      operationId: createK1PdfImportBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateImportBatchRequest'
+      responses:
+        '201':
+          description: Batch and one private upload slot per PDF
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateImportBatchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+    get:
+      summary: Get resumable batch, document, finding, and year-mapping status
+      operationId: getK1PdfImportBatch
+      responses:
+        '200':
+          description: Current import state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatchDetail' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/complete-uploads:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      summary: Verify every uploaded object and start the durable extraction workflow
+      operationId: completeK1PdfUploads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedBatchRevision, documentIds]
+              properties:
+                expectedBatchRevision: { type: integer, minimum: 1 }
+                documentIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  uniqueItems: true
+                  items: { type: string, format: uuid }
+      responses:
+        '202':
+          description: Workflow accepted or idempotently already queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatchSummary' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/documents/{importDocumentId}/items:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+      - $ref: '#/components/parameters/ImportDocumentId'
+    get:
+      summary: List extracted items and findings for one PDF
+      operationId: listK1PdfExtractedItems
+      parameters:
+        - in: query
+          name: reviewStatus
+          schema:
+            type: string
+            enum: [AUTO_ACCEPTED, NEEDS_REVIEW, VERIFIED, CORRECTED, REJECTED]
+        - in: query
+          name: findingSeverity
+          schema:
+            type: string
+            enum: [INFO, WARNING, ERROR]
+        - in: query
+          name: cursor
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 200, default: 100 }
+      responses:
+        '200':
+          description: Source-faithful extracted items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExtractedItem' }
+                  nextCursor: { type: [string, 'null'] }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/documents/{importDocumentId}/evidence-url:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+      - $ref: '#/components/parameters/ImportDocumentId'
+    post:
+      summary: Create a short-lived authorized URL for the private source PDF
+      operationId: createK1PdfEvidenceUrl
+      responses:
+        '200':
+          description: URL valid for at most five minutes
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [url, expiresAt]
+                properties:
+                  url: { type: string, format: uri }
+                  expiresAt: { type: string, format: date-time }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/documents/{importDocumentId}/retry:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+      - $ref: '#/components/parameters/ImportDocumentId'
+    post:
+      summary: Queue an idempotent new extraction attempt for a failed document
+      operationId: retryK1PdfImportDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedBatchRevision]
+              properties:
+                expectedBatchRevision: { type: integer, minimum: 1 }
+      responses:
+        '202':
+          description: Retry queued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportDocument' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/review-decisions:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      summary: Append reviewer item, mapping, or finding decisions
+      operationId: createK1PdfReviewDecisions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedBatchRevision, decisions]
+              properties:
+                expectedBatchRevision: { type: integer, minimum: 1 }
+                decisions:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items: { $ref: '#/components/schemas/ReviewDecisionInput' }
+      responses:
+        '200':
+          description: Decisions appended and affected proposals rebuilt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatchDetail' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/apply:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      summary: Atomically create, merge, replace, or skip all reviewed year proposals
+      operationId: applyK1PdfImportBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyImportBatchRequest'
+      responses:
+        '200':
+          description: All selected year mappings applied atomically
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApplyImportBatchResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: Blocking review findings remain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiError' }
+
+  /partnership-tracker/partnerships/{partnershipId}/k1-import-batches/{batchId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/PartnershipId'
+      - $ref: '#/components/parameters/BatchId'
+    post:
+      summary: Cancel an unapplied import batch
+      operationId: cancelK1PdfImportBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedBatchRevision]
+              properties:
+                expectedBatchRevision: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Batch cancelled
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportBatchSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+
+  parameters:
+    PartnershipId:
+      in: path
+      name: partnershipId
+      required: true
+      schema: { type: string, format: uuid }
+    BatchId:
+      in: path
+      name: batchId
+      required: true
+      schema: { type: string, format: uuid }
+    ImportDocumentId:
+      in: path
+      name: importDocumentId
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    ValidationError:
+      description: Invalid request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Forbidden:
+      description: User lacks partnership scope or edit permission
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    NotFound:
+      description: Batch or document is not present in the scoped partnership
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+    Conflict:
+      description: Stale revision, invalid lifecycle transition, duplicate, or target-year conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+
+  schemas:
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - FORBIDDEN_TRACKER_ENTITY
+            - IMPORT_BATCH_NOT_FOUND
+            - IMPORT_DOCUMENT_NOT_FOUND
+            - STALE_IMPORT_BATCH_REVISION
+            - INVALID_IMPORT_BATCH_STATE
+            - UPLOAD_VERIFICATION_FAILED
+            - DUPLICATE_DOCUMENT
+            - BLOCKING_FINDINGS
+            - STALE_TRACKER_REVISION
+            - TARGET_YEAR_CONFLICT
+            - IMPORT_APPLY_FAILED
+        message: { type: string }
+        issues:
+          type: array
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path: { type: string }
+              message: { type: string }
+
+    CreateImportBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [documents]
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [clientFileId, fileName, contentType, sizeBytes, sha256]
+            properties:
+              clientFileId: { type: string, minLength: 1, maxLength: 100 }
+              fileName: { type: string, minLength: 1, maxLength: 250 }
+              contentType: { const: application/pdf }
+              sizeBytes: { type: integer, minimum: 1, maximum: 26214400 }
+              sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+
+    CreateImportBatchResponse:
+      type: object
+      additionalProperties: false
+      required: [batch, uploads]
+      properties:
+        batch: { $ref: '#/components/schemas/ImportBatchSummary' }
+        uploads:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [importDocumentId, clientFileId, url, fields, expiresAt]
+            properties:
+              importDocumentId: { type: string, format: uuid }
+              clientFileId: { type: string }
+              url: { type: string, format: uri }
+              fields:
+                type: object
+                additionalProperties: { type: string }
+              expiresAt: { type: string, format: date-time }
+
+    ImportBatchStatus:
+      type: string
+      enum:
+        - UPLOADING
+        - QUEUED
+        - PROCESSING
+        - PARTIAL_FAILURE
+        - NEEDS_REVIEW
+        - READY_TO_APPLY
+        - APPLYING
+        - APPLIED
+        - FAILED
+        - CANCELLED
+
+    ImportDocumentStatus:
+      type: string
+      enum:
+        - PENDING_UPLOAD
+        - UPLOADED
+        - QUEUED
+        - PROCESSING
+        - READY_FOR_REVIEW
+        - READY_TO_APPLY
+        - APPLIED
+        - SKIPPED
+        - FAILED
+        - CANCELLED
+
+    ImportBatchSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - partnershipId
+        - status
+        - revision
+        - documentCount
+        - uploadedCount
+        - readyCount
+        - failedCount
+        - createdAt
+        - updatedAt
+      properties:
+        id: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/ImportBatchStatus' }
+        revision: { type: integer, minimum: 1 }
+        documentCount: { type: integer, minimum: 1 }
+        uploadedCount: { type: integer, minimum: 0 }
+        readyCount: { type: integer, minimum: 0 }
+        failedCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ImportBatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/ImportBatchSummary'
+        - type: object
+          additionalProperties: false
+          required: [documents, yearMappings, findingSummary, permissions]
+          properties:
+            documents:
+              type: array
+              items: { $ref: '#/components/schemas/ImportDocument' }
+            yearMappings:
+              type: array
+              items: { $ref: '#/components/schemas/YearMapping' }
+            findingSummary:
+              type: object
+              additionalProperties: false
+              required: [openBlocking, openWarnings, unknownCodes, disagreements]
+              properties:
+                openBlocking: { type: integer, minimum: 0 }
+                openWarnings: { type: integer, minimum: 0 }
+                unknownCodes: { type: integer, minimum: 0 }
+                disagreements: { type: integer, minimum: 0 }
+            permissions:
+              type: object
+              additionalProperties: false
+              required: [canView, canEdit, canApply]
+              properties:
+                canView: { type: boolean }
+                canEdit: { type: boolean }
+                canApply: { type: boolean }
+
+    ImportDocument:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - clientFileId
+        - fileName
+        - sizeBytes
+        - status
+        - retryCount
+        - findingSummary
+      properties:
+        id: { type: string, format: uuid }
+        clientFileId: { type: string }
+        fileName: { type: string }
+        sizeBytes: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/ImportDocumentStatus' }
+        detectedTaxYear: { type: [integer, 'null'], minimum: 1900, maximum: 2100 }
+        detectedPartnershipName: { type: [string, 'null'] }
+        detectedPartnerName: { type: [string, 'null'] }
+        detectedIsAmended: { type: [boolean, 'null'] }
+        pageCount: { type: [integer, 'null'], minimum: 1 }
+        retryCount: { type: integer, minimum: 0 }
+        errorCode: { type: [string, 'null'] }
+        errorStage: { type: [string, 'null'] }
+        findingSummary:
+          type: object
+          required: [blocking, warnings, needsReview]
+          properties:
+            blocking: { type: integer, minimum: 0 }
+            warnings: { type: integer, minimum: 0 }
+            needsReview: { type: integer, minimum: 0 }
+
+    EvidenceLocation:
+      type: object
+      additionalProperties: false
+      required: [page, bbox]
+      properties:
+        page: { type: integer, minimum: 1 }
+        bbox:
+          type: [object, 'null']
+          additionalProperties: false
+          required: [x, y, width, height, pageWidth, pageHeight, unit]
+          properties:
+            x: { type: number, minimum: 0 }
+            y: { type: number, minimum: 0 }
+            width: { type: number, exclusiveMinimum: 0 }
+            height: { type: number, exclusiveMinimum: 0 }
+            pageWidth: { type: number, exclusiveMinimum: 0 }
+            pageHeight: { type: number, exclusiveMinimum: 0 }
+            unit: { type: string, enum: [PIXEL, POINT, RATIO] }
+
+    ExtractedItem:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - itemKey
+        - kind
+        - rawText
+        - normalizedText
+        - normalizedAmount
+        - normalizedBoolean
+        - canonicalFieldKey
+        - officialFormFieldKey
+        - confidence
+        - agreementStatus
+        - riskClass
+        - reviewStatus
+        - evidence
+        - candidates
+        - findings
+      properties:
+        id: { type: string, format: uuid }
+        itemKey: { type: string }
+        kind:
+          type: string
+          enum: [IDENTIFIER, DATE, CHECKBOX, PERCENTAGE, MONEY, TEXT, BOX_CODE, STATEMENT]
+        box: { type: [string, 'null'] }
+        code: { type: [string, 'null'] }
+        label: { type: [string, 'null'] }
+        statementReference: { type: [string, 'null'] }
+        rawText: { type: [string, 'null'] }
+        normalizedText: { type: [string, 'null'] }
+        normalizedAmount: { type: [string, 'null'], pattern: '^-?\d+\.\d{2}$' }
+        normalizedBoolean: { type: [boolean, 'null'] }
+        canonicalFieldKey: { type: [string, 'null'] }
+        officialFormFieldKey: { type: [string, 'null'] }
+        confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        agreementStatus: { type: string, enum: [AGREE, PARTIAL, DISAGREE, SINGLE_SOURCE] }
+        riskClass: { type: string, enum: [STANDARD, HIGH_RISK, UNKNOWN_CODE, STATEMENT_ONLY] }
+        reviewStatus:
+          type: string
+          enum: [AUTO_ACCEPTED, NEEDS_REVIEW, VERIFIED, CORRECTED, REJECTED]
+        evidence: { anyOf: [{ $ref: '#/components/schemas/EvidenceLocation' }, { type: 'null' }] }
+        candidates:
+          type: array
+          items:
+            type: object
+            required: [provider, value, confidence, evidence]
+            properties:
+              provider: { type: string, enum: [TEXTRACT, BEDROCK_BDA, BEDROCK_LLM] }
+              value: { type: [string, boolean, 'null'] }
+              confidence: { type: [number, 'null'], minimum: 0, maximum: 1 }
+              evidence: { anyOf: [{ $ref: '#/components/schemas/EvidenceLocation' }, { type: 'null' }] }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/ValidationFinding' }
+
+    ValidationFinding:
+      type: object
+      additionalProperties: false
+      required: [id, type, severity, blocking, status, message]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        severity: { type: string, enum: [INFO, WARNING, ERROR] }
+        blocking: { type: boolean }
+        status: { type: string, enum: [OPEN, RESOLVED, WAIVED, SUPERSEDED] }
+        message: { type: string }
+
+    ReviewDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [decisionType, reason]
+      properties:
+        importDocumentId: { type: string, format: uuid }
+        extractedItemId: { type: string, format: uuid }
+        findingId: { type: string, format: uuid }
+        decisionType:
+          type: string
+          enum: [VERIFY, CORRECT, REJECT, MAP, RESOLVE, WAIVE, REOPEN]
+        correctedText: { type: [string, 'null'] }
+        correctedAmount: { type: [string, 'null'], pattern: '^-?\d+\.\d{2}$' }
+        correctedBoolean: { type: [boolean, 'null'] }
+        destinationKind:
+          type: [string, 'null']
+          enum: [TRACKER_FIELD, OFFICIAL_FIELD, DYNAMIC_ONLY, null]
+        destinationKey: { type: [string, 'null'] }
+        reason: { type: string, minLength: 1, maxLength: 1000 }
+
+    YearMapping:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - importDocumentId
+        - taxYear
+        - existingYearRevision
+        - proposalRevision
+        - proposalHash
+        - status
+        - conflicts
+      properties:
+        id: { type: string, format: uuid }
+        importDocumentId: { type: string, format: uuid }
+        taxYear: { type: integer, minimum: 1900, maximum: 2100 }
+        existingYearRevision: { type: [integer, 'null'], minimum: 1 }
+        proposalRevision: { type: integer, minimum: 1 }
+        proposalHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        status: { type: string, enum: [PROPOSED, READY, APPLIED, SKIPPED, STALE, FAILED] }
+        mappedCalculationFieldCount: { type: integer, minimum: 0 }
+        mappedOfficialFieldCount: { type: integer, minimum: 0 }
+        dynamicCodeItemCount: { type: integer, minimum: 0 }
+        conflicts:
+          type: array
+          items:
+            type: object
+            required: [destinationKey, existingValue, proposedValue]
+            properties:
+              destinationKey: { type: string }
+              existingValue: { type: [string, boolean, 'null'] }
+              proposedValue: { type: [string, boolean, 'null'] }
+
+    ApplyImportBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedBatchRevision, decisions]
+      properties:
+        expectedBatchRevision: { type: integer, minimum: 1 }
+        decisions:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - yearMappingId
+              - proposalRevision
+              - proposalHash
+              - action
+            properties:
+              yearMappingId: { type: string, format: uuid }
+              proposalRevision: { type: integer, minimum: 1 }
+              proposalHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+              action: { type: string, enum: [CREATE, MERGE, REPLACE, SKIP] }
+              expectedYearRevision: { type: [integer, 'null'], minimum: 1 }
+
+    ApplyImportBatchResponse:
+      type: object
+      additionalProperties: false
+      required: [batchId, partnershipId, appliedYears, skippedYears]
+      properties:
+        batchId: { type: string, format: uuid }
+        partnershipId: { type: string, format: uuid }
+        appliedYears:
+          type: array
+          items:
+            type: object
+            required: [taxYear, action, yearRevision]
+            properties:
+              taxYear: { type: integer }
+              action: { type: string, enum: [CREATE, MERGE, REPLACE] }
+              yearRevision: { type: integer, minimum: 1 }
+        skippedYears:
+          type: array
+          items: { type: integer }
