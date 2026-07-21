@@ -18,7 +18,7 @@ const COLUMNS: Column<DistributionRow>[] = [
     align: 'right',
     render: (row) =>
       row.reportedDistributionUsd != null ? (
-        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString()}</span>
+        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
       ) : (
         <span className="text-text-tertiary">—</span>
       ),

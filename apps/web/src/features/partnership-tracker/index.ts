@@ -1,3 +1,5 @@
 export { PartnershipTrackerPageContent } from './components/PartnershipTrackerPageContent'
+export { PartnershipAggregationPageContent } from './components/aggregation'
+export { PartnershipViewSwitcher } from './components/PartnershipViewSwitcher'
 export * from './api/partnershipTrackerClient'
 export * from './hooks/usePartnershipTracker'

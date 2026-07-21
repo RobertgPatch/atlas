@@ -24,7 +24,7 @@ const formatUsd = (value: number | null | undefined) => {
   if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(1)}B`
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 const formatMultiple = (value: number | null | undefined) => {
@@ -165,7 +165,7 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard"
         subtitle="Good morning. Here's what's happening across your portfolio today."
-        breadcrumbs={[{ label: 'Atlas' }, { label: 'Dashboard' }]}
+        breadcrumbs={[{ label: 'Jackson' }, { label: 'Dashboard' }]}
       />
 
       {dashboard.isLoading && <LoadingState rows={6} columns={4} />}
@@ -181,10 +181,10 @@ export function DashboardPage() {
         <>
 
           {hasNoEntities && (
-            <div className="mb-6 bg-gradient-to-r from-atlas-gold/10 to-atlas-gold/5 border border-atlas-gold/30 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="mb-6 bg-gradient-to-r from-jackson-gold/10 to-jackson-gold/5 border border-jackson-gold/30 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-atlas-gold/20">
-                  <Building2 className="w-5 h-5 text-atlas-gold" />
+                <div className="p-2 rounded-lg bg-jackson-gold/20">
+                  <Building2 className="w-5 h-5 text-jackson-gold" />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">
@@ -200,7 +200,7 @@ export function DashboardPage() {
               {isAdmin && (
                 <Link
                   to="/entities"
-                  className="inline-flex items-center px-4 py-2 rounded-lg bg-atlas-gold text-white text-sm font-medium hover:bg-atlas-hover whitespace-nowrap"
+                  className="inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm font-medium hover:bg-jackson-hover whitespace-nowrap"
                 >
                   Create entity
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -316,7 +316,7 @@ export function DashboardPage() {
             <div className="xl:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-semibold text-gray-900">Recent K-1 Activity</h2>
-                <a href="/k1" className="text-sm text-atlas-gold hover:text-atlas-hover font-medium transition-colors">
+                <a href="/k1" className="text-sm text-jackson-gold hover:text-jackson-hover font-medium transition-colors">
                   View all →
                 </a>
               </div>

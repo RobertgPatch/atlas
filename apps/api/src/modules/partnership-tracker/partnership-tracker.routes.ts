@@ -6,13 +6,17 @@ import {
   calculateManualYearHandler,
   createCommitmentHandler,
   createManualYearHandler,
+  createPartnershipCashFlowHandler,
+  createPartnershipCashFlowsHandler,
   createNavHandler,
   createPartnershipTrackerHandler,
   deleteCommitmentHandler,
   deleteManualYearHandler,
+  deletePartnershipCashFlowHandler,
   deleteNavHandler,
   getManualYearHandler,
   getManagementFeesHandler,
+  getPartnershipAggregationHandler,
   getPartnershipTrackerHandler,
   listCommitmentsHandler,
   listNavHandler,
@@ -27,6 +31,7 @@ import {
 export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Promise<void> => {
   const gated = { preHandler: [withSession, requireAuthenticated, requirePartnershipScope] }
   const root = '/partnership-tracker/partnerships'
+  app.get('/partnership-tracker/aggregation', gated, getPartnershipAggregationHandler)
   app.get(root, gated, listPartnershipTrackerHandler)
   app.post(root, gated, createPartnershipTrackerHandler)
   app.get(`${root}/:partnershipId`, gated, getPartnershipTrackerHandler)
@@ -43,6 +48,9 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   app.post(`${root}/:partnershipId/years`, gated, createManualYearHandler)
   app.get(`${root}/:partnershipId/years/:taxYear`, gated, getManualYearHandler)
   app.patch(`${root}/:partnershipId/years/:taxYear`, gated, updateManualYearHandler)
+  app.post(`${root}/:partnershipId/years/:taxYear/cash-flows`, gated, createPartnershipCashFlowHandler)
+  app.post(`${root}/:partnershipId/years/:taxYear/cash-flows/batch`, gated, createPartnershipCashFlowsHandler)
+  app.delete(`${root}/:partnershipId/years/:taxYear/cash-flows/:cashFlowId`, gated, deletePartnershipCashFlowHandler)
   app.delete(`${root}/:partnershipId/years/:taxYear`, gated, deleteManualYearHandler)
   app.post(`${root}/:partnershipId/years/:taxYear/calculate`, gated, calculateManualYearHandler)
   app.post(`${root}/:partnershipId/years/:taxYear/signoffs`, gated, signoffManualYearHandler)

@@ -49,6 +49,7 @@ export type PartnershipTrackerWorkflowStatus =
 
 export interface PartnershipTrackerIdentity {
   id: string
+  aggregationGroupId?: string
   entity: { id: string; name: string }
   name: string
   partnershipType: PartnershipType
@@ -56,6 +57,14 @@ export interface PartnershipTrackerIdentity {
   notes: string | null
   inceptionDate: string | null
   managementFeeRate: PartnershipTrackerRatio | null
+  ein: string | null
+  fundManager: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  addressCity: string | null
+  addressRegion: string | null
+  addressPostalCode: string | null
+  addressCountry: string | null
   createdAt: string
   updatedAt: string
 }
@@ -97,6 +106,7 @@ export interface PartnershipCommitmentEntry {
   effectiveDate: string
   sourceType: 'manual' | 'parsed'
   isCurrent: boolean
+  sourceCashFlowEventId: string | null
   note: string | null
   createdAt: string
   updatedAt: string
@@ -144,13 +154,160 @@ export interface PartnershipTrackerListResponse {
   nextCursor: string | null
 }
 
+export const PARTNERSHIP_AGGREGATION_WORKFLOWS = [
+  'NOT_STARTED',
+  'IN_PROGRESS',
+  'NEEDS_REVIEW',
+  'RECONCILED',
+  'NO_K1_YEAR',
+] as const
+export type PartnershipAggregationWorkflow = (typeof PARTNERSHIP_AGGREGATION_WORKFLOWS)[number]
+
+export const PARTNERSHIP_DATA_QUALITIES = ['COMPLETE', 'MISSING_DATA', 'WARNINGS'] as const
+export type PartnershipDataQuality = (typeof PARTNERSHIP_DATA_QUALITIES)[number]
+
+export const PARTNERSHIP_AGGREGATION_SORTS = [
+  'partnership',
+  'owner',
+  'type',
+  'status',
+  'commitment',
+  'paidIn',
+  'distributions',
+  'nav',
+  'unfunded',
+  'dpi',
+  'tvpi',
+  'irr',
+  'cashYield',
+  'latestTaxYear',
+  'warningCount',
+] as const
+export type PartnershipAggregationSort = (typeof PARTNERSHIP_AGGREGATION_SORTS)[number]
+export type PartnershipAggregationDirection = 'asc' | 'desc'
+export type PartnershipAggregationPageSize = 25 | 50 | 100
+
+export interface PartnershipAggregationQuery {
+  search?: string
+  ownerIds: string[]
+  partnershipTypes: PartnershipType[]
+  statuses: PartnershipStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality[]
+  sort: PartnershipAggregationSort
+  direction: PartnershipAggregationDirection
+  page: number
+  pageSize: PartnershipAggregationPageSize
+}
+
+export interface PartnershipAggregateRow extends PartnershipTrackerSummary {
+  dataQuality: PartnershipDataQuality
+}
+
+export interface PartnershipAggregationCoveredMoney {
+  amount: PartnershipTrackerMoney | null
+  knownCount: number
+  totalCount: number
+}
+
+export const PARTNERSHIP_AGGREGATION_RATIO_STATUSES = [
+  'AVAILABLE',
+  'PARTIAL_COVERAGE',
+  'NO_DATA',
+  'ZERO_DENOMINATOR',
+] as const
+export type PartnershipAggregationRatioStatus = (typeof PARTNERSHIP_AGGREGATION_RATIO_STATUSES)[number]
+
+export interface PartnershipAggregationCoveredRatio {
+  value: PartnershipTrackerRatio | null
+  status: PartnershipAggregationRatioStatus
+  numeratorKnownCount: number
+  denominatorKnownCount: number
+  totalCount: number
+}
+
+export interface PartnershipPortfolioRollup {
+  partnershipCount: number
+  ownerRecordCount: number
+  committedCapital: PartnershipAggregationCoveredMoney
+  paidInCapital: PartnershipAggregationCoveredMoney
+  distributions: PartnershipAggregationCoveredMoney
+  latestNav: PartnershipAggregationCoveredMoney
+  unfundedCommitment: PartnershipAggregationCoveredMoney
+  dpi: PartnershipAggregationCoveredRatio
+  tvpi: PartnershipAggregationCoveredRatio
+  annualizedCashOnCashYield: PartnershipAggregationCoveredRatio
+  asOfDate: string
+  navValuationRange: { earliest: string | null; latest: string | null }
+}
+
+export interface PartnershipAggregateGroup {
+  groupKey: string
+  name: string
+  partnershipType: PartnershipType
+  ownerCount: number
+  lifecycleStatuses: PartnershipStatus[]
+  workflowStatuses: PartnershipAggregationWorkflow[]
+  dataQuality: PartnershipDataQuality
+  latestTaxYear: number | null
+  warningCount: number
+  totals: PartnershipPortfolioRollup
+  members: PartnershipAggregateRow[]
+}
+
+export interface PartnershipAggregationFacetOption<T extends string = string> {
+  value: T
+  label: string
+  count: number
+}
+
+export interface PartnershipAggregationFacetSet {
+  owners: PartnershipAggregationFacetOption<string>[]
+  partnershipTypes: PartnershipAggregationFacetOption<PartnershipType>[]
+  statuses: PartnershipAggregationFacetOption<PartnershipStatus>[]
+  workflowStatuses: PartnershipAggregationFacetOption<PartnershipAggregationWorkflow>[]
+  dataQuality: PartnershipAggregationFacetOption<PartnershipDataQuality>[]
+}
+
+export interface PartnershipAggregationPageInfo {
+  page: number
+  pageSize: PartnershipAggregationPageSize
+  totalItems: number
+  totalPages: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
+}
+
+export interface PartnershipAggregationResponse {
+  query: PartnershipAggregationQuery
+  rollup: PartnershipPortfolioRollup
+  facets: PartnershipAggregationFacetSet
+  items: PartnershipAggregateGroup[]
+  pageInfo: PartnershipAggregationPageInfo
+}
+
 export interface CreateTrackedPartnershipRequest {
   entityId: string
   name: string
   partnershipType: PartnershipType
+  existingPartnershipId?: string
+  copyK1YearsFrom?: {
+    partnershipId: string
+    taxYears: number[]
+  }
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null
+  ein?: string | null
+  fundManager?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  addressCity?: string | null
+  addressRegion?: string | null
+  addressPostalCode?: string | null
+  addressCountry?: string | null
+  initialValuationAmount?: PartnershipTrackerMoney | null
+  initialValuationDate?: string | null
 }
 
 export interface UpdateTrackedPartnershipRequest {
@@ -161,7 +318,26 @@ export interface UpdateTrackedPartnershipRequest {
   notes?: string | null
   inceptionDate?: string | null
   managementFeeRate?: PartnershipTrackerRatio | null
+  ein?: string | null
+  fundManager?: string | null
+  addressLine1?: string | null
+  addressLine2?: string | null
+  addressCity?: string | null
+  addressRegion?: string | null
+  addressPostalCode?: string | null
+  addressCountry?: string | null
   expectedUpdatedAt: string
+}
+
+export interface CreatePartnershipCashFlowRequest {
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+  activityDate: string
+  amount: PartnershipTrackerMoney
+  note?: string | null
+}
+
+export interface CreatePartnershipCashFlowsRequest {
+  entries: CreatePartnershipCashFlowRequest[]
 }
 
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = [

@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { ZodError, type ZodType } from 'zod'
+import { ZodError, type ZodType, type ZodTypeDef } from 'zod'
 import { K1TrackerError } from '../k1-tracker/k1-tracker.types.js'
 import { partnershipTrackerRepository } from './partnership-tracker.repository.js'
 import { PartnershipTrackerError } from './partnership-tracker.types.js'
@@ -8,12 +8,16 @@ import {
   commitmentListQuerySchema,
   managementFeeQuerySchema,
   createCommitmentBodySchema,
+  createPartnershipCashFlowBodySchema,
+  createPartnershipCashFlowsBodySchema,
   createManualYearBodySchema,
   createNavBodySchema,
   createTrackedPartnershipBodySchema,
   deleteManualYearQuerySchema,
   expectedUpdatedAtQuerySchema,
   partnershipTrackerCommitmentParamsSchema,
+  partnershipTrackerCashFlowParamsSchema,
+  partnershipAggregationQuerySchema,
   partnershipTrackerListQuerySchema,
   partnershipTrackerNavParamsSchema,
   partnershipTrackerPartnershipParamsSchema,
@@ -25,7 +29,7 @@ import {
   updateTrackedPartnershipBodySchema,
 } from './partnership-tracker.zod.js'
 
-const parse = <T>(schema: ZodType<T>, value: unknown, reply: FastifyReply): T | null => {
+const parse = <T>(schema: ZodType<T, ZodTypeDef, unknown>, value: unknown, reply: FastifyReply): T | null => {
   try { return schema.parse(value) } catch (error) {
     if (error instanceof ZodError) {
       void reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Request validation failed.', details: error.issues })
@@ -61,6 +65,10 @@ const run = async (reply: FastifyReply, operation: () => Promise<unknown>) => {
 export const listPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const query = parse(partnershipTrackerListQuerySchema, request.query, reply); if (!query) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.listPartnerships(request.partnershipScope!, { ...query, limit: query.limit ?? 50 })))
+}
+export const getPartnershipAggregationHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const query = parse(partnershipAggregationQuerySchema, request.query, reply); if (!query) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.getAggregation(request.partnershipScope!, query)))
 }
 export const getPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply); if (!params) return
@@ -153,6 +161,27 @@ export const calculateManualYearHandler = async (request: FastifyRequest, reply:
   const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
   const body = parse(calculateManualYearBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.calculateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes ?? [], request.partnershipScope!)))
+}
+export const createPartnershipCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlow(params.partnershipId, params.taxYear, body, request.authUser!.userId, request.partnershipScope!)))
+}
+export const createPartnershipCashFlowsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowsBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlows(params.partnershipId, params.taxYear, body.entries, request.authUser!.userId, request.partnershipScope!)))
+}
+export const deletePartnershipCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerCashFlowParamsSchema, request.params, reply)
+  const query = parse(expectedUpdatedAtQuerySchema, request.query, reply); if (!params || !query) return
+  return run(reply, async () => {
+    await partnershipTrackerRepository.deleteCashFlow(params.partnershipId, params.taxYear, params.cashFlowId, query.expectedUpdatedAt, request.authUser!.userId, request.partnershipScope!)
+    return reply.code(204).send()
+  })
 }
 export const deleteManualYearHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

@@ -22,7 +22,7 @@ describe('ManagementFeePanel', () => {
     expect(screen.getByLabelText('Partnership inception')).toHaveValue('2022-01-01')
     expect(screen.getByLabelText('Annual fee rate (%)')).toHaveValue(2)
     expect(screen.getByText('151/365')).toBeInTheDocument()
-    expect(screen.getAllByText('$8,273.97').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$8,274').length).toBeGreaterThan(0)
   })
 
   it('saves fee settings as a unit ratio and hides mutations for read-only users', async () => {

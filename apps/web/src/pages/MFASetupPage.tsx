@@ -97,10 +97,10 @@ export function MFASetupPage() {
       >
         <div className="flex items-center gap-2 mb-8 justify-center">
           <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
-            <span className="text-atlas-gold font-serif font-bold text-lg">A</span>
+            <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
           </div>
           <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
-            Atlas
+            Jackson
           </span>
         </div>
 
@@ -115,7 +115,7 @@ export function MFASetupPage() {
                 Set up authenticator MFA
               </h2>
               <p className="text-sm text-gray-500 mt-1">
-                Register an authenticator app to finish signing in to Atlas.
+                Register an authenticator app to finish signing in to Jackson.
               </p>
             </div>
           </div>
@@ -202,7 +202,7 @@ export function MFASetupPage() {
               <button
                 type="submit"
                 disabled={isLoading || code.length !== 6}
-                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-atlas-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isLoading ? (
                   <>

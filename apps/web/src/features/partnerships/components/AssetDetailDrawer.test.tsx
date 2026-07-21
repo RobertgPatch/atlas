@@ -79,7 +79,7 @@ describe('AssetDetailDrawer', () => {
           confidenceLabel: null,
           note: null,
           recordedByUserId: 'user-1',
-          recordedByEmail: 'admin@atlas.com',
+          recordedByEmail: 'admin@jackson.com',
           createdAt: '2025-02-02T00:00:00.000Z',
         },
       },

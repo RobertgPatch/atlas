@@ -10,7 +10,7 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerDetail: () => ({ data: { summary: summaryFixture, years: [], commitments: [], navEntries: [], permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true } }, isLoading: false, isError: false, refetch: vi.fn() }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: vi.fn(), isPending: false }, updatePartnership: { mutateAsync: update, isPending: false } }),
 }))
-vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Atlas Family Trust' }] }, isLoading: false, isError: false }) }))
+vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Jackson Family Trust' }] }, isLoading: false, isError: false }) }))
 
 describe('PartnershipTrackerPageContent', () => {
   beforeEach(() => update.mockReset())
@@ -20,16 +20,16 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByRole('textbox', { name: 'Search partnerships' })).toBeInTheDocument()
     expect(screen.getAllByText('Redwood Fund').length).toBeGreaterThan(0)
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'K1 Entry' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Capital & NAV' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toBeInTheDocument()
-    expect(screen.getAllByText('$1,000,000.00').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$1,000,000').length).toBeGreaterThan(0)
     expect(screen.getByText('Paid-in capital')).toBeInTheDocument()
     expect(screen.getByText('Distributions')).toBeInTheDocument()
     expect(screen.getByText('Capital account')).toBeInTheDocument()
     expect(screen.getByText('DPI')).toBeInTheDocument()
     expect(screen.getByText('TVPI')).toBeInTheDocument()
-    expect(screen.getByText('IRR')).toBeInTheDocument()
+    expect(screen.getByText('XIRR')).toBeInTheDocument()
   })
   it('restores the read-only Underlying Assets area from the URL', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)

@@ -131,3 +131,75 @@ durable('PATCH /v1/entities/:id database-backed owner rename', () => {
     expect(forbidden.json().error).toBe('FORBIDDEN_ROLE')
   })
 })
+
+durable('DELETE /v1/entities/:id database-backed owner deletion', () => {
+  let f: TestFixture
+  let emptyEntityId: string
+  let occupiedEntityId: string
+  let partnershipId: string
+
+  beforeEach(async () => {
+    f = await createTestFixture()
+    emptyEntityId = randomUUID()
+    occupiedEntityId = randomUUID()
+    partnershipId = randomUUID()
+    await pool!.query(
+      `insert into entities (id, name, entity_type) values
+       ($1, $2, 'TRUST'), ($3, $4, 'TRUST')`,
+      [emptyEntityId, `Delete Empty ${emptyEntityId.slice(0, 8)}`, occupiedEntityId, `Delete Occupied ${occupiedEntityId.slice(0, 8)}`],
+    )
+    await pool!.query(
+      `insert into entity_memberships (id, user_id, entity_id, created_by)
+       values ($1, $2, $3, $2)`,
+      [randomUUID(), f.admin.id, emptyEntityId],
+    )
+    await pool!.query(
+      `insert into partnerships (id, entity_id, name, status)
+       values ($1, $2, $3, 'ACTIVE')`,
+      [partnershipId, occupiedEntityId, `Delete Guard ${partnershipId.slice(0, 8)}`],
+    )
+  })
+
+  afterEach(async () => {
+    await pool!.query('delete from audit_events where object_id = any($1::uuid[])', [[emptyEntityId, occupiedEntityId]])
+    await pool!.query('delete from entity_memberships where entity_id = any($1::uuid[])', [[emptyEntityId, occupiedEntityId]])
+    await pool!.query('delete from partnerships where id = $1', [partnershipId])
+    await pool!.query('delete from entities where id = any($1::uuid[])', [[emptyEntityId, occupiedEntityId]])
+    await f.app.close()
+  })
+
+  it('deletes the canonical entity and its memberships, then records the deletion', async () => {
+    const response = await f.app.inject({
+      method: 'DELETE',
+      url: `/v1/entities/${emptyEntityId}`,
+      headers: { cookie: f.cookie },
+    })
+    expect(response.statusCode).toBe(204)
+
+    const entityCount = await pool!.query<{ count: string }>('select count(*)::text as count from entities where id = $1', [emptyEntityId])
+    const membershipCount = await pool!.query<{ count: string }>('select count(*)::text as count from entity_memberships where entity_id = $1', [emptyEntityId])
+    expect(entityCount.rows[0]!.count).toBe('0')
+    expect(membershipCount.rows[0]!.count).toBe('0')
+
+    const audit = (await pool!.query<{ before_json: { id: string; name: string }; after_json: null }>(
+      `select before_json, after_json from audit_events
+       where object_id = $1 and event_name = 'entity.deleted' order by created_at desc limit 1`,
+      [emptyEntityId],
+    )).rows[0]!
+    expect(audit.before_json).toMatchObject({ id: emptyEntityId })
+    expect(audit.after_json).toBeNull()
+  })
+
+  it('keeps an entity with partnerships and returns the expected conflict', async () => {
+    const response = await f.app.inject({
+      method: 'DELETE',
+      url: `/v1/entities/${occupiedEntityId}`,
+      headers: { cookie: f.cookie },
+    })
+    expect(response.statusCode).toBe(409)
+    expect(response.json().error).toBe('ENTITY_HAS_PARTNERSHIPS')
+
+    const entityCount = await pool!.query<{ count: string }>('select count(*)::text as count from entities where id = $1', [occupiedEntityId])
+    expect(entityCount.rows[0]!.count).toBe('1')
+  })
+})

@@ -150,12 +150,27 @@ export interface K1TrackerSignoffState {
   }>
 }
 
+export type K1TrackerCashFlowKind = 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+
+export interface K1TrackerCashFlowEvent {
+  id: string
+  partnershipId: string
+  taxYear: number
+  kind: K1TrackerCashFlowKind
+  activityDate: string
+  amount: K1TrackerMoney
+  note: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface K1TrackerYearDetail {
   partnershipId: string
   taxYear: number
   status: K1TrackerWorkflowStatus
   revision: number
   values: K1TrackerValue[]
+  cashFlowEvents: K1TrackerCashFlowEvent[]
   sourceConflicts: Array<{ fieldKey: K1TrackerFieldKey; message: string }>
   calculation: K1TrackerCalculation
   signoff: K1TrackerSignoffState

@@ -94,7 +94,7 @@ export function RecordAssetFmvDialog({ open, onClose, partnershipId, assets, ini
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-text-primary">Asset</label>
-                    <select value={assetId} onChange={(event) => setAssetId(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${errors.assetId ? 'border-red-500' : 'border-gray-300'}`}>
+                    <select value={assetId} onChange={(event) => setAssetId(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${errors.assetId ? 'border-red-500' : 'border-gray-300'}`}>
                       <option value="">Select an asset</option>
                       {assets.map((asset) => (
                         <option key={asset.id} value={asset.id}>{asset.name} · {asset.assetType}</option>
@@ -106,12 +106,12 @@ export function RecordAssetFmvDialog({ open, onClose, partnershipId, assets, ini
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-sm font-medium text-text-primary">Valuation Date</label>
-                      <input type="date" max={today} value={valuationDate} onChange={(event) => setValuationDate(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${errors.valuationDate ? 'border-red-500' : 'border-gray-300'}`} />
+                      <input type="date" max={today} value={valuationDate} onChange={(event) => setValuationDate(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${errors.valuationDate ? 'border-red-500' : 'border-gray-300'}`} />
                       {errors.valuationDate && <p className="mt-1 text-xs text-red-600">{errors.valuationDate}</p>}
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-text-primary">FMV Amount (USD)</label>
-                      <input type="number" min="0" step="0.01" value={amountUsd} onChange={(event) => setAmountUsd(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold ${errors.amountUsd ? 'border-red-500' : 'border-gray-300'}`} />
+                      <input type="number" min="0" step="0.01" value={amountUsd} onChange={(event) => setAmountUsd(event.target.value)} className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${errors.amountUsd ? 'border-red-500' : 'border-gray-300'}`} />
                       {errors.amountUsd && <p className="mt-1 text-xs text-red-600">{errors.amountUsd}</p>}
                     </div>
                   </div>
@@ -119,7 +119,7 @@ export function RecordAssetFmvDialog({ open, onClose, partnershipId, assets, ini
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-sm font-medium text-text-primary">Source</label>
-                      <select value={source} onChange={(event) => setSource(event.target.value as AssetFmvSource)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold">
+                      <select value={source} onChange={(event) => setSource(event.target.value as AssetFmvSource)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold">
                         {SOURCE_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>{option.label}</option>
                         ))}
@@ -127,20 +127,20 @@ export function RecordAssetFmvDialog({ open, onClose, partnershipId, assets, ini
                     </div>
                     <div>
                       <label className="mb-1 block text-sm font-medium text-text-primary">Confidence Label</label>
-                      <input value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold" />
+                      <input value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold" />
                     </div>
                   </div>
 
                   <div>
                     <label className="mb-1 block text-sm font-medium text-text-primary">Note</label>
-                    <textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-atlas-gold" />
+                    <textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold" />
                   </div>
 
                   {errors.server && <p className="text-sm text-red-600">{errors.server}</p>}
 
                   <div className="flex justify-end gap-3 pt-2">
                     <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50">Cancel</button>
-                    <button type="submit" disabled={isPending} className="rounded-lg bg-atlas-gold px-4 py-2 text-sm text-white hover:bg-atlas-hover disabled:opacity-50">
+                    <button type="submit" disabled={isPending} className="rounded-lg bg-jackson-gold px-4 py-2 text-sm text-white hover:bg-jackson-hover disabled:opacity-50">
                       {isPending ? 'Saving…' : 'Record FMV'}
                     </button>
                   </div>

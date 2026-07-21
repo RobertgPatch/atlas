@@ -36,6 +36,63 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect(cleared.partnership).toMatchObject({ inceptionDate: null, managementFeeRate: null })
   })
 
+  it('persists the shared partnership profile and initial valuation at creation', async () => {
+    const created = await partnershipTrackerRepository.createPartnership({
+      entityId: fixture.entityId,
+      name: `Profile Fund ${Date.now()}`,
+      partnershipType: 'Real Estate',
+      inceptionDate: '2024-01-15',
+      ein: '123456789',
+      fundManager: 'Jackson Fund Management',
+      addressLine1: '100 Market Street',
+      addressCity: 'San Francisco',
+      addressRegion: 'CA',
+      addressPostalCode: '94105',
+      addressCountry: 'United States',
+      initialValuationAmount: '850000.00',
+      initialValuationDate: '2024-01-15',
+    }, fixture.adminUserId, scope)
+    const id = created.partnership.partnership.id
+    try {
+      const detail = await partnershipTrackerRepository.getPartnership(id, scope)
+      expect(detail.summary.partnership).toMatchObject({ ein: '123456789', fundManager: 'Jackson Fund Management', addressCity: 'San Francisco', addressRegion: 'CA' })
+      expect(detail.summary.latestNav).toEqual({ amount: '850000.00', date: '2024-01-15' })
+    } finally {
+      await pool!.query('delete from audit_events where object_id = $1', [id])
+      await pool!.query('delete from partnership_fmv_snapshots where partnership_id = $1', [id])
+      await pool!.query('delete from partnerships where id = $1', [id])
+    }
+  })
+
+  it('rolls exact-dated cash activity into the K-1 year and XIRR inputs', async () => {
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2024-01-01' })
+    await fixture.createNav(fixture.partnershipId, { amount: '110000.00', valuationDate: '2024-12-31' })
+    const created = await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
+      { kind: 'CAPITAL_CALL', activityDate: '2024-01-15', amount: '100000.00', note: 'Initial call' },
+      { kind: 'DISTRIBUTION', activityDate: '2024-07-15', amount: '10000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-11-15', amount: '2500.00' },
+    ], fixture.adminUserId, scope)
+    const call = created[0]!
+    const recallable = created[2]!
+    const secondRecallable = created[3]!
+    const year = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
+    expect(year.cashFlowEvents).toHaveLength(4)
+    expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({ amount: '100000.00', originalSourceText: 'Dated cash activity rollup' })
+    expect(year.values.find((value) => value.fieldKey === 'box_19_distributions')).toMatchObject({ amount: '17500.00', originalSourceText: 'Dated cash activity rollup' })
+    const summary = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(summary.summary).toMatchObject({ totalCapitalContributions: '100000.00', totalDistributions: '17500.00', currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' } })
+    expect(summary.commitments.at(-1)).toMatchObject({ amount: '257500.00', sourceCashFlowEventId: secondRecallable.id, isCurrent: true })
+    expect(summary.summary.performanceStatus.irr).toBe('AVAILABLE')
+    await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, recallable.id, recallable.updatedAt, fixture.adminUserId, scope)
+    expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).summary.currentCommittedCapital?.amount).toBe('252500.00')
+    await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, secondRecallable.id, secondRecallable.updatedAt, fixture.adminUserId, scope)
+    expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).summary.currentCommittedCapital?.amount).toBe('250000.00')
+    await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, call.id, call.updatedAt, fixture.adminUserId, scope)
+    expect((await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)).cashFlowEvents).toHaveLength(1)
+  })
+
   it('enforces future-date, exact rate range, and optimistic concurrency boundaries', async () => {
     const current = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
     await expect(partnershipTrackerRepository.updatePartnership(fixture.partnershipId, {

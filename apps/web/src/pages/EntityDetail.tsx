@@ -16,7 +16,7 @@ function formatUsd(value: number | null | undefined): string {
   if (value == null) return '—'
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 export function EntityDetail() {
@@ -69,19 +69,19 @@ export function EntityDetail() {
               <KpiCard
                 label="Commitment"
                 value={formatUsd(data.rollup.totalCommitmentUsd)}
-                icon={<TrendingUpIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<TrendingUpIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard
                 label="Paid-In"
                 value={formatUsd(data.rollup.totalPaidInUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard
                 label="Unfunded"
                 value={formatUsd(data.rollup.totalUnfundedUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-atlas-gold" />}
+                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
                 accentColor="#C9A96E"
               />
               <KpiCard

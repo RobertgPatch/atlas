@@ -14,7 +14,7 @@ export function StatusBadge({ status, type = 'default' }: StatusBadgeProps) {
     success: 'bg-success-light text-success border-success/20',
     warning: 'bg-warning-light text-warning border-warning/20',
     error: 'bg-error-light text-error border-error/20',
-    info: 'bg-atlas-light text-atlas-gold border-atlas-gold/20',
+    info: 'bg-jackson-light text-jackson-gold border-jackson-gold/20',
     default: 'bg-gray-100 text-gray-700 border-gray-200',
   }
 

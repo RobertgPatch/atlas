@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { K1TrackerCalculation, K1TrackerYearDetail } from '../../../../../packages/types/src/k1-tracker'
 
-const currency = (amount: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount))
+const currency = (amount: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(amount))
 const journalSources: Record<string, string[]> = {
   'Interest Income': ['box_5_interest_income', 'book_interest_income'],
   'Dividend Income': ['box_6a_ordinary_dividends', 'book_dividend_income'],

@@ -57,6 +57,7 @@ export type K1TrackerAuditEventName =
 export const PARTNERSHIP_TRACKER_AUDIT_EVENTS = {
   PARTNERSHIP_CREATED: 'partnership_tracker.partnership.created',
   PARTNERSHIP_UPDATED: 'partnership_tracker.partnership.updated',
+  K1_YEAR_COPIED: 'partnership_tracker.k1_year.copied',
   MANUAL_YEAR_CREATED: 'partnership_tracker.manual_year.created',
   MANUAL_YEAR_UPDATED: 'partnership_tracker.manual_year.updated',
   MANUAL_YEAR_DELETED: 'partnership_tracker.manual_year.deleted',

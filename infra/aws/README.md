@@ -1,4 +1,4 @@
-# Atlas AWS Liquidity Deployment
+# Jackson AWS Liquidity Deployment
 
 This directory tracks the AWS deployment path for the Plaid refresh policy feature. Staging is created manually in the AWS console first for learning and inspection, then mirrored in Terraform for comparison. Production follows the same topology after staging is validated. Terraform becomes the source of truth only after each environment's manual resources and plan differences are reviewed.
 

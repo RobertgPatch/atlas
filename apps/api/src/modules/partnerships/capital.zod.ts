@@ -13,6 +13,7 @@ export const capitalSourceTypeSchema = z.enum(['manual', 'parsed'])
 export const capitalEventTypeSchema = z.enum([
   'capital_call',
   'funded_contribution',
+  'distribution',
   'other_adjustment',
 ])
 

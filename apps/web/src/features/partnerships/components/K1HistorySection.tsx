@@ -37,7 +37,7 @@ const COLUMNS: Column<K1Row>[] = [
     align: 'right',
     render: (row) =>
       row.reportedDistributionUsd != null ? (
-        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString()}</span>
+        <span className="tabular-nums">${row.reportedDistributionUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
       ) : (
         <span className="text-text-tertiary">—</span>
       ),
@@ -58,7 +58,7 @@ const COLUMNS: Column<K1Row>[] = [
     key: 'review',
     header: '',
     render: (row) => (
-      <span className="flex items-center gap-1 text-atlas-gold text-xs font-medium">
+      <span className="flex items-center gap-1 text-jackson-gold text-xs font-medium">
         Review <ExternalLinkIcon className="w-3 h-3" />
       </span>
     ),

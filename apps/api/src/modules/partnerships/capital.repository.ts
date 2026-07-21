@@ -37,7 +37,7 @@ const IN_MEMORY_SCOPE = { isAdmin: true, entityIds: [] as string[] }
 type Queryable = PoolClient | NonNullable<typeof pool>
 
 export async function recomputeActiveCommitmentMarker(
-  db: Queryable,
+  db: Pick<PoolClient, 'query'>,
   partnershipId: string,
   asOfDate = new Date().toISOString().slice(0, 10),
 ): Promise<void> {
@@ -49,6 +49,57 @@ export async function recomputeActiveCommitmentMarker(
       where partnership_id = $1 and coalesce(commitment_date, created_at::date) <= $2::date
       order by coalesce(commitment_date, created_at::date) desc, created_at desc, id desc limit 1
     )`, [partnershipId, asOfDate])
+}
+
+const exactMoneyToCents = (value: string): bigint => {
+  const negative = value.startsWith('-')
+  const unsigned = negative ? value.slice(1) : value
+  const [whole = '0', fraction = ''] = unsigned.split('.')
+  const cents = BigInt(whole || '0') * 100n + BigInt((fraction + '00').slice(0, 2))
+  return negative ? -cents : cents
+}
+
+const exactCentsToMoney = (value: bigint): string => {
+  const negative = value < 0n
+  const unsigned = negative ? -value : value
+  return `${negative ? '-' : ''}${unsigned / 100n}.${String(unsigned % 100n).padStart(2, '0')}`
+}
+
+export async function recomputeRecallableCommitments(
+  db: Pick<PoolClient, 'query'>,
+  partnershipId: string,
+): Promise<void> {
+  await db.query('select pg_advisory_xact_lock(hashtext($1))', [`partnership-recallable-commitment:${partnershipId}`])
+  const rows = (await db.query<{
+    id: string
+    commitment_amount: string
+    source_cash_flow_event_id: string | null
+    recallable_amount: string | null
+  }>(`
+    select c.id, c.commitment_amount, c.source_cash_flow_event_id, e.amount::text as recallable_amount
+    from partnership_commitments c
+    left join capital_activity_events e on e.id = c.source_cash_flow_event_id
+    where c.partnership_id = $1
+    order by coalesce(c.commitment_date, c.created_at::date), c.created_at, c.id
+  `, [partnershipId])).rows
+
+  let runningCommitment = 0n
+  for (const row of rows) {
+    if (row.source_cash_flow_event_id) {
+      const increment = row.recallable_amount == null ? 0n : exactMoneyToCents(row.recallable_amount)
+      runningCommitment += increment < 0n ? -increment : increment
+      if (exactMoneyToCents(row.commitment_amount) !== runningCommitment) {
+        await db.query(
+          'update partnership_commitments set commitment_amount = $2, updated_at = now() where id = $1',
+          [row.id, exactCentsToMoney(runningCommitment)],
+        )
+      }
+    } else {
+      runningCommitment = exactMoneyToCents(row.commitment_amount)
+    }
+  }
+
+  await recomputeActiveCommitmentMarker(db, partnershipId)
 }
 
 type ResidualSource = Exclude<CapitalDataSource, 'calculated'> | 'none'
@@ -613,6 +664,7 @@ export const capitalRepository = {
     )
     const before = beforeResult.rows[0]
     if (!before) return null
+    if (before.source_cash_flow_event_id) throw new Error('LINKED_COMMITMENT_READ_ONLY')
 
     assertExpectedUpdatedAt(patch.expectedUpdatedAt, before.updated_at)
 

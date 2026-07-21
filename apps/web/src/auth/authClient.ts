@@ -1,10 +1,10 @@
-export type AtlasRole = 'Admin' | 'User'
+export type JacksonRole = 'Admin' | 'User'
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
 
 export interface UserSummary {
   id: string
   email: string
-  role: AtlasRole
+  role: JacksonRole
   status: UserStatus
 }
 
@@ -12,7 +12,7 @@ export interface UserDetailResponse {
   user: {
     id: string
     email: string
-    role: AtlasRole
+    role: JacksonRole
     status: UserStatus
     mfaEnabled: boolean
     createdAt: string
@@ -31,7 +31,7 @@ export interface UserDetailResponse {
 
 export interface SessionResponse {
   user: UserSummary
-  role: AtlasRole
+  role: JacksonRole
   session: {
     issuedAt: string
     idleTimeoutSeconds: number
@@ -133,11 +133,11 @@ export const authClient = {
     return request<UserDetailResponse>(`/admin/users/${userId}`, { method: 'GET' })
   },
 
-  inviteUser(email: string, role: AtlasRole) {
+  inviteUser(email: string, role: JacksonRole) {
     return request<{
       id: string
       email: string
-      role: AtlasRole
+      role: JacksonRole
       expiresAt: string
       status: 'Invited'
     }>('/admin/users/invitations', {
@@ -146,7 +146,7 @@ export const authClient = {
     })
   },
 
-  changeRole(userId: string, role: AtlasRole) {
+  changeRole(userId: string, role: JacksonRole) {
     return request<UserSummary>(`/admin/users/${userId}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role }),

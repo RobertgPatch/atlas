@@ -63,7 +63,7 @@ const buildExportFileName = (
   format: ReportExportFormat,
 ): string => {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  return `atlas-${reportType}-${stamp}.${format}`
+  return `jackson-${reportType}-${stamp}.${format}`
 }
 
 const fetchAllPortfolioRows = async (

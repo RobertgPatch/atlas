@@ -1,6 +1,6 @@
-# Atlas API
+# Jackson API
 
-Fastify-based REST API for the Atlas platform. Provides authentication, K-1 document ingestion, review, and reporting endpoints.
+Fastify-based REST API for the Jackson platform. Provides authentication, K-1 document ingestion, review, and reporting endpoints.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ Fastify-based REST API for the Atlas platform. Provides authentication, K-1 docu
 ```powershell
 # from repo root
 npm run dev:db
-npm run dev --workspace=@atlas/api
+npm run dev --workspace=api
 ```
 
 The server starts on port `3000` by default. Copy `apps/api/.env.example` to `apps/api/.env` and fill in the required values before starting.
@@ -58,9 +58,9 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Required for production durability. |
 | `REQUIRE_DURABLE_PERSISTENCE` | `false` | Set to `true` in production so startup fails without PostgreSQL. |
 | `WEB_ORIGIN` | _(empty)_ | Comma-separated allowed browser origins for credentialed CORS requests. |
-| `ADMIN_EMAIL` | `admin@atlas.com` | Bootstrap admin email inserted into durable databases on startup |
+| `ADMIN_EMAIL` | `admin@jackson.com` | Bootstrap admin email inserted into durable databases on startup |
 | `ADMIN_PASSWORD` | `password123` | Bootstrap admin password used when the admin user is first created |
-| `USER_EMAIL` | `user@atlas.com` | Bootstrap standard user email inserted into durable databases on startup |
+| `USER_EMAIL` | `user@jackson.com` | Bootstrap standard user email inserted into durable databases on startup |
 | `USER_PASSWORD` | `password123` | Bootstrap standard user password used when the user is first created |
 | `SESSION_COOKIE_NAME` | `atlas_session` | Name of the session cookie |
 | `SESSION_COOKIE_SECURE` | `false` | Set to `true` in production (HTTPS only) |

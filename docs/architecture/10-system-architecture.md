@@ -1,4 +1,4 @@
-# Atlas System Architecture
+# Jackson System Architecture
 
 ## Architecture Style
 Modular monolith, single-tenant per deployment.

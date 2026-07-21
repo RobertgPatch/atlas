@@ -1,13 +1,13 @@
-import type { PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
 import type { K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
-  { id: 'e-1', name: 'Atlas Family Trust' },
+  { id: 'e-1', name: 'Jackson Family Trust' },
   { id: 'e-2', name: 'Summit Holdings LLC' },
 ]
 
 export const summaryFixture: PartnershipTrackerSummary = {
-  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Atlas Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Jackson Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', ein: '123456789', fundManager: 'Redwood Capital', addressLine1: '100 Market Street', addressLine2: null, addressCity: 'San Francisco', addressRegion: 'CA', addressPostalCode: '94105', addressCountry: 'United States', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
   currentCommittedCapital: { amount: '1000000.00', date: '2024-01-01' },
   latestNav: { amount: '950000.00', date: '2024-12-31' },
   earliestK1Year: 2021,
@@ -45,7 +45,7 @@ export const unavailablePerformanceSummaryFixture: PartnershipTrackerSummary = {
   irrTerminalDate: null,
   irrUsesCarriedForwardNav: false,
   annualizedCashOnCashYield: null,
-  performanceAsOfDate: null,
+  performanceAsOfDate: summaryFixture.performanceAsOfDate,
   unfundedCommitmentAmount: null,
   unfundedCommitmentPercentage: null,
   unrealizedGain: null,
@@ -57,6 +57,96 @@ export const unavailablePerformanceSummaryFixture: PartnershipTrackerSummary = {
     unfundedCommitment: 'MISSING_COMMITMENT',
     unrealizedGain: 'MISSING_NAV',
   },
+}
+
+const aggregateRow = (
+  id: string,
+  name: string,
+  owner: { id: string; name: string },
+  overrides: Partial<PartnershipTrackerSummary> & { dataQuality: 'COMPLETE' | 'MISSING_DATA' | 'WARNINGS' },
+): PartnershipAggregateRow => ({
+  ...summaryFixture,
+  ...overrides,
+  partnership: { ...summaryFixture.partnership, id, name, entity: owner, ...(overrides.partnership ?? {}) },
+})
+
+const aggregateGroup = (row: PartnershipAggregateRow): PartnershipAggregateGroup => {
+  const coveredMoney = (amount: string | null | undefined) => ({ amount: amount ?? null, knownCount: amount == null ? 0 : 1, totalCount: 1 })
+  const ratio = (value: string | null, numeratorKnownCount: number, denominatorKnownCount: number) => ({
+    value,
+    status: value == null ? 'NO_DATA' as const : 'AVAILABLE' as const,
+    numeratorKnownCount,
+    denominatorKnownCount,
+    totalCount: 1,
+  })
+  return {
+    groupKey: row.partnership.aggregationGroupId ?? row.partnership.id,
+    name: row.partnership.name,
+    partnershipType: row.partnership.partnershipType,
+    ownerCount: 1,
+    lifecycleStatuses: [row.partnership.status],
+    workflowStatuses: [row.latestWorkflowStatus ?? 'NO_K1_YEAR'],
+    dataQuality: row.dataQuality,
+    latestTaxYear: row.latestTaxYear,
+    warningCount: row.warningCount,
+    totals: {
+      partnershipCount: 1,
+      ownerRecordCount: 1,
+      committedCapital: coveredMoney(row.currentCommittedCapital?.amount),
+      paidInCapital: coveredMoney(row.totalCapitalContributions),
+      distributions: coveredMoney(row.totalDistributions),
+      latestNav: coveredMoney(row.latestNav?.amount),
+      unfundedCommitment: coveredMoney(row.unfundedCommitmentAmount),
+      dpi: ratio(row.dpi, row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      tvpi: ratio(row.tvpi, row.latestNav == null || row.totalDistributions == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      annualizedCashOnCashYield: ratio(row.annualizedCashOnCashYield, row.annualizedCashOnCashYield == null ? 0 : 1, row.totalCapitalContributions == null ? 0 : 1),
+      asOfDate: row.performanceAsOfDate,
+      navValuationRange: { earliest: row.latestNav?.date ?? null, latest: row.latestNav?.date ?? null },
+    },
+    members: [row],
+  }
+}
+
+export const aggregationResponseFixture: PartnershipAggregationResponse = {
+  query: {
+    ownerIds: [],
+    partnershipTypes: [],
+    statuses: [],
+    workflowStatuses: [],
+    dataQuality: [],
+    sort: 'partnership',
+    direction: 'asc',
+    page: 1,
+    pageSize: 50,
+  },
+  rollup: {
+    partnershipCount: 4,
+    ownerRecordCount: 4,
+    committedCapital: { amount: '350000.00', knownCount: 3, totalCount: 4 },
+    paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
+    distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
+    latestNav: { amount: '270000.00', knownCount: 3, totalCount: 4 },
+    unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
+    dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
+    tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
+    annualizedCashOnCashYield: { value: '0.05000000', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
+    asOfDate: '2026-07-16',
+    navValuationRange: { earliest: '2024-12-31', latest: '2026-03-31' },
+  },
+  facets: {
+    owners: [{ value: 'e-1', label: 'Alder Family', count: 2 }, { value: 'e-2', label: 'Beacon Holdings', count: 2 }],
+    partnershipTypes: [{ value: 'Private Equity', label: 'Private Equity', count: 1 }, { value: 'Credit', label: 'Credit', count: 1 }, { value: 'Real Estate', label: 'Real Estate', count: 1 }, { value: 'Infrastructure', label: 'Infrastructure', count: 1 }],
+    statuses: [{ value: 'ACTIVE', label: 'Active', count: 2 }, { value: 'PENDING', label: 'Pending', count: 1 }, { value: 'CLOSED', label: 'Closed', count: 1 }],
+    workflowStatuses: [{ value: 'IN_PROGRESS', label: 'In progress', count: 2 }, { value: 'NO_K1_YEAR', label: 'No K-1 year', count: 1 }, { value: 'NEEDS_REVIEW', label: 'Needs review', count: 1 }],
+    dataQuality: [{ value: 'COMPLETE', label: 'Complete', count: 2 }, { value: 'MISSING_DATA', label: 'Missing data', count: 1 }, { value: 'WARNINGS', label: 'Warnings', count: 1 }],
+  },
+  items: [
+    aggregateGroup(aggregateRow('p-alpha', 'Alpha Growth I', { id: 'e-1', name: 'Alder Family' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '100000.00', date: '2021-01-01' }, totalCapitalContributions: '60000.00', totalDistributions: '15000.00', latestNav: { amount: '75000.00', date: '2025-12-31' }, unfundedCommitmentAmount: '40000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
+    aggregateGroup(aggregateRow('p-beacon', 'Beacon Credit', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '200000.00', date: '2022-01-01' }, totalCapitalContributions: '120000.00', totalDistributions: '30000.00', latestNav: { amount: '150000.00', date: '2026-03-31' }, unfundedCommitmentAmount: '80000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
+    aggregateGroup(aggregateRow('p-cedar', 'Cedar Legacy', { id: 'e-1', name: 'Alder Family' }, { ...unavailablePerformanceSummaryFixture, dataQuality: 'MISSING_DATA', warningCount: 0 })),
+    aggregateGroup(aggregateRow('p-delta', 'Delta Warning', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'WARNINGS', warningCount: 2, currentCommittedCapital: { amount: '50000.00', date: '2023-01-01' }, totalCapitalContributions: '55000.00', totalDistributions: '5000.00', latestNav: { amount: '45000.00', date: '2024-12-31' }, unfundedCommitmentAmount: '-5000.00' })),
+  ],
+  pageInfo: { page: 1, pageSize: 50, totalItems: 4, totalPages: 1, hasPreviousPage: false, hasNextPage: false },
 }
 
 export const yearSummaryFixtures = (count: 4 | 10): K1TrackerYearSummary[] =>
@@ -75,8 +165,8 @@ export const yearSummaryFixtures = (count: 4 | 10): K1TrackerYearSummary[] =>
   }))
 
 export const commitmentFixtures: PartnershipCommitmentEntry[] = [
-  { id: 'c-1', partnershipId: 'p-1', amount: '750000.00', effectiveDate: '2022-01-01', sourceType: 'manual', note: 'Initial close', isCurrent: false, createdAt: '2022-01-01T00:00:00.000Z', updatedAt: '2022-01-01T00:00:00.000Z' },
-  { id: 'c-2', partnershipId: 'p-1', amount: '1000000.00', effectiveDate: '2024-01-01', sourceType: 'manual', note: null, isCurrent: true, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
+  { id: 'c-1', partnershipId: 'p-1', amount: '750000.00', effectiveDate: '2022-01-01', sourceType: 'manual', sourceCashFlowEventId: null, note: 'Initial close', isCurrent: false, createdAt: '2022-01-01T00:00:00.000Z', updatedAt: '2022-01-01T00:00:00.000Z' },
+  { id: 'c-2', partnershipId: 'p-1', amount: '1000000.00', effectiveDate: '2024-01-01', sourceType: 'manual', sourceCashFlowEventId: null, note: null, isCurrent: true, createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
 ]
 
 export const navFixtures: PartnershipNavEntry[] = [

@@ -21,6 +21,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { LiquidityPage } from './pages/LiquidityPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
 import { PartnershipTrackerPage } from './pages/PartnershipTrackerPage'
+import { PartnershipAggregationPage } from './pages/PartnershipAggregationPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -202,6 +203,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <TicRegistryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/partnership-aggregation"
+            element={
+              <ProtectedRoute>
+                <PartnershipAggregationPage />
               </ProtectedRoute>
             }
           />

@@ -18,7 +18,7 @@ export class AuthError extends Error {
 
 // ─── Mock credentials ─────────────────────────────────────────────────────────
 
-const MOCK_EMAIL = 'test@atlas.com'
+const MOCK_EMAIL = 'test@jackson.com'
 const MOCK_PASSWORD = 'Password123!'
 const MOCK_OTP = '123456'
 const MOCK_DELAY_MS = 600

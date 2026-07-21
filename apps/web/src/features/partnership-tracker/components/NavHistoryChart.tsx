@@ -1,7 +1,7 @@
 import type { PartnershipNavEntry } from '../../../../../../packages/types/src/partnership-tracker'
 
 const currency = (value: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(value)
-const fullCurrency = (value: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value))
+const fullCurrency = (value: string) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 
 export function NavHistoryChart({ items }: { items: PartnershipNavEntry[] }) {
   if (!items.length) return <div className="flex h-56 items-center justify-center rounded-lg border border-dashed border-gray-300 text-sm text-gray-500">Add a NAV entry to start the historical plot.</div>

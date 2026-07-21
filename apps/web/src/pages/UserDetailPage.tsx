@@ -9,7 +9,7 @@ import { ErrorState } from '../components/ErrorState'
 import { EmptyState } from '../components/EmptyState'
 import { RolePill } from '../components/shared/RolePill'
 import { StatusBadge } from '../components/shared/StatusBadge'
-import { authClient, type AtlasRole, type UserDetailResponse } from '../auth/authClient'
+import { authClient, type JacksonRole, type UserDetailResponse } from '../auth/authClient'
 import { sessionStore, useSession } from '../auth/sessionStore'
 
 type PermissionRow = {
@@ -47,7 +47,7 @@ const initialsFor = (email: string) =>
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('') || 'U'
 
-const permissionRowsForRole = (role: AtlasRole): PermissionRow[] =>
+const permissionRowsForRole = (role: JacksonRole): PermissionRow[] =>
   MODULES.map((module) => {
     if (role === 'Admin') {
       return {
@@ -106,7 +106,7 @@ export function UserDetailPage() {
         header: 'View',
         align: 'center',
         accessor: (row) => (
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.view ? 'bg-atlas-gold' : 'bg-gray-300'}`} />
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.view ? 'bg-jackson-gold' : 'bg-gray-300'}`} />
         ),
       },
       {
@@ -114,7 +114,7 @@ export function UserDetailPage() {
         header: 'Edit',
         align: 'center',
         accessor: (row) => (
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.edit ? 'bg-atlas-gold' : 'bg-gray-300'}`} />
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.edit ? 'bg-jackson-gold' : 'bg-gray-300'}`} />
         ),
       },
       {
@@ -153,7 +153,7 @@ export function UserDetailPage() {
 
   const handleToggleRole = async () => {
     if (!data || action) return
-    const nextRole: AtlasRole = data.user.role === 'Admin' ? 'User' : 'Admin'
+    const nextRole: JacksonRole = data.user.role === 'Admin' ? 'User' : 'Admin'
     setAction('role')
     try {
       await authClient.changeRole(data.user.id, nextRole)
@@ -254,7 +254,7 @@ export function UserDetailPage() {
             <button
               onClick={() => void handleToggleRole()}
               disabled={action !== null || !data}
-              className="inline-flex items-center px-3 py-2 rounded-lg bg-atlas-gold text-white text-sm hover:bg-atlas-hover disabled:opacity-60 disabled:cursor-wait"
+              className="inline-flex items-center px-3 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover disabled:opacity-60 disabled:cursor-wait"
             >
               {action === 'role' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserCog className="w-4 h-4 mr-2" />}
               Toggle Role
@@ -312,7 +312,7 @@ export function UserDetailPage() {
             <div className="space-y-6">
               <section className="rounded-lg border border-gray-200 bg-white p-6">
                 <div className="mb-4 flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-atlas-gold" />
+                  <Shield className="h-5 w-5 text-jackson-gold" />
                   <h3 className="text-lg font-semibold text-text-primary">Security Settings</h3>
                 </div>
 
@@ -353,7 +353,7 @@ export function UserDetailPage() {
                   <div>
                     <p className="mb-2 text-sm font-medium text-text-primary">Role</p>
                     <div className="flex flex-wrap gap-2">
-                      {(['Admin', 'User'] as AtlasRole[]).map((role) => (
+                      {(['Admin', 'User'] as JacksonRole[]).map((role) => (
                         <span
                           key={role}
                           className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${role === data.user.role ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-text-primary'}`}
@@ -368,7 +368,7 @@ export function UserDetailPage() {
 
               <section className="rounded-lg border border-gray-200 bg-white p-6">
                 <h3 className="mb-3 text-lg font-semibold text-text-primary">Permissions Matrix</h3>
-                <div className="mb-4 rounded-lg border border-atlas-gold/20 bg-atlas-light px-4 py-3 text-sm text-text-secondary">
+                <div className="mb-4 rounded-lg border border-jackson-gold/20 bg-jackson-light px-4 py-3 text-sm text-text-secondary">
                   Permissions are role-driven in the current admin model. Changing the role updates access across the app.
                 </div>
                 <DataTable columns={permissionColumns} data={permissionRows} />

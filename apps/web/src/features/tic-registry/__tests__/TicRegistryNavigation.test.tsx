@@ -10,7 +10,7 @@ describe('TIC Registry navigation', () => {
         <AppShell
           currentPath="/tic-registry"
           userRole="Admin"
-          userEmail="admin@atlas.test"
+          userEmail="admin@jackson.test"
           onSignOut={vi.fn()}
         >
           <div>Registry content</div>
@@ -20,6 +20,6 @@ describe('TIC Registry navigation', () => {
 
     const link = screen.getByRole('link', { name: /tic registry/i })
     expect(link).toHaveAttribute('href', '/tic-registry')
-    expect(link).toHaveClass('text-atlas-gold')
+    expect(link).toHaveClass('text-jackson-gold')
   })
 })

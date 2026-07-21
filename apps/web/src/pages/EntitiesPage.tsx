@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
+import { ConfirmationDialog } from '../components/shared/ConfirmationDialog'
 import { PageHeader } from '../components/shared/PageHeader'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -20,7 +21,7 @@ function formatUsd(value: number | null | undefined): string {
   if (value == null || value === 0) return '—'
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`
-  return `$${value.toLocaleString()}`
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
 export function errorMessage(err: unknown, fallback = 'Action failed. Please try again.'): string {
@@ -51,6 +52,7 @@ export function EntitiesPage() {
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
   const handleCreate = async () => {
     const trimmed = newName.trim()
@@ -93,13 +95,16 @@ export function EntitiesPage() {
     }
   }
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Remove the entity "${name}"? This cannot be undone.`)) return
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    const { id } = deleteTarget
     try {
       await remove.mutateAsync(id)
       if (editId === id) cancelEdit()
     } catch (err) {
       setRowError({ id, message: errorMessage(err) })
+    } finally {
+      setDeleteTarget(null)
     }
   }
 
@@ -135,14 +140,14 @@ export function EntitiesPage() {
                   if (e.key === 'Enter') void handleCreate()
                 }}
                 placeholder="e.g. Whitfield Family Trust"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
               />
               {createError && <p className="mt-1 text-xs text-error">{createError}</p>}
             </div>
             <button
               onClick={() => void handleCreate()}
               disabled={create.isPending}
-              className={`inline-flex items-center px-4 py-2 rounded-lg bg-atlas-gold text-white text-sm hover:bg-atlas-hover sm:mt-[22px] ${
+              className={`inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover sm:mt-[22px] ${
                 create.isPending ? 'opacity-60 cursor-wait' : ''
               }`}
             >
@@ -212,7 +217,7 @@ export function EntitiesPage() {
                               if (e.key === 'Escape') cancelEdit()
                             }}
                             autoFocus
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-atlas-gold focus:border-atlas-gold"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
                           />
                           {rowErr && <p className="mt-1 text-xs text-error">{rowErr}</p>}
                         </div>
@@ -220,7 +225,7 @@ export function EntitiesPage() {
                         <button
                           type="button"
                           onClick={() => navigate(`/entities/${row.id}`)}
-                          className="text-atlas-gold hover:underline font-medium"
+                          className="text-jackson-gold hover:underline font-medium"
                         >
                           {row.name}
                         </button>
@@ -267,7 +272,7 @@ export function EntitiesPage() {
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={() => void handleDelete(row.id, row.name)}
+                                onClick={() => setDeleteTarget({ id: row.id, name: row.name })}
                                 disabled={remove.isPending}
                                 className="p-1.5 rounded hover:bg-gray-100 text-error disabled:opacity-50"
                                 title={
@@ -297,6 +302,23 @@ export function EntitiesPage() {
           </table>
         </div>
       )}
+      <ConfirmationDialog
+        open={Boolean(deleteTarget)}
+        title={`Delete ${deleteTarget?.name ?? 'entity'}?`}
+        description={
+          deleteTarget ? (
+            <p>
+              This permanently removes <strong className="font-semibold text-gray-900">{deleteTarget.name}</strong>.
+              Any attached partnerships must be moved or deleted first.
+            </p>
+          ) : null
+        }
+        confirmLabel="Delete entity"
+        pending={remove.isPending}
+        pendingLabel="Deleting entity…"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </AppShell>
   )
 }

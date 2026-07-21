@@ -28,7 +28,7 @@ describe('TicPropertyCard', () => {
     expect(screen.getByText('24 units')).toBeInTheDocument()
     expect(screen.getByText('acquisition $1,250,000')).toBeInTheDocument()
     expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
-    expect(screen.getByText('Atlas Family Trust')).toBeInTheDocument()
+    expect(screen.getByText('Jackson Family Trust')).toBeInTheDocument()
     expect(screen.getByText('20%')).toBeInTheDocument()
     expect(screen.getByTitle('Edit property')).toBeInTheDocument()
   })

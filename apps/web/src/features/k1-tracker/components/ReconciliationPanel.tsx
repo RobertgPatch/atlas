@@ -1,6 +1,6 @@
 import type { K1TrackerCalculation, K1TrackerYearDetail } from '../../../../../packages/types/src/k1-tracker'
 
-const currency = (value: unknown) => typeof value === 'string' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(value)) : 'not available'
+const currency = (value: unknown) => typeof value === 'string' ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value)) : 'not available'
 const stateClass = (status: string) => status === 'PASS' ? 'bg-emerald-50 text-emerald-800' : status === 'INCOMPLETE' ? 'bg-gray-100 text-gray-700' : 'bg-amber-50 text-amber-800'
 const source = (detail: K1TrackerYearDetail, keys: string | string[]) => {
   const fieldKeys = Array.isArray(keys) ? keys : [keys]

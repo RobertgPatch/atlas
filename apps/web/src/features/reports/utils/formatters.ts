@@ -1,8 +1,8 @@
 const CURRENCY_FORMATTER = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 2,
+  maximumFractionDigits: 0,
+  minimumFractionDigits: 0,
 })
 
 const PERCENT_FORMATTER = (decimals = 1) =>

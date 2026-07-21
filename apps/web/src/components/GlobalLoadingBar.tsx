@@ -16,7 +16,7 @@ export function GlobalLoadingBar() {
       className="fixed top-0 left-0 right-0 z-[60] h-[3px] pointer-events-none overflow-hidden"
       style={{ opacity: active ? 1 : 0, transition: 'opacity 150ms ease-out' }}
     >
-      <div className="h-full w-full bg-atlas-gold/80 animate-pulse" />
+      <div className="h-full w-full bg-jackson-gold/80 animate-pulse" />
     </div>
   )
 }

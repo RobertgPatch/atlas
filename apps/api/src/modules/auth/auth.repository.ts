@@ -131,7 +131,7 @@ const seedInMemoryUsers = () => {
   const adminId = randomUUID()
   users.set(adminId, {
     id: adminId,
-    email: 'admin@atlas.com',
+    email: config.adminEmail,
     passwordHash: hash(config.adminPassword),
     role: 'Admin',
     status: 'Active',
@@ -145,7 +145,7 @@ const seedInMemoryUsers = () => {
   const userId = randomUUID()
   users.set(userId, {
     id: userId,
-    email: 'user@atlas.com',
+    email: config.userEmail,
     passwordHash: hash(config.userPassword),
     role: 'User',
     status: 'Active',

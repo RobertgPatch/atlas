@@ -1,6 +1,6 @@
 import React from 'react'
 
-export type AtlasStatus =
+export type JacksonStatus =
   | 'uploaded'
   | 'processing'
   | 'needs_review'
@@ -10,7 +10,7 @@ export type AtlasStatus =
   | 'inactive'
 
 export interface StatusBadgeProps {
-  status: AtlasStatus | (string & {})
+  status: JacksonStatus | (string & {})
   label?: string
   size?: 'small' | 'medium'
 }

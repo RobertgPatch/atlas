@@ -1,4 +1,4 @@
-# Atlas UI Component Catalog
+# Jackson UI Component Catalog
 
 These are the reusable components Magic Patterns output should align to.
 
