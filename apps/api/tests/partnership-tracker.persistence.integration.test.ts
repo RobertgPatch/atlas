@@ -65,7 +65,11 @@ durable('Partnership Tracker persistence compatibility', () => {
   })
 
   it('rolls exact-dated cash activity into the K-1 year and XIRR inputs', async () => {
-    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    const createdYear = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    expect(createdYear.officialFormData).toMatchObject({
+      tax_period_beginning: '2024-01-01',
+      tax_period_ending: '2024-12-31',
+    })
     await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2024-01-01' })
     await fixture.createNav(fixture.partnershipId, { amount: '110000.00', valuationDate: '2024-12-31' })
     const created = await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [

@@ -153,7 +153,7 @@ export const updateManualYearHandler = async (request: FastifyRequest, reply: Fa
   const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
   const body = parse(updateManualYearBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => {
-    const result = await partnershipTrackerRepository.updateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes, request.authUser!.userId, request.partnershipScope!)
+    const result = await partnershipTrackerRepository.updateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes, request.authUser!.userId, request.partnershipScope!, body.officialFormData)
     return reply.send(result.year)
   })
 }

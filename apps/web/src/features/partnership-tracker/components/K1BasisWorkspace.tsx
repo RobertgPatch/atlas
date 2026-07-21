@@ -1,7 +1,7 @@
 import { AlertTriangle, Loader2, Plus } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { CreatePartnershipCashFlowRequest, K1TrackerFieldChange, PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
-import type { K1TrackerCashFlowEvent } from '../../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerCashFlowEvent, K1TrackerOfficialFormData } from '../../../../../../packages/types/src/k1-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
 import { K1YearResults } from '../../k1-tracker/components/K1YearResults'
 import { ConfirmationDialog } from '../../../components/shared/ConfirmationDialog'
@@ -47,6 +47,7 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
   const [comparing, setComparing] = useState(false)
   const [message, setMessage] = useState<string>()
   const [dirty, setDirty] = useState(false)
+  const [discardYearTarget, setDiscardYearTarget] = useState<number>()
   const [confirmDeleteYear, setConfirmDeleteYear] = useState(false)
   const selected = year.data
 
@@ -64,8 +65,21 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
     setDirty(next)
     onDirtyChange(next)
   }, [onDirtyChange])
-  const confirmDiscard = () => !dirty || window.confirm('Discard unsaved K-1 changes?')
-  const selectYear = (nextYear: number) => { if (nextYear !== effectiveYear && confirmDiscard()) onSelectYear(nextYear) }
+  const selectYear = (nextYear: number) => {
+    if (nextYear === effectiveYear) return
+    if (dirty) {
+      setDiscardYearTarget(nextYear)
+      return
+    }
+    onSelectYear(nextYear)
+  }
+  const discardAndSelectYear = () => {
+    if (discardYearTarget == null) return
+    const nextYear = discardYearTarget
+    setDiscardYearTarget(undefined)
+    updateDirty(false)
+    onSelectYear(nextYear)
+  }
   const addYear = async (taxYear: number) => {
     try { const created = await actions.createYear.mutateAsync({ id: partnershipId, year: taxYear }); setAdding(false); onSelectYear(created.taxYear); setMessage(`${taxYear} is ready for manual K-1 entry.`) }
     catch (error) { throw new Error(errorText(error)) }
@@ -73,10 +87,10 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
   const calculate = (changes: K1TrackerFieldChange[]) => !selected || effectiveYear == null
     ? Promise.resolve(undefined)
     : actions.calculate.mutateAsync({ id: partnershipId, year: effectiveYear, expectedRevision: selected.revision, changes })
-  const save = async (changes: K1TrackerFieldChange[]) => {
+  const save = async (changes: K1TrackerFieldChange[], officialFormData?: K1TrackerOfficialFormData) => {
     if (!selected || effectiveYear == null) return
     try {
-      await actions.updateYear.mutateAsync({ id: partnershipId, year: effectiveYear, expectedRevision: selected.revision, changes })
+      await actions.updateYear.mutateAsync({ id: partnershipId, year: effectiveYear, expectedRevision: selected.revision, changes, officialFormData })
       updateDirty(false)
       setMessage('Manual K-1 revisions saved and dependent years recalculated.')
     } catch (error) { setMessage(errorText(error)); throw new Error(errorText(error)) }
@@ -100,17 +114,27 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
     if (effectiveYear == null) return
     await actions.deleteCashFlow.mutateAsync({ id: partnershipId, year: effectiveYear, cashFlowId: event.id, expectedUpdatedAt: event.updatedAt })
   }
-  const signoff = async (action: 'PREPARED' | 'REVIEWED') => {
+  const signoff = async () => {
     if (!selected || effectiveYear == null) return
-    try { await actions.signoff.mutateAsync({ id: partnershipId, year: effectiveYear, expectedRevision: selected.revision, action: action === 'PREPARED' ? 'PREPARE' : 'REVIEW' }); setMessage(action === 'PREPARED' ? 'Year prepared for independent review.' : 'Year independently reviewed.') } catch (error) { setMessage(errorText(error)) }
+    try { await actions.signoff.mutateAsync({ id: partnershipId, year: effectiveYear, expectedRevision: selected.revision, action: 'REVIEW' }); setMessage('Year signed off and reconciled.') } catch (error) { setMessage(errorText(error)) }
   }
 
   return <div className="space-y-5">
-    <section className="border border-gray-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-950">K-1 and outside basis</h3><p className="mt-1 text-sm text-gray-500">Choose one year at a time. Its complete K-1 entry form and results stay on this page.</p></div><div className="flex flex-wrap gap-2"><button type="button" disabled={!detail.years.length} onClick={() => setComparing(true)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium disabled:opacity-40">Compare years</button>{canEdit && <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-2 rounded-lg bg-jackson-gold px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Add any year</button>}</div></div><YearRail years={detail.years} selectedYear={effectiveYear} onSelect={selectYear} onPrefetch={() => undefined} /></section>
+    <section className="border border-gray-200 bg-white p-5 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-950">K-1 and outside basis</h3><p className="mt-1 text-sm text-gray-500">Choose one year at a time. Its complete K-1 entry form and results stay on this page.</p></div><div role="group" aria-label="K-1 year actions" className="flex flex-wrap gap-2"><button type="button" disabled={!detail.years.length} onClick={() => setComparing(true)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium disabled:opacity-40">Compare years</button>{canEdit && selected && <button type="button" onClick={() => setConfirmDeleteYear(true)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700">Delete year</button>}{canEdit && <button type="button" onClick={() => setAdding(true)} className="inline-flex items-center gap-2 rounded-lg bg-jackson-gold px-3 py-2 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Add any year</button>}</div></div><YearRail years={detail.years} selectedYear={effectiveYear} onSelect={selectYear} onPrefetch={() => undefined} /></section>
     {message && <p role="status" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />{message}</p>}
-    {!detail.years.length ? <section className="border border-dashed border-gray-300 bg-white p-12 text-center"><h3 className="font-semibold text-gray-900">No K-1 years yet</h3><p className="mt-2 text-sm text-gray-500">Start with any tax year. Years are not forced to be consecutive.</p>{canEdit && <button type="button" onClick={() => setAdding(true)} className="mt-4 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-semibold text-white">Add first K-1 year</button>}</section> : year.isLoading ? <div className="flex min-h-64 items-center justify-center border border-gray-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div> : year.isError ? <p role="alert" className="bg-red-50 p-5 text-sm text-red-700">{errorText(year.error)}</p> : selected ? <div className="space-y-5"><div className="flex justify-end">{canEdit && <button type="button" onClick={() => setConfirmDeleteYear(true)} className="rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700">Delete year</button>}</div><DatedCashFlowPanel taxYear={selected.taxYear} events={selected.cashFlowEvents ?? []} canEdit={canEdit} pending={(actions.createCashFlows?.isPending ?? false) || (actions.deleteCashFlow?.isPending ?? false)} onCreate={createCashFlows} onDelete={deleteCashFlow} /><K1YearEntryForm key={`${selected.taxYear}-${selected.revision}`} detail={selected} identity={identity} canEdit={canEdit} pending={actions.calculate.isPending || actions.updateYear.isPending} onCalculate={calculate} onSave={save} onDirtyChange={updateDirty} /><K1YearResults detail={selected} canEdit={canEdit} pending={actions.signoff.isPending} onSignoff={(action) => void signoff(action)} /></div> : null}
+    {!detail.years.length ? <section className="border border-dashed border-gray-300 bg-white p-12 text-center"><h3 className="font-semibold text-gray-900">No K-1 years yet</h3><p className="mt-2 text-sm text-gray-500">Start with any tax year. Years are not forced to be consecutive.</p>{canEdit && <button type="button" onClick={() => setAdding(true)} className="mt-4 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-semibold text-white">Add first K-1 year</button>}</section> : year.isLoading ? <div className="flex min-h-64 items-center justify-center border border-gray-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-gray-400" /></div> : year.isError ? <p role="alert" className="bg-red-50 p-5 text-sm text-red-700">{errorText(year.error)}</p> : selected ? <div className="space-y-5"><DatedCashFlowPanel taxYear={selected.taxYear} events={selected.cashFlowEvents ?? []} canEdit={canEdit} pending={(actions.createCashFlows?.isPending ?? false) || (actions.deleteCashFlow?.isPending ?? false)} onCreate={createCashFlows} onDelete={deleteCashFlow} /><K1YearEntryForm key={`${selected.taxYear}-${selected.revision}`} detail={selected} identity={identity} canEdit={canEdit} pending={actions.calculate.isPending || actions.updateYear.isPending} onCalculate={calculate} onSave={save} onDirtyChange={updateDirty} /><K1YearResults detail={selected} canEdit={canEdit} pending={actions.signoff.isPending} onSignoff={() => void signoff()} /></div> : null}
     {adding && <AddYearDialog defaultTaxYear={detail.years.at(-1)?.taxYear ? detail.years.at(-1)!.taxYear + 1 : new Date().getFullYear() - 1} pending={actions.createYear.isPending} onClose={() => setAdding(false)} onAdd={addYear} />}
     {comparing && <CompareYearsDrawer years={detail.years} selectedYear={effectiveYear} onClose={() => setComparing(false)} />}
+    <ConfirmationDialog
+      open={discardYearTarget != null}
+      tone="warning"
+      title="Discard unsaved K-1 changes?"
+      description={<p>Your edits to the {effectiveYear ?? 'current'} K-1 have not been saved. Moving to {discardYearTarget ?? 'another year'} will discard this draft.</p>}
+      confirmLabel="Discard changes"
+      cancelLabel="Keep editing"
+      onClose={() => setDiscardYearTarget(undefined)}
+      onConfirm={discardAndSelectYear}
+    />
     <ConfirmationDialog open={confirmDeleteYear} title={`Delete the ${effectiveYear ?? ''} K-1 year?`} description={<p>All entered K-1 values for this year will be permanently removed. Later years will be recalculated from the remaining history.</p>} confirmLabel="Delete year" pending={actions.deleteYear.isPending} pendingLabel="Deleting year…" onClose={() => setConfirmDeleteYear(false)} onConfirm={deleteYear} />
   </div>
 }

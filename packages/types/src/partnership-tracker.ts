@@ -1,6 +1,7 @@
 import type {
   K1TrackerCalculation,
   K1TrackerFieldChange,
+  K1TrackerOfficialFormData,
   K1TrackerPartnershipDetail,
   K1TrackerSignoffState,
   K1TrackerWorkflowStatus,
@@ -403,6 +404,7 @@ export interface CreatePartnershipTrackerYearRequest {
 export interface UpdatePartnershipTrackerYearRequest {
   expectedRevision: number
   changes: K1TrackerFieldChange[]
+  officialFormData?: K1TrackerOfficialFormData
 }
 
 export interface CalculatePartnershipTrackerYearRequest {

@@ -1,8 +1,20 @@
 # UI Contract: K-1 Form-Inspired Annual Entry
 
+## Complete-Form Contract Amendment (2026-07-19)
+
+This section supersedes the read-only identity, reference-only landmark, and unchanged-API statements in the original contract below.
+
+- All 48 official-form keys are editable when `canEdit` is true and disabled when it is false.
+- Header controls cover final/amended status and tax-period dates. Part I covers A-D. Part II covers E, F, G, H1/H2, I1/I2, J percentages and sale/exchange, K2/K3, the L method, M, and N beginning/ending values.
+- Part III adds editable money controls for 4a, 4b, 6b, 6c, 9b, and 9c; repeatable code/detail rows for 11, 13, 14, 15, 17, 18, 19, 20, and 21; and checkboxes for 16, 22, and 23.
+- Existing calculation-backed fields still emit `K1TrackerFieldChange[]`. Official-form state is normalized into a full-replacement `officialFormData` object and may be saved with zero calculation changes.
+- The update response returns the saved official object. Official-only changes increment the selected-year revision and invalidate its sign-off without changing the calculation result.
+- API validation rejects unknown keys, incorrect per-field value kinds, malformed money/percentage/date values, unsupported choices, empty code rows, and mutually conflicting final/amended status.
+- Inventory tests require the union of header, identity, and Part III official placements to equal the complete official key set with no duplicates.
+
 ## Purpose
 
-This contract defines where Jackson K-1 fields appear and which interactions remain stable. Preview and save continue to use `K1TrackerFieldChange[]`; non-monetary fields use its optional `textValue` property with `amount: null`.
+This contract defines where existing Jackson fields and complete official-form data appear and which interactions remain stable.
 
 ## Form-Level Contract
 
@@ -21,18 +33,9 @@ This contract defines where Jackson K-1 fields appear and which interactions rem
 | Part I EIN | `summary.partnership.ein` | Not available |
 | Part I address | composed `summary.partnership.address*` | Not available |
 | Part II partner name | `summary.partnership.entity.name` | Not available |
-| Other identity-only cells | no existing source | Not available |
+| Other official identity/tax cells | no existing source | Not available or Not tracked in Jackson |
 
-Identity cells are read-only. Part II tax classifications and reporting fields are editable:
-
-| Form item | Field keys | Control |
-|---|---|---|
-| G | `item_g_partner_type` | Select |
-| H1–H2 | `item_h_partner_residency`, `item_h2_foreign_country_code` | Select and text |
-| I1–I2 | `item_i1_partner_entity_type`, `item_i2_retirement_plan` | Text and checkbox |
-| J | six beginning/ending profit, loss, and capital percentage keys plus `item_j_decrease_due_sale_exchange` | Percentage inputs and checkbox |
-| M | `item_m_contributed_property_with_built_in_gain_loss` | Yes/no select |
-| N | beginning and ending `item_n_unrecognized_section_704c_*` keys | Signed money inputs |
+Identity cells are editable under the complete-form amendment; existing values are defaults rather than locked text.
 
 ## Item K Mapping
 
@@ -41,6 +44,8 @@ Identity cells are read-only. Part II tax classifications and reporting fields a
 | Nonrecourse liabilities | `liability_nonrecourse_beginning` | `liability_nonrecourse_ending` | Existing nonnegative/carryforward rules |
 | Qualified nonrecourse financing | `liability_qualified_nonrecourse_beginning` | `liability_qualified_nonrecourse_ending` | Existing nonnegative/carryforward rules |
 | Recourse liabilities | `liability_recourse_beginning` | `liability_recourse_ending` | Existing nonnegative/carryforward rules |
+
+Item K percentages, checkboxes, and other reference items without existing fields are static and not tracked.
 
 ## Section L Mapping
 
@@ -62,46 +67,31 @@ Identity cells are read-only. Part II tax classifications and reporting fields a
 | 1 | `box_1_ordinary_income_loss` | Ordinary income (loss) | Signed |
 | 2 | `box_2_net_rental_real_estate_income_loss` | Net rental real estate income (loss) | Signed |
 | 3 | `box_3_other_net_rental_income_loss` | Other net rental income (loss) | Signed |
-| 4a | `box_4a_guaranteed_payments_services` | Guaranteed payments for services | Signed |
-| 4b | `box_4b_guaranteed_payments_capital` | Guaranteed payments for capital | Signed |
 | 4c | `box_4c_guaranteed_payments` | Guaranteed payments | Signed |
 | 5 | `box_5_interest_income` | Interest income | Signed |
 | 6a | `box_6a_ordinary_dividends` | Ordinary dividends | Signed |
-| 6b | `box_6b_qualified_dividends` | Qualified dividends | Signed informational subset |
-| 6c | `box_6c_dividend_equivalents` | Dividend equivalents | Signed informational amount |
 | 7 | `box_7_royalties` | Royalties | Signed |
 | 8 | `box_8_net_short_term_capital_gain_loss` | Net short-term capital gain (loss) | Signed |
 | 9a | `box_9a_net_long_term_capital_gain_loss` | Net long-term capital gain (loss) | Signed |
-| 9b | `box_9b_collectibles_gain_loss` | Collectibles gain (loss) | Signed informational subset |
-| 9c | `box_9c_unrecaptured_section_1250_gain` | Unrecaptured section 1250 gain | Signed informational subset |
 | 10 | `box_10_net_section_1231_gain_loss` | Net section 1231 gain (loss) | Signed |
 | 11 | `box_11_other_income_loss` | Other income (loss) | Signed |
 | 12 | `box_12_section_179_deduction` | Section 179 deduction | Nonnegative |
 | 13 | `box_13_other_portfolio_deductions` | Other portfolio deductions | Nonnegative subrow |
 | 13 | `box_13_management_fees` | Management fees | Nonnegative subrow |
-| 14 | `box_14_code`, `box_14_self_employment_earnings_loss` | Self-employment items | Code plus signed amount |
-| 15 | `box_15_code`, `box_15_credits` | Credits | Code plus signed amount |
-| 16 | `box_16_schedule_k3_attached` | Schedule K-3 attached | Checkbox |
-| 17 | `box_17_code`, `box_17_alternative_minimum_tax_items` | Alternative minimum tax items | Code plus signed amount |
 | 18A | `box_18a_nondeductible_expenses` | Existing Jackson 18A nondeductible-expense field | Nonnegative; preserve current calculation semantics |
 | 18B | `box_18b_tax_exempt_income` | Tax-exempt income (basis only) | Signed; preserve current calculation semantics |
 | 18C | `box_18c_nondeductible_expenses` | Nondeductible expenses (basis decrease) | Nonnegative; preserve current calculation semantics |
 | 19 | `box_19_distributions` | Distributions | Nonnegative; read-only when dated distributions or recallable distributions exist |
-| 20 | `box_20_code`, `box_20_other_information` | Other information | Code plus signed amount |
 | 21 | `box_21_foreign_taxes` | Foreign taxes paid | Nonnegative |
-| 22 | `box_22_multiple_at_risk_activities` | Multiple at-risk activities | Checkbox |
-| 23 | `box_23_multiple_passive_activities` | Multiple passive activities | Checkbox |
 
 The line 18 labels above deliberately preserve Jackson's existing historical field contract. This visual feature does not remap stored values to different tax semantics.
 
-## Typed Value Contract
+## Part III Reference-Only Landmarks (superseded)
 
-- Money fields normalize to two-decimal strings in `amount` and send `textValue: null`.
-- Text and code fields trim their value and send it through `textValue` with `amount: null`.
-- Percentage fields accept 0 through 100 with up to six decimal places and persist the normalized percentage through `textValue`.
-- Select fields accept only a declared option value and persist it through `textValue`.
-- Checkboxes persist `"true"` when checked and `null` when unchecked.
-- Informational subset and coded amounts are persisted but are not added independently to existing basis formulas.
+These historical rules are replaced by the complete-form contract. Lines 4a, 4b, 6b, 6c, 9b, 9c, 14, 15, 16, 17, 20, 22, and 23 now render typed inputs and persist through `officialFormData`.
+
+- They remain absent from the numeric calculation change set unless already mapped to a canonical calculation field.
+- They are present in official-form state, validation, dirty tracking, revert, and save behavior.
 
 ## Jackson Supplemental Workpaper Mapping
 
@@ -142,14 +132,14 @@ Each supported field retains, when applicable:
 
 ## Change-Set Contract
 
-1. Initialize values by iterating the canonical 74 editable definitions.
+1. Initialize values by iterating the canonical 42 editable definitions.
 2. On preview/save, iterate the same canonical definitions rather than visual cells.
 3. Skip fields managed by dated cash activity.
-4. Normalize according to `inputKind`; money also uses the existing `allowNegative` rule.
+4. Normalize using the existing `allowNegative` rule.
 5. Emit only values that differ from the initial normalized value.
 6. Use `MANUAL_ENTRY` unless manual override is enabled.
 7. When override is enabled, require and include the trimmed reason and use `MANUAL_OVERRIDE`.
-8. Do not emit unavailable read-only identity facts.
+8. Normalize and emit official-form state separately when any official value changed.
 
 ## Responsive and Accessibility Contract
 
@@ -160,10 +150,12 @@ Each supported field retains, when applicable:
 - Status is not communicated by color alone.
 - Focus is visible against both white and gray form cells.
 - Controls are keyboard operable and action buttons wrap without clipping.
+- Repeatable coded sections add and remove rows with keyboard-operable 44-pixel controls.
 
 ## As-Built Notes
 
-- The implemented writable placement inventory exactly matches the 74 canonical `K1_EDITABLE_FIELDS`.
-- Part I and Part II reuse the already-loaded partnership summary for available identity context and render explicit **Not available** values without introducing another request or editable identity state.
-- Every formerly static official landmark is now a typed input, and the supplemental opening-balance and book-tax inputs remain inside the same form and change set.
+- The calculation placement inventory exactly matches the 42 canonical `K1_EDITABLE_FIELDS`, while the official placement inventory exactly matches all 48 official-form keys.
+- Part I and Part II reuse the already-loaded partnership summary as editable defaults; saved tax-year-specific values take precedence.
+- No static **Not tracked in Jackson** landmarks remain. Official-only values use the optional update request property and migration 025 JSONB storage, while supplemental opening-balance and book-tax inputs remain in the canonical numeric change set.
+- Official-only updates are calculation-neutral, revisioned, audited, and sign-off invalidating.
 - The Net Cash Activity table keeps its intentional contained horizontal scroller on narrow screens. Its visually empty actions column now uses an accessible column label without an off-canvas screen-reader element, preventing page-level overflow at 390 CSS pixels.

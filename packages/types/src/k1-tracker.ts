@@ -25,18 +25,12 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_1_ordinary_income_loss',
   'box_2_net_rental_real_estate_income_loss',
   'box_3_other_net_rental_income_loss',
-  'box_4a_guaranteed_payments_services',
-  'box_4b_guaranteed_payments_capital',
   'box_4c_guaranteed_payments',
   'box_5_interest_income',
   'box_6a_ordinary_dividends',
-  'box_6b_qualified_dividends',
-  'box_6c_dividend_equivalents',
   'box_7_royalties',
   'box_8_net_short_term_capital_gain_loss',
   'box_9a_net_long_term_capital_gain_loss',
-  'box_9b_collectibles_gain_loss',
-  'box_9c_unrecaptured_section_1250_gain',
   'box_10_net_section_1231_gain_loss',
   'box_11_other_income_loss',
   'box_12_section_179_deduction',
@@ -48,32 +42,6 @@ export const K1_TRACKER_FIELD_KEYS = [
   'box_18c_nondeductible_expenses',
   'box_19_distributions',
   'box_21_foreign_taxes',
-  'box_14_code',
-  'box_14_self_employment_earnings_loss',
-  'box_15_code',
-  'box_15_credits',
-  'box_16_schedule_k3_attached',
-  'box_17_code',
-  'box_17_alternative_minimum_tax_items',
-  'box_20_code',
-  'box_20_other_information',
-  'box_22_multiple_at_risk_activities',
-  'box_23_multiple_passive_activities',
-  'item_g_partner_type',
-  'item_h_partner_residency',
-  'item_h2_foreign_country_code',
-  'item_i1_partner_entity_type',
-  'item_i2_retirement_plan',
-  'item_j_profit_beginning_percent',
-  'item_j_profit_ending_percent',
-  'item_j_loss_beginning_percent',
-  'item_j_loss_ending_percent',
-  'item_j_capital_beginning_percent',
-  'item_j_capital_ending_percent',
-  'item_j_decrease_due_sale_exchange',
-  'item_m_contributed_property_with_built_in_gain_loss',
-  'item_n_unrecognized_section_704c_beginning',
-  'item_n_unrecognized_section_704c_ending',
   'liability_nonrecourse_beginning',
   'liability_nonrecourse_ending',
   'liability_qualified_nonrecourse_beginning',
@@ -104,12 +72,72 @@ export type K1TrackerWritableFieldKey = Exclude<K1TrackerFieldKey, K1TrackerDepr
 export type K1TrackerMoney = string
 export type K1TrackerCheckStatus = 'PASS' | 'WARNING' | 'FAIL' | 'INCOMPLETE'
 
+export const K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS = [
+  'k1_status_final',
+  'k1_status_amended',
+  'tax_period_beginning',
+  'tax_period_ending',
+  'part_i_a_partnership_ein',
+  'part_i_b_partnership_name_address',
+  'part_i_c_irs_center',
+  'part_i_d_publicly_traded_partnership',
+  'part_ii_e_partner_tin',
+  'part_ii_f_partner_name_address',
+  'part_ii_g_partner_classification',
+  'part_ii_h1_partner_residency',
+  'part_ii_h2_disregarded_entity',
+  'part_ii_h2_disregarded_entity_tin',
+  'part_ii_h2_disregarded_entity_name',
+  'part_ii_i1_partner_entity_type',
+  'part_ii_i2_retirement_plan',
+  'part_ii_j_profit_beginning_pct',
+  'part_ii_j_profit_ending_pct',
+  'part_ii_j_loss_beginning_pct',
+  'part_ii_j_loss_ending_pct',
+  'part_ii_j_capital_beginning_pct',
+  'part_ii_j_capital_ending_pct',
+  'part_ii_j_decrease_sale',
+  'part_ii_j_decrease_exchange',
+  'part_ii_k2_lower_tier_liabilities',
+  'part_ii_k3_guaranteed_liabilities',
+  'part_ii_m_built_in_gain_loss',
+  'part_ii_n_704c_gain_loss_beginning',
+  'part_ii_n_704c_gain_loss_ending',
+  'box_4a_guaranteed_payments_services',
+  'box_4b_guaranteed_payments_capital',
+  'box_6b_qualified_dividends',
+  'box_6c_dividend_equivalents',
+  'box_9b_collectibles_gain_loss',
+  'box_9c_unrecaptured_section_1250_gain',
+  'box_11_entries',
+  'box_13_entries',
+  'box_14_entries',
+  'box_15_entries',
+  'box_16_schedule_k3_attached',
+  'box_17_entries',
+  'box_18_entries',
+  'box_19_entries',
+  'box_20_entries',
+  'box_21_entries',
+  'box_22_more_than_one_at_risk_activity',
+  'box_23_more_than_one_passive_activity',
+] as const
+
+export type K1TrackerOfficialFormFieldKey = (typeof K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS)[number]
+
+export interface K1TrackerCodeEntry {
+  code: string
+  value: string
+}
+
+export type K1TrackerOfficialFormValue = string | boolean | K1TrackerCodeEntry[] | null
+export type K1TrackerOfficialFormData = Partial<Record<K1TrackerOfficialFormFieldKey, K1TrackerOfficialFormValue>>
+
 export interface K1TrackerValue {
   id: string
   fieldKey: K1TrackerFieldKey
   amount: K1TrackerMoney | null
   originalSourceText: string | null
-  textValue?: string | null
   sourceType: K1TrackerSourceType
   sourceK1DocumentId: string | null
   sourceK1FieldValueId: string | null
@@ -202,6 +230,7 @@ export interface K1TrackerYearDetail {
   taxYear: number
   status: K1TrackerWorkflowStatus
   revision: number
+  officialFormData: K1TrackerOfficialFormData
   values: K1TrackerValue[]
   cashFlowEvents: K1TrackerCashFlowEvent[]
   sourceConflicts: Array<{ fieldKey: K1TrackerFieldKey; message: string }>
@@ -231,7 +260,6 @@ export interface K1TrackerPartnershipDetail extends K1TrackerPartnershipSummary 
 export interface K1TrackerFieldChange {
   fieldKey: K1TrackerFieldKey
   amount: K1TrackerMoney | null
-  textValue?: string | null
   sourceType: Extract<K1TrackerSourceType, 'MANUAL_ENTRY' | 'MANUAL_OVERRIDE'>
   overrideReason?: string | null
 }

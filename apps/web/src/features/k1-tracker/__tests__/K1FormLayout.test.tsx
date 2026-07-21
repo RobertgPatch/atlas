@@ -1,23 +1,29 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
+import { K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS } from '../../../../../../packages/types/src/k1-tracker'
 import { K1YearEntryForm } from '../components/K1YearEntryForm'
 import { K1_EDITABLE_FIELDS } from '../k1FieldGroups'
-import { K1_FORM_PLACEMENTS } from '../k1FormLayout'
+import {
+  K1_FORM_HEADER_FIELD_KEYS,
+  K1_FORM_IDENTITY_FIELD_KEYS,
+  K1_FORM_OFFICIAL_PLACEMENTS,
+  K1_FORM_PLACEMENTS,
+} from '../k1FormLayout'
 import { k1EntryDetailFixture, missingK1IdentitySummaryFixture, summaryFixture } from '../../partnership-tracker/__tests__/fixtures'
 
 describe('K-1 form layout contract', () => {
-  it('places every canonical editable field exactly once', () => {
+  it('places every canonical calculation field exactly once', () => {
     const placementKeys = K1_FORM_PLACEMENTS.map((placement) => placement.fieldKey)
     const editableKeys = K1_EDITABLE_FIELDS.map((field) => field.key)
 
-    expect(placementKeys).toHaveLength(74)
-    expect(new Set(placementKeys)).toHaveLength(74)
+    expect(placementKeys).toHaveLength(42)
+    expect(new Set(placementKeys)).toHaveLength(42)
     expect([...placementKeys].sort()).toEqual([...editableKeys].sort())
     expect(placementKeys).not.toContain('box_13_other_deductions')
     expect(placementKeys).not.toContain('section_l_capital_contributed')
   })
 
-  it('keeps each visual region ordered', () => {
+  it('keeps each visual region ordered and places every official-form field exactly once', () => {
     const regions = new Set(K1_FORM_PLACEMENTS.map((placement) => placement.region))
     for (const region of regions) {
       const orders = K1_FORM_PLACEMENTS
@@ -26,6 +32,14 @@ describe('K-1 form layout contract', () => {
       expect(orders).toEqual([...orders].sort((left, right) => left - right))
       expect(new Set(orders)).toHaveLength(orders.length)
     }
+
+    const officialKeys = [
+      ...K1_FORM_HEADER_FIELD_KEYS,
+      ...K1_FORM_IDENTITY_FIELD_KEYS,
+      ...K1_FORM_OFFICIAL_PLACEMENTS.map((placement) => placement.fieldKey),
+    ]
+    expect(new Set(officialKeys)).toHaveLength(officialKeys.length)
+    expect([...officialKeys].sort()).toEqual([...K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS].sort())
   })
 
   it('renders one recognizable K-1 hierarchy with loaded identity context', () => {
@@ -46,27 +60,27 @@ describe('K-1 form layout contract', () => {
 
     expect(screen.getByRole('form', { name: '2024 Schedule K-1 data entry' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Schedule K-1 (Form 1065)' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Part I — Information About the Partnership' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Part II — Information About the Partner' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Part III — Partner’s Share of Current Year Income, Deductions, Credits, and Other Items' })).toBeInTheDocument()
-    expect(screen.getByText('Redwood Fund')).toBeInTheDocument()
-    expect(screen.getByText('Jackson Family Trust')).toBeInTheDocument()
-    expect(screen.getAllByText('Beginning of year').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText('End of year').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole('heading', { name: 'Part I - Information About the Partnership' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Part II - Information About the Partner' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "Part III - Partner's Share of Current Year Income, Deductions, Credits, and Other Items" })).toBeInTheDocument()
+    expect((screen.getByLabelText('Item B - Partnership name and address') as HTMLTextAreaElement).value).toContain('Redwood Fund')
+    expect(screen.getByLabelText('Item F - Partner name and address')).toHaveValue('Jackson Family Trust')
+    expect(screen.getByText('Beginning of year')).toBeInTheDocument()
+    expect(screen.getByText('End of year')).toBeInTheDocument()
     expect(screen.getByText('Beginning capital account')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Jackson supplemental workpaper' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Opening basis and loss limitations' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Book-tax reconciliation' })).toBeInTheDocument()
   })
 
-  it('shows explicit unavailable states rather than inventing missing identity data', () => {
+  it('renders blank editable controls rather than inventing missing identity data', () => {
     render(<K1YearEntryForm
       detail={k1EntryDetailFixture}
       identity={{
-        partnershipName: missingK1IdentitySummaryFixture.partnership.name,
+        partnershipName: '',
         partnershipEin: missingK1IdentitySummaryFixture.partnership.ein,
         partnershipAddress: null,
-        partnerName: missingK1IdentitySummaryFixture.partnership.entity.name,
+        partnerName: '',
       }}
       canEdit={false}
       pending={false}
@@ -75,38 +89,39 @@ describe('K-1 form layout contract', () => {
       onDirtyChange={vi.fn()}
     />)
 
-    expect(screen.getAllByText('Not available').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByLabelText('Item A - Partnership employer identification number')).toHaveValue('')
+    expect(screen.getByLabelText('Item B - Partnership name and address')).toHaveValue('')
+    expect(screen.getByLabelText('Item F - Partner name and address')).toHaveValue('')
     expect(screen.queryByRole('button', { name: 'Save revisions' })).not.toBeInTheDocument()
   })
 
-  it('renders every formerly untracked K-1 line as a persisted typed control', async () => {
-    const calculate = vi.fn().mockResolvedValue(undefined)
+  it('edits and saves the official lines that were previously static landmarks', async () => {
+    const save = vi.fn().mockResolvedValue(undefined)
     render(<K1YearEntryForm
       detail={k1EntryDetailFixture}
       canEdit
       pending={false}
-      onCalculate={calculate}
-      onSave={vi.fn()}
+      onCalculate={vi.fn()}
+      onSave={save}
       onDirtyChange={vi.fn()}
     />)
 
-    expect(screen.queryByText('Not tracked in Jackson')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Line 4a - Guaranteed payments for services')).toBeInTheDocument()
-    expect(screen.getByLabelText('Line 14 - Code')).toBeInTheDocument()
-    expect(screen.getByLabelText('Line 16 - Schedule K-3 is attached')).toBeInTheDocument()
-    expect(screen.getByLabelText('Item G - Partner type')).toBeInTheDocument()
-    expect(screen.getByLabelText('Item J - Profit percentage, beginning')).toBeInTheDocument()
-    expect(screen.getByLabelText('Item M - Contributed property with built-in gain or loss')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Guaranteed payments for services'), { target: { value: '250' } })
+    fireEvent.click(screen.getByLabelText('Schedule K-3 is attached'))
+    const addCodeRow = within(screen.getByRole('group', { name: 'Other information' })).getByRole('button', { name: 'Add code row' })
+    expect(addCodeRow).toHaveClass('rounded-none')
+    expect(addCodeRow).not.toHaveClass('rounded-full')
+    fireEvent.click(addCodeRow)
+    fireEvent.change(screen.getByLabelText('Other information code 1'), { target: { value: 'v' } })
+    fireEvent.change(screen.getByLabelText('Other information value 1'), { target: { value: 'SEE STMT' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save revisions' }))
 
-    fireEvent.change(screen.getByLabelText('Line 4a - Guaranteed payments for services'), { target: { value: '1250' } })
-    fireEvent.change(screen.getByLabelText('Item G - Partner type'), { target: { value: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER' } })
-    fireEvent.click(screen.getByLabelText('Line 16 - Schedule K-3 is attached'))
-    fireEvent.click(screen.getByRole('button', { name: 'Preview calculation' }))
-    expect(calculate).toHaveBeenCalledWith(expect.arrayContaining([
-      expect.objectContaining({ fieldKey: 'box_4a_guaranteed_payments_services', amount: '1250.00' }),
-      expect.objectContaining({ fieldKey: 'item_g_partner_type', amount: null, textValue: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER' }),
-      expect.objectContaining({ fieldKey: 'box_16_schedule_k3_attached', amount: null, textValue: 'true' }),
-    ]))
-    expect(await screen.findByText('Draft calculation completed.')).toBeInTheDocument()
+    await waitFor(() => expect(save).toHaveBeenCalledWith([], expect.objectContaining({
+        tax_period_beginning: '2024-01-01',
+        tax_period_ending: '2024-12-31',
+        box_4a_guaranteed_payments_services: '250.00',
+        box_16_schedule_k3_attached: true,
+        box_20_entries: [{ code: 'V', value: 'SEE STMT' }],
+      })))
   })
 })

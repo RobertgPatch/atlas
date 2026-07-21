@@ -44,7 +44,7 @@ export const createK1TrackerYearHandler = async (request: FastifyRequest, reply:
 }
 export const updateK1TrackerYearHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return; const params = parse(trackerYearParamsSchema, request.params, reply); const body = parse(updateTrackerYearBodySchema, request.body, reply); if (!params || !body) return
-  await run(reply, async () => reply.send(await k1TrackerRepository.updateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes, request.authUser!.userId, request.partnershipScope!)))
+  await run(reply, async () => reply.send(await k1TrackerRepository.updateYear(params.partnershipId, params.taxYear, body.expectedRevision, body.changes ?? [], request.authUser!.userId, request.partnershipScope!, body.officialFormData)))
 }
 export const deleteK1TrackerYearHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return; const params = parse(trackerYearParamsSchema, request.params, reply); const query = parse(deleteTrackerYearQuerySchema, request.query, reply); if (!params || !query) return

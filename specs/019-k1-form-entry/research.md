@@ -1,5 +1,7 @@
 # Phase 0 Research: K-1 Form-Inspired Data Entry
 
+> **2026-07-19 amendment:** The user explicitly replaced the static-landmark decision with a requirement to enter every standard Schedule K-1 field. The implementation therefore uses typed editable controls and JSONB official-form persistence; calculation-neutral fields remain excluded only from Jackson's financial formulas.
+
 ## Research Inputs
 
 - User goal: make annual K-1 data entry substantially easier to recognize by matching a real Schedule K-1 while preserving every existing behavior.
@@ -33,14 +35,14 @@ The product should reproduce that information hierarchy, not the source document
 
 ## Decision 2: Familiar hierarchy with truthful Jackson boundaries
 
-**Decision**: Render a recognizable header, Part I, Part II, Item K, Section L, and Part III. Every displayed K-1 tax field is editable using an amount, text/code, percentage, select, or checkbox control appropriate to the source form. Place app-only fields in a distinct **Jackson supplemental workpaper** beneath the form.
+**Decision**: Render a recognizable header, Part I, Part II, Item K, Section L, and Part III. Include unsupported official lines only as subdued, static landmarks labeled **Not tracked in Jackson**. Place app-only fields in a distinct **Jackson supplemental workpaper** beneath the form.
 
-**Rationale**: Omitting official lines distorts the spatial map users rely on. Stable field keys plus typed values allow the complete source form to be retained without treating informational subsets as separate basis movements. A separate workpaper retains opening-basis and book-tax functionality without pretending those values are literal K-1 cells.
+**Rationale**: Hiding every unsupported line would distort the spatial map users rely on, while editable-looking placeholders would falsely imply storage and calculation support. A separate workpaper retains opening-basis and book-tax functionality without pretending those values are literal K-1 cells.
 
 **Alternatives considered**:
 
-- Omit official lines without calculation mappings: rejected because users still need to record those source K-1 values.
-- Treat every new amount as a basis input: rejected because qualified dividends and specialized gain lines can be subsets of an already counted total, while coded boxes have context-dependent semantics.
+- Omit unsupported official lines: rejected because supported lines would no longer appear where users expect them on the source form.
+- Add new writable fields for every official cell: rejected because that expands scope into new persistence, imports, calculations, and tax semantics.
 - Insert supplemental fields into visually convenient official boxes: rejected because it creates misleading tax-form semantics.
 
 ## Decision 3: One canonical editable inventory

@@ -14,9 +14,12 @@ From the repository root:
 
 ```powershell
 npm run --workspace=web test -- src/features/k1-tracker/__tests__/K1FormLayout.test.tsx src/features/partnership-tracker/__tests__/ManualK1Editor.test.tsx src/features/partnership-tracker/__tests__/ManualK1Workflow.test.tsx src/features/partnership-tracker/__tests__/PartnershipTrackerAccessibility.test.tsx
-npm run --workspace=web typecheck
+npm run --workspace=api test -- tests/partnership-tracker.manual-year.contract.test.ts
 npm run build:web
+npm run build:api
 ```
+
+Run `tests/k1-tracker.persistence.integration.test.ts` with `ATLAS_TEST_DATABASE_URL` pointed at an isolated PostgreSQL database to verify migration 025, atomic revision/sign-off behavior, and reload durability.
 
 Then run the complete web suite:
 
@@ -29,9 +32,10 @@ npm run test:web
 ### Field inventory
 
 - The supported placement key set exactly equals `K1_EDITABLE_FIELDS`.
-- There are 74 unique writable placements.
+- There are 42 unique writable placements.
 - Deprecated `box_13_other_deductions` and `section_l_capital_contributed` are not writable placements.
-- Formerly omitted Part II and Part III fields render type-appropriate controls and emit text- or amount-backed changes.
+- The header, identity, and Part III official placement union contains all 48 official keys exactly once.
+- Formerly static lines accept typed values and enter `officialFormData`, while the 42 calculation placements remain unchanged.
 
 ### Behavior preservation
 
@@ -53,7 +57,8 @@ npm run test:web
 ### Accessibility and structure
 
 - The form has one form landmark and semantic Part I, Part II, and Part III headings.
-- All 74 supported controls have stable accessible names.
+- All calculation and official-form controls have stable accessible names.
+- Repeatable coded sections expose keyboard-operable add and remove controls.
 - Notice/error text uses live status/alert semantics and remains associated with the relevant context.
 - Read-only users can inspect values and provenance but do not receive editing actions.
 
@@ -90,8 +95,8 @@ Verify:
 ### Keyboard-only pass
 
 1. Navigate from the year controls into the annual form using Tab/Shift+Tab.
-2. Confirm visible focus on every editable money, text, percentage, select, and checkbox field and all actions.
-3. Confirm the formerly omitted lines are reachable in official form order.
+2. Confirm visible focus on every editable currency field and all actions.
+3. Confirm official money, checkbox, choice, and code/detail controls are reachable in form order.
 4. Enable override, enter a reason, preview, revert, edit again, and save without a pointer.
 5. Attempt to change the year with unsaved edits and confirm the existing discard guard.
 
@@ -106,14 +111,34 @@ Use the same fixture or partnership year before and after the refactor:
 
 ## Completion Criteria
 
-- Focused and full web tests pass.
-- Typecheck and production web build pass.
-- The 74-field inventory assertion passes.
+- Focused and full web/API tests pass.
+- Production web and API builds pass.
+- The 42-field calculation inventory and 48-field official inventory assertions pass.
 - Desktop structure is recognizably K-1-like when compared with the reference.
 - The 390-pixel and keyboard checks pass.
 - No source PDF, rendered page, or private reference value appears in the Git diff.
 
-## Prior Verification Results (2026-07-18, before the all-fields-editable amendment)
+## Verification Results (2026-07-19 complete-form amendment)
+
+### Automated
+
+- Focused complete-form UI regression suite: **18 passed** across 5 files.
+- Complete web suite: **165 passed** across 56 files.
+- Web TypeScript project-reference check and scoped ESLint over every changed web source/test file: **passed with zero errors**.
+- Official-form API contract suite: **4 passed**.
+- Isolated PostgreSQL durable-ledger suite after applying every migration: **4 passed**, including complete official-form reload, revision, sign-off invalidation, and calculation-neutrality coverage.
+- Complete API run without a database URL: **309 passed**, **53 skipped**, and the repository's known `partnerships.accounting-values.integration.test.ts` environment failure because that test requires `ATLAS_TEST_DATABASE_URL` but does not self-skip.
+- Production API TypeScript build and production Vite build: **passed**. Vite retains its existing non-blocking large-chunk advisory.
+
+### Reference and live rendering
+
+- The supplied one-page 2025 K-1 was extracted with `pypdf` and rendered locally with PyMuPDF because Poppler was unavailable. The rendered form was visually inspected; no PDF text, private values, render, or temporary browser profile remains in the repository.
+- A live authenticated 1440-by-1000 render initially confirmed all then-defined official placements; final inventory tests contain **48 exact 2025-form keys** after removing the nonstandard Item L method control, with no **Not tracked** text and two Part III columns.
+- A live 390-by-844 render measured 390 pixels for the viewport, document, and body and 358 pixels for the form. Part III collapsed to one 354-pixel column with no page-level horizontal overflow.
+- Visual inspection confirmed labeled final/amended and tax-period controls, editable Part I/II identity cells, readable official money rows, and keyboard-sized coded-row actions.
+- The visual test created a temporary 2025 tracker year and deleted it through the API afterward; the database was checked to confirm no temporary year remained.
+
+## Historical Verification Results (2026-07-18, superseded by the amendment above)
 
 ### Automated
 
@@ -136,12 +161,3 @@ Use the same fixture or partnership year before and after the refactor:
 - Dated capital calls/distributions continued to own their derived annual fields; those fields were omitted from annual preview and save changes.
 - The final changed-file audit found no API, storage, calculation, migration, or shared-type changes and no PDF, PNG, JPEG, or WebP artifacts.
 - Direct reopening of the supplied local PDF was unavailable: Poppler and Python renderers were not installed, and the browser security policy blocked `file://` navigation. The live UI comparison therefore used the spec, plan, and UI contract previously derived from that supplied reference; the PDF and attempted renders never entered the repository.
-
-## All-Fields-Editable Amendment Verification (2026-07-18)
-
-- Complete web suite: **165 passed** across 56 files.
-- Focused K-1/form/workflow suite: **18 passed** across 5 files.
-- API text-value contract suite: **4 passed**; PostgreSQL-backed cases were skipped because no test database was configured.
-- API and production web builds: **passed**. The existing Vite large-chunk advisory remains non-blocking.
-- Complete API suite: **309 passed**, 53 skipped, and one unrelated durable accounting-value test failed because `ATLAS_TEST_DATABASE_URL` was not configured; the affected test also has a pre-existing cleanup error after fixture creation fails.
-- Scoped ESLint for all changed web implementation and test files: **passed**.

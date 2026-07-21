@@ -4,6 +4,7 @@ import {
   K1_TRACKER_SOURCE_TYPES,
   K1_TRACKER_WORKFLOW_STATUSES,
 } from './k1-tracker.contracts.js'
+import { k1OfficialFormDataSchema } from './k1-official-form.zod.js'
 
 const money = z.string().regex(/^-?\d+(?:\.\d{1,2})?$/, 'Use a money value with at most two decimals')
 const uuid = z.string().uuid()
@@ -21,7 +22,6 @@ export const trackerListQuerySchema = z.object({
 export const fieldChangeSchema = z.object({
   fieldKey: z.enum(K1_TRACKER_FIELD_KEYS),
   amount: money.nullable(),
-  textValue: z.string().trim().max(2000).nullable().optional(),
   sourceType: z.enum(['MANUAL_ENTRY', 'MANUAL_OVERRIDE']),
   overrideReason: z.string().trim().min(1).max(2000).nullable().optional(),
 }).superRefine((value, ctx) => {
@@ -51,7 +51,12 @@ export const createTrackerYearBodySchema = z.object({
 })
 export const updateTrackerYearBodySchema = z.object({
   expectedRevision: z.number().int().min(1),
-  changes: z.array(fieldChangeSchema).min(1),
+  changes: z.array(fieldChangeSchema).default([]),
+  officialFormData: k1OfficialFormDataSchema.optional(),
+}).superRefine((body, ctx) => {
+  if (!body.changes.length && body.officialFormData === undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['changes'], message: 'Change at least one K-1 value.' })
+  }
 })
 export const calculateTrackerYearBodySchema = z.object({
   expectedRevision: z.number().int().min(0),

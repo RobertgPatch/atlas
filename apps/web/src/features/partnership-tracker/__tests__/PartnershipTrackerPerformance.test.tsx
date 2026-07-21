@@ -26,12 +26,12 @@ describe('Partnership Tracker large-directory rendering', () => {
   })
 
   it('shows NAV once on the overview', () => {
-    render(<MemoryRouter><PartnershipOverview summary={summaryFixture} canEdit={false} onEdit={vi.fn()} /></MemoryRouter>)
+    render(<MemoryRouter><PartnershipOverview summary={summaryFixture} /></MemoryRouter>)
     expect(screen.getAllByText('NAV')).toHaveLength(1)
   })
 
   it('masks the EIN until the user explicitly reveals it', () => {
-    render(<MemoryRouter><PartnershipOverview summary={summaryFixture} canEdit={false} onEdit={vi.fn()} /></MemoryRouter>)
+    render(<MemoryRouter><PartnershipOverview summary={summaryFixture} /></MemoryRouter>)
     expect(screen.getByText('**-*******')).toBeInTheDocument()
     expect(screen.queryByText('12-3456789')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Unmask EIN' }))

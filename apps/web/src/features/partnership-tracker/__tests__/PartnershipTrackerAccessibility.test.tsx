@@ -4,7 +4,6 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerYearDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
-import { K1_EDITABLE_FIELDS } from '../../k1-tracker/k1FieldGroups'
 import { PartnershipPicker } from '../components/PartnershipPicker'
 import { NavHistoryChart } from '../components/NavHistoryChart'
 import { navFixtures, summaryFixture } from './fixtures'
@@ -46,19 +45,19 @@ describe('Partnership Tracker accessibility', () => {
   })
   it('keeps the continuous K-1 form labeled, keyboard reachable, and error-announcing', async () => {
     const user = userEvent.setup()
-    render(<K1YearEntryForm detail={inlineDetail} canEdit pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
+    const { container } = render(<K1YearEntryForm detail={inlineDetail} canEdit pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
     const firstAmount = screen.getByLabelText('Nonrecourse liabilities - beginning')
-    const firstControl = screen.getByLabelText('Item G - Partner type')
     expect(screen.getByRole('form', { name: '2024 Schedule K-1 data entry' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Part I — Information About the Partnership' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Part II — Information About the Partner' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /Part III — Partner’s Share/ })).toBeInTheDocument()
-    for (const field of K1_EDITABLE_FIELDS) expect(screen.getByLabelText(field.label)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Part I - Information About the Partnership' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Part II - Information About the Partner' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /Part III - Partner's Share/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('textbox')).toHaveLength(64)
+    expect(container.querySelectorAll('[data-k1-official-field]')).toHaveLength(48)
     expect(firstAmount).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Preview calculation' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save revisions' })).toBeInTheDocument()
     await user.tab()
-    expect(firstControl).toHaveFocus()
+    expect(screen.getByLabelText('Final K-1')).toHaveFocus()
     await user.click(firstAmount)
     await user.clear(firstAmount)
     await user.type(firstAmount, '1,00')
@@ -66,8 +65,10 @@ describe('Partnership Tracker accessibility', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('valid comma grouping')
   })
   it('keeps values and provenance readable without exposing edit actions to read-only users', () => {
-    render(<K1YearEntryForm detail={inlineDetail} canEdit={false} pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
-    for (const field of K1_EDITABLE_FIELDS) expect(screen.getByLabelText(field.label)).toBeDisabled()
+    const { container } = render(<K1YearEntryForm detail={inlineDetail} canEdit={false} pending={false} onCalculate={vi.fn()} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
+    expect(screen.getAllByRole('textbox')).toHaveLength(64)
+    for (const input of screen.getAllByRole('textbox')) expect(input).toBeDisabled()
+    for (const control of container.querySelectorAll('[data-k1-official-field] input, [data-k1-official-field] textarea, [data-k1-official-field] select')) expect(control).toBeDisabled()
     expect(screen.queryByRole('checkbox', { name: /Manual override/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Preview calculation' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save revisions' })).not.toBeInTheDocument()

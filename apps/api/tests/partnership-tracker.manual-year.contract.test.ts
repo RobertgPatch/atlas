@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { updateManualYearBodySchema } from '../src/modules/partnership-tracker/partnership-tracker.zod.js'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
-import { manualFieldChangeSchema } from '../src/modules/partnership-tracker/partnership-tracker.zod.js'
 
 describe('manual K-1 route contract', () => {
   let fixture: TestFixture
@@ -26,12 +26,31 @@ describe('manual K-1 route contract', () => {
     expect(response.statusCode).toBe(400)
     expect(response.body).toContain('capital_contributions')
   })
-  it('accepts text-backed K-1 classifications, percentages, and checkboxes', () => {
-    for (const change of [
-      { fieldKey: 'item_g_partner_type', amount: null, textValue: 'GENERAL_PARTNER_OR_LLC_MEMBER_MANAGER', sourceType: 'MANUAL_ENTRY' },
-      { fieldKey: 'item_j_profit_beginning_percent', amount: null, textValue: '25.125', sourceType: 'MANUAL_ENTRY' },
-      { fieldKey: 'box_16_schedule_k3_attached', amount: null, textValue: 'true', sourceType: 'MANUAL_ENTRY' },
-    ]) expect(manualFieldChangeSchema.safeParse(change).success).toBe(true)
+  it('accepts a typed official-form-only revision and rejects invalid field shapes', () => {
+    const parsed = updateManualYearBodySchema.parse({
+      expectedRevision: 2,
+      officialFormData: {
+        k1_status_final: true,
+        part_ii_j_profit_ending_pct: '12.500000',
+        box_4a_guaranteed_payments_services: '250.00',
+        box_20_entries: [{ code: 'V', value: 'SEE STMT' }],
+      },
+    })
+    expect(parsed.changes).toEqual([])
+    expect(parsed.officialFormData?.box_20_entries).toEqual([{ code: 'V', value: 'SEE STMT' }])
+
+    expect(() => updateManualYearBodySchema.parse({
+      expectedRevision: 2,
+      officialFormData: { box_4a_guaranteed_payments_services: true },
+    })).toThrow(/Expected text/)
+    expect(() => updateManualYearBodySchema.parse({
+      expectedRevision: 2,
+      officialFormData: { box_20_entries: 'SEE STMT' },
+    })).toThrow(/Expected coded rows/)
+    expect(() => updateManualYearBodySchema.parse({
+      expectedRevision: 2,
+      officialFormData: { unknown_k1_field: 'value' },
+    })).toThrow()
   })
   it('has no import, upload, or source-sync endpoint under the new prefix', async () => {
     for (const suffix of ['imports/preview', 'upload', 'source-sync']) {

@@ -5,7 +5,7 @@ import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { copyK1TrackerYears, k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
-import type { K1TrackerFieldChange } from '../k1-tracker/k1-tracker.contracts.js'
+import type { K1TrackerFieldChange, K1TrackerOfficialFormData } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
   PartnershipAggregationQuery,
   PartnershipAggregationResponse,
@@ -627,8 +627,8 @@ export const partnershipTrackerRepository = {
   createYear(partnershipId: string, taxYear: number, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createYear(partnershipId, taxYear, [], actorUserId, scope)
   },
-  updateYear(partnershipId: string, taxYear: number, expectedRevision: number, changes: K1TrackerFieldChange[], actorUserId: string, scope: PartnershipTrackerScope) {
-    return k1TrackerRepository.updateYear(partnershipId, taxYear, expectedRevision, changes, actorUserId, scope)
+  updateYear(partnershipId: string, taxYear: number, expectedRevision: number, changes: K1TrackerFieldChange[], actorUserId: string, scope: PartnershipTrackerScope, officialFormData?: K1TrackerOfficialFormData) {
+    return k1TrackerRepository.updateYear(partnershipId, taxYear, expectedRevision, changes, actorUserId, scope, officialFormData)
   },
   calculateYear(partnershipId: string, taxYear: number, expectedRevision: number, changes: K1TrackerFieldChange[], scope: PartnershipTrackerScope) {
     return k1TrackerRepository.calculateDraft(partnershipId, taxYear, expectedRevision, changes, scope)
