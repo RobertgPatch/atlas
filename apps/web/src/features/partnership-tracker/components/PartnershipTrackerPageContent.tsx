@@ -50,10 +50,12 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
   const [hasUnsavedK1Changes, setHasUnsavedK1Changes] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const pendingDiscardAction = useRef<(() => void) | null>(null)
+  const [defaultSelectedId, setDefaultSelectedId] = useState<string | undefined>()
   const listParams = useMemo(() => ({ search: search.trim() || undefined, limit: 100 }), [search])
   const list = usePartnershipTrackerList(listParams)
   const requestedId = params.get('partnership') ?? undefined
-  const selectedId = requestedId ?? list.data?.items[0]?.partnership.id
+  const firstListedId = list.data?.items[0]?.partnership.id
+  const selectedId = requestedId ?? defaultSelectedId
   const detail = usePartnershipTrackerDetail(selectedId)
   const parsedArea = params.get('area')
   const area: Area = parsedArea === 'k1' || parsedArea === 'capital' || parsedArea === 'assets' ? parsedArea : 'overview'
@@ -90,6 +92,14 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
     setHasUnsavedK1Changes(false)
     action?.()
   }
+
+  useEffect(() => {
+    if (requestedId) {
+      setDefaultSelectedId(requestedId)
+      return
+    }
+    setDefaultSelectedId((current) => current ?? firstListedId)
+  }, [firstListedId, requestedId])
 
   useEffect(() => {
     if (!hasUnsavedK1Changes) return
