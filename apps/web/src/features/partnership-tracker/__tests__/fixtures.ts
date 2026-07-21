@@ -1,5 +1,5 @@
 import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
-import type { K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerCalculation, K1TrackerCashFlowEvent, K1TrackerValue, K1TrackerYearDetail, K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
   { id: 'e-1', name: 'Jackson Family Trust' },
@@ -57,6 +57,133 @@ export const unavailablePerformanceSummaryFixture: PartnershipTrackerSummary = {
     unfundedCommitment: 'MISSING_COMMITMENT',
     unrealizedGain: 'MISSING_NAV',
   },
+}
+
+export const missingK1IdentitySummaryFixture: PartnershipTrackerSummary = {
+  ...summaryFixture,
+  partnership: {
+    ...summaryFixture.partnership,
+    ein: null,
+    addressLine1: null,
+    addressLine2: null,
+    addressCity: null,
+    addressRegion: null,
+    addressPostalCode: null,
+    addressCountry: null,
+  },
+}
+
+const k1Value = (
+  id: string,
+  fieldKey: K1TrackerValue['fieldKey'],
+  amount: string,
+  sourceType: K1TrackerValue['sourceType'],
+  overrides: Partial<K1TrackerValue> = {},
+): K1TrackerValue => ({
+  id,
+  fieldKey,
+  amount,
+  sourceType,
+  originalSourceText: amount,
+  sourceK1DocumentId: sourceType === 'FINALIZED_K1' ? 'document-2024' : null,
+  sourceK1FieldValueId: sourceType === 'FINALIZED_K1' ? `${id}-source` : null,
+  importBatchId: sourceType === 'WORKBOOK_IMPORT' ? 'import-2024' : null,
+  sourceSheet: sourceType === 'WORKBOOK_IMPORT' ? '2024 K-1' : null,
+  sourceCell: sourceType === 'WORKBOOK_IMPORT' ? 'F12' : null,
+  carryforwardFromTaxYear: sourceType === 'CARRYFORWARD' ? 2023 : null,
+  overrideReason: sourceType === 'MANUAL_OVERRIDE' ? 'Corrected to the final K-1' : null,
+  isActive: true,
+  createdByEmail: 'preparer@jackson.test',
+  createdAt: '2025-03-15T12:00:00.000Z',
+  ...overrides,
+})
+
+const k1CalculationFixture = {
+  calculationVersion: 'fixture-v1',
+  summary: {
+    taxYear: 2024,
+    status: 'IN_PROGRESS',
+    revision: 4,
+    capitalContributed: '250000.00',
+    distributions: '50000.00',
+    endingOutsideBasis: '1246862889.50',
+    cumulativeSuspendedLoss: '1500.00',
+    taxableExcessDistribution: '0.00',
+    sectionLDifference: '0.00',
+    warningCount: 0,
+    sourceConflictCount: 0,
+  },
+  basis: { beginningOutsideBasis: '1234567890.00', endingOutsideBasis: '1246862889.50' },
+  lossLimitation: { priorSuspendedLoss: '1500.00' },
+  distribution: { cashOrPropertyDistribution: '50000.00' },
+  liabilities: {
+    nonrecourseBeginning: '450000.00',
+    qualifiedNonrecourseBeginning: '125000.00',
+    recourseBeginning: '75000.00',
+  },
+  sectionL: { reportedBeginning: '900000.00' },
+  bookTax: {},
+  journalEntries: [],
+  journalBalance: '0.00',
+  checks: [],
+} as unknown as K1TrackerCalculation
+
+export const k1EntryDetailFixture: K1TrackerYearDetail = {
+  partnershipId: 'p-1',
+  taxYear: 2024,
+  status: 'IN_PROGRESS',
+  revision: 4,
+  values: [
+    k1Value('value-opening-basis', 'opening_outside_basis', '1234567890.00', 'FINALIZED_K1'),
+    k1Value('value-opening-loss', 'opening_suspended_loss', '1500.00', 'CARRYFORWARD'),
+    k1Value('value-line-1', 'box_1_ordinary_income_loss', '-12500.50', 'WORKBOOK_IMPORT'),
+    k1Value('value-liability', 'liability_nonrecourse_beginning', '450000.00', 'FINALIZED_K1'),
+    k1Value('value-section-l', 'section_l_beginning_capital', '900000.00', 'MANUAL_OVERRIDE'),
+    k1Value('value-line-13-legacy', 'box_13_other_deductions', '3250.00', 'WORKBOOK_IMPORT'),
+  ],
+  cashFlowEvents: [],
+  sourceConflicts: [{ fieldKey: 'section_l_beginning_capital', message: 'Reported beginning capital differs from the carried amount.' }],
+  calculation: k1CalculationFixture,
+  signoff: {
+    yearRevision: 4,
+    preparedByEmail: null,
+    preparedAt: null,
+    reviewedByEmail: null,
+    reviewedAt: null,
+    invalidatedAt: null,
+    invalidationReason: null,
+  },
+}
+
+const cashActivity = (
+  id: string,
+  kind: K1TrackerCashFlowEvent['kind'],
+  activityDate: string,
+  amount: string,
+): K1TrackerCashFlowEvent => ({
+  id,
+  partnershipId: 'p-1',
+  taxYear: 2024,
+  kind,
+  activityDate,
+  amount,
+  note: null,
+  createdAt: '2024-12-31T12:00:00.000Z',
+  updatedAt: '2024-12-31T12:00:00.000Z',
+})
+
+export const k1CashActivityDetailFixture: K1TrackerYearDetail = {
+  ...k1EntryDetailFixture,
+  values: [
+    ...k1EntryDetailFixture.values,
+    k1Value('value-contributions', 'capital_contributions', '250000.00', 'MANUAL_ENTRY'),
+    k1Value('value-distributions', 'box_19_distributions', '50000.00', 'MANUAL_ENTRY'),
+  ],
+  cashFlowEvents: [
+    cashActivity('cash-call', 'CAPITAL_CALL', '2024-03-01', '250000.00'),
+    cashActivity('cash-distribution', 'DISTRIBUTION', '2024-08-15', '40000.00'),
+    cashActivity('cash-recallable', 'RECALLABLE_DISTRIBUTION', '2024-11-30', '10000.00'),
+  ],
 }
 
 const aggregateRow = (

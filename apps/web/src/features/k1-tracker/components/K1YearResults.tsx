@@ -11,7 +11,7 @@ export function K1YearResults({ detail, canEdit, pending, onSignoff }: {
   detail: K1TrackerYearDetail
   canEdit: boolean
   pending: boolean
-  onSignoff: (action: 'PREPARED' | 'REVIEWED') => void
+  onSignoff: () => void
 }) {
   const checksPassing = detail.calculation.checks.every((check) => check.status === 'PASS')
   return <section aria-label="K-1 calculated results" className="space-y-5">

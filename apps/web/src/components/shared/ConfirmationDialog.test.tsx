@@ -50,4 +50,26 @@ describe('ConfirmationDialog', () => {
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('supports an application-styled warning for unsaved work', async () => {
+    const onClose = vi.fn()
+    await act(async () => {
+      render(
+        <ConfirmationDialog
+          open
+          tone="warning"
+          title="Discard unsaved K-1 changes?"
+          description="The current draft has not been saved."
+          confirmLabel="Discard changes"
+          cancelLabel="Keep editing"
+          onClose={onClose}
+          onConfirm={vi.fn()}
+        />,
+      )
+    })
+
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })

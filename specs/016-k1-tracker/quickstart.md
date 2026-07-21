@@ -153,13 +153,13 @@ For a manually completed year:
 2. Confirm loss and distribution limitation behavior.
 3. Review reference-only liabilities and Section L component differences.
 4. Confirm journal entries balance within $1.
-5. Complete preparer and reviewer sign-off.
+5. Sign off the passing year as the logged-in CPA.
 6. Change a material value in an earlier year.
 
 Expected behavior:
 
 - An incomplete or warning-producing year cannot become Reconciled.
-- A passing year records the identities, times, and reviewed revision.
+- A passing year records the signer identity, time, and signed revision, then becomes Reconciled.
 - The earlier-year change recalculates dependent years and invalidates materially affected sign-off.
 - Commitment and NAV edits do not invalidate tax workpaper sign-off. Liability edits remain auditable but do not change calculated warnings or sign-off gates.
 

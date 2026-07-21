@@ -8,6 +8,7 @@ import {
   type PartnershipAggregationPageSize,
   type PartnershipAggregationQuery,
 } from './partnership-tracker.contracts.js'
+import { k1OfficialFormDataSchema } from '../k1-tracker/k1-official-form.zod.js'
 
 export const partnershipTrackerUuidSchema = z.string().uuid()
 export const partnershipTrackerMoneySchema = z.string().regex(/^-?\d+\.\d{2}$/, 'Use a money value with exactly two decimal places')
@@ -208,7 +209,15 @@ export const manualFieldChangeSchema = z.object({
   }
 })
 export const createManualYearBodySchema = z.object({ taxYear: partnershipTrackerTaxYearSchema })
-export const updateManualYearBodySchema = z.object({ expectedRevision: z.number().int().min(1), changes: z.array(manualFieldChangeSchema).min(1) })
+export const updateManualYearBodySchema = z.object({
+  expectedRevision: z.number().int().min(1),
+  changes: z.array(manualFieldChangeSchema).default([]),
+  officialFormData: k1OfficialFormDataSchema.optional(),
+}).superRefine((body, context) => {
+  if (!body.changes.length && body.officialFormData === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['changes'], message: 'Change at least one K-1 value.' })
+  }
+})
 export const calculateManualYearBodySchema = z.object({ expectedRevision: z.number().int().min(0), changes: z.array(manualFieldChangeSchema).default([]) })
 export const deleteManualYearQuerySchema = z.object({ expectedRevision: z.coerce.number().int().min(1) })
 export const partnershipTrackerSignoffBodySchema = z.object({
