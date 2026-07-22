@@ -375,6 +375,31 @@ export const k1Repository = {
     return partnership
   },
 
+  /** Reconcile the process-local mirror after the durable partnership is deleted. */
+  deletePartnership(id: string): boolean {
+    const partnershipExisted = partnerships.has(id)
+    const deletedK1Ids = new Set(
+      [...k1Documents.values()]
+        .filter((document) => document.partnershipId === id)
+        .map((document) => document.id),
+    )
+    const deletedDocumentIds = new Set(
+      [...k1Documents.values()]
+        .filter((document) => deletedK1Ids.has(document.id))
+        .map((document) => document.documentId),
+    )
+    for (const [issueId, issue] of k1Issues) {
+      if (deletedK1Ids.has(issue.k1DocumentId)) k1Issues.delete(issueId)
+    }
+    for (const k1Id of deletedK1Ids) k1Documents.delete(k1Id)
+    for (const documentId of deletedDocumentIds) documents.delete(documentId)
+    for (const [versionId, version] of documentVersions) {
+      if (version.partnershipId === id) documentVersions.delete(versionId)
+    }
+    partnerships.delete(id)
+    return partnershipExisted || deletedK1Ids.size > 0
+  },
+
   /** Create a new entity. Grants membership to every existing user so the entity is visible. */
   createEntity(args: { name: string }): EntityRecord {
     const entity: EntityRecord = { id: randomUUID(), name: args.name.trim() }

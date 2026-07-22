@@ -4,6 +4,8 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { copyK1TrackerYears, k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
+import { k1Repository } from '../k1/k1.repository.js'
+import { localPdfStore } from '../k1/storage/localPdfStore.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange, K1TrackerOfficialFormData } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
@@ -461,6 +463,64 @@ export const partnershipTrackerRepository = {
     })
     const rows = await summaryRows(scope, { partnershipId, limit: 1, offset: 0 })
     return mapSummary(rows[0]!)
+  },
+
+  async deletePartnership(partnershipId: string, actorUserId: string, scope: PartnershipTrackerScope): Promise<void> {
+    const deletedStoragePaths = await withTransaction(async (client) => {
+      const before = (await client.query<{
+        id: string
+        entity_id: string
+        name: string
+        asset_class: string | null
+        status: string
+      }>('select id, entity_id, name, asset_class, status from partnerships where id = $1 for update', [partnershipId])).rows[0]
+      if (!before) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Partnership was not found.')
+      if (!scoped(before.entity_id, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The partnership is outside your entity scope.')
+
+      const sourceDocumentIds = (await client.query<{ document_id: string }>(
+        'select distinct document_id from k1_documents where partnership_id = $1',
+        [partnershipId],
+      )).rows.map((row) => row.document_id)
+      const childCounts = (await client.query<{
+        k1_documents: number
+        tracker_years: number
+        cash_activity: number
+        commitments: number
+        nav_entries: number
+        assets: number
+      }>(`select
+          (select count(*)::int from k1_documents where partnership_id = $1) as k1_documents,
+          (select count(*)::int from k1_tracker_years where partnership_id = $1) as tracker_years,
+          (select count(*)::int from capital_activity_events where partnership_id = $1) as cash_activity,
+          (select count(*)::int from partnership_commitments where partnership_id = $1) as commitments,
+          (select count(*)::int from partnership_fmv_snapshots where partnership_id = $1) as nav_entries,
+          (select count(*)::int from partnership_assets where partnership_id = $1) as assets`, [partnershipId])).rows[0]!
+
+      await client.query('delete from partnerships where id = $1', [partnershipId])
+
+      let storagePaths: string[] = []
+      if (sourceDocumentIds.length) {
+        const deletedDocuments = await client.query<{ storage_path: string }>(`delete from documents d
+          where d.id = any($1::uuid[])
+            and not exists (select 1 from k1_documents k where k.document_id = d.id or k.superseded_by_document_id = d.id)
+            and not exists (select 1 from document_versions v where v.original_document_id = d.id or v.superseded_by_id = d.id)
+          returning d.storage_path`, [sourceDocumentIds])
+        storagePaths = deletedDocuments.rows.map((row) => row.storage_path)
+      }
+
+      await auditRepository.record({
+        actorUserId,
+        eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_DELETED,
+        objectType: 'partnership',
+        objectId: partnershipId,
+        before: { ...before, deletedChildren: childCounts },
+        after: null,
+      }, client)
+      return storagePaths
+    })
+
+    k1Repository.deletePartnership(partnershipId)
+    await Promise.allSettled(deletedStoragePaths.map((storagePath) => localPdfStore.delete(storagePath)))
   },
 
   async listCommitments(partnershipId: string, scope: PartnershipTrackerScope, asOfDate?: string) {

@@ -87,6 +87,7 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect(year.values.find((value) => value.fieldKey === 'box_19_distributions')).toMatchObject({ amount: '17500.00', originalSourceText: 'Dated cash activity rollup' })
     const summary = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
     expect(summary.summary).toMatchObject({ totalCapitalContributions: '100000.00', totalDistributions: '17500.00', currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' } })
+    expect(summary.summary.unfundedCommitmentAmount).toBe('157500.00')
     expect(summary.commitments.at(-1)).toMatchObject({ amount: '257500.00', sourceCashFlowEventId: secondRecallable.id, isCurrent: true })
     expect(summary.summary.performanceStatus.irr).toBe('AVAILABLE')
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, recallable.id, recallable.updatedAt, fixture.adminUserId, scope)
@@ -95,6 +96,19 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).summary.currentCommittedCapital?.amount).toBe('250000.00')
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, call.id, call.updatedAt, fixture.adminUserId, scope)
     expect((await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)).cashFlowEvents).toHaveLength(1)
+  })
+
+  it('raises current unfunded commitment when a historical recallable distribution is entered after a later commitment snapshot', async () => {
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2025-01-01' })
+    await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
+      { kind: 'CAPITAL_CALL', activityDate: '2024-01-15', amount: '100000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00' },
+    ], fixture.adminUserId, scope)
+
+    const detail = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(detail.summary.currentCommittedCapital).toEqual({ amount: '255000.00', date: '2025-01-01' })
+    expect(detail.summary.unfundedCommitmentAmount).toBe('155000.00')
   })
 
   it('enforces future-date, exact rate range, and optimistic concurrency boundaries', async () => {

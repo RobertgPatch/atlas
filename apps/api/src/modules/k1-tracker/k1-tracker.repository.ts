@@ -465,8 +465,17 @@ export const copyK1TrackerYears = async (
       insert into partnership_commitments
         (id, entity_id, partnership_id, commitment_amount, commitment_date, status, source_type, notes,
          created_by_user_id, source_cash_flow_event_id, created_at, updated_at)
-      select gen_random_uuid(), entity_id, partnership_id, 0, activity_date, 'INACTIVE', 'manual',
-        'Commitment increase from a copied recallable distribution', $3, id, now(), now()
+       select gen_random_uuid(), entity_id, partnership_id, 0,
+         greatest(activity_date, coalesce((
+           select coalesce(existing.commitment_date, existing.created_at::date)
+           from partnership_commitments existing
+           where existing.partnership_id = $2
+             and coalesce(existing.commitment_date, existing.created_at::date) <= current_date
+           order by coalesce(existing.commitment_date, existing.created_at::date) desc, existing.created_at desc, existing.id desc
+           limit 1
+         ), activity_date)),
+         'INACTIVE', 'manual',
+         'Commitment increase from a copied recallable distribution', $3, id, now(), now()
       from copied_events where event_type = 'recallable_distribution'
     `, [destination.entity_id, destinationPartnershipId, actorUserId, sourcePartnershipId, sourceYear.tax_year])
     await auditRepository.record({
@@ -524,7 +533,18 @@ const createCashFlows = async (
           insert into partnership_commitments
             (id, entity_id, partnership_id, commitment_amount, commitment_date, status, source_type, notes,
              created_by_user_id, source_cash_flow_event_id, created_at, updated_at)
-          values ($1, $2, $3, 0, $4, 'INACTIVE', 'manual', $5, $6, $7, now(), now())
+          values (
+            $1, $2, $3, 0,
+            greatest($4::date, coalesce((
+              select coalesce(c.commitment_date, c.created_at::date)
+              from partnership_commitments c
+              where c.partnership_id = $3
+                and coalesce(c.commitment_date, c.created_at::date) <= current_date
+              order by coalesce(c.commitment_date, c.created_at::date) desc, c.created_at desc, c.id desc
+              limit 1
+            ), $4::date)),
+            'INACTIVE', 'manual', $5, $6, $7, now(), now()
+          )
         `, [
           randomUUID(),
           partnership.entity_id,

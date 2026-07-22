@@ -45,4 +45,11 @@ describe('partnership aggregation client', () => {
       { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00', note: null },
     ] })
   })
+
+  it('deletes a partnership through the tracker endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 })
+    vi.stubGlobal('fetch', fetchMock)
+    await partnershipTrackerClient.delete('p-1')
+    expect(fetchMock).toHaveBeenCalledWith('/v1/partnership-tracker/partnerships/p-1', expect.objectContaining({ credentials: 'include', method: 'DELETE' }))
+  })
 })
