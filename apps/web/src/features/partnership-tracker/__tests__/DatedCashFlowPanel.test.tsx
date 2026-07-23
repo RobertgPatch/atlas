@@ -6,6 +6,7 @@ describe('Dated cash activity', () => {
   it('starts with one row and adds another cash activity row', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined)
     render(<DatedCashFlowPanel taxYear={2024} events={[]} canEdit pending={false} onCreate={onCreate} onDelete={vi.fn()} />)
+    expect(screen.getByText(/These entries do not change K-1 document fields/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Net Cash Activity' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Net Cash Activity' })

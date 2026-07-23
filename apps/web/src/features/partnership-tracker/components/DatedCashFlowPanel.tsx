@@ -89,7 +89,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       await onCreate(entries)
       setDialogOpen(false)
       const recallableCount = entries.filter((entry) => entry.kind === 'RECALLABLE_DISTRIBUTION').length
-      setNotice(`${entries.length} cash activit${entries.length === 1 ? 'y' : 'ies'} added and ${taxYear} performance recalculated.${recallableCount ? ` ${recallableCount} recallable distribution${recallableCount === 1 ? '' : 's'} also increased commitment.` : ''}`)
+      setNotice(`${entries.length} cash activit${entries.length === 1 ? 'y' : 'ies'} added and partnership performance refreshed.${recallableCount ? ` ${recallableCount} recallable distribution${recallableCount === 1 ? '' : 's'} also increased commitment.` : ''}`)
     } catch (error) { setFormError(error instanceof Error ? error.message : 'Cash activity could not be saved.') }
     finally { setSaving(false) }
   }
@@ -99,7 +99,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       await onDelete(deleteTarget)
       setNotice(deleteTarget.kind === 'RECALLABLE_DISTRIBUTION'
         ? 'Recallable distribution deleted and its commitment increase reversed.'
-        : `${labelFor(deleteTarget.kind)} deleted and ${taxYear} performance recalculated.`)
+        : `${labelFor(deleteTarget.kind)} deleted and partnership performance refreshed.`)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Cash activity could not be deleted.')
     } finally {
@@ -110,7 +110,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
   return <>
     <section aria-labelledby="cash-activity-title" className="border border-gray-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
-        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover">Dated cash activity</p><h3 id="cash-activity-title" className="mt-1 text-lg font-semibold text-gray-950">Net cash activity</h3><p className="mt-1 max-w-2xl text-sm text-gray-600">Record exact-dated capital calls and distributions for annual K-1 totals and XIRR. Recallable distributions also restore commitment.</p></div>
+        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover">Dated cash activity</p><h3 id="cash-activity-title" className="mt-1 text-lg font-semibold text-gray-950">Net cash activity</h3><p className="mt-1 max-w-2xl text-sm text-gray-600">Record exact-dated capital calls and distributions for partnership performance. These entries do not change K-1 document fields. Recallable distributions also restore commitment.</p></div>
         {canEdit && <button type="button" onClick={openDialog} disabled={pending} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"><Plus className="h-4 w-4" aria-hidden="true" />Net Cash Activity</button>}
       </div>
       <div className="grid border-b border-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-gray-200">
@@ -154,6 +154,6 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       </div>
     </Dialog>
 
-    <ConfirmationDialog open={Boolean(deleteTarget)} title={`Delete this ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'cash activity'}?`} description={<p>{deleteTarget?.kind === 'RECALLABLE_DISTRIBUTION' ? `This permanently removes the dated distribution, reverses its commitment increase, and recalculates the ${taxYear} K-1 totals.` : `This permanently removes the dated cash activity and recalculates the ${taxYear} K-1 totals and performance results.`}</p>} confirmLabel={`Delete ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'activity'}`} pending={pending} pendingLabel="Deleting activity\u2026" onClose={() => setDeleteTarget(undefined)} onConfirm={remove} />
+    <ConfirmationDialog open={Boolean(deleteTarget)} title={`Delete this ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'cash activity'}?`} description={<p>{deleteTarget?.kind === 'RECALLABLE_DISTRIBUTION' ? 'This permanently removes the dated distribution, reverses its commitment increase, and refreshes partnership performance.' : 'This permanently removes the dated cash activity and refreshes partnership performance.'}</p>} confirmLabel={`Delete ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'activity'}`} pending={pending} pendingLabel="Deleting activity\u2026" onClose={() => setDeleteTarget(undefined)} onConfirm={remove} />
   </>
 }

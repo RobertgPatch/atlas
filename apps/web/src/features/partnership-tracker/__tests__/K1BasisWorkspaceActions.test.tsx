@@ -33,7 +33,7 @@ describe('K1BasisWorkspace year actions', () => {
       createCashFlows: mutation(),
       deleteCashFlow: mutation(),
       signoff: mutation(),
-    } as ReturnType<typeof usePartnershipTrackerActions>)
+    } as unknown as ReturnType<typeof usePartnershipTrackerActions>)
   })
 
   it('groups Delete year with the other year-level actions', () => {
@@ -44,6 +44,7 @@ describe('K1BasisWorkspace year actions', () => {
     expect(within(actions).getByRole('button', { name: 'Delete year' })).toBeInTheDocument()
     expect(within(actions).getByRole('button', { name: 'Add any year' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Delete year' })).toHaveLength(1)
+    expect(screen.queryByText('Cash activity')).not.toBeInTheDocument()
 
     fireEvent.click(within(actions).getByRole('button', { name: 'Delete year' }))
     expect(screen.getByRole('dialog', { name: 'Delete the 2024 K-1 year?' })).toBeInTheDocument()

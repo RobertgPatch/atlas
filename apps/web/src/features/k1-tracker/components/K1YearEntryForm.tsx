@@ -129,12 +129,6 @@ export function K1YearEntryForm({
   const fallbackByOfficialField = useMemo(() => officialFallbacks(identity), [identity])
   const sourceByField = useMemo(() => new Map(detail.values.map((value) => [value.fieldKey, value])), [detail.values])
   const conflictByField = useMemo(() => new Map((detail.sourceConflicts ?? []).map((conflict) => [conflict.fieldKey, conflict.message])), [detail.sourceConflicts])
-  const datedFields = useMemo<Set<FieldKey>>(
-    () => new Set((detail.cashFlowEvents?.map((event) => event.kind === 'CAPITAL_CALL'
-      ? 'capital_contributions'
-      : 'box_19_distributions') ?? []) as FieldKey[]),
-    [detail.cashFlowEvents],
-  )
   const legacyLine13 = sourceByField.get('box_13_other_deductions')
   const usesSplitLine13 = sourceByField.has('box_13_other_portfolio_deductions') || sourceByField.has('box_13_management_fees')
   const [amounts, setAmounts] = useState<Record<string, string>>(initial)
@@ -159,7 +153,6 @@ export function K1YearEntryForm({
 
     const changes: K1TrackerFieldChange[] = []
     for (const field of K1_EDITABLE_FIELDS) {
-      if (datedFields.has(field.key)) continue
       const next = normalizeCurrencyInput(amounts[field.key] ?? '', field.allowNegative)
       const prior = normalizeCurrencyInput(initial[field.key] ?? '', field.allowNegative)
       if (next.error) {
@@ -186,7 +179,7 @@ export function K1YearEntryForm({
     if (!changes.length) {
       setDraft(detail.calculation)
       setNotice(officialDirty
-        ? 'Official K-1 form details do not change Jackson basis calculations. Save revisions to retain them.'
+        ? 'Only explicitly mapped Part III values affect Jackson basis calculations. Save revisions to retain the other K-1 details.'
         : 'Change at least one value before previewing or saving.')
       return
     }
@@ -215,7 +208,7 @@ export function K1YearEntryForm({
       else await onSave(changes)
       setNotice(changes.length
         ? 'Manual K-1 revisions saved and dependent years recalculated.'
-        : 'Official K-1 form details saved. Jackson basis calculations were unchanged.')
+        : 'K-1 details saved. Jackson basis calculations use only explicitly mapped Part III values.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to save revisions.')
     }
@@ -239,7 +232,6 @@ export function K1YearEntryForm({
       value: amounts[fieldKey] ?? '',
       onChange: (value) => setAmounts((current) => ({ ...current, [fieldKey]: value })),
       canEdit,
-      derivedFromCashActivity: datedFields.has(fieldKey),
       source,
       carryforward: !source && field.carryforward ? carryforwardFor(detail, fieldKey) : undefined,
       conflictMessage: conflictByField.get(fieldKey),
@@ -274,7 +266,7 @@ export function K1YearEntryForm({
     }}
     className="min-w-0 overflow-clip border-2 border-gray-950 bg-white shadow-[0_12px_32px_rgba(17,24,39,0.10)]"
   >
-    <K1FormHeader taxYear={detail.taxYear} hasDatedActivity={datedFields.size > 0} officialFieldStateFor={officialFieldStateFor} />
+    <K1FormHeader taxYear={detail.taxYear} officialFieldStateFor={officialFieldStateFor} />
 
     {legacyLine13 && !usesSplitLine13 && <p className="border-b border-gray-500 bg-gray-100 px-4 py-2.5 text-xs leading-relaxed text-gray-700 sm:px-5">
       <span className="font-bold text-gray-950">Historical combined line 13:</span> {displayCurrency(legacyLine13.amount)} ({legacyLine13.sourceType.replaceAll('_', ' ')}). It remains effective until either new line 13 field is saved.

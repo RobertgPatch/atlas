@@ -93,6 +93,13 @@ describe('Add Partnership flow', () => {
   it('initializes and submits owner reassignment from Edit Partnership', async () => {
     const closed = vi.fn()
     render(<EditPartnershipDialog summary={summaryFixture} onClose={closed} />)
+    const scrollBody = screen.getByTestId('edit-partnership-form-scroll')
+    const footer = screen.getByTestId('edit-partnership-dialog-footer')
+    expect(scrollBody).toHaveClass('min-h-0', 'flex-1', 'overflow-y-auto')
+    expect(footer).toHaveClass('sticky', 'bottom-0', 'shrink-0', 'bg-white')
+    expect(scrollBody).not.toContainElement(footer)
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Cancel' }))
+    expect(footer).toContainElement(screen.getByRole('button', { name: 'Save changes' }))
     expect(screen.getByLabelText('Owner')).toHaveValue('e-1')
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))

@@ -106,7 +106,7 @@ apps/web/src/features/partnership-tracker/
 2. Mirror the reference hierarchy: header and tax year; Part I/Part II on the left; Item K and Section L within Part II; Part III on the right; supplemental Jackson workpaper below.
 3. Keep `K1_EDITABLE_FIELDS` as the source for initialization, normalization, dirty detection, and change-set construction; the layout map supplies placement only.
 4. Render unsupported official lines as static, subdued landmarks marked "Not tracked in Jackson"; they own no input state and never enter preview or save.
-5. Place dated capital contributions and distributions in their familiar form locations but retain the existing disabled state and "Calculated from dated cash activity" explanation.
+5. Keep K-1 contributions and distributions editable and sourced only from stored K-1 values; place dated cash activity in a separate workspace tab.
 6. Reuse already-loaded `PartnershipTrackerDetail.summary.partnership` and entity data for Part I and Part II; show "Not available" for absent official facts.
 7. Preserve Jackson's existing line 13 and line 18 field semantics exactly, even where internal historical naming is more specific than the reference form; no visual redesign will silently remap a financial field.
 8. Move opening basis, opening suspended loss, and book-tax/reconciliation fields into a visually separate supplemental workpaper while keeping them inside the same `<form>` and change set.

@@ -54,54 +54,12 @@ const assertPartnership = async (partnershipId: string, scope: TrackerScope, cli
 
 const activeValues = async (yearIds: string[], client: Queryable): Promise<TrackerValueRow[]> => {
   if (!yearIds.length) return []
-  const stored = (await client.query<TrackerValueRow>(`
+  return (await client.query<TrackerValueRow>(`
     select v.*, u.email as created_by_email
     from k1_tracker_value_revisions v
     left join users u on u.id = v.created_by_user_id
     where v.tracker_year_id = any($1::uuid[]) and v.is_active = true
     order by v.created_at asc`, [yearIds])).rows
-  const activity = (await client.query<{
-    tracker_year_id: string
-    event_type: CashFlowRow['event_type']
-    amount: string
-    last_updated: Date | string
-  }>(`
-    select y.id as tracker_year_id,
-      case when e.event_type = 'funded_contribution' then 'funded_contribution' else 'distribution' end as event_type,
-      sum(abs(e.amount))::text as amount, max(e.updated_at) as last_updated
-    from k1_tracker_years y
-    join capital_activity_events e
-      on e.partnership_id = y.partnership_id
-      and extract(year from e.activity_date)::int = y.tax_year
-      and e.event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
-    where y.id = any($1::uuid[])
-    group by y.id, case when e.event_type = 'funded_contribution' then 'funded_contribution' else 'distribution' end
-  `, [yearIds])).rows
-  const managedKeys = new Set(activity.map((row) => `${row.tracker_year_id}:${row.event_type === 'funded_contribution' ? 'capital_contributions' : 'box_19_distributions'}`))
-  const visible = stored.filter((row) => !managedKeys.has(`${row.tracker_year_id}:${row.field_key}`))
-  for (const row of activity) {
-    const fieldKey = row.event_type === 'funded_contribution' ? 'capital_contributions' : 'box_19_distributions'
-    visible.push({
-      id: `cash-flow-${row.tracker_year_id}-${fieldKey}`,
-      tracker_year_id: row.tracker_year_id,
-      field_key: fieldKey,
-      amount: row.amount,
-      original_source_text: 'Dated cash activity rollup',
-      source_type: 'MANUAL_ENTRY',
-      source_k1_document_id: null,
-      source_k1_field_value_id: null,
-      import_batch_id: null,
-      source_sheet: null,
-      source_cell: null,
-      carryforward_from_year_id: null,
-      override_reason: null,
-      is_active: true,
-      created_by_user_id: null,
-      created_by_email: null,
-      created_at: row.last_updated,
-    })
-  }
-  return visible
 }
 
 const cashFlowEventsFor = async (partnershipId: string, taxYear: number, client: Queryable): Promise<K1TrackerCashFlowEvent[]> => {
@@ -149,20 +107,6 @@ const sourceConflictsFor = async (
     fieldKey: row.field_key,
     message: `A ${row.source_type.replaceAll('_', ' ').toLowerCase()} value differs from the active source and needs an Admin decision.`,
   }))
-  const contributionConflict = (await client.query<{ canonical_amount: string | null; legacy_amount: string | null }>(`
-    select canonical.amount as canonical_amount, legacy.amount as legacy_amount
-    from k1_tracker_value_revisions canonical
-    join k1_tracker_value_revisions legacy on legacy.tracker_year_id = canonical.tracker_year_id
-      and legacy.field_key = 'section_l_capital_contributed' and legacy.is_active = true
-    where canonical.tracker_year_id = $1 and canonical.field_key = 'capital_contributions' and canonical.is_active = true
-      and canonical.amount is distinct from legacy.amount
-  `, [yearId])).rows[0]
-  if (contributionConflict) {
-    sourceConflicts.push({
-      fieldKey: 'capital_contributions',
-      message: 'Legacy Section L contributions differs from Capital contributions. The canonical amount is used until the legacy source is resolved.',
-    })
-  }
   return sourceConflicts
 }
 
@@ -183,21 +127,7 @@ const mapValue = (row: TrackerValueRow): K1TrackerValue => ({
 
 const inputFor = (year: TrackerYearRow, values: TrackerValueRow[]): TrackerYearInput => {
   const result = Object.fromEntries(values.map((value) => [value.field_key, value.amount == null ? null : cents(value.amount)])) as TrackerYearInput['values']
-  const hasCanonicalContribution = values.some((value) => value.field_key === 'capital_contributions')
-  if (!hasCanonicalContribution && result.section_l_capital_contributed != null) {
-    result.capital_contributions = result.section_l_capital_contributed
-  }
   return { id: year.id, taxYear: year.tax_year, revision: year.revision, status: year.workflow_status, values: result }
-}
-
-const projectCanonicalContribution = (values: TrackerValueRow[]): TrackerValueRow[] => {
-  const canonical = values.find((value) => value.field_key === 'capital_contributions')
-  const legacy = values.find((value) => value.field_key === 'section_l_capital_contributed')
-  const visible = values.filter((value) => value.field_key !== 'section_l_capital_contributed')
-  if (!canonical && legacy) {
-    visible.push({ ...legacy, field_key: 'capital_contributions' })
-  }
-  return visible
 }
 
 const calculateRows = (years: TrackerYearRow[], values: TrackerValueRow[]) => {
@@ -210,7 +140,7 @@ const calculateRows = (years: TrackerYearRow[], values: TrackerValueRow[]) => {
     calculation.summary.sourceConflictCount = year.source_conflict_count
     if (year.source_conflict_count > 0) {
       calculation.checks.push({
-        key: 'unresolved-source-conflicts', status: 'FAIL', actual: centsToMoney(BigInt(year.source_conflict_count) * 100n),
+        key: 'unresolved-source-conflicts', status: 'FAIL', blocking: true, actual: centsToMoney(BigInt(year.source_conflict_count) * 100n),
         expected: '0.00', difference: centsToMoney(BigInt(year.source_conflict_count) * 100n), tolerance: '0.00',
         message: `${year.source_conflict_count} source conflict(s) require an Admin decision.`,
       })
@@ -252,7 +182,7 @@ const detailFor = async (partnershipId: string, year: TrackerYearRow, allYears: 
   const calculation = { ...calculated, summary: { ...calculated.summary, status: extraConflictCount > 0 ? 'NEEDS_REVIEW' : year.workflow_status } }
   if (extraConflictCount > 0) {
     calculation.checks.push({
-      key: 'unresolved-source-conflicts', status: 'FAIL', actual: centsToMoney(BigInt(extraConflictCount) * 100n),
+      key: 'unresolved-source-conflicts', status: 'FAIL', blocking: true, actual: centsToMoney(BigInt(extraConflictCount) * 100n),
       expected: '0.00', difference: centsToMoney(BigInt(extraConflictCount) * 100n), tolerance: '0.00',
       message: `${extraConflictCount} source conflict(s) require an Admin decision.`,
     })
@@ -262,7 +192,7 @@ const detailFor = async (partnershipId: string, year: TrackerYearRow, allYears: 
   return {
     partnershipId, taxYear: year.tax_year, status: year.workflow_status, revision: year.revision,
     officialFormData: year.official_form_data ?? {},
-    values: projectCanonicalContribution(valuesByYear.get(year.id) ?? []).map(mapValue),
+    values: (valuesByYear.get(year.id) ?? []).map(mapValue),
     cashFlowEvents: await cashFlowEventsFor(partnershipId, year.tax_year, client),
     sourceConflicts,
     calculation, signoff: await signoffFor(year, client),
@@ -295,27 +225,6 @@ const persistProjection = async (client: Queryable, years: TrackerYearRow[], act
       finalizedDocumentId: valueRows.find((value) => value.source_type === 'FINALIZED_K1')?.source_k1_document_id ?? null,
     })
   }
-}
-
-const refreshAfterCashFlowChange = async (client: Queryable, partnershipId: string, taxYear: number, actorUserId: string): Promise<void> => {
-  const years = await yearRowsFor(partnershipId, client, true)
-  const affected = years.filter((year) => year.tax_year >= taxYear)
-  if (!affected.length) throw new K1TrackerError('TRACKER_NOT_FOUND', 'Add the K-1 year before recording dated activity.')
-  await client.query(`
-    update k1_tracker_years
-    set revision = revision + 1,
-        workflow_status = case when tax_year > $2 or workflow_status = 'RECONCILED' then 'NEEDS_REVIEW' else workflow_status end,
-        updated_by_user_id = $3,
-        updated_at = now()
-    where id = any($1::uuid[])
-  `, [affected.map((year) => year.id), taxYear, actorUserId])
-  for (const year of affected) {
-    await client.query(`
-      insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason)
-      values ($1, $2, $3, 'INVALIDATED', $4, 'Dated cash activity changed')
-    `, [randomUUID(), year.id, year.revision + 1, actorUserId])
-  }
-  await persistProjection(client, await yearRowsFor(partnershipId, client), actorUserId)
 }
 
 const reviseValues = async (client: Queryable, yearId: string, changes: K1TrackerFieldChange[], actorUserId: string | null, source: 'MANUAL' | 'IMPORT' | 'FINALIZED' = 'MANUAL', importBatchId?: string, sourceSheet?: string, sourceDocumentId?: string, sourceFieldValueIds?: Map<K1TrackerFieldChange['fieldKey'], string>) : Promise<{ conflicts: K1TrackerFieldChange['fieldKey'][]; changed: boolean }> => {
@@ -560,7 +469,6 @@ const createCashFlows = async (
     if (entries.some((entry) => entry.kind === 'RECALLABLE_DISTRIBUTION')) {
       await recomputeRecallableCommitments(client, partnershipId)
     }
-    await refreshAfterCashFlowChange(client, partnershipId, taxYear, actorUserId)
     for (const row of createdRows) {
       await auditRepository.record({ actorUserId, eventName: 'partnership_tracker.cash_flow.created', objectType: 'capital_activity_event', objectId: row.id, before: null, after: row }, client as never)
     }
@@ -570,6 +478,53 @@ const createCashFlows = async (
 }
 
 export const k1TrackerRepository = {
+  async refreshStaleCalculations(): Promise<number> {
+    const partnerships = (await db().query<{ partnership_id: string }>(`
+      select distinct partnership_id
+      from k1_tracker_years
+      where calculation_version <> $1
+      order by partnership_id
+    `, [K1_TRACKER_CALCULATION_VERSION])).rows
+    let refreshedYearCount = 0
+
+    for (const partnership of partnerships) {
+      await withTransaction(async (client) => {
+        let years = await yearRowsFor(partnership.partnership_id, client, true)
+        const staleYears = years.filter((year) => year.calculation_version !== K1_TRACKER_CALCULATION_VERSION)
+        if (!staleYears.length) return
+
+        for (const year of years) await refreshConflictCount(client, year.id)
+        years = await yearRowsFor(partnership.partnership_id, client)
+
+        for (const year of staleYears.filter((item) => item.workflow_status === 'RECONCILED')) {
+          await client.query(`
+            insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, reason)
+            select $1, $2, $3, 'INVALIDATED', 'Calculation method updated to use explicit Part III source values'
+            where not exists (
+              select 1 from k1_tracker_signoffs
+              where tracker_year_id = $2 and year_revision = $3 and signoff_type = 'INVALIDATED'
+                and reason = 'Calculation method updated to use explicit Part III source values'
+            )
+          `, [randomUUID(), year.id, year.revision])
+        }
+
+        await persistProjection(client, years, null)
+        for (const year of staleYears) {
+          await auditRepository.record({
+            eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.DRAFT_RECALCULATED,
+            objectType: 'k1_tracker_year',
+            objectId: year.id,
+            before: { calculationVersion: year.calculation_version, endingOutsideBasis: year.ending_outside_basis },
+            after: { calculationVersion: K1_TRACKER_CALCULATION_VERSION, sourcePolicy: 'EXPLICIT_PART_III' },
+          }, client as never)
+        }
+        refreshedYearCount += staleYears.length
+      })
+    }
+
+    return refreshedYearCount
+  },
+
   async listPartnerships(scope: TrackerScope, filters: { search?: string; status?: string; limit: number }): Promise<{ items: K1TrackerPartnershipSummary[] }> {
     const params: unknown[] = []
     const clauses: string[] = []
@@ -638,7 +593,6 @@ export const k1TrackerRepository = {
       if (iso(before.updated_at) !== new Date(expectedUpdatedAt).toISOString()) throw new K1TrackerError('STALE_TRACKER_REVISION')
       await client.query('delete from capital_activity_events where id = $1', [cashFlowId])
       if (before.event_type === 'recallable_distribution') await recomputeRecallableCommitments(client, partnershipId)
-      await refreshAfterCashFlowChange(client, partnershipId, taxYear, actorUserId)
       await auditRepository.record({ actorUserId, eventName: 'partnership_tracker.cash_flow.deleted', objectType: 'capital_activity_event', objectId: cashFlowId, before, after: null }, client as never)
     })
   },
@@ -756,7 +710,7 @@ export const k1TrackerRepository = {
 
   async signoff(partnershipId: string, taxYear: number, expectedRevision: number, action: 'PREPARED' | 'REVIEWED' | 'INVALIDATED', reason: string | null | undefined, actorUserId: string, scope: TrackerScope): Promise<K1TrackerSignoffState> {
     db(); return withTransaction(async (client) => { await assertPartnership(partnershipId, scope, client); const years = await yearRowsFor(partnershipId, client, true); const year = years.find((item) => item.tax_year === taxYear); if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND'); if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION'); const calculation = (await detailFor(partnershipId, year, years, client)).calculation
-      if (action === 'REVIEWED' && calculation.checks.some((check) => check.status !== 'PASS')) throw new K1TrackerError('SIGNOFF_GATE_FAILED')
+      if (action === 'REVIEWED' && calculation.checks.some((check) => check.blocking && check.status !== 'PASS')) throw new K1TrackerError('SIGNOFF_GATE_FAILED')
       await client.query('insert into k1_tracker_signoffs (id, tracker_year_id, year_revision, signoff_type, signed_by_user_id, reason) values ($1,$2,$3,$4,$5,$6)', [randomUUID(), year.id, year.revision, action, actorUserId, reason?.trim() ?? null])
       await client.query(`update k1_tracker_years set workflow_status = $2, updated_by_user_id = $3, updated_at = now() where id = $1`, [year.id, action === 'REVIEWED' ? 'RECONCILED' : action === 'INVALIDATED' ? 'NEEDS_REVIEW' : year.workflow_status, actorUserId])
       await auditRepository.record({ actorUserId, eventName: `k1_tracker.signoff_${action.toLowerCase()}`, objectType: 'k1_tracker_year', objectId: year.id, after: { action, revision: year.revision, reason: reason?.trim() ?? null } }, client as never)

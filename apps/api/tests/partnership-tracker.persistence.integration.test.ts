@@ -64,12 +64,17 @@ durable('Partnership Tracker persistence compatibility', () => {
     }
   })
 
-  it('rolls exact-dated cash activity into the K-1 year and XIRR inputs', async () => {
+  it('keeps exact-dated cash activity separate from K-1 values while using it for performance', async () => {
     const createdYear = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
     expect(createdYear.officialFormData).toMatchObject({
       tax_period_beginning: '2024-01-01',
       tax_period_ending: '2024-12-31',
     })
+    await partnershipTrackerRepository.updateYear(fixture.partnershipId, 2024, createdYear.revision, [
+      { fieldKey: 'capital_contributions', amount: '125000.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_19_distributions', amount: '15000.00', sourceType: 'MANUAL_ENTRY' },
+    ], fixture.adminUserId, scope)
+    const k1BeforeCashActivity = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
     await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2024-01-01' })
     await fixture.createNav(fixture.partnershipId, { amount: '110000.00', valuationDate: '2024-12-31' })
     const created = await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
@@ -83,8 +88,11 @@ durable('Partnership Tracker persistence compatibility', () => {
     const secondRecallable = created[3]!
     const year = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
     expect(year.cashFlowEvents).toHaveLength(4)
-    expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({ amount: '100000.00', originalSourceText: 'Dated cash activity rollup' })
-    expect(year.values.find((value) => value.fieldKey === 'box_19_distributions')).toMatchObject({ amount: '17500.00', originalSourceText: 'Dated cash activity rollup' })
+    expect(year.revision).toBe(k1BeforeCashActivity.revision)
+    expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({ amount: '125000.00', sourceType: 'MANUAL_ENTRY' })
+    expect(year.values.find((value) => value.fieldKey === 'box_19_distributions')).toMatchObject({ amount: '15000.00', sourceType: 'MANUAL_ENTRY' })
+    expect(year.calculation.basis.contributions).toBe('125000.00')
+    expect(year.calculation.distribution.cashOrPropertyDistribution).toBe('15000.00')
     const summary = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
     expect(summary.summary).toMatchObject({ totalCapitalContributions: '100000.00', totalDistributions: '17500.00', currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' } })
     expect(summary.summary.unfundedCommitmentAmount).toBe('157500.00')
@@ -95,7 +103,11 @@ durable('Partnership Tracker persistence compatibility', () => {
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, secondRecallable.id, secondRecallable.updatedAt, fixture.adminUserId, scope)
     expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).summary.currentCommittedCapital?.amount).toBe('250000.00')
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, call.id, call.updatedAt, fixture.adminUserId, scope)
-    expect((await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)).cashFlowEvents).toHaveLength(1)
+    const afterCashActivityChanges = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
+    expect(afterCashActivityChanges.cashFlowEvents).toHaveLength(1)
+    expect(afterCashActivityChanges.revision).toBe(k1BeforeCashActivity.revision)
+    expect(afterCashActivityChanges.values.find((value) => value.fieldKey === 'capital_contributions')?.amount).toBe('125000.00')
+    expect(afterCashActivityChanges.values.find((value) => value.fieldKey === 'box_19_distributions')?.amount).toBe('15000.00')
   })
 
   it('raises current unfunded commitment when a historical recallable distribution is entered after a later commitment snapshot', async () => {

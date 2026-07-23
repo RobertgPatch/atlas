@@ -19,7 +19,7 @@ describe('Partnership Tracker performance', () => {
     expect(result.performanceStatus).toMatchObject({ dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'AVAILABLE' })
   })
 
-  it('uses a legacy contribution exactly once only when the canonical value is absent', () => {
+  it('excludes legacy Section L contributions from performance metrics', () => {
     const result = composePartnershipPerformance({
       annualValues: [
         { taxYear: 2022, hasCanonicalContribution: false, capitalContributions: null, legacyCapitalContributions: '100.00', distributions: '10.00' },
@@ -27,7 +27,7 @@ describe('Partnership Tracker performance', () => {
       ],
       latestNav: { amount: '200.00', date: '2023-12-31' },
     })
-    expect(result.totalCapitalContributions).toBe('200.00')
+    expect(result.totalCapitalContributions).toBe('100.00')
     expect(result.totalDistributions).toBe('20.00')
   })
 

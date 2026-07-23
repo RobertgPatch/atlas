@@ -26,7 +26,7 @@ describe('K1 Tracker durable ledger', () => {
   })
 
   durable('stores revision-specific preparation and invalidates it after a material edit', async () => {
-    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
+    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'box_1_ordinary_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
     const prepared = await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'PREPARED', null, fixture.adminUserId, scope())
     expect(prepared.preparedAt).not.toBeNull()
     const updated = await k1TrackerRepository.updateYear(fixture.partnershipId, 2024, created.revision, [{ fieldKey: 'box_5_interest_income', amount: '0.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
@@ -75,7 +75,7 @@ describe('K1 Tracker durable ledger', () => {
   })
 
   durable('allows the logged-in CPA to sign off a passing year directly after invalidation', async () => {
-    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
+    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'box_1_ordinary_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
     await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'INVALIDATED', 'Partnership owner changed', fixture.adminUserId, scope())
     const signed = await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'REVIEWED', null, fixture.adminUserId, scope())
     expect(signed.reviewedByEmail).toBeTruthy()
@@ -87,6 +87,7 @@ describe('K1 Tracker durable ledger', () => {
   durable('deletes annual projections and invalidates downstream years', async () => {
     const baseChanges = [
       { fieldKey: 'opening_outside_basis' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'box_1_ordinary_income_loss' as const, amount: '0.00', sourceType: 'MANUAL_ENTRY' as const },
       { fieldKey: 'section_l_beginning_capital' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
       { fieldKey: 'section_l_current_year_net_income_loss' as const, amount: '0.00', sourceType: 'MANUAL_ENTRY' as const },
       { fieldKey: 'section_l_ending_capital' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },

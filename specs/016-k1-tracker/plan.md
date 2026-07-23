@@ -7,7 +7,7 @@
 
 Revise the implemented Partnership Tracker so one selected K-1 year is entered and edited as a continuous inline form instead of a six-step drawer and category-tab workspace. Every supported opening, K-1 box, liability, Section L, book, and reconciliation field remains grouped and sign-aware on the same page; annual navigation remains compact, but Back, Next, step tabs, and category tabs are removed.
 
-Make `capital_contributions` the canonical annual paid-in value and project the legacy `section_l_capital_contributed` key into it only for backward-compatible provenance. Keep liability values editable and carryforward-aware, but treat them as reference-only data: they no longer affect basis, distribution limitations, warning/status aggregation, sign-off, or performance metrics. Extend the set-based Partnership Tracker summary with cumulative contributions and Box 19 distributions, latest Section L capital, NAV, outside basis, DPI, TVPI, and dated IRR. Reuse existing PostgreSQL years/revisions/NAV records, exact-money conventions, audit history, authorization, and calculation infrastructure.
+Make `capital_contributions` the canonical annual paid-in value and retain legacy `section_l_capital_contributed` values as reconciliation-only provenance without projecting them into tax basis or performance. Use explicitly mapped Part III values for outside-basis income and deductions; keep Section L/book-tax differences visible but non-blocking. Keep liability values editable and carryforward-aware, but treat them as reference-only data: they no longer affect basis, distribution limitations, warning/status aggregation, sign-off, or performance metrics. Extend the set-based Partnership Tracker summary with cumulative contributions and Box 19 distributions, latest Section L capital, NAV, outside basis, DPI, TVPI, and dated IRR. Reuse existing PostgreSQL years/revisions/NAV records, exact-money conventions, audit history, authorization, and calculation infrastructure.
 
 ## Technical Context
 
@@ -35,7 +35,7 @@ Make `capital_contributions` the canonical annual paid-in value and project the 
 6. **Focused UI and accessibility**: PASS. One grouped form removes hidden step state while retaining keyboard navigation, visible labels, focus management, and unsaved-change protection.
 7. **Backward compatibility**: PASS. The legacy contribution key remains readable, existing API/data routes remain compatible, and no historical values are destructively rewritten.
 8. **Infrastructure restraint**: PASS. The design composes existing rows and extends the versioned calculation engine without a new service or persistence layer.
-9. **Testing coverage**: PASS. The plan covers all-field editing, no-Next behavior, duplicate-key projection, liability exclusion, metric formulas/unavailable states, stale writes, accessibility, and performance-sized fixtures.
+9. **Testing coverage**: PASS. The plan covers all-field editing, no-Next behavior, legacy Section L isolation, liability exclusion, metric formulas/unavailable states, stale writes, accessibility, and performance-sized fixtures.
 
 ### Post-Phase 1 Re-check
 
@@ -74,7 +74,7 @@ apps/api/
 |   |-- modules/k1-tracker/
 |   |   |-- k1-tracker.calculation.ts       # liability-free calculation version
 |   |   |-- k1-tracker.field-map.ts         # canonical/deprecated field metadata
-|   |   |-- k1-tracker.repository.ts        # legacy contribution projection
+|   |   |-- k1-tracker.repository.ts        # source precedence and versioned projections
 |   |   |-- k1-tracker.contracts.ts
 |   |   `-- k1-tracker.zod.ts               # reject deprecated writes
 |   `-- modules/partnership-tracker/
@@ -114,8 +114,8 @@ packages/types/src/
 
 1. Use one inline annual form with grouped headings and one action row; remove step/category tabs, Back, Next, and the primary editor drawer.
 2. Keep one selected year and compact year navigation rather than making all years editable simultaneously.
-3. Make `capital_contributions` canonical for outside basis, Section L, cumulative paid-in capital, DPI, TVPI, and IRR.
-4. Project `section_l_capital_contributed` only when canonical data is absent; canonical wins conflicts, and mismatches remain visible for manual resolution.
+3. Make `capital_contributions` canonical for outside basis, cumulative paid-in capital, DPI, TVPI, and IRR.
+4. Keep `section_l_capital_contributed` as reconciliation provenance only. Never project it into canonical cash activity, and treat mismatches as informational rather than source conflicts.
 5. Store and show liabilities as raw annual reference values, but exclude them from every calculated sum, status gate, and performance metric.
 6. Sum absolute Box 19 distributions and canonical contributions across all active saved years.
 7. Compute DPI and TVPI from K-1 aggregates and latest NAV, never from committed capital or legacy capital-activity rows.
@@ -128,11 +128,12 @@ packages/types/src/
 - Return money as exact two-decimal strings and ratios as fixed-decimal strings representing unit ratios; format DPI/TVPI with `x` and IRR as a percentage in the web client.
 - Aggregate active revisions in a set-based lateral/CTE query, resolving canonical contribution values once per year and never issuing N+1 year requests.
 - Version the calculation behavior so liabilities still appear in `LiabilityAnalysis` but contribute zero to basis/distribution arithmetic and no longer affect warnings or sign-off.
+- Version the calculation behavior so explicitly mapped Part III values drive tax-basis income and deductions; Section L and book-tax checks remain visible but non-blocking and never infer missing Part III values.
 - Render all editable annual fields in document-oriented order: opening/capital, K-1 boxes, distributions/deductions, liabilities, Section L, then book-tax reconciliation.
 - Keep preview and save mutations unchanged at the route level; send one change set from the continuous form using the existing expected revision.
 - Preserve unsaved-change prompts for year, partnership, top-level area, and route navigation.
-- Add compatibility tests for legacy contribution-only, equal duplicate, and conflicting duplicate records.
+- Add compatibility tests proving legacy contribution-only, equal duplicate, and conflicting duplicate records never change canonical cash activity or outside basis.
 
 ## Complexity Tracking
 
-No constitution violations are introduced. The performance summary adds derived fields to the existing scoped read model, and the canonical contribution projection is limited to the established revision boundary. IRR is the only iterative calculation; it remains a pure, deterministic server utility with explicit unavailable states and no persisted cache.
+No constitution violations are introduced. The performance summary adds derived fields to the existing scoped read model, while legacy Section L contribution values remain reconciliation-only at the established revision boundary. IRR is the only iterative calculation; it remains a pure, deterministic server utility with explicit unavailable states and no persisted cache.

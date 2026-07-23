@@ -2,6 +2,7 @@ import { buildApp } from './app.js'
 import { config } from './config.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { authRepository } from './modules/auth/auth.repository.js'
+import { k1TrackerRepository } from './modules/k1-tracker/k1-tracker.repository.js'
 import { plaidRepository } from './modules/plaid/plaid.repository.js'
 import { plaidRefreshScheduler } from './modules/plaid/plaid.refresh-scheduler.js'
 
@@ -51,6 +52,8 @@ const start = async () => {
       app.log.info('[migrate] migrations complete')
       await authRepository.bootstrapFromDatabase()
       await plaidRepository.bootstrapFromDatabase()
+      const refreshedK1Years = await k1TrackerRepository.refreshStaleCalculations()
+      if (refreshedK1Years > 0) app.log.info({ refreshedK1Years }, '[k1-tracker] refreshed stale calculations')
       app.log.info('[persistence] hydrated auth and Plaid state from Postgres')
     } else {
       app.log.info('[migrate] DATABASE_URL not set, using in-memory storage')

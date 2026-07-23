@@ -53,22 +53,26 @@ describe('manual K-1 annual entry', () => {
     await waitFor(() => expect(save).toHaveBeenCalledWith(expectedChanges))
   })
 
-  it('keeps capital calls, distributions, and recallable distributions read-only and out of change sets', async () => {
+  it('keeps K-1 contribution and distribution fields editable when separate cash activity exists', async () => {
     const calculate = vi.fn().mockResolvedValue(undefined)
     render(<K1YearEntryForm detail={k1CashActivityDetailFixture} canEdit pending={false} onCalculate={calculate} onSave={vi.fn()} onDirtyChange={vi.fn()} />)
 
-    expect(screen.getByLabelText('Capital contributions')).toBeDisabled()
-    expect(screen.getByLabelText('Line 19 - Distributions')).toBeDisabled()
-    expect(screen.getAllByText('Calculated from dated cash activity')).toHaveLength(2)
+    expect(screen.getByLabelText('Capital contributions')).toBeEnabled()
+    expect(screen.getByLabelText('Capital contributions')).toHaveValue('$250,000.00')
+    expect(screen.getByLabelText('Line 19 - Distributions')).toBeEnabled()
+    expect(screen.getByLabelText('Line 19 - Distributions')).toHaveValue('$50,000.00')
+    expect(screen.queryByText('Calculated from dated cash activity')).not.toBeInTheDocument()
     expect(screen.getByText('WORKBOOK IMPORT · 2024 K-1!F12')).toBeInTheDocument()
     expect(screen.getByText('CARRYFORWARD · from 2023')).toBeInTheDocument()
 
+    fireEvent.change(screen.getByLabelText('Capital contributions'), { target: { value: '260000' } })
+    fireEvent.change(screen.getByLabelText('Line 19 - Distributions'), { target: { value: '55000' } })
     fireEvent.change(screen.getByLabelText('Line 5 - Interest income'), { target: { value: '125' } })
     fireEvent.click(screen.getByRole('button', { name: 'Preview calculation' }))
     await waitFor(() => expect(calculate).toHaveBeenCalledTimes(1))
     const changes = calculate.mock.calls[0]![0]
     expect(changes).toContainEqual(expect.objectContaining({ fieldKey: 'box_5_interest_income', amount: '125.00' }))
-    expect(changes).not.toEqual(expect.arrayContaining([
+    expect(changes).toEqual(expect.arrayContaining([
       expect.objectContaining({ fieldKey: 'capital_contributions' }),
       expect.objectContaining({ fieldKey: 'box_19_distributions' }),
     ]))

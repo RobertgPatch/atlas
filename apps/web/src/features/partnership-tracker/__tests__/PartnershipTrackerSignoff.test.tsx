@@ -8,7 +8,7 @@ describe('Partnership Tracker sign-off panel', () => {
     const state = { yearRevision: 2, preparedByEmail: null, preparedAt: null, reviewedByEmail: null, reviewedAt: null, invalidatedAt: null, invalidationReason: null, history: [] }
     const { rerender } = render(<SignOffPanel state={state} checksPassing={false} canEdit pending={false} onSignoff={signoff} />)
     expect(screen.getByRole('button', { name: 'Sign off year' })).toBeDisabled()
-    expect(screen.getByText(/Resolve all checks/i)).toBeInTheDocument()
+    expect(screen.getByText(/Resolve all blocking checks/i)).toBeInTheDocument()
     rerender(<SignOffPanel state={state} checksPassing canEdit pending={false} onSignoff={signoff} />)
     fireEvent.click(screen.getByRole('button', { name: 'Sign off year' }))
     expect(signoff).toHaveBeenCalledOnce()

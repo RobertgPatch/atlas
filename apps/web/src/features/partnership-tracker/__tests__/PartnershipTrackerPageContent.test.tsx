@@ -17,10 +17,13 @@ vi.mock('../components/K1BasisWorkspace', () => ({
     <button type="button" onClick={() => onDirtyChange(true)}>Make K-1 changes</button>
   ),
 }))
+vi.mock('../components/NetCashActivityWorkspace', () => ({
+  NetCashActivityWorkspace: () => <div>Separate cash ledger workspace</div>,
+}))
 
 describe('PartnershipTrackerPageContent', () => {
   beforeEach(() => { update.mockReset(); remove.mockClear() })
-  it('renders searchable selection and the revised four-area workspace', () => {
+  it('renders searchable selection and the separate K-1 and cash-activity areas', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Partnership Tracker' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveValue('Redwood Fund')
@@ -38,7 +41,8 @@ describe('PartnershipTrackerPageContent', () => {
     expect(within(workspaceHeader).getByRole('button', { name: 'Edit Partnership' })).toBeInTheDocument()
     expect(within(workspaceHeader).getByRole('button', { name: 'Delete partnership' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'K1 Entry' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Net Cash Activity' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Capital & NAV' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toBeInTheDocument()
     expect(screen.getAllByText('$1,000,000').length).toBeGreaterThan(0)
@@ -48,6 +52,11 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByText('DPI')).toBeInTheDocument()
     expect(screen.getByText('TVPI')).toBeInTheDocument()
     expect(screen.getByText('XIRR')).toBeInTheDocument()
+  })
+  it('restores the Net Cash Activity area from the URL', () => {
+    render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=cash']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
+    expect(screen.getByRole('tab', { name: 'Net Cash Activity' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('Separate cash ledger workspace')).toBeInTheDocument()
   })
   it('restores the read-only Underlying Assets area from the URL', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
@@ -76,7 +85,7 @@ describe('PartnershipTrackerPageContent', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=k1']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
 
     fireEvent.click(screen.getByRole('button', { name: 'Make K-1 changes' }))
-    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'K1 Entry' })).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
 
     expect(screen.getByRole('dialog', { name: 'Discard unsaved K-1 changes?' })).toBeInTheDocument()
@@ -84,7 +93,7 @@ describe('PartnershipTrackerPageContent', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }))
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Discard unsaved K-1 changes?' })).not.toBeInTheDocument())
-    expect(screen.getByRole('tab', { name: 'K1 & Cash Activity' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'K1 Entry' })).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Overview' }))
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))

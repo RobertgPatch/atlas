@@ -143,7 +143,7 @@ Expected behavior:
 - Latest Section L capital, latest outside basis, and NAV are displayed as separate values.
 - Liability changes do not alter any of these figures.
 - A zero paid-in denominator returns unavailable DPI/TVPI; missing NAV returns unavailable TVPI/IRR with an explicit status.
-- A legacy year containing only `section_l_capital_contributed` projects once into Capital contributions. Equal or conflicting duplicate keys are never summed.
+- A legacy year containing only `section_l_capital_contributed` remains visible for Section L reconciliation but contributes nothing to Paid-in capital, outside basis, DPI, TVPI, or IRR. Equal or conflicting duplicate keys are never summed.
 
 ## 9. Verify Reconciliation and Sign-off
 
@@ -198,7 +198,7 @@ The focused tests should cover:
 - absence of v1 import/extraction endpoints and controls
 - exact manual field revisions and stale-write rejection
 - one-page all-field entry with no Back/Next, step tabs, category tabs, or editor drawer
-- canonical contribution projection and duplicate-key conflict behavior
+- canonical cash-contribution isolation from legacy Section L values
 - liability exclusion from basis, distributions, warnings, sign-off, and performance metrics
 - cumulative contribution/distribution totals plus DPI, TVPI, IRR, and unavailable states
 - carryforwards and earlier-year invalidation
