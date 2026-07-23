@@ -46,6 +46,7 @@ export function usePartnershipTrackerActions() {
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.aggregations() }),
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.detail(id) }),
+      queryClient.invalidateQueries({ queryKey: ['partnership-tracker', 'commitments', id] }),
       queryClient.invalidateQueries({ queryKey: ['partnership-tracker', 'management-fees', id] }),
       queryClient.invalidateQueries({ queryKey: ['entity'] }),
       queryClient.invalidateQueries({ queryKey: ['entities'] }),
@@ -76,6 +77,22 @@ export function usePartnershipTrackerActions() {
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.aggregations() }),
     ]) }),
     updatePartnership: useMutation({ mutationFn: ({ id, body }: { id: string; body: UpdateTrackedPartnershipRequest }) => partnershipTrackerClient.update(id, body), onSuccess: (_, variables) => refreshPartnership(variables.id), onError: (_, variables) => refreshPartnership(variables.id) }),
+    deletePartnership: useMutation({
+      mutationFn: (id: string) => partnershipTrackerClient.delete(id),
+      onSuccess: async (_, id) => {
+        queryClient.removeQueries({ queryKey: partnershipTrackerKeys.detail(id) })
+        queryClient.removeQueries({ queryKey: ['partnership-tracker', 'commitments', id] })
+        queryClient.removeQueries({ queryKey: partnershipTrackerKeys.nav(id) })
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.lists() }),
+          queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.aggregations() }),
+          queryClient.invalidateQueries({ queryKey: ['partnerships-list'] }),
+          queryClient.invalidateQueries({ queryKey: ['partnership'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
+          queryClient.invalidateQueries({ queryKey: ['reports'] }),
+        ])
+      },
+    }),
     createCommitment: useMutation({ mutationFn: ({ id, body }: { id: string; body: CreatePartnershipCommitmentEntryRequest }) => partnershipTrackerClient.createCommitment(id, body), onSuccess: (_, variables) => refreshCapital(variables.id) }),
     updateCommitment: useMutation({ mutationFn: ({ id, entryId, body }: { id: string; entryId: string; body: UpdatePartnershipCommitmentEntryRequest }) => partnershipTrackerClient.updateCommitment(id, entryId, body), onSuccess: (_, variables) => refreshCapital(variables.id), onError: (_, variables) => refreshCapital(variables.id) }),
     deleteCommitment: useMutation({ mutationFn: ({ id, entryId, expectedUpdatedAt }: { id: string; entryId: string; expectedUpdatedAt: string }) => partnershipTrackerClient.deleteCommitment(id, entryId, expectedUpdatedAt), onSuccess: (_, variables) => refreshCapital(variables.id), onError: (_, variables) => refreshCapital(variables.id) }),

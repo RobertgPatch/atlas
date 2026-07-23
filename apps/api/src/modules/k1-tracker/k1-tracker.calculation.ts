@@ -39,7 +39,7 @@ const positive = (value: bigint) => (value > zero ? value : zero)
 const negativeMagnitude = (value: bigint) => (value < zero ? -value : zero)
 const absolute = (value: bigint) => (value < zero ? -value : value)
 
-const sectionLIncomeKeys: K1TrackerFieldKey[] = [
+const partThreeIncomeKeys: K1TrackerFieldKey[] = [
   'box_1_ordinary_income_loss',
   'box_2_net_rental_real_estate_income_loss',
   'box_3_other_net_rental_income_loss',
@@ -87,9 +87,11 @@ const check = (
   expected?: bigint | null,
   difference?: bigint | null,
   tolerance: bigint | null = TOLERANCE,
+  blocking = true,
 ): K1TrackerCheckResult => ({
   key,
   status,
+  blocking,
   message,
   actual: centsToMoney(actual),
   expected: centsToMoney(expected),
@@ -98,9 +100,10 @@ const check = (
 })
 
 const statusForChecks = (checks: K1TrackerCheckResult[], hasValues: boolean): K1TrackerYearSummary['status'] => {
-  if (checks.some((item) => item.status === 'INCOMPLETE')) return hasValues ? 'IN_PROGRESS' : 'NOT_STARTED'
-  if (checks.some((item) => item.status === 'FAIL')) return 'NEEDS_REVIEW'
-  if (checks.some((item) => item.status === 'WARNING')) return 'NEEDS_REVIEW'
+  const blockingChecks = checks.filter((item) => item.blocking)
+  if (blockingChecks.some((item) => item.status === 'INCOMPLETE')) return hasValues ? 'IN_PROGRESS' : 'NOT_STARTED'
+  if (blockingChecks.some((item) => item.status === 'FAIL')) return 'NEEDS_REVIEW'
+  if (blockingChecks.some((item) => item.status === 'WARNING')) return 'NEEDS_REVIEW'
   return 'RECONCILED'
 }
 
@@ -132,22 +135,18 @@ export const calculateTrackerYear = (
   const liabilityIncrease = zero
   const liabilityDecrease = zero
 
-  const contributions = Object.hasOwn(values, 'capital_contributions')
-    ? values.capital_contributions ?? zero
-    : values.section_l_capital_contributed ?? zero
-  const sectionLIncomeEffects = sectionLIncomeKeys.map((key) => amount(values, key))
+  const contributions = values.capital_contributions ?? zero
+  const partThreeIncomeEffects = partThreeIncomeKeys.map((key) => amount(values, key))
   // Tax-exempt income increases outside basis but is not Section L book income.
   const taxExemptIncome = positive(amount(values, 'box_18b_tax_exempt_income'))
-  const enteredNondeductibleExpenses = values.box_18c_nondeductible_expenses == null
-    ? null
-    : absolute(values.box_18c_nondeductible_expenses)
-  const incomeIncrease = sum(sectionLIncomeEffects.map(positive)) + taxExemptIncome
-  const currentLosses = sum(sectionLIncomeEffects.map(negativeMagnitude))
+  const nondeductibleExpenses = absolute(amount(values, 'box_18c_nondeductible_expenses'))
+  const incomeIncrease = sum(partThreeIncomeEffects.map(positive)) + taxExemptIncome
+  const currentLosses = sum(partThreeIncomeEffects.map(negativeMagnitude))
   const effectiveLine13 = Object.hasOwn(values, 'box_13_other_portfolio_deductions') || Object.hasOwn(values, 'box_13_management_fees')
     ? absolute(amount(values, 'box_13_other_portfolio_deductions')) + absolute(amount(values, 'box_13_management_fees'))
     : absolute(amount(values, 'box_13_other_deductions'))
   const deductions = sum(deductionKeys.map((key) => absolute(amount(values, key)))) + effectiveLine13
-  const calculatedNetIncomeBeforeNondeductibleExpenses = sum(sectionLIncomeEffects) - deductions
+  const calculatedNetIncome = sum(partThreeIncomeEffects) - deductions - nondeductibleExpenses
   const distributions = absolute(amount(values, 'box_19_distributions'))
   const totalIncreases = contributions + incomeIncrease
   const basisAfterIncreases = beginningOutsideBasis + totalIncreases
@@ -155,33 +154,19 @@ export const calculateTrackerYear = (
   const taxableExcessDistribution = positive(distributionDecrease - positive(basisAfterIncreases))
   const basisAfterDistributions = positive(basisAfterIncreases - distributionDecrease)
   const totalLossPool = priorSuspendedLoss + currentLosses + deductions
-  const allowedLossBeforeNondeductibleExpenses = totalLossPool < basisAfterDistributions ? totalLossPool : basisAfterDistributions
-  const endingOutsideBasisBeforeNondeductibleExpenses = basisAfterDistributions - allowedLossBeforeNondeductibleExpenses
-
   const sectionLBeginning = values.section_l_beginning_capital ?? previous?.sectionLEndingCapital ?? null
-  const sectionLContributions = contributions
+  const sectionLContributions = Object.hasOwn(values, 'section_l_capital_contributed')
+    ? values.section_l_capital_contributed ?? null
+    : Object.hasOwn(values, 'capital_contributions')
+      ? values.capital_contributions ?? null
+      : null
   const sectionLNetIncome = values.section_l_current_year_net_income_loss ?? null
   const sectionLOther = amount(values, 'section_l_other_increase_decrease')
   const sectionLWithdrawals = absolute(amount(values, 'section_l_withdrawals_distributions'))
   const sectionLEnding = values.section_l_ending_capital ?? null
   const bookCapital = values.book_capital_account ?? sectionLEnding
-  const inferredNondeductibleExpenses = (() => {
-    if (enteredNondeductibleExpenses != null || sectionLBeginning == null || sectionLNetIncome == null || sectionLEnding == null || bookCapital == null) return zero
-    const inferredAmount = calculatedNetIncomeBeforeNondeductibleExpenses - sectionLNetIncome
-    const calculatedSectionLEndingBeforeNondeductibleExpenses = sectionLBeginning + sectionLContributions + calculatedNetIncomeBeforeNondeductibleExpenses + sectionLOther - sectionLWithdrawals
-    const sectionLEndingVariance = calculatedSectionLEndingBeforeNondeductibleExpenses - sectionLEnding
-    const bookTaxVariance = endingOutsideBasisBeforeNondeductibleExpenses - bookCapital
-    const canApplyWithoutChangingLossLimit = basisAfterDistributions >= totalLossPool + inferredAmount
-    return inferredAmount > TOLERANCE
-      && absolute(sectionLEndingVariance - inferredAmount) <= TOLERANCE
-      && absolute(bookTaxVariance - inferredAmount) <= TOLERANCE
-      && canApplyWithoutChangingLossLimit
-      ? inferredAmount
-      : zero
-  })()
   // Box 18C is a nondeductible expense: it reduces capital and tax basis but
   // never enters the deductible-loss pool or creates a suspended deduction.
-  const nondeductibleExpenses = enteredNondeductibleExpenses ?? inferredNondeductibleExpenses
   const basisAfterNondeductibleExpenses = positive(basisAfterDistributions - nondeductibleExpenses)
   const allowedLoss = totalLossPool < basisAfterNondeductibleExpenses ? totalLossPool : basisAfterNondeductibleExpenses
   const cumulativeSuspendedLoss = totalLossPool - allowedLoss
@@ -193,12 +178,11 @@ export const calculateTrackerYear = (
   const endingOutsideBasis = basisAfterNondeductibleExpenses - allowedLoss
   const endingBeforeLimit = beginningOutsideBasis + totalIncreases - currentLosses - deductions - nondeductibleExpenses - distributionDecrease
 
-  const calculatedNetIncome = calculatedNetIncomeBeforeNondeductibleExpenses - nondeductibleExpenses
   const calculatedSectionLEnding = sectionLBeginning == null
     ? null
-    : sectionLBeginning + sectionLContributions + calculatedNetIncome + sectionLOther - sectionLWithdrawals
+    : sectionLBeginning + (sectionLContributions ?? zero) + calculatedNetIncome + sectionLOther - sectionLWithdrawals
   const sectionLBeginningDifference = sectionLBeginning == null ? null : sectionLBeginning - (previous?.sectionLEndingCapital ?? sectionLBeginning)
-  const sectionLContributionDifference = zero
+  const sectionLContributionDifference = sectionLContributions == null ? null : sectionLContributions - contributions
   const sectionLNetIncomeDifference = sectionLNetIncome == null ? null : sectionLNetIncome - calculatedNetIncome
   const sectionLEndingDifference = sectionLEnding == null || calculatedSectionLEnding == null
     ? null
@@ -232,15 +216,26 @@ export const calculateTrackerYear = (
   const journalBalance = sum([interestAdjustment, dividendAdjustment, capitalAdjustment, generalAdjustment, investmentAdjustment])
 
   const requiredPresent = values.opening_outside_basis != null || previous != null
+  const hasPartThreeSource = [
+    ...partThreeIncomeKeys,
+    ...deductionKeys,
+    'box_13_other_deductions',
+    'box_13_other_portfolio_deductions',
+    'box_13_management_fees',
+    'box_18b_tax_exempt_income',
+    'box_18c_nondeductible_expenses',
+    'box_19_distributions',
+  ].some((key) => values[key as K1TrackerFieldKey] != null)
   const checks: K1TrackerCheckResult[] = [
     check('required-source-data', requiredPresent ? 'PASS' : 'INCOMPLETE', requiredPresent ? 'Opening basis is available.' : 'Enter opening outside basis or add a prior year.'),
+    check('part-iii-source-data', hasPartThreeSource ? 'PASS' : 'INCOMPLETE', hasPartThreeSource ? 'Explicitly mapped Part III source data is available.' : 'Enter at least one explicit Part III value, including zero when appropriate.'),
     check('basis-continuity', previous == null || values.opening_outside_basis == null || values.opening_outside_basis === previous.endingOutsideBasis ? 'PASS' : 'WARNING', previous == null || values.opening_outside_basis == null || values.opening_outside_basis === previous.endingOutsideBasis ? 'Beginning basis is continuous.' : 'Opening basis differs from the prior ending basis.', values.opening_outside_basis ?? null, previous?.endingOutsideBasis ?? null, previous == null || values.opening_outside_basis == null ? null : values.opening_outside_basis - previous.endingOutsideBasis),
     check('negative-before-limit-basis', endingBeforeLimit < zero ? 'WARNING' : 'PASS', endingBeforeLimit < zero ? 'Basis is limited to zero before loss deductions.' : 'Basis remains nonnegative before limitations.', endingBeforeLimit),
     check('suspended-losses', cumulativeSuspendedLoss > zero ? 'WARNING' : 'PASS', cumulativeSuspendedLoss > zero ? 'Losses or deductions remain suspended.' : 'No suspended losses or deductions remain.', cumulativeSuspendedLoss),
     check('taxable-excess-distribution', taxableExcessDistribution > zero ? 'WARNING' : 'PASS', taxableExcessDistribution > zero ? 'Distributions exceed available basis.' : 'No taxable excess distribution.', taxableExcessDistribution),
-    check('section-l-net-income', sectionLNetIncomeDifference == null ? 'INCOMPLETE' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'PASS' : 'FAIL', sectionLNetIncomeDifference == null ? 'Section L current-year net income is missing.' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'Section L net income ties to calculated K-1 activity.' : 'Section L net income differs from calculated K-1 activity.', sectionLNetIncome, calculatedNetIncome, sectionLNetIncomeDifference),
-    check('section-l-ending', sectionLEndingDifference == null ? 'INCOMPLETE' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'PASS' : 'FAIL', sectionLEndingDifference == null ? 'Section L ending capital is incomplete.' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'Section L ending capital reconciles.' : 'Section L ending capital variance exceeds $1.', sectionLEnding, calculatedSectionLEnding, sectionLEndingDifference),
-    check('book-tax-unexplained', unexplainedVariance == null ? 'INCOMPLETE' : absolute(unexplainedVariance) <= TOLERANCE ? 'PASS' : 'FAIL', unexplainedVariance == null ? 'Book capital is incomplete.' : absolute(unexplainedVariance) <= TOLERANCE ? 'Book-tax difference is explained.' : 'Book-tax unexplained variance exceeds $1.', bookTaxDifference, reconTotal, unexplainedVariance),
+    check('section-l-net-income', sectionLNetIncomeDifference == null ? 'INCOMPLETE' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'PASS' : 'WARNING', sectionLNetIncomeDifference == null ? 'Section L current-year net income is missing; this does not affect outside basis.' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'Section L net income ties to explicitly mapped Part III activity.' : 'Section L net income differs from explicitly mapped Part III activity; outside basis still uses Part III.', sectionLNetIncome, calculatedNetIncome, sectionLNetIncomeDifference, TOLERANCE, false),
+    check('section-l-ending', sectionLEndingDifference == null ? 'INCOMPLETE' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'PASS' : 'WARNING', sectionLEndingDifference == null ? 'Section L ending capital is incomplete; this does not affect outside basis.' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'Section L ending capital reconciles.' : 'Section L ending capital variance exceeds $1; this is informational and does not affect outside basis.', sectionLEnding, calculatedSectionLEnding, sectionLEndingDifference, TOLERANCE, false),
+    check('book-tax-unexplained', unexplainedVariance == null ? 'INCOMPLETE' : absolute(unexplainedVariance) <= TOLERANCE ? 'PASS' : 'WARNING', unexplainedVariance == null ? 'Book capital is incomplete; this does not affect outside basis.' : absolute(unexplainedVariance) <= TOLERANCE ? 'Book-tax difference is explained.' : 'Book-tax unexplained variance exceeds $1; this is informational and does not affect outside basis.', bookTaxDifference, reconTotal, unexplainedVariance, TOLERANCE, false),
     check('journal-balance', absolute(journalBalance) <= TOLERANCE ? 'PASS' : 'FAIL', absolute(journalBalance) <= TOLERANCE ? 'Journal entry balances.' : 'Journal entry does not balance to zero.', journalBalance, zero, journalBalance),
   ]
 
@@ -252,9 +247,7 @@ export const calculateTrackerYear = (
     revision: year.revision,
     capitalContributed: Object.hasOwn(values, 'capital_contributions')
       ? centsToMoney(values.capital_contributions)
-      : Object.hasOwn(values, 'section_l_capital_contributed')
-        ? centsToMoney(values.section_l_capital_contributed)
-        : null,
+      : null,
     distributions: Object.hasOwn(values, 'box_19_distributions')
       ? centsToMoney(values.box_19_distributions == null ? null : absolute(values.box_19_distributions))
       : null,
@@ -270,7 +263,7 @@ export const calculateTrackerYear = (
     calculationVersion: K1_TRACKER_CALCULATION_VERSION,
     summary,
     basis: {
-      beginningOutsideBasis: centsToMoney(beginningOutsideBasis), contributions: centsToMoney(contributions), incomeIncrease: centsToMoney(incomeIncrease), liabilityIncrease: centsToMoney(liabilityIncrease), totalIncreases: centsToMoney(totalIncreases), distributionDecrease: centsToMoney(distributionDecrease), currentLosses: centsToMoney(currentLosses), deductions: centsToMoney(deductions), nondeductibleExpenses: centsToMoney(nondeductibleExpenses), inferredNondeductibleExpenses: centsToMoney(inferredNondeductibleExpenses), endingBeforeLimit: centsToMoney(endingBeforeLimit), endingOutsideBasis: centsToMoney(endingOutsideBasis),
+      beginningOutsideBasis: centsToMoney(beginningOutsideBasis), contributions: centsToMoney(contributions), incomeIncrease: centsToMoney(incomeIncrease), liabilityIncrease: centsToMoney(liabilityIncrease), totalIncreases: centsToMoney(totalIncreases), distributionDecrease: centsToMoney(distributionDecrease), currentLosses: centsToMoney(currentLosses), deductions: centsToMoney(deductions), nondeductibleExpenses: centsToMoney(nondeductibleExpenses), endingBeforeLimit: centsToMoney(endingBeforeLimit), endingOutsideBasis: centsToMoney(endingOutsideBasis),
     },
     lossLimitation: { priorSuspendedLoss: centsToMoney(priorSuspendedLoss), currentLosses: centsToMoney(currentLosses), deductions: centsToMoney(deductions), totalLossPool: centsToMoney(totalLossPool), basisAvailableForLosses: centsToMoney(basisAfterNondeductibleExpenses), allowedLoss: centsToMoney(allowedLoss), cumulativeSuspendedLoss: centsToMoney(cumulativeSuspendedLoss), allocations: lossAllocations.map((item) => ({ key: item.key, pool: centsToMoney(item.amount), allowed: centsToMoney(item.allowed), suspended: centsToMoney(item.suspended) })) },
     distribution: { cashOrPropertyDistribution: centsToMoney(distributions), liabilityRelief: centsToMoney(liabilityDecrease), basisBeforeDistribution: centsToMoney(basisAfterIncreases), taxableExcessDistribution: centsToMoney(taxableExcessDistribution) },

@@ -26,7 +26,7 @@ describe('K1 Tracker durable ledger', () => {
   })
 
   durable('stores revision-specific preparation and invalidates it after a material edit', async () => {
-    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
+    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'box_1_ordinary_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
     const prepared = await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'PREPARED', null, fixture.adminUserId, scope())
     expect(prepared.preparedAt).not.toBeNull()
     const updated = await k1TrackerRepository.updateYear(fixture.partnershipId, 2024, created.revision, [{ fieldKey: 'box_5_interest_income', amount: '0.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
@@ -75,12 +75,52 @@ describe('K1 Tracker durable ledger', () => {
   })
 
   durable('allows the logged-in CPA to sign off a passing year directly after invalidation', async () => {
-    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
+    const created = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [{ fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'box_1_ordinary_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_current_year_net_income_loss', amount: '0.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'section_l_ending_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' }, { fieldKey: 'book_capital_account', amount: '100.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope())
     await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'INVALIDATED', 'Partnership owner changed', fixture.adminUserId, scope())
     const signed = await k1TrackerRepository.signoff(fixture.partnershipId, 2024, created.revision, 'REVIEWED', null, fixture.adminUserId, scope())
     expect(signed.reviewedByEmail).toBeTruthy()
     expect(signed.reviewedAt).not.toBeNull()
     expect(signed.history?.map((item) => item.action)).toEqual(['INVALIDATED', 'REVIEWED'])
     expect((await k1TrackerRepository.getYear(fixture.partnershipId, 2024, scope())).status).toBe('RECONCILED')
+  })
+
+  durable('deletes annual projections and invalidates downstream years', async () => {
+    const baseChanges = [
+      { fieldKey: 'opening_outside_basis' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'box_1_ordinary_income_loss' as const, amount: '0.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'section_l_beginning_capital' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'section_l_current_year_net_income_loss' as const, amount: '0.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'section_l_ending_capital' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
+      { fieldKey: 'book_capital_account' as const, amount: '100.00', sourceType: 'MANUAL_ENTRY' as const },
+    ]
+    const first = await k1TrackerRepository.createYear(fixture.partnershipId, 2021, baseChanges, fixture.adminUserId, scope())
+    const second = await k1TrackerRepository.createYear(fixture.partnershipId, 2022, baseChanges, fixture.adminUserId, scope())
+    await k1TrackerRepository.signoff(fixture.partnershipId, 2022, second.revision, 'PREPARED', null, fixture.adminUserId, scope())
+    const reviewer = authRepository.listUsers().find((user) => user.role === 'User')!
+    await k1TrackerRepository.signoff(fixture.partnershipId, 2022, second.revision, 'REVIEWED', null, reviewer.id, scope())
+
+    await k1TrackerRepository.deleteYear(fixture.partnershipId, 2021, first.revision, fixture.adminUserId, scope())
+
+    const deletedProjection = await pool!.query<{ count: string }>('select count(*)::text as count from partnership_annual_activity where partnership_id = $1 and tax_year = 2021', [fixture.partnershipId])
+    expect(deletedProjection.rows[0]!.count).toBe('0')
+    const downstream = await k1TrackerRepository.getYear(fixture.partnershipId, 2022, scope())
+    expect(downstream.revision).toBe(second.revision + 1)
+    expect(downstream.status).toBe('NEEDS_REVIEW')
+    expect(downstream.signoff.invalidatedAt).not.toBeNull()
+  })
+
+  durable('projects tracker interest and dividends into matching annual activity columns', async () => {
+    await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [
+      { fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_5_interest_income', amount: '12.34', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_6a_ordinary_dividends', amount: '56.78', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_current_year_net_income_loss', amount: '69.12', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_ending_capital', amount: '169.12', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'book_capital_account', amount: '169.12', sourceType: 'MANUAL_ENTRY' },
+    ], fixture.adminUserId, scope())
+
+    const projection = await pool!.query<{ interest_amount: string | null; dividends_amount: string | null }>('select interest_amount, dividends_amount from partnership_annual_activity where partnership_id = $1 and tax_year = 2024', [fixture.partnershipId])
+    expect(projection.rows[0]).toMatchObject({ interest_amount: '12.34', dividends_amount: '56.78' })
   })
 })

@@ -228,5 +228,5 @@ Then complete T026.
 - `[P]` tasks operate on different files after the stated prerequisite and can be assigned concurrently.
 - No task adds a database migration, API endpoint, calculation version, form library, PDF asset, or new persisted field.
 - Preserve existing line 13 and line 18 field semantics even when the 2025 visual reference uses different generic wording.
-- Keep dated cash activity as the authoritative source for annual contributions and distributions.
+- Keep dated cash activity separate from K-1 entry values; cash events remain authoritative only for operational cash performance and recallable-commitment behavior.
 - Commit after each task or cohesive task group if using the optional Git workflow.

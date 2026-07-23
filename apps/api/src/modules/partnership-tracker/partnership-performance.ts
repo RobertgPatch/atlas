@@ -124,8 +124,7 @@ export const composePartnershipPerformance = ({
   asOfDate = today(),
 }: PartnershipPerformanceInput): PartnershipPerformance => {
   const contributions = annualValues.flatMap((year) => {
-    const amount = year.hasCanonicalContribution ? year.capitalContributions : year.legacyCapitalContributions
-    const cents = moneyToCents(amount)
+    const cents = moneyToCents(year.capitalContributions)
     return cents == null ? [] : [{ taxYear: year.taxYear, cents }]
   })
   const distributions = annualValues.flatMap((year) => {

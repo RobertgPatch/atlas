@@ -66,7 +66,7 @@ An Admin manually enters every supported annual K-1, opening-balance, Item K lia
 4. **Given** the selected partnership has many years, **When** the user changes years, **Then** one year remains primary and every year is reachable without a multi-column worksheet or endless vertical cards.
 5. **Given** v1 is running, **When** the user opens the tracker, **Then** there is no Excel import, PDF upload, OCR, or automatic finalized-document synchronization action.
 6. **Given** an annual year is selected, **When** the Admin edits it, **Then** every editable field is present in one grouped form with Preview and Save actions and no Back, Next, step tabs, or category tabs.
-7. **Given** a year contains a legacy `section_l_capital_contributed` value, **When** it is displayed or edited, **Then** it resolves to the single canonical Capital contributions field without presenting a duplicate input.
+7. **Given** a year contains a legacy `section_l_capital_contributed` value, **When** it is calculated, **Then** the value remains visible for Section L reconciliation but does not supply canonical cash activity, outside basis, or performance metrics.
 8. **Given** an Admin enters `1000`, `1,000`, `$1,000`, `1000.5`, `-1000`, or `(1,000)` in an applicable K-1 money field, **When** the field loses focus, **Then** the value displays in US currency format and preview/save receives the equivalent exact two-decimal amount without requiring trailing zeros.
 
 ---
@@ -119,7 +119,7 @@ The CPA traces outside basis and Section L, reviews tax-versus-book journal adju
 
 1. **Given** complete manual K-1 values, **When** the year is calculated, **Then** beginning basis, increases, decreases, limitations, ending basis, and contributing fields are traceable.
 2. **Given** losses or distributions exceed basis, **When** calculations run, **Then** suspended loss and taxable excess distribution warnings are shown without allowing negative ending basis.
-3. **Given** Section L or the journal check differs by more than $1, **When** sign-off is attempted, **Then** the year remains Needs Review.
+3. **Given** Section L differs by more than $1, **When** calculations run, **Then** the difference remains visible as a non-blocking reconciliation warning; a failing journal or other blocking check still prevents sign-off.
 4. **Given** all checks pass, **When** the logged-in CPA signs off, **Then** the signer identity, date, and signed revision are retained and the year becomes Reconciled.
 
 ### Edge Cases
@@ -170,10 +170,10 @@ The CPA traces outside basis and Section L, reviews tax-versus-book journal adju
 - **FR-019**: Changes to an earlier year MUST recalculate dependent later years and invalidate materially affected sign-off.
 - **FR-020**: The selected-year summary MUST show ending outside basis, annual basis change, cumulative suspended losses, taxable excess distribution, Section L difference, and warning count.
 - **FR-021**: Every editable annual field MUST be reachable on the same selected-year page without category tabs, step tabs, Back, or Next controls; derived basis, reconciliation, journal, and sign-off results MAY follow the form on that page.
-- **FR-022**: Outside basis, loss limitation, distribution analysis, Section L reconciliation, book-tax differences, and journal entries MUST use deterministic server calculation rules, except liability balances and changes MUST be display-only and MUST NOT participate in arithmetic totals or status gates.
+- **FR-022**: Outside basis, loss limitation, and distribution analysis MUST use only explicitly mapped Part III values plus canonical cash activity. Section L and book-tax values MUST remain reconciliation-only and MUST NOT supply missing calculation inputs. Liability balances and changes MUST remain display-only and MUST NOT participate in arithmetic totals or status gates.
 - **FR-023**: Ending outside basis MUST never be below zero; before-limit results and applied limitations MUST be displayed separately.
 - **FR-024**: Reconciliation and journal checks MUST use a $1 tolerance and MUST NOT mark missing or incomplete years as reconciled.
-- **FR-025**: A year MUST NOT be reconciled until required values are present, warnings are resolved or explained, journal entries balance, and required sign-off is complete.
+- **FR-025**: A year MUST NOT be reconciled until required values are present, blocking warnings are resolved or explained, journal entries balance, and required sign-off is complete. Section L and book-tax reconciliation differences are informational and non-blocking.
 - **FR-026**: The page MUST show one primary year at a time, keep all years reachable in compact navigation, and MAY compare up to three years.
 - **FR-027**: Admins MUST be able to add an effective-dated committed-capital entry with a nonnegative amount and optional note.
 - **FR-028**: Committed-capital history MUST preserve multiple dated entries; the value effective for a date MUST be the latest entry whose effective date is on or before that date.
@@ -194,7 +194,7 @@ The CPA traces outside basis and Section L, reviews tax-versus-book journal adju
 - **FR-043**: The page MUST provide loading, empty, filtered-empty, error, permission-restricted, newly-created, no-year, and populated states.
 - **FR-044**: Search, top-level workspace navigation, year navigation, the single-page K-1 form, dialogs, the NAV chart, and data tables MUST be keyboard accessible with meaningful assistive labels and visible focus.
 - **FR-045**: Unsaved manual K-1 changes MUST prompt before partnership, year, top-level area, or route navigation discards them.
-- **FR-046**: `capital_contributions` MUST be the only editable and calculated annual contribution value; `section_l_capital_contributed` MUST remain readable only as legacy provenance and MUST NOT appear as a second input or be double-counted.
+- **FR-046**: `capital_contributions` MUST be the only calculated annual cash-contribution value. `section_l_capital_contributed` MUST remain readable as Section L reconciliation provenance and MUST NOT be projected into outside basis or performance metrics.
 - **FR-047**: Total capital contributions MUST equal the sum of canonical `capital_contributions` amounts across all active saved K-1 years, and cumulative distributions MUST equal the sum of the absolute `box_19_distributions` amounts across those years. An aggregate MUST remain missing until at least one corresponding annual value exists; an explicitly entered zero MUST aggregate as zero.
 - **FR-048**: DPI MUST equal cumulative distributions divided by total capital contributions, and TVPI MUST equal cumulative distributions plus latest NAV divided by total capital contributions; either metric MUST be unavailable when its required denominator or NAV is unavailable.
 - **FR-049**: Liability beginning balances, ending balances, and changes MAY be entered, edited, carried, and displayed, but MUST be excluded from outside-basis increases, distribution decreases, taxable excess distributions, overview totals, DPI, TVPI, IRR, warning counts, and sign-off blockers.
@@ -231,7 +231,7 @@ The CPA traces outside basis and Section L, reviews tax-versus-book journal adju
 - **SC-010**: Partnership Tracker v1 contains no Excel import, PDF upload, OCR, or automated K-1 extraction control.
 - **SC-011**: An Admin can enter or edit every supported field for one K-1 year and save it without opening another category view or using a Next button.
 - **SC-012**: A fixture with `$3,000,000.00` total contributions, `$190,773.00` total distributions, and `$3,000,000.00` latest NAV produces DPI `0.0636x`, TVPI `1.0636x`, and an IRR consistent with the documented annual cash-flow dates, without including liabilities.
-- **SC-013**: A legacy year containing both contribution field keys contributes at most once to Section L, outside basis, and overview performance totals.
+- **SC-013**: A legacy year containing both contribution field keys uses only `capital_contributions` for outside basis and overview performance while retaining `section_l_capital_contributed` solely for reconciliation.
 - **SC-014**: Every Partnership Tracker money control accepts the equivalent values `1000`, `1,000`, `$1,000`, and `1000.00`, formats each as `$1,000.00` on blur, and submits `1000.00`; applicable signed K-1 fields also normalize `-1000` and `(1,000)` to `-1000.00`, while committed-capital and NAV controls reject negative forms inline.
 
 ## Assumptions
@@ -243,7 +243,7 @@ The CPA traces outside basis and Section L, reviews tax-versus-book journal adju
 - Legacy non-manual FMV snapshots remain visible with their source label, while v1 creates manual NAV entries only.
 - Existing assets, capital-activity, distribution-history, and report integrations remain stored and callable but are omitted from the focused v1 page.
 - Existing K-1 calculation and sign-off logic remains in scope except for the explicit removal of liability effects from calculations and status gates. Excel import and automatic finalized-document synchronization are removed from the v1 interaction and API contract.
-- `capital_contributions` is the canonical annual paid-in value. The legacy Section L contribution key remains only for backward-compatible provenance and is projected into the canonical value when needed.
+- `capital_contributions` is the canonical annual paid-in value. The legacy Section L contribution key remains backward-compatible reconciliation provenance and is never projected into the canonical value.
 - Overview return metrics use active saved K-1 revisions, not legacy manual capital-activity rows. Committed capital remains a separate effective-dated total and is never treated as paid-in capital.
 - PDF upload, OCR, model-assisted field extraction, confidence scoring, and human review are planned for v2 and will populate the existing revision/provenance model rather than changing the annual calculation model.
 - The legacy `/partnerships` and `/k1-tracker` browser routes are compatibility redirects, not separate maintained experiences.

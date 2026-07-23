@@ -6,6 +6,7 @@ describe('Dated cash activity', () => {
   it('starts with one row and adds another cash activity row', async () => {
     const onCreate = vi.fn().mockResolvedValue(undefined)
     render(<DatedCashFlowPanel taxYear={2024} events={[]} canEdit pending={false} onCreate={onCreate} onDelete={vi.fn()} />)
+    expect(screen.getByText(/These entries do not change K-1 document fields/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Net Cash Activity' }))
 
     const dialog = screen.getByRole('dialog', { name: 'Net Cash Activity' })
@@ -14,6 +15,7 @@ describe('Dated cash activity', () => {
     expect(within(dialog).getByTestId('cash-activity-row-number-1')).toHaveClass('-left-2', '-top-2', 'ring-2')
     expect(screen.getAllByLabelText(/Cash activity date row/)).toHaveLength(1)
     expect(screen.getAllByLabelText(/Cash activity amount row/)).toHaveLength(1)
+    expect(screen.getByLabelText('Cash activity amount row 1')).toHaveClass('bg-white', 'text-gray-950')
     expect(screen.getAllByRole('combobox', { name: /Cash activity type row/ })).toHaveLength(1)
     expect(screen.getByLabelText('Cash activity type row 1')).toHaveValue('CAPITAL_CALL')
     expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
@@ -29,6 +31,7 @@ describe('Dated cash activity', () => {
 
     fireEvent.change(screen.getByLabelText('Cash activity date row 1'), { target: { value: '2024-03-15' } })
     fireEvent.change(screen.getByLabelText('Cash activity amount row 1'), { target: { value: '$125,000' } })
+    expect(screen.getByLabelText('Cash activity amount row 1')).toHaveValue('$125,000')
     fireEvent.change(screen.getByLabelText('Cash activity date row 2'), { target: { value: '2024-10-15' } })
     fireEvent.change(screen.getByLabelText('Cash activity amount row 2'), { target: { value: '$10,000' } })
     fireEvent.change(screen.getByLabelText('Cash activity type row 2'), { target: { value: 'RECALLABLE_DISTRIBUTION' } })

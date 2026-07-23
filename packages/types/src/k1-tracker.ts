@@ -154,6 +154,7 @@ export interface K1TrackerValue {
 export interface K1TrackerCheckResult {
   key: string
   status: K1TrackerCheckStatus
+  blocking: boolean
   actual: K1TrackerMoney | null
   expected: K1TrackerMoney | null
   difference: K1TrackerMoney | null

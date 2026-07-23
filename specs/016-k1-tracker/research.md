@@ -158,15 +158,15 @@
 
 ## Decision 14: Canonicalize capital contributions
 
-**Decision**: Make `capital_contributions` the sole editable contribution field and use it for both outside-basis contributions and Section L reported contributions. Keep `section_l_capital_contributed` only as legacy revision provenance. A compatibility projection uses the legacy value when the canonical value is absent; when both exist, the canonical value wins and a mismatch is surfaced for one-time manual resolution rather than summed.
+**Decision**: Make `capital_contributions` the sole calculated cash-contribution field for outside basis and performance. Keep `section_l_capital_contributed` as legacy Section L reconciliation provenance. Never project the Section L value into canonical cash activity; when both exist, show their difference as non-blocking reconciliation information rather than a source conflict.
 
-**Rationale**: The current labels describe the same user-entered fact and only one consistently feeds downstream data. A canonical value prevents duplicate entry and double counting while retaining historical source evidence.
+**Rationale**: Cash activity and Section L may be reported on different accounting bases. Keeping the values separate prevents a book/GAAP summary from changing tax basis while retaining historical source evidence.
 
 **Alternatives considered**:
 
-- Keep both inputs with clearer labels: rejected because the user explicitly wants one contribution data point.
+- Use the Section L amount as a cash-activity fallback: rejected because Section L is reconciliation-only and may be reported on a different accounting basis.
 - Destructively rename every historical revision: rejected because conflicting active values could be lost and append-only provenance would be weakened.
-- Prefer the Section L key: rejected because `capital_contributions` already drives outside basis and is the clearer cross-year paid-in source.
+- Prefer the Section L key: rejected because canonical cash activity is the explicit cross-year paid-in source.
 
 ## Decision 15: Compose Overview performance from active K-1 revisions
 

@@ -121,6 +121,9 @@ export const partnershipTrackerClient = {
   update(partnershipId: string, body: UpdateTrackedPartnershipRequest): Promise<PartnershipTrackerSummary> {
     return request(`${root}/${partnershipId}`, { method: 'PATCH', body: JSON.stringify(body) })
   },
+  delete(partnershipId: string): Promise<void> {
+    return request(`${root}/${partnershipId}`, { method: 'DELETE' })
+  },
   listCommitments(partnershipId: string, asOfDate?: string): Promise<{ items: PartnershipCommitmentEntry[]; effectiveEntry: PartnershipCommitmentEntry | null }> {
     const query = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : ''
     return request(`${root}/${partnershipId}/commitments${query}`)

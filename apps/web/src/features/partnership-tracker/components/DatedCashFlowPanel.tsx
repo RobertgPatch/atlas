@@ -89,7 +89,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       await onCreate(entries)
       setDialogOpen(false)
       const recallableCount = entries.filter((entry) => entry.kind === 'RECALLABLE_DISTRIBUTION').length
-      setNotice(`${entries.length} cash activit${entries.length === 1 ? 'y' : 'ies'} added and ${taxYear} performance recalculated.${recallableCount ? ` ${recallableCount} recallable distribution${recallableCount === 1 ? '' : 's'} also increased commitment.` : ''}`)
+      setNotice(`${entries.length} cash activit${entries.length === 1 ? 'y' : 'ies'} added and partnership performance refreshed.${recallableCount ? ` ${recallableCount} recallable distribution${recallableCount === 1 ? '' : 's'} also increased commitment.` : ''}`)
     } catch (error) { setFormError(error instanceof Error ? error.message : 'Cash activity could not be saved.') }
     finally { setSaving(false) }
   }
@@ -99,7 +99,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       await onDelete(deleteTarget)
       setNotice(deleteTarget.kind === 'RECALLABLE_DISTRIBUTION'
         ? 'Recallable distribution deleted and its commitment increase reversed.'
-        : `${labelFor(deleteTarget.kind)} deleted and ${taxYear} performance recalculated.`)
+        : `${labelFor(deleteTarget.kind)} deleted and partnership performance refreshed.`)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Cash activity could not be deleted.')
     } finally {
@@ -110,7 +110,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
   return <>
     <section aria-labelledby="cash-activity-title" className="border border-gray-200 bg-white">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
-        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover">Dated cash activity</p><h3 id="cash-activity-title" className="mt-1 text-lg font-semibold text-gray-950">Net cash activity</h3><p className="mt-1 max-w-2xl text-sm text-gray-600">Record exact-dated capital calls and distributions for annual K-1 totals and XIRR. Recallable distributions also restore commitment.</p></div>
+        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover">Dated cash activity</p><h3 id="cash-activity-title" className="mt-1 text-lg font-semibold text-gray-950">Net cash activity</h3><p className="mt-1 max-w-2xl text-sm text-gray-600">Record exact-dated capital calls and distributions for partnership performance. These entries do not change K-1 document fields. Recallable distributions also restore commitment.</p></div>
         {canEdit && <button type="button" onClick={openDialog} disabled={pending} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"><Plus className="h-4 w-4" aria-hidden="true" />Net Cash Activity</button>}
       </div>
       <div className="grid border-b border-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-gray-200">
@@ -140,7 +140,7 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
               <div data-testid="cash-activity-draft-list" className="max-h-[45vh] space-y-4 overflow-y-auto pb-1 pl-3 pr-1 pt-3 [scrollbar-gutter:stable]">{draftRows.map((row, index) => <div key={row.id} className="relative grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)_2.75rem] sm:items-end">
                 <span data-testid={`cash-activity-row-number-${index + 1}`} className="absolute -left-2 -top-2 grid h-6 min-w-6 place-items-center rounded-full bg-gray-950 px-1 text-[0.65rem] font-bold text-white shadow-sm ring-2 ring-white" aria-hidden="true">{index + 1}</span>
                 <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 sm:text-transparent">Date<input aria-label={`Cash activity date row ${index + 1}`} type="date" required min={`${taxYear}-01-01`} max={`${taxYear}-12-31`} value={row.activityDate} onChange={(event) => updateDraftRow(row.id, { activityDate: event.target.value })} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm font-normal tracking-normal text-gray-950 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30" /></label>
-                <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 sm:text-transparent">Amount<CurrencyInput aria-label={`Cash activity amount row ${index + 1}`} required value={row.amount} onChange={(amount) => updateDraftRow(row.id, { amount })} /></label>
+                <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 sm:text-transparent">Amount<CurrencyInput aria-label={`Cash activity amount row ${index + 1}`} required value={row.amount} onChange={(amount) => updateDraftRow(row.id, { amount })} className="min-h-11 bg-white font-normal tracking-normal text-gray-950" /></label>
                 <label className="block text-xs font-bold uppercase tracking-wide text-gray-500 sm:text-transparent">Type<select aria-label={`Cash activity type row ${index + 1}`} required value={row.kind} onChange={(event) => updateDraftRow(row.id, { kind: event.target.value as K1TrackerCashFlowKind })} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-sm font-normal tracking-normal text-gray-950 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30">{activityOptions.map((option) => <option key={option.kind} value={option.kind}>{option.label}</option>)}</select></label>
                 <button type="button" aria-label={`Remove cash activity row ${index + 1}`} onClick={() => removeDraftRow(row.id)} disabled={draftRows.length === 1 || busy} className="grid min-h-11 min-w-11 place-items-center rounded-md border border-gray-300 bg-white text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold disabled:cursor-not-allowed disabled:opacity-30"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>
               </div>)}</div>
@@ -154,6 +154,6 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
       </div>
     </Dialog>
 
-    <ConfirmationDialog open={Boolean(deleteTarget)} title={`Delete this ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'cash activity'}?`} description={<p>{deleteTarget?.kind === 'RECALLABLE_DISTRIBUTION' ? `This permanently removes the dated distribution, reverses its commitment increase, and recalculates the ${taxYear} K-1 totals.` : `This permanently removes the dated cash activity and recalculates the ${taxYear} K-1 totals and performance results.`}</p>} confirmLabel={`Delete ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'activity'}`} pending={pending} pendingLabel="Deleting activity\u2026" onClose={() => setDeleteTarget(undefined)} onConfirm={remove} />
+    <ConfirmationDialog open={Boolean(deleteTarget)} title={`Delete this ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'cash activity'}?`} description={<p>{deleteTarget?.kind === 'RECALLABLE_DISTRIBUTION' ? 'This permanently removes the dated distribution, reverses its commitment increase, and refreshes partnership performance.' : 'This permanently removes the dated cash activity and refreshes partnership performance.'}</p>} confirmLabel={`Delete ${deleteTarget ? labelFor(deleteTarget.kind).toLowerCase() : 'activity'}`} pending={pending} pendingLabel="Deleting activity\u2026" onClose={() => setDeleteTarget(undefined)} onConfirm={remove} />
   </>
 }

@@ -139,4 +139,3 @@ export const placementsForRegion = (region: K1FormRegion): K1FormPlacement[] =>
 
 export const officialPlacementsForRegion = (region: K1FormOfficialPlacement['region']): K1FormOfficialPlacement[] =>
   K1_FORM_OFFICIAL_PLACEMENTS.filter((item) => item.region === region)
-

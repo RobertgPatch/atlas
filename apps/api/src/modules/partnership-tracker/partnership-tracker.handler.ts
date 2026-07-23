@@ -90,6 +90,14 @@ export const updatePartnershipTrackerHandler = async (request: FastifyRequest, r
   const body = parse(updateTrackedPartnershipBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.updatePartnership(params.partnershipId, body, request.authUser!.userId, request.partnershipScope!)))
 }
+export const deletePartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply); if (!params) return
+  return run(reply, async () => {
+    await partnershipTrackerRepository.deletePartnership(params.partnershipId, request.authUser!.userId, request.partnershipScope!)
+    return reply.code(204).send()
+  })
+}
 
 export const listCommitmentsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)

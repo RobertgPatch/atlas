@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { buildApp } from '../src/app.js'
 import { config } from '../src/config.js'
@@ -248,5 +249,62 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
       })
       expect(forbidden.statusCode).toBe(403)
     }
+  })
+
+  it('allows only an Admin to delete a partnership and cascades its complete child tree', async () => {
+    const documentId = randomUUID()
+    const k1DocumentId = randomUUID()
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, { isAdmin: true, entityIds: [] })
+    await fixture.createCommitment(fixture.partnershipId)
+    await fixture.createNav(fixture.partnershipId)
+    await pool!.query(`insert into capital_activity_events
+      (id, entity_id, partnership_id, activity_date, event_type, amount, source_type)
+      values (gen_random_uuid(), $1, $2, '2024-06-01', 'funded_contribution', 1000, 'manual')`, [fixture.entityId, fixture.partnershipId])
+    await pool!.query(`insert into partnership_assets (id, partnership_id, name, asset_type)
+      values (gen_random_uuid(), $1, 'Cascade asset', 'partnership')`, [fixture.partnershipId])
+    await pool!.query(`insert into documents (id, file_name, storage_path, mime_type)
+      values ($1, 'cascade.pdf', 'tests/cascade.pdf', 'application/pdf')`, [documentId])
+    await pool!.query(`insert into k1_documents (id, document_id, partnership_id, tax_year)
+      values ($1, $2, $3, 2024)`, [k1DocumentId, documentId, fixture.partnershipId])
+    await pool!.query(`insert into k1_field_values (id, k1_document_id, field_name, raw_value)
+      values (gen_random_uuid(), $1, 'box_1', '100')`, [k1DocumentId])
+    await pool!.query(`insert into k1_issues (id, k1_document_id, issue_type, message)
+      values (gen_random_uuid(), $1, 'TEST', 'Cascade child')`, [k1DocumentId])
+    await pool!.query(`insert into k1_reported_distributions
+      (id, k1_document_id, entity_id, partnership_id, tax_year, reported_distribution_amount)
+      values (gen_random_uuid(), $1, $2, $3, 2024, 100)`, [k1DocumentId, fixture.entityId, fixture.partnershipId])
+    await pool!.query(`insert into k1_tracker_import_batches
+      (id, entity_id, target_partnership_id, original_file_name, workbook_sha256, status, expires_at)
+      values (gen_random_uuid(), $1, $2, 'cascade.xlsx', repeat('a', 64), 'PREVIEWED', now() + interval '1 hour')`, [fixture.entityId, fixture.partnershipId])
+
+    if (userCookie) {
+      const forbidden = await app.inject({
+        method: 'DELETE',
+        url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}`,
+        headers: { cookie: userCookie },
+      })
+      expect(forbidden.statusCode).toBe(403)
+    }
+
+    const response = await app.inject({
+      method: 'DELETE',
+      url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}`,
+      headers: { cookie },
+    })
+    expect(response.statusCode).toBe(204)
+
+    const remaining = await pool!.query<{ count: number }>(`select (
+      (select count(*) from partnerships where id = $1) +
+      (select count(*) from k1_documents where partnership_id = $1) +
+      (select count(*) from k1_tracker_years where partnership_id = $1) +
+      (select count(*) from k1_tracker_import_batches where target_partnership_id = $1) +
+      (select count(*) from partnership_commitments where partnership_id = $1) +
+      (select count(*) from capital_activity_events where partnership_id = $1) +
+      (select count(*) from partnership_fmv_snapshots where partnership_id = $1) +
+      (select count(*) from partnership_assets where partnership_id = $1)
+    )::int as count`, [fixture.partnershipId])
+    expect(remaining.rows[0]!.count).toBe(0)
+    expect((await pool!.query('select 1 from documents where id = $1', [documentId])).rowCount).toBe(0)
+    expect((await pool!.query(`select 1 from audit_events where object_id = $1 and event_name = 'partnership_tracker.partnership.deleted'`, [fixture.partnershipId])).rowCount).toBe(1)
   })
 })
