@@ -198,17 +198,17 @@ NOT_STARTED -> IN_PROGRESS -> NEEDS_REVIEW -> RECONCILED
 
 - Creating an empty year starts `NOT_STARTED`.
 - Saving at least one manual or carryforward value moves it to `IN_PROGRESS` unless validation requires `NEEDS_REVIEW`.
-- Calculation warnings or incomplete reconciliation produce `NEEDS_REVIEW`.
+- Blocking calculation warnings produce `NEEDS_REVIEW`; incomplete or mismatched Section L/book-tax reconciliation remains informational.
 - Required checks and sign-offs produce `RECONCILED`.
 - A materially changed earlier year invalidates later sign-off and moves affected years to `NEEDS_REVIEW`.
 - Migration 019 maps legacy `IMPORTED` status to `IN_PROGRESS`; provenance on its values is retained.
 
 ### Canonical Annual Contribution
 
-- `capital_contributions` is the only editable contribution field and feeds both outside-basis and Section L contribution rows.
-- `section_l_capital_contributed` is deprecated for writes and retained only in historical revision responses/provenance.
-- When the canonical active value is absent, the compatibility projection reads the active legacy value as the canonical amount.
-- When both active keys exist, `capital_contributions` is authoritative. Equal values are displayed once; unequal values produce a migration/source conflict for manual resolution and are never summed.
+- `capital_contributions` is the only calculated cash-contribution field and feeds outside basis and performance metrics.
+- `section_l_capital_contributed` is deprecated for writes and retained in historical revision responses as Section L reconciliation provenance.
+- When the canonical active value is absent, basis and performance use zero/missing canonical cash activity; they never fall back to the Section L value.
+- When both active keys exist, `capital_contributions` is authoritative for basis and performance. The Section L amount remains independently visible for a non-blocking reconciliation difference and is never summed with the canonical value.
 - New validation rejects `section_l_capital_contributed` in mutation payloads while allowing old revisions to remain readable.
 
 ## 7. TrackerValueRevision
@@ -326,7 +326,7 @@ Every mutation includes object type/ID, partnership ID, actor, timestamp, and be
 4. Preserve all import tables, provenance columns, legacy source rows, assets, and capital-activity data.
 5. Avoid destructive column/table renames for `asset_class` and partnership FMV snapshots.
 
-`020_partnership_tracker_entry_overview.sql` should add only indexes or compatibility metadata required for set-based active-value aggregation. It MUST NOT add a second contribution or performance-results table. Legacy contribution revisions remain append-only; canonicalization is performed by the projection and explicit future edits so conflicting source evidence is not destroyed.
+`020_partnership_tracker_entry_overview.sql` should add only indexes or compatibility metadata required for set-based active-value aggregation. It MUST NOT add a second contribution or performance-results table. Legacy Section L contribution revisions remain append-only and reconciliation-only so source evidence is not destroyed or projected into tax-basis calculations.
 
 ## 13. Authorization and Scope
 

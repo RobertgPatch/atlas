@@ -49,7 +49,7 @@ export function LoginPage() {
     try {
       const session = await authClient.login(email, password)
       sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      navigate('/private-investment-tracker')
     } catch (err) {
       setError(getLoginErrorMessage(err))
     } finally {

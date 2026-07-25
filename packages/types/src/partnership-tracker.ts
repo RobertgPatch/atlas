@@ -1,5 +1,6 @@
 import type {
   K1TrackerCalculation,
+  K1TrackerCashFlowEvent,
   K1TrackerFieldChange,
   K1TrackerOfficialFormData,
   K1TrackerPartnershipDetail,
@@ -17,6 +18,7 @@ export const PARTNERSHIP_TYPES = [
   'Venture Capital',
   'Credit',
   'Infrastructure',
+  'JSP',
   'Other',
 ] as const
 
@@ -30,7 +32,7 @@ export const PARTNERSHIP_TRACKER_METRIC_AVAILABILITY = [
   'MISSING_NAV',
   'MISSING_INCEPTION_DATE',
   'MISSING_COMMITMENT',
-  'MISSING_OUTSIDE_BASIS',
+  'INSUFFICIENT_HOLDING_PERIOD',
   'NAV_PRECEDES_CASH_FLOWS',
   'INSUFFICIENT_CASH_FLOWS',
   'AMBIGUOUS_IRR',
@@ -42,7 +44,6 @@ export interface PartnershipTrackerPerformanceStatus {
   irr: PartnershipTrackerMetricAvailability
   annualizedCashOnCashYield: PartnershipTrackerMetricAvailability
   unfundedCommitment: PartnershipTrackerMetricAvailability
-  unrealizedGain: PartnershipTrackerMetricAvailability
 }
 export type PartnershipTrackerWorkflowStatus =
   | Exclude<K1TrackerWorkflowStatus, 'IMPORTED'>
@@ -86,6 +87,7 @@ export interface PartnershipTrackerSummary {
   latestSectionLCapital: PartnershipTrackerMoney | null
   totalCapitalContributions: PartnershipTrackerMoney | null
   totalDistributions: PartnershipTrackerMoney | null
+  totalRecallableDistributions: PartnershipTrackerMoney
   dpi: string | null
   tvpi: string | null
   irr: string | null
@@ -95,8 +97,11 @@ export interface PartnershipTrackerSummary {
   performanceAsOfDate: string
   unfundedCommitmentAmount: PartnershipTrackerMoney | null
   unfundedCommitmentPercentage: PartnershipTrackerRatio | null
-  unrealizedGain: PartnershipTrackerMoney | null
   performanceStatus: PartnershipTrackerPerformanceStatus
+  simplifiedIrr: PartnershipTrackerRatio | null
+  displayIrr: PartnershipTrackerRatio | null
+  irrType: 'XIRR' | 'SIMPLIFIED' | null
+  vintageYear: number | null
   warningCount: number
 }
 
@@ -144,6 +149,7 @@ export interface PartnershipTrackerPermissions {
 export interface PartnershipTrackerDetail {
   summary: PartnershipTrackerSummary
   years: K1TrackerYearSummary[]
+  cashFlowEvents: K1TrackerCashFlowEvent[]
   commitments: PartnershipCommitmentEntry[]
   navEntries: PartnershipNavEntry[]
   permissions: PartnershipTrackerPermissions
@@ -307,6 +313,7 @@ export interface CreateTrackedPartnershipRequest {
   addressRegion?: string | null
   addressPostalCode?: string | null
   addressCountry?: string | null
+  capitalCommitment?: PartnershipTrackerMoney | null
   initialValuationAmount?: PartnershipTrackerMoney | null
   initialValuationDate?: string | null
 }
@@ -327,6 +334,7 @@ export interface UpdateTrackedPartnershipRequest {
   addressRegion?: string | null
   addressPostalCode?: string | null
   addressCountry?: string | null
+  capitalCommitment?: PartnershipTrackerMoney
   expectedUpdatedAt: string
 }
 
@@ -422,6 +430,158 @@ export interface PartnershipTrackerSignoffRequest {
 export type PartnershipTrackerK1Detail = K1TrackerPartnershipDetail
 export type PartnershipTrackerYearDetail = K1TrackerYearDetail
 export type { K1TrackerCalculation, K1TrackerFieldChange, K1TrackerSignoffState }
+
+export const PRIVATE_INVESTMENT_ACTIVITY_TYPES = [
+  'CAPITAL_CALL',
+  'NON_RECALLABLE_DISTRIBUTION',
+  'RECALLABLE_DISTRIBUTION',
+  'VALUATION',
+] as const
+export type PrivateInvestmentActivityType = (typeof PRIVATE_INVESTMENT_ACTIVITY_TYPES)[number]
+export type PrivateInvestmentPageSize = 25 | 50 | 100
+
+export interface PrivateInvestmentQuery {
+  assetClasses: PartnershipType[]
+  entityIds: string[]
+  partnershipIds: string[]
+  dateFrom: string | null
+  dateTo: string | null
+  amountMin: PartnershipTrackerMoney | null
+  amountMax: PartnershipTrackerMoney | null
+  page: number
+  pageSize: PrivateInvestmentPageSize
+}
+
+export interface PrivateInvestmentMetricAvailability {
+  remainingCommitment: PartnershipTrackerMetricAvailability
+  dpi: PartnershipTrackerMetricAvailability
+  tvpi: PartnershipTrackerMetricAvailability
+  xirr: PartnershipTrackerMetricAvailability
+  simplifiedIrr: PartnershipTrackerMetricAvailability
+}
+
+export interface EntityFundPosition {
+  positionKey: string
+  entity: { id: string; name: string }
+  partnership: { id: string; name: string }
+  assetClass: PartnershipType
+  status: PartnershipStatus
+  metricScope: 'LIFETIME_FOR_MATCHED_POSITION'
+  totalCommitted: PartnershipTrackerDatedMoney | null
+  remainingCommitment: PartnershipTrackerMoney | null
+  vintageYear: number | null
+  totalInvested: PartnershipTrackerMoney
+  nonRecallableDistributions: PartnershipTrackerMoney
+  recallableDistributions: PartnershipTrackerMoney
+  latestValuation: PartnershipTrackerDatedMoney | null
+  dpi: PartnershipTrackerRatio | null
+  tvpi: PartnershipTrackerRatio | null
+  xirr: PartnershipTrackerRatio | null
+  xirrTerminalDate: string | null
+  xirrUsesCarriedForwardNav: boolean
+  simplifiedIrr: PartnershipTrackerRatio | null
+  displayIrr: PartnershipTrackerRatio | null
+  irrType: 'XIRR' | 'SIMPLIFIED' | null
+  availability: PrivateInvestmentMetricAvailability
+}
+
+export interface PrivateInvestmentActivityRow {
+  rowId: string
+  sourceId: string
+  sourceKind: 'NET_CASH_ACTIVITY' | 'CAPITAL_AND_NAV'
+  entity: { id: string; name: string }
+  partnership: { id: string; name: string }
+  date: string
+  type: PrivateInvestmentActivityType
+  amount: PartnershipTrackerMoney
+  displayDirection: 'OUTFLOW' | 'INFLOW' | 'POINT_IN_TIME'
+  sourceType: string
+  note: string | null
+  createdAt: string
+}
+
+export interface PrivateInvestmentFacetOption<T extends string = string> {
+  value: T
+  label: string
+  count: number
+}
+
+export interface PrivateInvestmentPartnershipFacetOption extends PrivateInvestmentFacetOption {
+  entityId: string
+  entityName: string
+  assetClass: PartnershipType
+}
+
+export interface PrivateInvestmentFacetSet {
+  assetClasses: PrivateInvestmentFacetOption<PartnershipType>[]
+  entities: PrivateInvestmentFacetOption[]
+  partnerships: PrivateInvestmentPartnershipFacetOption[]
+}
+
+export interface PrivateInvestmentPageInfo {
+  page: number
+  pageSize: PrivateInvestmentPageSize
+  totalItems: number
+  totalPages: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
+}
+
+export interface PrivateInvestmentTrackerResponse {
+  query: PrivateInvestmentQuery
+  positionMetricScope: 'LIFETIME_FOR_MATCHED_POSITIONS'
+  positions: EntityFundPosition[]
+  facets: PrivateInvestmentFacetSet
+  activities: PrivateInvestmentActivityRow[]
+  pageInfo: PrivateInvestmentPageInfo
+  asOfDate: string
+}
+
+export const PRIVATE_INVESTMENT_SUMMARY_COLUMN_IDS = [
+  'entity',
+  'fund',
+  'assetClass',
+  'totalCommitted',
+  'remainingCommitment',
+  'status',
+  'vintageYear',
+  'totalInvested',
+  'valuation',
+  'dpi',
+  'tvpi',
+  'xirr',
+  'simplifiedIrr',
+] as const
+export type PrivateInvestmentSummaryColumnId = (typeof PRIVATE_INVESTMENT_SUMMARY_COLUMN_IDS)[number]
+export const PRIVATE_INVESTMENT_DETAIL_COLUMN_IDS = ['entity', 'fund', 'date', 'amount', 'type', 'source'] as const
+export type PrivateInvestmentDetailColumnId = (typeof PRIVATE_INVESTMENT_DETAIL_COLUMN_IDS)[number]
+export const DEFAULT_PRIVATE_INVESTMENT_SUMMARY_COLUMNS: PrivateInvestmentSummaryColumnId[] = [
+  'entity',
+  'fund',
+  'assetClass',
+  'totalCommitted',
+  'remainingCommitment',
+  'status',
+  'vintageYear',
+  'totalInvested',
+  'valuation',
+  'dpi',
+  'tvpi',
+]
+export const DEFAULT_PRIVATE_INVESTMENT_DETAIL_COLUMNS: PrivateInvestmentDetailColumnId[] = [
+  'entity',
+  'fund',
+  'date',
+  'amount',
+  'type',
+  'source',
+]
+export type PrivateInvestmentPdfFilters = Omit<PrivateInvestmentQuery, 'page' | 'pageSize'>
+export interface PrivateInvestmentPdfRequest {
+  filters: PrivateInvestmentPdfFilters
+  summaryColumns: PrivateInvestmentSummaryColumnId[]
+  detailColumns: PrivateInvestmentDetailColumnId[]
+}
 
 export interface PartnershipTrackerApiError {
   error: string

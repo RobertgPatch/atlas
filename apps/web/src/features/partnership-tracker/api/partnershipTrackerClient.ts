@@ -23,6 +23,9 @@ import type {
   PartnershipTrackerSummary,
   PartnershipTrackerYearDetail,
   PartnershipType,
+  PrivateInvestmentPdfRequest,
+  PrivateInvestmentQuery,
+  PrivateInvestmentTrackerResponse,
   UpdatePartnershipCommitmentEntryRequest,
   UpdatePartnershipNavEntryRequest,
   UpdatePartnershipTrackerYearRequest,
@@ -71,11 +74,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const root = '/partnership-tracker/partnerships'
 const aggregationRoot = '/partnership-tracker/aggregation'
+const privateInvestmentRoot = '/partnership-tracker/private-investments'
 export type PartnershipTrackerListParams = {
   search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit?: number; cursor?: string
 }
 
 export type PartnershipAggregationParams = Partial<PartnershipAggregationQuery>
+export type PrivateInvestmentParams = Partial<PrivateInvestmentQuery>
 
 const canonicalValues = <T extends string>(values: readonly T[] | undefined, order: readonly T[]) => {
   if (!values?.length) return []
@@ -104,10 +109,52 @@ export function serializePartnershipAggregationParams(params: PartnershipAggrega
   return query.toString()
 }
 
+export function serializePrivateInvestmentParams(params: PrivateInvestmentParams = {}): string {
+  const query = new URLSearchParams()
+  const assetClasses = canonicalValues(params.assetClasses, PARTNERSHIP_TYPES)
+  if (assetClasses.length) query.set('assetClasses', assetClasses.join(','))
+  const entityIds = [...new Set(params.entityIds ?? [])].sort()
+  if (entityIds.length) query.set('entityIds', entityIds.join(','))
+  const partnershipIds = [...new Set(params.partnershipIds ?? [])].sort()
+  if (partnershipIds.length) query.set('partnershipIds', partnershipIds.join(','))
+  if (params.dateFrom) query.set('dateFrom', params.dateFrom)
+  if (params.dateTo) query.set('dateTo', params.dateTo)
+  if (params.amountMin) query.set('amountMin', params.amountMin)
+  if (params.amountMax) query.set('amountMax', params.amountMax)
+  if (params.page && params.page > 1) query.set('page', String(Math.floor(params.page)))
+  if (params.pageSize === 25 || params.pageSize === 100) query.set('pageSize', String(params.pageSize))
+  return query.toString()
+}
+
+const responseError = async (response: Response): Promise<PartnershipTrackerApiError> => {
+  let payload: unknown
+  try { payload = await response.json() } catch { payload = undefined }
+  const code = payload && typeof payload === 'object' && 'error' in payload
+    ? String((payload as { error: unknown }).error)
+    : `HTTP_${response.status}`
+  return new PartnershipTrackerApiError(code, response.status, payload)
+}
+
 export const partnershipTrackerClient = {
   aggregation(params: PartnershipAggregationParams = {}): Promise<PartnershipAggregationResponse> {
     const query = serializePartnershipAggregationParams(params)
     return request(`${aggregationRoot}${query ? `?${query}` : ''}`)
+  },
+  privateInvestments(params: PrivateInvestmentParams = {}): Promise<PrivateInvestmentTrackerResponse> {
+    const query = serializePrivateInvestmentParams(params)
+    return request(`${privateInvestmentRoot}${query ? `?${query}` : ''}`)
+  },
+  async exportPrivateInvestmentsPdf(body: PrivateInvestmentPdfRequest): Promise<{ blob: Blob; filename: string }> {
+    const response = await fetch(`${API_BASE}${privateInvestmentRoot}/pdf`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw await responseError(response)
+    const disposition = response.headers.get('content-disposition') ?? ''
+    const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? 'private-investment-tracker.pdf'
+    return { blob: await response.blob(), filename }
   },
   list(params: PartnershipTrackerListParams = {}): Promise<PartnershipTrackerListResponse> {
     const query = new URLSearchParams()
@@ -116,10 +163,20 @@ export const partnershipTrackerClient = {
   },
   get(partnershipId: string): Promise<PartnershipTrackerDetail> { return request(`${root}/${partnershipId}`) },
   create(body: CreateTrackedPartnershipRequest): Promise<{ partnership: PartnershipTrackerSummary; nextAction: 'ADD_K1_YEAR' }> {
-    return request(root, { method: 'POST', body: JSON.stringify({ ...body, initialValuationAmount: body.initialValuationAmount == null ? undefined : serializeTrackerMoney(body.initialValuationAmount) }) })
+    return request(root, { method: 'POST', body: JSON.stringify({
+      ...body,
+      capitalCommitment: body.capitalCommitment == null ? undefined : serializeTrackerMoney(body.capitalCommitment),
+      initialValuationAmount: body.initialValuationAmount == null ? undefined : serializeTrackerMoney(body.initialValuationAmount),
+    }) })
   },
   update(partnershipId: string, body: UpdateTrackedPartnershipRequest): Promise<PartnershipTrackerSummary> {
-    return request(`${root}/${partnershipId}`, { method: 'PATCH', body: JSON.stringify(body) })
+    return request(`${root}/${partnershipId}`, { method: 'PATCH', body: JSON.stringify({
+      ...body,
+      capitalCommitment: body.capitalCommitment == null ? undefined : serializeTrackerMoney(body.capitalCommitment),
+    }) })
+  },
+  delete(partnershipId: string): Promise<void> {
+    return request(`${root}/${partnershipId}`, { method: 'DELETE' })
   },
   listCommitments(partnershipId: string, asOfDate?: string): Promise<{ items: PartnershipCommitmentEntry[]; effectiveEntry: PartnershipCommitmentEntry | null }> {
     const query = asOfDate ? `?asOfDate=${encodeURIComponent(asOfDate)}` : ''
@@ -161,14 +218,14 @@ export const partnershipTrackerClient = {
   calculate(partnershipId: string, taxYear: number, expectedRevision: number, body: CalculatePartnershipTrackerYearRequest): Promise<K1TrackerCalculation> {
     return request(`${root}/${partnershipId}/years/${taxYear}/calculate`, { method: 'POST', body: JSON.stringify({ ...body, expectedRevision }) })
   },
-  createCashFlow(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
+  createCashFlow(partnershipId: string, body: CreatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
+    return request(`${root}/${partnershipId}/cash-flows`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
   },
-  createCashFlows(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
+  createCashFlows(partnershipId: string, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
+    return request(`${root}/${partnershipId}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
   },
-  deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })
+  deleteCashFlow(partnershipId: string, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
+    return request(`${root}/${partnershipId}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })
   },
   signoff(partnershipId: string, taxYear: number, expectedRevision: number, action: PartnershipTrackerSignoffAction, reason?: string): Promise<PartnershipTrackerYearDetail> {
     return request(`${root}/${partnershipId}/years/${taxYear}/signoffs`, { method: 'POST', body: JSON.stringify({ expectedRevision, action, reason }) })

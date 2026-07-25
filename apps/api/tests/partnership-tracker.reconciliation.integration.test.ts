@@ -18,7 +18,7 @@ durable('Partnership Tracker reconciliation isolation', () => {
     expect(after.revision).toBe(year.revision)
     expect(after.signoff.history).toEqual(year.signoff.history)
   })
-  it('keeps liability-only edits out of revision invalidation while canonical changes invalidate later years and legacy conflicts block review', async () => {
+  it('keeps liability-only edits out of revision invalidation while canonical changes invalidate later years and Section L differences stay informational', async () => {
     const first = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2021, fixture.adminUserId, scope)
     const second = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2022, fixture.adminUserId, scope)
     await pool!.query(`update k1_tracker_years set workflow_status = 'RECONCILED' where partnership_id = $1`, [fixture.partnershipId])
@@ -41,6 +41,7 @@ durable('Partnership Tracker reconciliation isolation', () => {
       { fieldKey: 'capital_contributions', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
       { fieldKey: 'section_l_capital_contributed', amount: '125.00', sourceType: 'MANUAL_ENTRY' },
     ], fixture.adminUserId, scope)
-    expect(conflicting.calculation.checks).toContainEqual(expect.objectContaining({ key: 'unresolved-source-conflicts', status: 'FAIL' }))
+    expect(conflicting.sourceConflicts).toEqual([])
+    expect(conflicting.calculation.sectionL.contributionDifference).toBe('25.00')
   })
 })

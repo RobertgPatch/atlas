@@ -1,9 +1,8 @@
 import { K1_OFFICIAL_FORM_FIELD_BY_KEY } from '../k1OfficialFormFields'
 import { K1OfficialFormField, type K1OfficialFormFieldStateGetter } from './K1OfficialFormField'
 
-export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor }: {
+export function K1FormHeader({ taxYear, officialFieldStateFor }: {
   taxYear: number
-  hasDatedActivity: boolean
   officialFieldStateFor: K1OfficialFormFieldStateGetter
 }) {
   const officialField = (key: Parameters<K1OfficialFormFieldStateGetter>[0]) => {
@@ -36,10 +35,6 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor 
       {officialField('tax_period_beginning')}
       {officialField('tax_period_ending')}
     </div>
-    {hasDatedActivity && <p className="border-t border-gray-400 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-gray-800 sm:px-5">
-      <span className="mr-2 inline-block bg-jackson-gold px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">Cash activity</span>
-      Annual contributions and distributions are read-only where dated activity is present. Update the dated rows above to recalculate totals and XIRR.
-    </p>}
   </header>
 }
 

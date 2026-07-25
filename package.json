@@ -19,6 +19,8 @@
     "dev:db:down": "docker compose -f docker-compose.dev.yml down",
     "dev:db:reset": "docker compose -f docker-compose.dev.yml down -v",
     "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
+    "deploy:aws:staging": "powershell -ExecutionPolicy Bypass -File scripts/deploy-to-aws-staging.ps1",
+    "transfer:prepare": "powershell -ExecutionPolicy Bypass -File scripts/prepare-laptop-transfer.ps1",
     "build:web": "npm run --workspace=web build",
     "test:api": "npm run --workspace=api test",
     "test:web": "npm run --workspace=web test"

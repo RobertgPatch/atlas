@@ -27,7 +27,6 @@ export interface K1FormFieldCellProps {
   value: string
   onChange: (value: string) => void
   canEdit: boolean
-  derivedFromCashActivity?: boolean
   source?: K1TrackerValue
   carryforward?: string
   conflictMessage?: string
@@ -43,7 +42,6 @@ export function K1FormFieldCell({
   value,
   onChange,
   canEdit,
-  derivedFromCashActivity = false,
   source,
   carryforward,
   conflictMessage,
@@ -54,7 +52,7 @@ export function K1FormFieldCell({
   const annotationId = `${id}-annotation`
   const conflictId = `${id}-conflict`
   const label = visibleLabel === undefined ? field.label : visibleLabel
-  const hasAnnotation = derivedFromCashActivity || Boolean(source) || Boolean(carryforward)
+  const hasAnnotation = Boolean(source) || Boolean(carryforward)
 
   return <label className="block min-w-0">
     <span className={label === false ? 'sr-only' : 'block text-[11px] font-semibold leading-tight text-gray-800'}>
@@ -67,7 +65,7 @@ export function K1FormFieldCell({
         hasAnnotation ? annotationId : undefined,
         conflictMessage ? conflictId : undefined,
       ].filter(Boolean).join(' ') || undefined}
-      disabled={!canEdit || derivedFromCashActivity}
+      disabled={!canEdit}
       allowNegative={field.allowNegative}
       value={value}
       onChange={onChange}
@@ -75,11 +73,9 @@ export function K1FormFieldCell({
       className={`${compact ? 'py-1.5 text-xs' : 'py-2.5'} min-w-0 rounded-none border-gray-400 bg-white text-right font-mono tabular-nums text-gray-950 disabled:bg-gray-100 disabled:text-gray-700`}
     />
     {hasAnnotation && <span id={annotationId} className="mt-1 block text-[10px] leading-snug text-gray-600">
-      {derivedFromCashActivity
-        ? <span className="font-semibold text-amber-800">Calculated from dated cash activity</span>
-        : source
-          ? sourceLabel(source)
-          : `Carried from the prior year: ${displayCurrency(carryforward)}`}
+      {source
+        ? sourceLabel(source)
+        : `Carried from the prior year: ${displayCurrency(carryforward)}`}
     </span>}
     {conflictMessage && <span id={conflictId} className="mt-1 block border-l-2 border-red-600 pl-2 text-[10px] leading-snug text-red-800">
       Source conflict: {conflictMessage}

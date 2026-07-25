@@ -52,13 +52,13 @@ Item K percentages, checkboxes, and other reference items without existing field
 | Visual row | Canonical field | Behavior |
 |---|---|---|
 | Beginning capital account | `section_l_beginning_capital` | Signed; existing carryforward placeholder |
-| Capital contributed during year | `capital_contributions` | Nonnegative; read-only when dated capital calls exist |
+| Capital contributed during year | `capital_contributions` | Nonnegative; editable K-1 value |
 | Current-year net income (loss) | `section_l_current_year_net_income_loss` | Signed |
 | Other increase (decrease) | `section_l_other_increase_decrease` | Signed |
 | Withdrawals and distributions | `section_l_withdrawals_distributions` | Nonnegative |
 | Ending capital account | `section_l_ending_capital` | Signed |
 
-`section_l_capital_contributed` remains deprecated provenance and is never writable. The canonical `capital_contributions` value continues to feed both basis and Section L.
+`section_l_capital_contributed` remains deprecated provenance and is never writable. When present historically, it is retained for Section L reconciliation only and never supplies `capital_contributions`, outside basis, or performance. The visible canonical `capital_contributions` row represents the value entered from the K-1 document and is independent from the cash ledger.
 
 ## Part III Supported Mapping
 
@@ -81,10 +81,12 @@ Item K percentages, checkboxes, and other reference items without existing field
 | 18A | `box_18a_nondeductible_expenses` | Existing Jackson 18A nondeductible-expense field | Nonnegative; preserve current calculation semantics |
 | 18B | `box_18b_tax_exempt_income` | Tax-exempt income (basis only) | Signed; preserve current calculation semantics |
 | 18C | `box_18c_nondeductible_expenses` | Nondeductible expenses (basis decrease) | Nonnegative; preserve current calculation semantics |
-| 19 | `box_19_distributions` | Distributions | Nonnegative; read-only when dated distributions or recallable distributions exist |
+| 19 | `box_19_distributions` | Distributions | Nonnegative; editable K-1 value independent from dated cash activity |
 | 21 | `box_21_foreign_taxes` | Foreign taxes paid | Nonnegative |
 
 The line 18 labels above deliberately preserve Jackson's existing historical field contract. This visual feature does not remap stored values to different tax semantics.
+
+Only the explicitly mapped Part III fields above participate in the tax-basis engine. Official-form detail fields outside this mapping remain editable and persisted but do not implicitly feed or duplicate a calculation line. Section L and book-tax differences are informational reconciliation results and do not block sign-off.
 
 ## Part III Reference-Only Landmarks (superseded)
 
@@ -125,7 +127,6 @@ Each supported field retains, when applicable:
 - its current accessible label;
 - source type/provenance;
 - carryforward year and formatted amount;
-- **Calculated from dated cash activity** read-only explanation;
 - source conflict or legacy line 13 message;
 - validation error and form notice;
 - disabled state when the user lacks edit permission or an operation is pending.
@@ -134,7 +135,7 @@ Each supported field retains, when applicable:
 
 1. Initialize values by iterating the canonical 42 editable definitions.
 2. On preview/save, iterate the same canonical definitions rather than visual cells.
-3. Skip fields managed by dated cash activity.
+3. Include K-1 contribution and distribution fields even when separate cash-ledger events exist.
 4. Normalize using the existing `allowNegative` rule.
 5. Emit only values that differ from the initial normalized value.
 6. Use `MANUAL_ENTRY` unless manual override is enabled.

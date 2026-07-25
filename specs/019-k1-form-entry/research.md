@@ -1,13 +1,15 @@
 # Phase 0 Research: K-1 Form-Inspired Data Entry
 
 > **2026-07-19 amendment:** The user explicitly replaced the static-landmark decision with a requirement to enter every standard Schedule K-1 field. The implementation therefore uses typed editable controls and JSONB official-form persistence; calculation-neutral fields remain excluded only from Jackson's financial formulas.
+>
+> **2026-07-22 amendment:** Net Cash Activity is now a separate workspace tab and no longer supplies, disables, recalculates, or revises K-1 entry values. The K-1 editor and outside-basis calculation use stored K-1 document/manual-entry values only.
 
 ## Research Inputs
 
 - User goal: make annual K-1 data entry substantially easier to recognize by matching a real Schedule K-1 while preserving every existing behavior.
 - Visual reference: the supplied one-page 2025 Schedule K-1 (Form 1065), inspected locally and not copied into the repository.
 - Existing implementation: `K1YearEntryForm.tsx`, `k1FieldGroups.ts`, `K1BasisWorkspace.tsx`, shared K-1 types, API field map, calculation behavior, and focused tests.
-- Existing product context: the tab is already named **K1 & Cash Activity**, dated cash activity is managed above the annual editor, and Jackson is the current product brand.
+- Existing product context: **K1 Entry** and **Net Cash Activity** are separate workspace tabs, and Jackson is the current product brand.
 
 ## Reference Form Observations
 
@@ -79,16 +81,16 @@ The product should reproduce that information hierarchy, not the source document
 - Invent placeholder tax IDs or percentages: rejected because it would make the form look complete at the cost of correctness.
 - Leave Part I and Part II blank: rejected because the form would be visually familiar but insufficiently tied to the selected partnership.
 
-## Decision 6: Derived cash activity remains canonical
+## Decision 6: K-1 values and cash activity are independent
 
-**Decision**: Continue detecting `capital_contributions` and `box_19_distributions` as dated fields from cash-flow events. Render their values at the corresponding Section L/Part III locations as disabled fields with the existing **Calculated from dated cash activity** explanation.
+**Decision**: Render `capital_contributions` and `box_19_distributions` from active K-1 value revisions only. Cash-ledger events remain available to partnership performance and recallable-commitment behavior through the separate Net Cash Activity tab.
 
-**Rationale**: Dated events drive annual totals, XIRR, recallable distribution behavior, and commitment changes. Allowing duplicate annual edits would reintroduce conflicting sources of truth.
+**Rationale**: A K-1 entry must reproduce the tax document even when exact-dated cash records differ. Keeping the two sources separate prevents operational cash timing from silently rewriting tax-document values or outside-basis inputs.
 
 **Alternatives considered**:
 
-- Make the form cells editable and reconcile later: rejected because it permits inconsistent financial records.
-- Hide derived cells: rejected because users need to reconcile the source K-1 and understand where the annual total came from.
+- Continue overlaying annual cash totals onto K-1 fields: rejected because it changes document-entry values and can produce the wrong tax-basis result.
+- Keep the combined K1 & Cash Activity tab: rejected because it obscures which source a user is editing.
 
 ## Decision 7: Responsive structure follows logical DOM order
 
@@ -125,4 +127,3 @@ The product should reproduce that information hierarchy, not the source document
 - **Should the layout exactly reproduce letter-size paper on mobile?** No. Desktop emphasizes resemblance; smaller screens emphasize readability and access.
 - **Should the source PDF be committed for tests or styling?** No. It is a local design reference only.
 - **Does Part I/Part II require invented or newly persisted tax profile data?** No. Existing facts render; missing facts are explicit.
-

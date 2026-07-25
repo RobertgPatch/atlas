@@ -49,10 +49,10 @@ npm run test:web
 
 ### Dated cash activity
 
-- A capital call makes `capital_contributions` read-only in Section L and displays **Calculated from dated cash activity**.
-- A distribution or recallable distribution makes `box_19_distributions` read-only in Part III.
-- Derived fields are skipped by preview and save.
-- No annual K-1 edit changes dated event or capital-commitment behavior.
+- Net Cash Activity appears in its own workspace tab with the same tax-year selection model.
+- Capital calls and distributions do not replace or disable `capital_contributions` or `box_19_distributions` in K1 Entry.
+- K-1 preview, save, outside-basis calculation, revision, and signoff state use only stored K-1 values.
+- Cash events continue to drive partnership performance, exact-date XIRR inputs, and recallable-commitment behavior.
 
 ### Accessibility and structure
 

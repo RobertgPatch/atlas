@@ -27,7 +27,7 @@ As a partnership workspace user, I want the K-1 entry experience to resemble the
 
 **Acceptance Scenarios**:
 
-1. **Given** a user opens the K1 & Cash Activity tab for a partnership year, **When** the K-1 editor loads, **Then** it presents a recognizable Schedule K-1 header and the Part I, Part II, and Part III hierarchy in one continuous form.
+1. **Given** a user opens the K1 Entry tab for a partnership year, **When** the K-1 editor loads, **Then** it presents a recognizable Schedule K-1 header and the Part I, Part II, and Part III hierarchy in one continuous form.
 2. **Given** the user has a source K-1, **When** they look for a supported Part III line such as line 1, **Then** the matching input appears in the corresponding numbered form cell with familiar wording.
 3. **Given** the user changes a supported value, **When** they preview and save, **Then** the editor sends the same field key, sign convention, and value that the current workflow sends.
 4. **Given** the year has beginning and ending Item K liability values, **When** the editor loads, **Then** those values appear in an Item K beginning/ending table that resembles the K-1 section.
@@ -37,15 +37,15 @@ As a partnership workspace user, I want the K-1 entry experience to resemble the
 
 ### User Story 2 - Understand tracked, derived, and unsupported values (Priority: P2)
 
-As a user, I want the form to distinguish editable values, values derived from cash activity, and official K-1 lines Jackson does not track so that the visual fidelity does not imply unsupported behavior.
+As a user, I want every K-1 field to remain editable and independent from the partnership cash ledger so that the form reflects only the values reported on the K-1 document.
 
 **Why this priority**: A form-like layout is only trustworthy when users can tell which cells affect Jackson's calculations and why some cells cannot be edited.
 
-**Independent Test**: Load a year containing dated capital calls or distributions and confirm that the corresponding Section L and Part III locations show the derived value as read-only with an explanation, while an unsupported official line is visibly noninteractive.
+**Independent Test**: Load a year containing dated capital calls or distributions and confirm that the K-1 contribution and distribution inputs retain their stored document values, remain editable, and do not change when cash activity is added or removed.
 
 **Acceptance Scenarios**:
 
-1. **Given** capital contributions or distributions are derived from dated cash activity, **When** the K-1 editor loads, **Then** those values appear in their K-1 locations as read-only and identify cash activity as their source.
+1. **Given** dated capital calls or distributions exist, **When** the K-1 editor loads, **Then** the corresponding K-1 fields show only their stored K-1 values and remain editable.
 2. **Given** an official K-1 field is not used by Jackson's calculations, **When** it is displayed, **Then** it remains editable and persistable while its value stays calculation-neutral.
 3. **Given** a field was carried forward, imported, manually entered, or overridden, **When** it appears on the form, **Then** its existing provenance and override state remain available without obscuring the line number or value.
 4. **Given** legacy combined line 13 data exists, **When** line 13 renders, **Then** the existing legacy notice and the separate portfolio-deduction and management-fee inputs remain available.
@@ -92,7 +92,7 @@ As a user working on a laptop, tablet, or phone, I want the K-1-inspired form to
 - **FR-006**: Part III MUST present supported fields in official line-number order and use a two-column form grid at wide desktop sizes where practical.
 - **FR-007**: Every currently editable K-1 field MUST remain editable, and every edit MUST retain its existing field key, numeric parsing, sign convention, validation, calculation, and persistence behavior.
 - **FR-008**: The editor MUST remain one continuous form and MUST NOT introduce wizard steps, tabs, or collapsed sections required to reach existing fields.
-- **FR-009**: Capital contributions and distributions derived from dated cash activity MUST remain read-only in the K-1 editor and MUST explain their source at the corresponding form location.
+- **FR-009**: Net cash activity MUST be managed in its own workspace tab and MUST NOT populate, replace, disable, recalculate, revise, or invalidate signoff for K-1 entry fields.
 - **FR-010**: Official-form-only cells MUST be editable, saved with the tracker year, and excluded from Jackson financial calculations unless they already map to a canonical calculation field.
 - **FR-011**: Existing opening basis, opening suspended loss, book-income, tax-income, and reconciliation inputs that are not literal K-1 cells MUST remain available in a distinct Jackson workpaper section below the K-1-inspired form.
 - **FR-012**: The redesign MUST preserve field provenance, carried-prior-year indicators, legacy combined line 13 handling, manual override controls, required override reason, draft results, notices, and recalculation feedback.
@@ -101,7 +101,7 @@ As a user working on a laptop, tablet, or phone, I want the K-1-inspired form to
 - **FR-015**: All controls MUST have programmatic labels, keyboard operation, visible focus states, non-color-only status cues, and practical touch targets of at least 44 by 44 CSS pixels where controls permit.
 - **FR-016**: The visual treatment MUST use a restrained black, white, and gray tax-form structure, reserving Jackson brand color for interactive emphasis, focus, and primary actions.
 - **FR-017**: The feature MUST add a backward-compatible API and JSONB storage extension for complete official-form data while leaving calculation formulas and existing numeric field-map semantics unchanged.
-- **FR-018**: Automated tests MUST verify field coverage, field-key compatibility, derived read-only behavior, override behavior, primary actions, accessibility semantics, and responsive structural behavior.
+- **FR-018**: Automated tests MUST verify field coverage, field-key compatibility, cash-ledger separation, override behavior, primary actions, accessibility semantics, and responsive structural behavior.
 - **FR-019**: The editor MUST identify itself as a Jackson data-entry experience inspired by Schedule K-1 and MUST NOT imply that the on-screen representation is an official filed tax document.
 
 ### Key Entities *(include if feature involves data)*

@@ -38,6 +38,24 @@ async function seedYear(
   if (warningCount > 0) {
     await pool!.query('update k1_tracker_years set warning_count = $2 where partnership_id = $1 and tax_year = $3', [partnershipId, warningCount, taxYear])
   }
+  if (Number(contributions) !== 0) {
+    await pool!.query(
+      `insert into capital_activity_events
+        (id, entity_id, partnership_id, activity_date, event_type, amount, source_type)
+       select gen_random_uuid(), entity_id, id, $2, 'funded_contribution', abs($3::numeric), 'manual'
+       from partnerships where id = $1`,
+      [partnershipId, `${taxYear}-01-01`, contributions],
+    )
+  }
+  if (Number(distributions) !== 0) {
+    await pool!.query(
+      `insert into capital_activity_events
+        (id, entity_id, partnership_id, activity_date, event_type, amount, source_type)
+       select gen_random_uuid(), entity_id, id, $2, 'distribution', abs($3::numeric), 'manual'
+       from partnerships where id = $1`,
+      [partnershipId, `${taxYear}-12-31`, distributions],
+    )
+  }
 }
 
 export async function createPartnershipAggregationFixture(): Promise<PartnershipAggregationFixture> {

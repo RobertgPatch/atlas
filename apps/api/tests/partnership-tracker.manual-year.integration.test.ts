@@ -19,7 +19,7 @@ durable('manual K-1 year persistence under the Partnership Tracker prefix', () =
     await expect(partnershipTrackerRepository.updateYear(fixture.partnershipId, 2024, newer.revision, [{ fieldKey: 'opening_outside_basis', amount: '510000.00', sourceType: 'MANUAL_ENTRY' }], fixture.adminUserId, scope)).rejects.toMatchObject({ code: 'STALE_TRACKER_REVISION' })
     expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).years.map((year) => year.taxYear)).toEqual([2017, 2024])
   })
-  it('projects legacy contributions once, favors canonical values, and surfaces conflicting provenance', async () => {
+  it('keeps legacy Section L contributions visible without using them as canonical cash activity', async () => {
     const legacyOnly = await k1TrackerRepository.createYear(fixture.partnershipId, 2021, [
       { fieldKey: 'section_l_capital_contributed', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
     ], fixture.adminUserId, scope)
@@ -32,12 +32,14 @@ durable('manual K-1 year persistence under the Partnership Tracker prefix', () =
       { fieldKey: 'section_l_capital_contributed', amount: '125.00', sourceType: 'MANUAL_ENTRY' },
     ], fixture.adminUserId, scope)
 
-    expect(legacyOnly.values.filter((value) => value.fieldKey === 'capital_contributions')).toHaveLength(1)
-    expect(legacyOnly.values.find((value) => value.fieldKey === 'capital_contributions')?.amount).toBe('100.00')
-    expect(legacyOnly.calculation.basis.contributions).toBe('100.00')
+    expect(legacyOnly.values.filter((value) => value.fieldKey === 'capital_contributions')).toHaveLength(0)
+    expect(legacyOnly.values.find((value) => value.fieldKey === 'section_l_capital_contributed')?.amount).toBe('100.00')
+    expect(legacyOnly.calculation.basis.contributions).toBe('0.00')
+    expect(legacyOnly.calculation.sectionL.reportedContributions).toBe('100.00')
     expect(equal.values.filter((value) => value.fieldKey === 'capital_contributions')).toHaveLength(1)
     expect(equal.sourceConflicts).toEqual([])
     expect(conflicting.calculation.basis.contributions).toBe('100.00')
-    expect(conflicting.sourceConflicts).toContainEqual(expect.objectContaining({ fieldKey: 'capital_contributions' }))
+    expect(conflicting.calculation.sectionL.contributionDifference).toBe('25.00')
+    expect(conflicting.sourceConflicts).toEqual([])
   })
 })

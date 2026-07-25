@@ -62,7 +62,7 @@ function sendCapitalValidationError(reply: FastifyReply, error: unknown): void {
   if (message === 'LINKED_COMMITMENT_READ_ONLY') {
     void reply.status(409).send({
       error: 'LINKED_COMMITMENT_READ_ONLY',
-      message: 'Delete the recallable distribution from Net Cash Activity to reverse this commitment increase.',
+      message: 'Delete the recallable distribution from Cash Activity to reverse this commitment increase.',
     })
     return
   }

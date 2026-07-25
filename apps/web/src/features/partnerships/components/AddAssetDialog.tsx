@@ -4,7 +4,7 @@ import { XIcon } from 'lucide-react'
 import { useCreatePartnershipAsset } from '../hooks/useAssetMutations'
 import type { AssetFmvSource } from 'packages/types/src'
 
-const ASSET_TYPES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit', 'Infrastructure', 'Other']
+const ASSET_TYPES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit', 'Infrastructure', 'JSP', 'Other']
 
 const SOURCE_OPTIONS: { value: AssetFmvSource; label: string }[] = [
   { value: 'manual', label: 'Manual' },

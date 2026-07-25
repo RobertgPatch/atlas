@@ -28,7 +28,7 @@ Implementation spans the web, shared contracts, Fastify validation/repositories,
 **Target Platform**: Jackson browser application on supported desktop, tablet, and mobile viewports  
 **Project Type**: npm-workspace React/Fastify/PostgreSQL monorepo
 **Performance Goals**: Render and edit 42 calculation fields plus 48 official-form fields with no additional data request; local keystroke feedback remains immediate; save continues to use the existing update request
-**Constraints**: Preserve all existing field keys, signs, validation, calculation results, provenance, cash-activity derivation, override audit behavior, and unsaved-change guard; one continuous form; no page-level horizontal overflow at 390 CSS pixels; no private PDF content committed  
+**Constraints**: Preserve all existing field keys, signs, validation, calculation results, provenance, cash-activity derivation, override audit behavior, and unsaved-change guard; one continuous form; no page-level horizontal overflow at 390 CSS pixels; no private PDF content committed
 **Scale/Scope**: One partnership workspace tab, one selected tax year, 42 calculation placements, 48 official-form fields, and focused UI/API/persistence/accessibility tests
 
 ## Constitution Check
@@ -106,7 +106,7 @@ apps/web/src/features/partnership-tracker/
 2. Mirror the reference hierarchy: header and tax year; Part I/Part II on the left; Item K and Section L within Part II; Part III on the right; supplemental Jackson workpaper below.
 3. Keep `K1_EDITABLE_FIELDS` as the source for initialization, normalization, dirty detection, and change-set construction; the layout map supplies placement only.
 4. Render unsupported official lines as static, subdued landmarks marked "Not tracked in Jackson"; they own no input state and never enter preview or save.
-5. Place dated capital contributions and distributions in their familiar form locations but retain the existing disabled state and "Calculated from dated cash activity" explanation.
+5. Keep K-1 contributions and distributions editable and sourced only from stored K-1 values; place dated cash activity in a separate workspace tab.
 6. Reuse already-loaded `PartnershipTrackerDetail.summary.partnership` and entity data for Part I and Part II; show "Not available" for absent official facts.
 7. Preserve Jackson's existing line 13 and line 18 field semantics exactly, even where internal historical naming is more specific than the reference form; no visual redesign will silently remap a financial field.
 8. Move opening basis, opening suspended loss, and book-tax/reconciliation fields into a visually separate supplemental workpaper while keeping them inside the same `<form>` and change set.
@@ -142,4 +142,3 @@ apps/web/src/features/partnership-tracker/
 ## Complexity Tracking
 
 No constitution violations or exceptional complexity are introduced. The component split is limited to reusable visual regions of one form, while the single existing state/change-set owner prevents behavior drift.
-

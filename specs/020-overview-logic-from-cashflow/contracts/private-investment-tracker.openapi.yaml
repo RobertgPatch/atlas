@@ -1,0 +1,669 @@
+openapi: 3.1.0
+info:
+  title: Jackson Private Investment Tracker API
+  version: 1.0.0
+  description: >
+    Authenticated, entity-scoped operational investment ledger, lifetime
+    entity-fund summaries, and complete filtered PDF export. K-1 financial
+    fields are not inputs to these contracts.
+servers:
+  - url: /v1
+paths:
+  /partnership-tracker/private-investments:
+    get:
+      operationId: getPrivateInvestmentTracker
+      summary: Read the filtered operational ledger and matching lifetime positions
+      parameters:
+        - $ref: '#/components/parameters/Types'
+        - $ref: '#/components/parameters/EntityIds'
+        - $ref: '#/components/parameters/PartnershipIds'
+        - $ref: '#/components/parameters/DateFrom'
+        - $ref: '#/components/parameters/DateTo'
+        - $ref: '#/components/parameters/AmountMin'
+        - $ref: '#/components/parameters/AmountMax'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: >
+            Normalized filters, base-scope facets, every matching lifetime
+            entity-fund position, and one page of newest-first detail rows.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrivateInvestmentTrackerResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+  /partnership-tracker/private-investments/pdf:
+    post:
+      operationId: exportPrivateInvestmentTrackerPdf
+      summary: Download the complete scoped and filtered private investment report
+      description: >
+        Reapplies session entity scope and filters on the server, loads the
+        complete result independently of UI pagination, and renders only the
+        requested ordered summary and detail columns.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrivateInvestmentPdfRequest'
+      responses:
+        '200':
+          description: Workbook-inspired, Jackson-branded landscape PDF.
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              example: attachment; filename="private-investment-tracker-2026-07-23.pdf"
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/DatabaseUnavailable'
+
+components:
+  parameters:
+    Types:
+      name: types
+      in: query
+      description: Canonical comma-separated activity types. Values combine with OR.
+      schema:
+        type: string
+      example: CAPITAL_CALL,RECALLABLE_DISTRIBUTION
+    EntityIds:
+      name: entityIds
+      in: query
+      description: >
+        Canonical comma-separated scoped entity UUIDs. Values combine with OR;
+        unavailable IDs are removed from the normalized response query.
+      schema:
+        type: string
+    PartnershipIds:
+      name: partnershipIds
+      in: query
+      description: >
+        Canonical comma-separated scoped owner-specific partnership UUIDs.
+        Values combine with OR; unavailable IDs are removed from the normalized
+        response query.
+      schema:
+        type: string
+    DateFrom:
+      name: dateFrom
+      in: query
+      description: Inclusive minimum activity/valuation date.
+      schema:
+        $ref: '#/components/schemas/Date'
+    DateTo:
+      name: dateTo
+      in: query
+      description: Inclusive maximum activity/valuation date; must not precede dateFrom.
+      schema:
+        $ref: '#/components/schemas/Date'
+    AmountMin:
+      name: amountMin
+      in: query
+      description: Inclusive nonnegative minimum amount magnitude.
+      schema:
+        $ref: '#/components/schemas/NonnegativeMoney'
+    AmountMax:
+      name: amountMax
+      in: query
+      description: Inclusive nonnegative maximum amount magnitude; must not be below amountMin.
+      schema:
+        $ref: '#/components/schemas/NonnegativeMoney'
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        enum: [25, 50, 100]
+        default: 50
+
+  responses:
+    ValidationError:
+      description: Filter, range, page, or export-column validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: VALIDATION_ERROR
+            message: Request validation failed.
+            details:
+              - path: [dateTo]
+                message: dateTo must be on or after dateFrom
+    Unauthorized:
+      description: No authenticated session.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: The requested entity or partnership is outside session scope.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    DatabaseUnavailable:
+      description: Durable partnership data is not configured or temporarily unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+    Date:
+      type: string
+      format: date
+    DateTime:
+      type: string
+      format: date-time
+    Money:
+      type: string
+      pattern: '^-?\d+\.\d{2}$'
+      examples: ['125000.00', '-8500.00']
+    NonnegativeMoney:
+      type: string
+      pattern: '^\d+\.\d{2}$'
+      examples: ['0.00', '125000.00']
+    Ratio:
+      type: string
+      pattern: '^-?\d+\.\d{8}$'
+      examples: ['0.10000000', '-0.03273663']
+
+    ActivityType:
+      type: string
+      enum:
+        - CAPITAL_CALL
+        - NON_RECALLABLE_DISTRIBUTION
+        - RECALLABLE_DISTRIBUTION
+        - VALUATION
+
+    PrivateInvestmentQuery:
+      type: object
+      additionalProperties: false
+      required:
+        - types
+        - entityIds
+        - partnershipIds
+        - page
+        - pageSize
+      properties:
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityType'
+          uniqueItems: true
+        entityIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          uniqueItems: true
+        partnershipIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          uniqueItems: true
+        dateFrom:
+          oneOf:
+            - $ref: '#/components/schemas/Date'
+            - type: 'null'
+        dateTo:
+          oneOf:
+            - $ref: '#/components/schemas/Date'
+            - type: 'null'
+        amountMin:
+          oneOf:
+            - $ref: '#/components/schemas/NonnegativeMoney'
+            - type: 'null'
+        amountMax:
+          oneOf:
+            - $ref: '#/components/schemas/NonnegativeMoney'
+            - type: 'null'
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          enum: [25, 50, 100]
+
+    EntityIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          minLength: 1
+
+    PartnershipIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+          minLength: 1
+
+    DatedMoney:
+      type: object
+      additionalProperties: false
+      required: [amount, date]
+      properties:
+        amount:
+          $ref: '#/components/schemas/Money'
+        date:
+          $ref: '#/components/schemas/Date'
+
+    MetricAvailability:
+      type: string
+      enum:
+        - AVAILABLE
+        - MISSING_CONTRIBUTIONS
+        - MISSING_DISTRIBUTIONS
+        - MISSING_NAV
+        - MISSING_COMMITMENT
+        - MISSING_INCEPTION_DATE
+        - INSUFFICIENT_HOLDING_PERIOD
+        - NAV_PRECEDES_CASH_FLOWS
+        - INSUFFICIENT_CASH_FLOWS
+        - AMBIGUOUS_IRR
+
+    PrivateInvestmentMetricAvailability:
+      type: object
+      additionalProperties: false
+      required:
+        - remainingCommitment
+        - dpi
+        - tvpi
+        - xirr
+        - simplifiedIrr
+      properties:
+        remainingCommitment:
+          $ref: '#/components/schemas/MetricAvailability'
+        dpi:
+          $ref: '#/components/schemas/MetricAvailability'
+        tvpi:
+          $ref: '#/components/schemas/MetricAvailability'
+        xirr:
+          $ref: '#/components/schemas/MetricAvailability'
+        simplifiedIrr:
+          $ref: '#/components/schemas/MetricAvailability'
+
+    EntityFundPosition:
+      type: object
+      additionalProperties: false
+      required:
+        - positionKey
+        - entity
+        - partnership
+        - assetClass
+        - status
+        - metricScope
+        - totalInvested
+        - nonRecallableDistributions
+        - recallableDistributions
+        - xirrUsesCarriedForwardNav
+        - availability
+      properties:
+        positionKey:
+          type: string
+          description: Stable entityId:partnershipId read-model key.
+        entity:
+          $ref: '#/components/schemas/EntityIdentity'
+        partnership:
+          $ref: '#/components/schemas/PartnershipIdentity'
+        assetClass:
+          type: string
+          enum:
+            - Private Equity
+            - Real Estate
+            - Hedge Fund
+            - Venture Capital
+            - Credit
+            - Infrastructure
+            - Other
+        status:
+          type: string
+          enum: [ACTIVE, PENDING, LIQUIDATED, CLOSED]
+        metricScope:
+          type: string
+          const: LIFETIME_FOR_MATCHED_POSITION
+        totalCommitted:
+          oneOf:
+            - $ref: '#/components/schemas/DatedMoney'
+            - type: 'null'
+        remainingCommitment:
+          oneOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        vintageYear:
+          oneOf:
+            - type: integer
+              minimum: 1900
+              maximum: 2100
+            - type: 'null'
+        totalInvested:
+          $ref: '#/components/schemas/NonnegativeMoney'
+        nonRecallableDistributions:
+          $ref: '#/components/schemas/NonnegativeMoney'
+        recallableDistributions:
+          $ref: '#/components/schemas/NonnegativeMoney'
+        latestValuation:
+          oneOf:
+            - $ref: '#/components/schemas/DatedMoney'
+            - type: 'null'
+        dpi:
+          oneOf:
+            - $ref: '#/components/schemas/Ratio'
+            - type: 'null'
+        tvpi:
+          oneOf:
+            - $ref: '#/components/schemas/Ratio'
+            - type: 'null'
+        xirr:
+          oneOf:
+            - $ref: '#/components/schemas/Ratio'
+            - type: 'null'
+        xirrTerminalDate:
+          oneOf:
+            - $ref: '#/components/schemas/Date'
+            - type: 'null'
+        xirrUsesCarriedForwardNav:
+          type: boolean
+        simplifiedIrr:
+          oneOf:
+            - $ref: '#/components/schemas/Ratio'
+            - type: 'null'
+        displayIrr:
+          oneOf:
+            - $ref: '#/components/schemas/Ratio'
+            - type: 'null'
+        irrType:
+          oneOf:
+            - type: string
+              enum: [XIRR, SIMPLIFIED]
+            - type: 'null'
+        availability:
+          $ref: '#/components/schemas/PrivateInvestmentMetricAvailability'
+
+    PrivateInvestmentActivityRow:
+      type: object
+      additionalProperties: false
+      required:
+        - rowId
+        - sourceId
+        - sourceKind
+        - entity
+        - partnership
+        - date
+        - type
+        - amount
+        - displayDirection
+        - sourceType
+        - createdAt
+      properties:
+        rowId:
+          type: string
+        sourceId:
+          $ref: '#/components/schemas/Uuid'
+        sourceKind:
+          type: string
+          enum: [NET_CASH_ACTIVITY, CAPITAL_AND_NAV]
+        entity:
+          $ref: '#/components/schemas/EntityIdentity'
+        partnership:
+          $ref: '#/components/schemas/PartnershipIdentity'
+        date:
+          $ref: '#/components/schemas/Date'
+        type:
+          $ref: '#/components/schemas/ActivityType'
+        amount:
+          $ref: '#/components/schemas/NonnegativeMoney'
+        displayDirection:
+          type: string
+          enum: [OUTFLOW, INFLOW, POINT_IN_TIME]
+        sourceType:
+          type: string
+        note:
+          type:
+            - string
+            - 'null'
+        createdAt:
+          $ref: '#/components/schemas/DateTime'
+
+    FacetOption:
+      type: object
+      additionalProperties: false
+      required: [value, label, count]
+      properties:
+        value:
+          type: string
+        label:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+
+    PartnershipFacetOption:
+      allOf:
+        - $ref: '#/components/schemas/FacetOption'
+        - type: object
+          required: [entityId, entityName]
+          properties:
+            entityId:
+              $ref: '#/components/schemas/Uuid'
+            entityName:
+              type: string
+
+    PrivateInvestmentFacetSet:
+      type: object
+      additionalProperties: false
+      required: [types, entities, partnerships]
+      properties:
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetOption'
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/FacetOption'
+        partnerships:
+          type: array
+          items:
+            $ref: '#/components/schemas/PartnershipFacetOption'
+
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+        - hasPreviousPage
+        - hasNextPage
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          enum: [25, 50, 100]
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+        hasPreviousPage:
+          type: boolean
+        hasNextPage:
+          type: boolean
+
+    PrivateInvestmentTrackerResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - query
+        - positionMetricScope
+        - positions
+        - facets
+        - activities
+        - pageInfo
+        - asOfDate
+      properties:
+        query:
+          $ref: '#/components/schemas/PrivateInvestmentQuery'
+        positionMetricScope:
+          type: string
+          const: LIFETIME_FOR_MATCHED_POSITIONS
+        positions:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityFundPosition'
+        facets:
+          $ref: '#/components/schemas/PrivateInvestmentFacetSet'
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/PrivateInvestmentActivityRow'
+        pageInfo:
+          $ref: '#/components/schemas/PageInfo'
+        asOfDate:
+          $ref: '#/components/schemas/Date'
+
+    PrivateInvestmentPdfFilters:
+      type: object
+      additionalProperties: false
+      required:
+        - types
+        - entityIds
+        - partnershipIds
+        - dateFrom
+        - dateTo
+        - amountMin
+        - amountMax
+      properties:
+        types:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityType'
+          uniqueItems: true
+        entityIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          uniqueItems: true
+        partnershipIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+          uniqueItems: true
+        dateFrom:
+          oneOf:
+            - $ref: '#/components/schemas/Date'
+            - type: 'null'
+        dateTo:
+          oneOf:
+            - $ref: '#/components/schemas/Date'
+            - type: 'null'
+        amountMin:
+          oneOf:
+            - $ref: '#/components/schemas/NonnegativeMoney'
+            - type: 'null'
+        amountMax:
+          oneOf:
+            - $ref: '#/components/schemas/NonnegativeMoney'
+            - type: 'null'
+
+    SummaryColumnId:
+      type: string
+      enum:
+        - entity
+        - fund
+        - assetClass
+        - totalCommitted
+        - remainingCommitment
+        - status
+        - vintageYear
+        - totalInvested
+        - nonRecallableDistributions
+        - recallableDistributions
+        - valuation
+        - dpi
+        - tvpi
+        - xirr
+        - simplifiedIrr
+
+    DetailColumnId:
+      type: string
+      enum: [entity, fund, date, amount, type, source]
+
+    PrivateInvestmentPdfRequest:
+      type: object
+      additionalProperties: false
+      required: [filters, summaryColumns, detailColumns]
+      properties:
+        filters:
+          $ref: '#/components/schemas/PrivateInvestmentPdfFilters'
+        summaryColumns:
+          type: array
+          minItems: 1
+          maxItems: 18
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SummaryColumnId'
+        detailColumns:
+          type: array
+          minItems: 1
+          maxItems: 6
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/DetailColumnId'
+
+    ErrorResponse:
+      type: object
+      additionalProperties: true
+      required: [error, message]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type:
+            - array
+            - object
+            - 'null'

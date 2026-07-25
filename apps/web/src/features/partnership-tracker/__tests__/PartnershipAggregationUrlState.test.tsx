@@ -29,24 +29,28 @@ describe('partnership aggregation URL state', () => {
   })
 
   it('replaces search and filter state, resets page one, and clears canonical parameters', async () => {
+    const user = userEvent.setup()
     renderState('/partnership-aggregation?page=3&sort=nav')
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search partnerships' }), { target: { value: 'Alpha' } })
     await waitFor(() => expect(screen.getByLabelText('Current location')).toHaveTextContent('search=Alpha'), { timeout: 1_000 })
     expect(screen.getByLabelText('Current location')).not.toHaveTextContent('page=3')
 
-    fireEvent.click(screen.getByRole('checkbox', { name: /Alder Family/ }))
+    await user.click(screen.getByRole('button', { name: 'Open Owner filter' }))
+    await user.click(screen.getByRole('option', { name: /Alder Family/ }))
     expect(screen.getByLabelText('Current location')).toHaveTextContent('ownerIds=e-1')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear all' })[0])
     expect(screen.getByLabelText('Current location')).not.toHaveTextContent('ownerIds=')
     expect(screen.getByLabelText('Current location')).not.toHaveTextContent('search=')
   })
 
-  it('keeps the first owner click while prior results are serving as placeholder data', () => {
+  it('keeps the first owner click while prior results are serving as placeholder data', async () => {
+    const user = userEvent.setup()
     captured.usePlaceholderData = true
     renderState()
-    const owner = screen.getByRole('checkbox', { name: /Alder Family/ })
-    fireEvent.click(owner)
-    expect(owner).toBeChecked()
+    await user.click(screen.getByRole('button', { name: 'Open Owner filter' }))
+    await user.click(screen.getByRole('option', { name: /Alder Family/ }))
+    const owner = screen.getByRole('button', { name: 'Remove Alder Family' })
+    expect(owner).toBeInTheDocument()
     expect(screen.getByLabelText('Current location')).toHaveTextContent('ownerIds=e-1')
   })
 

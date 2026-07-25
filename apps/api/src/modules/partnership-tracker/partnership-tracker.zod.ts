@@ -4,9 +4,13 @@ import {
   PARTNERSHIP_AGGREGATION_SORTS,
   PARTNERSHIP_AGGREGATION_WORKFLOWS,
   PARTNERSHIP_DATA_QUALITIES,
+  PRIVATE_INVESTMENT_DETAIL_COLUMN_IDS,
+  PRIVATE_INVESTMENT_SUMMARY_COLUMN_IDS,
   PARTNERSHIP_TYPES,
   type PartnershipAggregationPageSize,
   type PartnershipAggregationQuery,
+  type PrivateInvestmentPageSize,
+  type PrivateInvestmentQuery,
 } from './partnership-tracker.contracts.js'
 import { k1OfficialFormDataSchema } from '../k1-tracker/k1-official-form.zod.js'
 
@@ -81,11 +85,108 @@ export const partnershipAggregationQuerySchema = z.object({
     pageSize,
   }
 })
+
+const privateInvestmentCsv = (value: unknown): string[] => {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value]
+  return [...new Set(values.flatMap((item) => String(item).split(',')).map((item) => item.trim()).filter(Boolean))]
+}
+const privateInvestmentUuidListSchema = z.preprocess(
+  privateInvestmentCsv,
+  z.array(partnershipTrackerUuidSchema).transform((values) => [...new Set(values)].sort()),
+)
+const privateInvestmentAssetClassListSchema = z.preprocess(
+  privateInvestmentCsv,
+  z.array(z.enum(PARTNERSHIP_TYPES)).transform((values) => {
+    const selected = new Set(values)
+    return PARTNERSHIP_TYPES.filter((value) => selected.has(value))
+  }),
+)
+const privateInvestmentPageSize = (value: unknown): PrivateInvestmentPageSize => {
+  const requested = aggregationPositiveInteger(value, 50)
+  return requested === 25 || requested === 100 ? requested : 50
+}
+const privateInvestmentMoneyToCents = (value: string): bigint => {
+  const [whole, fraction] = value.split('.')
+  return BigInt(whole!) * 100n + BigInt(fraction!)
+}
+
+export const privateInvestmentQuerySchema = z.object({
+  assetClasses: privateInvestmentAssetClassListSchema.default([]),
+  entityIds: privateInvestmentUuidListSchema.default([]),
+  partnershipIds: privateInvestmentUuidListSchema.default([]),
+  dateFrom: partnershipTrackerDateSchema.nullish(),
+  dateTo: partnershipTrackerDateSchema.nullish(),
+  amountMin: partnershipTrackerNonnegativeMoneySchema.nullish(),
+  amountMax: partnershipTrackerNonnegativeMoneySchema.nullish(),
+  page: z.unknown().optional(),
+  pageSize: z.unknown().optional(),
+}).superRefine((value, context) => {
+  if (value.dateFrom && value.dateTo && value.dateTo < value.dateFrom) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['dateTo'], message: 'dateTo must be on or after dateFrom' })
+  }
+  if (value.amountMin && value.amountMax && privateInvestmentMoneyToCents(value.amountMax) < privateInvestmentMoneyToCents(value.amountMin)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['amountMax'], message: 'amountMax must be greater than or equal to amountMin' })
+  }
+}).transform((value): PrivateInvestmentQuery => ({
+  assetClasses: value.assetClasses,
+  entityIds: value.entityIds,
+  partnershipIds: value.partnershipIds,
+  dateFrom: value.dateFrom ?? null,
+  dateTo: value.dateTo ?? null,
+  amountMin: value.amountMin ?? null,
+  amountMax: value.amountMax ?? null,
+  page: aggregationPositiveInteger(value.page, 1),
+  pageSize: privateInvestmentPageSize(value.pageSize),
+}))
+
+const uniqueOrderedColumns = <T extends string>(allowed: readonly T[]) => z.array(z.enum(allowed as [T, ...T[]]))
+  .min(1)
+  .max(allowed.length)
+  .superRefine((values, context) => {
+    if (new Set(values).size !== values.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Column selections must not contain duplicates' })
+    }
+  })
+
+export const privateInvestmentPdfBodySchema = z.object({
+  filters: z.object({
+    assetClasses: z.array(z.enum(PARTNERSHIP_TYPES)).default([]),
+    entityIds: z.array(partnershipTrackerUuidSchema).default([]),
+    partnershipIds: z.array(partnershipTrackerUuidSchema).default([]),
+    dateFrom: partnershipTrackerDateSchema.nullish(),
+    dateTo: partnershipTrackerDateSchema.nullish(),
+    amountMin: partnershipTrackerNonnegativeMoneySchema.nullish(),
+    amountMax: partnershipTrackerNonnegativeMoneySchema.nullish(),
+  }),
+  summaryColumns: uniqueOrderedColumns(PRIVATE_INVESTMENT_SUMMARY_COLUMN_IDS),
+  detailColumns: uniqueOrderedColumns(PRIVATE_INVESTMENT_DETAIL_COLUMN_IDS),
+}).superRefine((value, context) => {
+  if (value.filters.dateFrom && value.filters.dateTo && value.filters.dateTo < value.filters.dateFrom) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['filters', 'dateTo'], message: 'dateTo must be on or after dateFrom' })
+  }
+  if (value.filters.amountMin && value.filters.amountMax && privateInvestmentMoneyToCents(value.filters.amountMax) < privateInvestmentMoneyToCents(value.filters.amountMin)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['filters', 'amountMax'], message: 'amountMax must be greater than or equal to amountMin' })
+  }
+}).transform((value) => ({
+  filters: {
+    assetClasses: PARTNERSHIP_TYPES.filter((assetClass) => new Set(value.filters.assetClasses).has(assetClass)),
+    entityIds: [...new Set(value.filters.entityIds)].sort(),
+    partnershipIds: [...new Set(value.filters.partnershipIds)].sort(),
+    dateFrom: value.filters.dateFrom ?? null,
+    dateTo: value.filters.dateTo ?? null,
+    amountMin: value.filters.amountMin ?? null,
+    amountMax: value.filters.amountMax ?? null,
+  },
+  summaryColumns: value.summaryColumns,
+  detailColumns: value.detailColumns,
+}))
+
 export const partnershipTrackerPartnershipParamsSchema = z.object({ partnershipId: partnershipTrackerUuidSchema })
 export const partnershipTrackerYearParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ taxYear: partnershipTrackerTaxYearSchema })
 export const partnershipTrackerCommitmentParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ commitmentId: partnershipTrackerUuidSchema })
 export const partnershipTrackerNavParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ navEntryId: partnershipTrackerUuidSchema })
 export const partnershipTrackerCashFlowParamsSchema = partnershipTrackerYearParamsSchema.extend({ cashFlowId: partnershipTrackerUuidSchema })
+export const partnershipTrackerOperationalCashFlowParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ cashFlowId: partnershipTrackerUuidSchema })
 
 const inceptionDateSchema = partnershipTrackerDateSchema.nullable().refine(
   (value) => value == null || value <= new Date().toISOString().slice(0, 10),
@@ -120,6 +221,7 @@ export const createTrackedPartnershipBodySchema = z.object({
   addressRegion: nullableProfileText(120),
   addressPostalCode: nullableProfileText(30),
   addressCountry: nullableProfileText(120),
+  capitalCommitment: partnershipTrackerNonnegativeMoneySchema.nullable().optional(),
   initialValuationAmount: partnershipTrackerNonnegativeMoneySchema.nullable().optional(),
   initialValuationDate: partnershipTrackerDateSchema.nullable().optional(),
 }).superRefine((body, context) => {
@@ -143,6 +245,7 @@ export const updateTrackedPartnershipBodySchema = z.object({
   addressRegion: nullableProfileText(120),
   addressPostalCode: nullableProfileText(30),
   addressCountry: nullableProfileText(120),
+  capitalCommitment: partnershipTrackerNonnegativeMoneySchema.optional(),
   expectedUpdatedAt: partnershipTrackerDateTimeSchema,
 }).refine((body) => Object.keys(body).some((key) => key !== 'expectedUpdatedAt'), { message: 'At least one editable field is required' })
 
