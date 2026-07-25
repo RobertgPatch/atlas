@@ -22,12 +22,14 @@ describe('Partnership Tracker large-directory rendering', () => {
     expect(screen.getByText('7.87%')).toBeInTheDocument()
     expect(screen.getByText('5.00%')).toBeInTheDocument()
     expect(screen.getByText('Unfunded commitment')).toBeInTheDocument()
-    expect(screen.getByText('$525,000')).toBeInTheDocument()
+    expect(screen.getByText('$10,000')).toBeInTheDocument()
   })
 
   it('shows NAV once on the overview', () => {
     render(<MemoryRouter><PartnershipOverview summary={summaryFixture} /></MemoryRouter>)
     expect(screen.getAllByText('NAV')).toHaveLength(1)
+    expect(screen.getByText('Tax and reconciliation only')).toBeInTheDocument()
+    expect(screen.getByText(/do not feed the operational investment metrics/)).toBeInTheDocument()
   })
 
   it('masks the EIN until the user explicitly reveals it', () => {

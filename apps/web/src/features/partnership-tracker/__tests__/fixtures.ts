@@ -1,4 +1,4 @@
-import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
+import type { EntityFundPosition, PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary, PrivateInvestmentActivityRow, PrivateInvestmentTrackerResponse } from '../../../../../../packages/types/src/partnership-tracker'
 import type { K1TrackerCalculation, K1TrackerCashFlowEvent, K1TrackerValue, K1TrackerYearDetail, K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
@@ -17,6 +17,7 @@ export const summaryFixture: PartnershipTrackerSummary = {
   latestSectionLCapital: '450000.00',
   totalCapitalContributions: '1000000.00',
   totalDistributions: '75000.00',
+  totalRecallableDistributions: '10000.00',
   dpi: '0.07500000',
   tvpi: '1.02500000',
   irr: '0.07870000',
@@ -26,8 +27,11 @@ export const summaryFixture: PartnershipTrackerSummary = {
   performanceAsOfDate: '2024-12-31',
   unfundedCommitmentAmount: '0.00',
   unfundedCommitmentPercentage: '0.00000000',
-  unrealizedGain: '525000.00',
-  performanceStatus: { dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'AVAILABLE', annualizedCashOnCashYield: 'AVAILABLE', unfundedCommitment: 'AVAILABLE', unrealizedGain: 'AVAILABLE' },
+  performanceStatus: { dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'AVAILABLE', annualizedCashOnCashYield: 'AVAILABLE', unfundedCommitment: 'AVAILABLE' },
+  simplifiedIrr: '0.07500000',
+  displayIrr: '0.07870000',
+  irrType: 'XIRR',
+  vintageYear: 2022,
   warningCount: 2,
 }
 
@@ -44,19 +48,66 @@ export const unavailablePerformanceSummaryFixture: PartnershipTrackerSummary = {
   irr: null,
   irrTerminalDate: null,
   irrUsesCarriedForwardNav: false,
+  simplifiedIrr: null,
+  displayIrr: null,
+  irrType: null,
+  vintageYear: null,
   annualizedCashOnCashYield: null,
   performanceAsOfDate: summaryFixture.performanceAsOfDate,
   unfundedCommitmentAmount: null,
   unfundedCommitmentPercentage: null,
-  unrealizedGain: null,
   performanceStatus: {
     dpi: 'MISSING_CONTRIBUTIONS',
     tvpi: 'MISSING_CONTRIBUTIONS',
     irr: 'MISSING_CONTRIBUTIONS',
     annualizedCashOnCashYield: 'MISSING_INCEPTION_DATE',
     unfundedCommitment: 'MISSING_COMMITMENT',
-    unrealizedGain: 'MISSING_NAV',
   },
+}
+
+export const privateInvestmentPositionFixture: EntityFundPosition = {
+  positionKey: 'e-1:p-1',
+  entity: { id: 'e-1', name: 'Jackson Family Trust' },
+  partnership: { id: 'p-1', name: 'Redwood Fund' },
+  assetClass: 'Real Estate',
+  status: 'ACTIVE',
+  metricScope: 'LIFETIME_FOR_MATCHED_POSITION',
+  totalCommitted: { amount: '1000000.00', date: '2024-01-01' },
+  remainingCommitment: '0.00',
+  vintageYear: 2022,
+  totalInvested: '1000000.00',
+  nonRecallableDistributions: '75000.00',
+  recallableDistributions: '10000.00',
+  latestValuation: { amount: '950000.00', date: '2024-12-31' },
+  dpi: '0.07500000',
+  tvpi: '1.02500000',
+  xirr: '0.07870000',
+  xirrTerminalDate: '2024-12-31',
+  xirrUsesCarriedForwardNav: false,
+  simplifiedIrr: '0.07500000',
+  displayIrr: '0.07870000',
+  irrType: 'XIRR',
+  availability: { remainingCommitment: 'AVAILABLE', dpi: 'AVAILABLE', tvpi: 'AVAILABLE', xirr: 'AVAILABLE', simplifiedIrr: 'AVAILABLE' },
+}
+
+export const privateInvestmentActivityFixtures: PrivateInvestmentActivityRow[] = [
+  { rowId: 'CAPITAL_AND_NAV:nav-1', sourceId: 'nav-1', sourceKind: 'CAPITAL_AND_NAV', entity: privateInvestmentPositionFixture.entity, partnership: privateInvestmentPositionFixture.partnership, date: '2024-12-31', type: 'VALUATION', amount: '950000.00', displayDirection: 'POINT_IN_TIME', sourceType: 'manual', note: null, createdAt: '2025-01-01T00:00:00.000Z' },
+  { rowId: 'NET_CASH_ACTIVITY:dist-1', sourceId: 'dist-1', sourceKind: 'NET_CASH_ACTIVITY', entity: privateInvestmentPositionFixture.entity, partnership: privateInvestmentPositionFixture.partnership, date: '2024-08-15', type: 'NON_RECALLABLE_DISTRIBUTION', amount: '75000.00', displayDirection: 'INFLOW', sourceType: 'manual', note: null, createdAt: '2024-08-15T00:00:00.000Z' },
+  { rowId: 'NET_CASH_ACTIVITY:call-1', sourceId: 'call-1', sourceKind: 'NET_CASH_ACTIVITY', entity: privateInvestmentPositionFixture.entity, partnership: privateInvestmentPositionFixture.partnership, date: '2024-03-01', type: 'CAPITAL_CALL', amount: '1000000.00', displayDirection: 'OUTFLOW', sourceType: 'manual', note: null, createdAt: '2024-03-01T00:00:00.000Z' },
+]
+
+export const privateInvestmentResponseFixture: PrivateInvestmentTrackerResponse = {
+  query: { assetClasses: [], entityIds: [], partnershipIds: [], dateFrom: null, dateTo: null, amountMin: null, amountMax: null, page: 1, pageSize: 50 },
+  positionMetricScope: 'LIFETIME_FOR_MATCHED_POSITIONS',
+  positions: [privateInvestmentPositionFixture],
+  facets: {
+    assetClasses: [{ value: 'Real Estate', label: 'Real Estate', count: 3 }],
+    entities: [{ value: 'e-1', label: 'Jackson Family Trust', count: 3 }],
+    partnerships: [{ value: 'p-1', label: 'Redwood Fund', count: 3, entityId: 'e-1', entityName: 'Jackson Family Trust', assetClass: 'Real Estate' }],
+  },
+  activities: privateInvestmentActivityFixtures,
+  pageInfo: { page: 1, pageSize: 50, totalItems: 3, totalPages: 1, hasPreviousPage: false, hasNextPage: false },
+  asOfDate: '2026-07-23',
 }
 
 export const missingK1IdentitySummaryFixture: PartnershipTrackerSummary = {

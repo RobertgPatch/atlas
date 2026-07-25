@@ -22,6 +22,7 @@ import { LiquidityPage } from './pages/LiquidityPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
 import { PartnershipTrackerPage } from './pages/PartnershipTrackerPage'
 import { PartnershipAggregationPage } from './pages/PartnershipAggregationPage'
+import { PrivateInvestmentTrackerPage } from './pages/PrivateInvestmentTrackerPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
@@ -120,7 +121,7 @@ export function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Navigate to="/liquidity" replace />
+                <Navigate to="/private-investment-tracker" replace />
               </ProtectedRoute>
             }
           />
@@ -203,6 +204,14 @@ export function App() {
             element={
               <ProtectedRoute>
                 <TicRegistryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/private-investment-tracker"
+            element={
+              <ProtectedRoute>
+                <PrivateInvestmentTrackerPage />
               </ProtectedRoute>
             }
           />

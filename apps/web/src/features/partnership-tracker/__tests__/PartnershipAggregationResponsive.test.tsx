@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { PARTNERSHIP_TYPES } from '../../../../../../packages/types/src/partnership-tracker'
@@ -8,20 +9,20 @@ import { PartnershipAggregationTable } from '../components/aggregation/Partnersh
 import { aggregationResponseFixture } from './fixtures'
 
 describe('partnership aggregation responsive structure', () => {
-  it('uses a 17rem desktop rail and a 44px mobile drawer trigger', () => {
-    const onToggle = vi.fn()
+  it('uses a responsive top filter grid with multiselect autocomplete controls', async () => {
+    const user = userEvent.setup()
+    const onFilterChange = vi.fn()
     const facetsWithoutTypeOptions = { ...aggregationResponseFixture.facets, partnershipTypes: [] }
-    render(<PartnershipAggregationFilters query={aggregationResponseFixture.query} facets={facetsWithoutTypeOptions} searchValue="" activeCount={0} onSearchChange={vi.fn()} onToggle={onToggle} onClear={vi.fn()} />)
-    expect(screen.getByLabelText('Partnership filters').parentElement).toHaveClass('lg:w-[17rem]')
-    expect(screen.getByTestId('aggregation-filter-rail')).toHaveClass('h-[calc(100vh-8rem)]', 'overflow-hidden')
-    expect(screen.getByTestId('aggregation-filter-scroll')).toHaveClass('min-h-0', 'overflow-y-auto')
-    expect(screen.getByRole('button', { name: 'Filters' })).toHaveClass('min-h-11', 'lg:hidden')
-    expect(screen.getByText('Partnership type')).toBeInTheDocument()
-    for (const partnershipType of PARTNERSHIP_TYPES) expect(screen.getByRole('checkbox', { name: partnershipType })).toBeInTheDocument()
-    const privateEquity = screen.getByRole('checkbox', { name: 'Private Equity' })
-    expect(privateEquity).toBeInTheDocument()
-    fireEvent.click(privateEquity)
-    expect(onToggle).toHaveBeenCalledWith('partnershipTypes', 'Private Equity')
+    const { container } = render(<PartnershipAggregationFilters query={aggregationResponseFixture.query} facets={facetsWithoutTypeOptions} searchValue="" activeCount={0} onSearchChange={vi.fn()} onFilterChange={onFilterChange} onClear={vi.fn()} />)
+    expect(screen.getByRole('heading', { name: 'Filter partnerships' })).toBeInTheDocument()
+    expect(container.querySelector('[class*="2xl:grid-cols-6"]')).toBeInTheDocument()
+    for (const label of ['Owner', 'Partnership type', 'Lifecycle', 'K-1 workflow', 'Data quality']) {
+      expect(screen.getByLabelText(`${label} filter`)).toHaveClass('h-11')
+    }
+    await user.click(screen.getByRole('button', { name: 'Open Partnership type filter' }))
+    for (const partnershipType of PARTNERSHIP_TYPES) expect(screen.getByRole('option', { name: new RegExp(partnershipType) })).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: /Private Equity/ }))
+    expect(onFilterChange).toHaveBeenCalledWith('partnershipTypes', ['Private Equity'])
   })
 
   it('wraps KPI coverage and constrains wide-ledger overflow to a sticky-identity table viewport', () => {

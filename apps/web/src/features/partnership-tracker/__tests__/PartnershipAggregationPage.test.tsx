@@ -93,7 +93,7 @@ describe('PartnershipAggregationPageContent', () => {
     createPartnership.mockResolvedValue({ partnership: { partnership: { id: 'p-new' } } })
     renderPage(true)
     fireEvent.click(screen.getByRole('button', { name: /Add partnership/ }))
-    fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-1' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Owner' }), { target: { value: 'e-1' } })
     fireEvent.change(screen.getByLabelText('Partnership name'), { target: { value: 'Northstar Fund' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create partnership' }))
     await waitFor(() => expect(screen.getByLabelText('Current route')).toHaveTextContent('/partnership-tracker?partnership=p-new&area=k1'))

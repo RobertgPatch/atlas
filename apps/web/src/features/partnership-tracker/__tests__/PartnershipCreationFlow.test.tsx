@@ -28,16 +28,18 @@ describe('Add Partnership flow', () => {
     const created = vi.fn()
     render(<MemoryRouter><AddPartnershipDialog open onClose={vi.fn()} onCreated={created} /></MemoryRouter>)
     expect(screen.getByRole('option', { name: 'Real Estate' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'JSP' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-1' } })
     fireEvent.change(screen.getByLabelText('Partnership name'), { target: { value: 'Redwood Fund' } })
     fireEvent.change(screen.getByLabelText('Partnership type'), { target: { value: 'Real Estate' } })
     fireEvent.change(screen.getByLabelText(/EIN/), { target: { value: '12-3456789' } })
     fireEvent.change(screen.getByLabelText('Fund manager'), { target: { value: 'Redwood Capital' } })
+    fireEvent.change(screen.getByLabelText(/Committed amount/), { target: { value: '$1,000,000.00' } })
     fireEvent.change(screen.getByLabelText('Initial valuation'), { target: { value: '$850,000.00' } })
     fireEvent.change(screen.getByLabelText('Valuation date'), { target: { value: '2024-01-15' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create partnership' }))
     await waitFor(() => expect(created).toHaveBeenCalledWith('p-1'))
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'e-1', partnershipType: 'Real Estate', ein: '12-3456789', fundManager: 'Redwood Capital', initialValuationAmount: '$850,000.00', initialValuationDate: '2024-01-15' }))
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'e-1', partnershipType: 'Real Estate', ein: '12-3456789', fundManager: 'Redwood Capital', capitalCommitment: '$1,000,000.00', initialValuationAmount: '$850,000.00', initialValuationDate: '2024-01-15' }))
   })
 
   it('keeps Cancel and Create partnership outside the scrolling dialog body', () => {
@@ -60,6 +62,7 @@ describe('Add Partnership flow', () => {
     render(<MemoryRouter><AddPartnershipDialog open onClose={vi.fn()} onCreated={vi.fn()} /></MemoryRouter>)
     fireEvent.click(screen.getByRole('radio', { name: /Existing partnership, new owner/ }))
     fireEvent.change(screen.getByLabelText('Existing partnership'), { target: { value: 'p-1' } })
+    expect(screen.getByLabelText(/Committed amount/)).toHaveValue('1000000.00')
     expect(screen.queryByRole('option', { name: 'Jackson Family Trust' })).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Add owner record' }))
@@ -68,6 +71,7 @@ describe('Add Partnership flow', () => {
       existingPartnershipId: 'p-1',
       name: 'Redwood Fund',
       partnershipType: 'Real Estate',
+      capitalCommitment: '1000000.00',
     })))
   })
 
@@ -101,9 +105,11 @@ describe('Add Partnership flow', () => {
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Cancel' }))
     expect(footer).toContainElement(screen.getByRole('button', { name: 'Save changes' }))
     expect(screen.getByLabelText('Owner')).toHaveValue('e-1')
+    expect(screen.getByLabelText(/Committed amount/)).toHaveValue('1000000.00')
     fireEvent.change(screen.getByLabelText('Owner'), { target: { value: 'e-2' } })
+    fireEvent.change(screen.getByLabelText(/Committed amount/), { target: { value: '$1,250,000.00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
-    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ entityId: 'e-2' }) })))
+    await waitFor(() => expect(update).toHaveBeenCalledWith(expect.objectContaining({ body: expect.objectContaining({ entityId: 'e-2', capitalCommitment: '$1,250,000.00' }) })))
     expect(closed).toHaveBeenCalled()
   })
 })

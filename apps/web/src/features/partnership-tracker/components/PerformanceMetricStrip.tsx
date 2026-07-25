@@ -12,23 +12,20 @@ export function PerformanceMetricStrip({ summary }: { summary: PartnershipTracke
     irr: 'MISSING_CONTRIBUTIONS',
     annualizedCashOnCashYield: 'MISSING_INCEPTION_DATE',
     unfundedCommitment: 'MISSING_COMMITMENT',
-    unrealizedGain: 'MISSING_OUTSIDE_BASIS',
   }
   const unfundedValue = summary.unfundedCommitmentAmount == null
     ? availability(status.unfundedCommitment)
     : `${money(summary.unfundedCommitmentAmount)} (${percent(summary.unfundedCommitmentPercentage, status.unfundedCommitment)})`
   const metrics = [
-    { label: 'Paid-in capital', value: money(summary.totalCapitalContributions), detail: 'K-1 capital contributions' },
-    { label: 'Distributions', value: money(summary.totalDistributions), detail: 'Cumulative Box 19' },
-    { label: 'Capital account', value: money(summary.latestSectionLCapital), detail: summary.latestTaxYear ? `Section L, ${summary.latestTaxYear}` : 'Latest Section L' },
-    { label: 'Outside basis', value: money(summary.latestEndingOutsideBasis), detail: summary.latestTaxYear ? `Ending basis, ${summary.latestTaxYear}` : 'Latest annual position' },
-    { label: 'NAV', value: money(summary.latestNav?.amount ?? null), detail: summary.latestNav ? `As of ${summary.latestNav.date}` : 'Latest valuation' },
-    { label: 'DPI', value: multiple(summary.dpi, status.dpi), detail: 'Distributions / paid-in' },
-    { label: 'TVPI', value: multiple(summary.tvpi, status.tvpi), detail: '(Distributions + NAV) / paid-in' },
-    { label: 'XIRR', value: percent(summary.irr, status.irr), detail: 'Exact-dated cash flows and NAV' },
+    { label: 'Total invested', value: money(summary.totalCapitalContributions), detail: 'Dated capital calls' },
+    { label: 'Non-recallable distributions', value: money(summary.totalDistributions), detail: 'Included in DPI and TVPI' },
+    { label: 'Recallable distributions', value: money(summary.totalRecallableDistributions), detail: 'Included in XIRR; excluded from DPI and TVPI' },
+    { label: 'NAV', value: money(summary.latestNav?.amount ?? null), detail: summary.latestNav ? `Actual valuation as of ${summary.latestNav.date}` : 'No valuation entered' },
+    { label: 'DPI', value: multiple(summary.dpi, status.dpi), detail: 'Non-recallable distributions / total invested' },
+    { label: 'TVPI', value: multiple(summary.tvpi, status.tvpi), detail: '(Non-recallable distributions + NAV) / total invested' },
+    { label: summary.irrType === 'SIMPLIFIED' ? 'Simplified return' : 'XIRR', value: percent(summary.displayIrr, status.irr), detail: summary.irrUsesCarriedForwardNav ? `NAV carried through ${summary.irrTerminalDate}` : 'Exact-dated operational flows and NAV' },
     { label: 'Annualized Cash on Cash Yield', value: percent(summary.annualizedCashOnCashYield, status.annualizedCashOnCashYield), detail: `Through ${summary.performanceAsOfDate}` },
     { label: 'Unfunded commitment', value: unfundedValue, detail: 'Commitment minus paid-in capital' },
-    { label: 'Unrealized gain', value: money(summary.unrealizedGain), detail: 'NAV minus ending outside basis' },
   ]
   return <section aria-label="Partnership performance" className="border-y border-gray-200 bg-white"><div className="grid divide-y divide-gray-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4">{metrics.map((metric) => <div key={metric.label} className="min-w-0 px-4 py-4"><p className="text-xs font-medium text-gray-500">{metric.label}</p><p className="mt-1 break-words text-lg font-semibold text-gray-950" title={metric.value}>{metric.value}</p><p className="mt-1 text-xs text-gray-500">{metric.detail}</p></div>)}</div></section>
 }

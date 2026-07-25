@@ -3,6 +3,7 @@ import { PARTNERSHIP_TYPES, type PartnershipTrackerSummary, type PartnershipType
 import { useEntityList } from '../../partnerships/hooks/useEntityQueries'
 import { PartnershipTrackerApiError } from '../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions } from '../hooks/usePartnershipTracker'
+import { CurrencyInput } from '../../../components/shared/CurrencyField'
 
 export function EditPartnershipDialog({ summary, onClose }: { summary: PartnershipTrackerSummary; onClose: () => void }) {
   const partnership = summary.partnership
@@ -22,6 +23,7 @@ export function EditPartnershipDialog({ summary, onClose }: { summary: Partnersh
   const [addressRegion, setAddressRegion] = useState(partnership.addressRegion ?? '')
   const [addressPostalCode, setAddressPostalCode] = useState(partnership.addressPostalCode ?? '')
   const [addressCountry, setAddressCountry] = useState(partnership.addressCountry ?? '')
+  const [capitalCommitment, setCapitalCommitment] = useState(summary.currentCommittedCapital?.amount ?? '')
   const [error, setError] = useState<string>()
   const input = useRef<HTMLInputElement>(null)
 
@@ -37,7 +39,7 @@ export function EditPartnershipDialog({ summary, onClose }: { summary: Partnersh
     try {
       await actions.updatePartnership.mutateAsync({
         id: partnership.id,
-        body: { entityId, name: name.trim(), partnershipType: type, status, notes: notes.trim() || null, inceptionDate: inceptionDate || null, ein: ein.trim() || null, fundManager: fundManager.trim() || null, addressLine1: addressLine1.trim() || null, addressLine2: addressLine2.trim() || null, addressCity: addressCity.trim() || null, addressRegion: addressRegion.trim() || null, addressPostalCode: addressPostalCode.trim() || null, addressCountry: addressCountry.trim() || null, expectedUpdatedAt: partnership.updatedAt },
+        body: { entityId, name: name.trim(), partnershipType: type, status, notes: notes.trim() || null, inceptionDate: inceptionDate || null, ein: ein.trim() || null, fundManager: fundManager.trim() || null, addressLine1: addressLine1.trim() || null, addressLine2: addressLine2.trim() || null, addressCity: addressCity.trim() || null, addressRegion: addressRegion.trim() || null, addressPostalCode: addressPostalCode.trim() || null, addressCountry: addressCountry.trim() || null, ...(capitalCommitment ? { capitalCommitment } : {}), expectedUpdatedAt: partnership.updatedAt },
       })
       onClose()
     } catch (caught) {
@@ -60,6 +62,11 @@ export function EditPartnershipDialog({ summary, onClose }: { summary: Partnersh
           <label className="block text-sm font-medium">Name<input ref={input} value={name} required onChange={(event) => setName(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2" /></label>
           <label className="block text-sm font-medium">Partnership type<select value={type} onChange={(event) => setType(event.target.value as PartnershipType)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">{PARTNERSHIP_TYPES.map((option) => <option key={option}>{option}</option>)}</select></label>
           <label className="block text-sm font-medium">Status<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">{['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED'].map((option) => <option key={option}>{option}</option>)}</select></label>
+          <section className="rounded-lg border border-gray-200 bg-gray-50/70 p-4">
+            <h3 className="text-sm font-bold text-gray-950">Capital commitment</h3>
+            <p className="mt-1 text-xs leading-5 text-gray-500">This is the committed capital for this owner position. Recallable distributions increase the effective commitment automatically.</p>
+            <label className="mt-3 block text-sm font-medium">Committed amount <span className="font-normal text-gray-500">(optional)</span><CurrencyInput value={capitalCommitment} onChange={setCapitalCommitment} allowNegative={false} placeholder="$0.00" /></label>
+          </section>
           <section className="border-t border-gray-200 pt-5"><h3 className="font-serif text-lg font-semibold text-gray-950">Partnership profile</h3><div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block text-sm font-medium">Inception date<input type="date" max={new Date().toISOString().slice(0, 10)} value={inceptionDate} onChange={(event) => setInceptionDate(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-gray-300 px-3" /></label>
             <label className="block text-sm font-medium">EIN<input autoComplete="off" value={ein} pattern="[0-9]{2}-?[0-9]{7}" placeholder="12-3456789" onChange={(event) => setEin(event.target.value)} className="mt-1 min-h-11 w-full rounded-lg border border-gray-300 px-3" /></label>

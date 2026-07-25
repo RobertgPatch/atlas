@@ -20,6 +20,17 @@ describe('Partnership Tracker navigation', () => {
     expect(screen.queryByRole('link', { name: /K1 Tracker/i })).not.toBeInTheDocument()
   })
 
+  it('shows the Investment Tracker as a distinct active portfolio destination', () => {
+    render(<MemoryRouter><AppShell currentPath="/private-investment-tracker"><div>Investment book</div></AppShell></MemoryRouter>)
+    const link = screen.getByRole('link', { name: 'Investment Tracker' })
+    expect(link).toHaveAttribute('href', '/private-investment-tracker')
+    expect(link.className).toContain('text-jackson-gold')
+    expect(screen.getByRole('link', { name: 'Partnerships' }).className).not.toContain('text-jackson-gold')
+    const sidebarLinks = [...screen.getByRole('link', { name: 'Partnerships' }).closest('nav')!.querySelectorAll('a')]
+    expect(sidebarLinks.indexOf(screen.getByRole('link', { name: 'Investment Tracker' })))
+      .toBe(sidebarLinks.indexOf(screen.getByRole('link', { name: 'Partnerships' })) + 1)
+  })
+
   it('preserves a selected partnership and query state through legacy redirects', () => {
     render(<MemoryRouter initialEntries={['/partnerships/p-123?year=2021']}><Routes><Route path="/partnerships/:id" element={<LegacyPartnershipRedirect detail />} /><Route path="/partnership-tracker" element={<div>Redirected <Location /></div>} /></Routes></MemoryRouter>)
     expect(screen.getByText(/partnership=p-123/)).toBeInTheDocument()

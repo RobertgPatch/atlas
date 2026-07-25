@@ -53,6 +53,9 @@ export function PartnershipAggregationPageContent({ canEdit }: { canEdit: boolea
     const next = values.includes(value) ? values.filter((item) => item !== value) : [...values, value]
     setQuery({ ...query, [key]: next, page: 1 } as PartnershipAggregationQuery)
   }
+  const setFilter = (key: AggregationFilterKey, values: string[]) => {
+    setQuery({ ...query, [key]: values, page: 1 } as PartnershipAggregationQuery)
+  }
   const sortBy = (sort: PartnershipAggregationSort) => setQuery({
     ...query,
     sort,
@@ -82,9 +85,8 @@ export function PartnershipAggregationPageContent({ canEdit }: { canEdit: boolea
         actions={<><PartnershipViewSwitcher view="aggregation" />{canEdit && <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-jackson-gold px-4 text-sm font-bold text-gray-950 shadow-sm hover:bg-jackson-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"><Plus className="h-4 w-4" /> Add partnership</button>}</>}
       />
 
-      <div className="flex flex-col items-start gap-5 lg:flex-row">
-        <PartnershipAggregationFilters query={query} facets={facetOptions} searchValue={searchValue} activeCount={activeCount} onSearchChange={setSearchDraft} onToggle={toggleFilter} onClear={clearAll} />
-        <main className="min-w-0 flex-1" aria-label="Partnership aggregation results">
+      <PartnershipAggregationFilters query={query} facets={facetOptions} searchValue={searchValue} activeCount={activeCount} onSearchChange={setSearchDraft} onFilterChange={setFilter} onClear={clearAll} />
+      <main className="mt-5 min-w-0" aria-label="Partnership aggregation results">
           <div className="mb-3 flex min-h-11 flex-wrap items-center gap-2">
             <p className="mr-auto text-sm font-semibold text-gray-700" aria-live="polite" aria-atomic="true">
               {aggregation.data ? `${aggregation.data.pageInfo.totalItems} ${aggregation.data.pageInfo.totalItems === 1 ? 'partnership' : 'partnerships'} in results` : 'Loading partnership count'}
@@ -116,8 +118,7 @@ export function PartnershipAggregationPageContent({ canEdit }: { canEdit: boolea
               ) : <PartnershipAggregationTable items={aggregation.data.items} rollup={aggregation.data.rollup} sort={aggregation.data.query.sort} direction={aggregation.data.query.direction} pageInfo={aggregation.data.pageInfo} onSort={sortBy} onPageChange={(page) => setQuery({ ...query, page }, false)} onPageSizeChange={(pageSize) => setQuery({ ...query, pageSize, page: 1 })} />}
             </div>
           ) : null}
-        </main>
-      </div>
+      </main>
       {canEdit && <AddPartnershipDialog open={adding} onClose={() => setAdding(false)} onCreated={(id) => navigate(`/partnership-tracker?partnership=${encodeURIComponent(id)}&area=k1`)} />}
     </div>
   )

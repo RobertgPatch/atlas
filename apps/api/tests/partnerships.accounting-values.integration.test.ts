@@ -7,7 +7,8 @@ import {
   type K1TrackerFixture,
 } from './helpers/k1TrackerFixture.js'
 
-describe('partnership directory K-1 amount formatting', () => {
+const durable = pool ? describe : describe.skip
+durable('partnership directory K-1 amount formatting', () => {
   let fixture: K1TrackerFixture
   let documentId: string
 

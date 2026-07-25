@@ -1,13 +1,12 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { NetCashActivityWorkspace } from '../components/NetCashActivityWorkspace'
-import { usePartnershipTrackerActions, usePartnershipTrackerYear } from '../hooks/usePartnershipTracker'
+import { usePartnershipTrackerActions } from '../hooks/usePartnershipTracker'
 import { k1CashActivityDetailFixture, summaryFixture, yearSummaryFixtures } from './fixtures'
 
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: vi.fn(),
-  usePartnershipTrackerYear: vi.fn(),
 }))
 
 vi.mock('../components/DatedCashFlowPanel', () => ({
@@ -17,6 +16,7 @@ vi.mock('../components/DatedCashFlowPanel', () => ({
 const detail: PartnershipTrackerDetail = {
   summary: summaryFixture,
   years: yearSummaryFixtures(4),
+  cashFlowEvents: k1CashActivityDetailFixture.cashFlowEvents,
   commitments: [],
   navEntries: [],
   permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true },
@@ -24,22 +24,19 @@ const detail: PartnershipTrackerDetail = {
 
 describe('NetCashActivityWorkspace', () => {
   beforeEach(() => {
-    vi.mocked(usePartnershipTrackerYear).mockReturnValue({ data: k1CashActivityDetailFixture, isLoading: false, isError: false } as ReturnType<typeof usePartnershipTrackerYear>)
     vi.mocked(usePartnershipTrackerActions).mockReturnValue({
       createCashFlows: { mutateAsync: vi.fn(), isPending: false },
       deleteCashFlow: { mutateAsync: vi.fn(), isPending: false },
     } as unknown as ReturnType<typeof usePartnershipTrackerActions>)
   })
 
-  it('shows the cash ledger in its own year-based workspace', () => {
-    const selectYear = vi.fn()
-    render(<NetCashActivityWorkspace detail={detail} selectedYear={2024} canEdit onSelectYear={selectYear} />)
+  it('shows one all-date cash ledger independent from K-1 years', () => {
+    render(<NetCashActivityWorkspace detail={detail} canEdit />)
 
-    expect(screen.getByRole('heading', { name: 'Net cash activity' })).toBeInTheDocument()
-    expect(screen.getByText(/independently from the values reported on K-1 documents/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Net cash activity across all dates' })).toBeInTheDocument()
+    expect(screen.getByText(/independently from K-1 tax years/i)).toBeInTheDocument()
+    expect(screen.getByText(/feeds the Investment Tracker/i)).toBeInTheDocument()
     expect(screen.getByText('Cash ledger with 3 entries')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /2023/i }))
-    expect(selectYear).toHaveBeenCalledWith(2023)
+    expect(screen.queryByRole('button', { name: /2023/i })).not.toBeInTheDocument()
   })
 })

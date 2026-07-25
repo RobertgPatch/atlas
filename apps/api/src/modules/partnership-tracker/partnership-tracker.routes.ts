@@ -6,19 +6,24 @@ import {
   calculateManualYearHandler,
   createCommitmentHandler,
   createManualYearHandler,
+  createOperationalCashFlowHandler,
+  createOperationalCashFlowsHandler,
   createPartnershipCashFlowHandler,
   createPartnershipCashFlowsHandler,
   createNavHandler,
   createPartnershipTrackerHandler,
   deleteCommitmentHandler,
   deleteManualYearHandler,
+  deleteOperationalCashFlowHandler,
   deletePartnershipTrackerHandler,
   deletePartnershipCashFlowHandler,
   deleteNavHandler,
+  exportPrivateInvestmentTrackerPdfHandler,
   getManualYearHandler,
   getManagementFeesHandler,
   getPartnershipAggregationHandler,
   getPartnershipTrackerHandler,
+  getPrivateInvestmentTrackerHandler,
   listCommitmentsHandler,
   listNavHandler,
   listPartnershipTrackerHandler,
@@ -33,6 +38,8 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   const gated = { preHandler: [withSession, requireAuthenticated, requirePartnershipScope] }
   const root = '/partnership-tracker/partnerships'
   app.get('/partnership-tracker/aggregation', gated, getPartnershipAggregationHandler)
+  app.get('/partnership-tracker/private-investments', gated, getPrivateInvestmentTrackerHandler)
+  app.post('/partnership-tracker/private-investments/pdf', gated, exportPrivateInvestmentTrackerPdfHandler)
   app.get(root, gated, listPartnershipTrackerHandler)
   app.post(root, gated, createPartnershipTrackerHandler)
   app.get(`${root}/:partnershipId`, gated, getPartnershipTrackerHandler)
@@ -47,6 +54,9 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   app.post(`${root}/:partnershipId/nav`, gated, createNavHandler)
   app.patch(`${root}/:partnershipId/nav/:navEntryId`, gated, updateNavHandler)
   app.delete(`${root}/:partnershipId/nav/:navEntryId`, gated, deleteNavHandler)
+  app.post(`${root}/:partnershipId/cash-flows`, gated, createOperationalCashFlowHandler)
+  app.post(`${root}/:partnershipId/cash-flows/batch`, gated, createOperationalCashFlowsHandler)
+  app.delete(`${root}/:partnershipId/cash-flows/:cashFlowId`, gated, deleteOperationalCashFlowHandler)
   app.post(`${root}/:partnershipId/years`, gated, createManualYearHandler)
   app.get(`${root}/:partnershipId/years/:taxYear`, gated, getManualYearHandler)
   app.patch(`${root}/:partnershipId/years/:taxYear`, gated, updateManualYearHandler)

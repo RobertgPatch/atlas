@@ -30,6 +30,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
   const [addressRegion, setAddressRegion] = useState('')
   const [addressPostalCode, setAddressPostalCode] = useState('')
   const [addressCountry, setAddressCountry] = useState('United States')
+  const [capitalCommitment, setCapitalCommitment] = useState('')
   const [initialValuationAmount, setInitialValuationAmount] = useState('')
   const [initialValuationDate, setInitialValuationDate] = useState('')
   const [copyK1Years, setCopyK1Years] = useState(false)
@@ -82,7 +83,16 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
     setCopyK1Years(false)
     setCopySourcePartnershipId('')
     setExcludedCopyYears([])
+    setCapitalCommitment('')
     if (nextMode === 'new') setExistingPartnershipId('')
+  }
+
+  const chooseExistingPartnership = (partnershipId: string) => {
+    const selected = existingOptions.find((summary) => summary.partnership.id === partnershipId)
+    setExistingPartnershipId(partnershipId)
+    setEntityId('')
+    setCapitalCommitment(selected?.currentCommittedCapital?.amount ?? '')
+    if (copyK1Years) chooseCopySource(partnershipId)
   }
 
   const chooseCopySource = (partnershipId: string) => {
@@ -121,6 +131,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         partnershipType: inherited?.partnershipType ?? type,
         ...(mode === 'existing' && inherited ? { existingPartnershipId: inherited.id } : {}),
         ...(copyK1Years ? { copyK1YearsFrom: { partnershipId: copySourcePartnershipId, taxYears: selectedCopyYears } } : {}),
+        capitalCommitment: capitalCommitment || null,
         notes: notes.trim() || null,
         ...(mode === 'new' ? {
           inceptionDate: inceptionDate || null,
@@ -143,6 +154,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
       setName('')
       setType('Private Equity')
       setNotes('')
+      setCapitalCommitment('')
       setCopyK1Years(false)
       setCopySourcePartnershipId('')
       setExcludedCopyYears([])
@@ -176,7 +188,7 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         </fieldset>
 
         {mode === 'existing' ? <label className="block text-sm font-medium text-gray-800">Existing partnership
-          <select ref={existingRef} value={existingPartnershipId} required onChange={(event) => { const nextId = event.target.value; setExistingPartnershipId(nextId); setEntityId(''); if (copyK1Years) chooseCopySource(nextId) }} disabled={partnerships.isLoading || !existingOptions.length} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30">
+          <select ref={existingRef} value={existingPartnershipId} required onChange={(event) => chooseExistingPartnership(event.target.value)} disabled={partnerships.isLoading || !existingOptions.length} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30">
             <option value="">{partnerships.isLoading ? 'Loading partnerships...' : 'Select a partnership'}</option>
             {existingOptions.map((summary) => <option key={groupKey(summary)} value={summary.partnership.id}>{summary.partnership.name} — {summary.partnership.partnershipType}</option>)}
           </select>
@@ -189,6 +201,11 @@ export function AddPartnershipDialog({ open, onClose, onCreated }: { open: boole
         <label className="block text-sm font-medium text-gray-800">Owner<select value={entityId} required onChange={(event) => setEntityId(event.target.value)} disabled={entities.isLoading || !availableOwners.length || (mode === 'existing' && !selectedPartnership)} className="mt-1 min-h-11 w-full rounded-md border border-gray-300 bg-white px-3 outline-none focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/30"><option value="">{entities.isLoading ? 'Loading owners...' : mode === 'existing' && !selectedPartnership ? 'Select a partnership first' : 'Select an owner'}</option>{availableOwners.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}</select></label>
         {mode === 'existing' && selectedPartnership && !availableOwners.length ? <p className="border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-950">Every available owner already has a record for this partnership.</p> : null}
         {entities.isError ? <p role="alert" className="text-sm text-red-700">Owners could not be loaded. Refresh and try again.</p> : !entities.isLoading && !entities.data?.items.length ? <p className="text-sm text-gray-600">Create an <Link to="/entities" className="font-medium text-jackson-gold underline">owner</Link> before adding a partnership.</p> : null}
+        <section aria-labelledby="capital-commitment-heading" className="rounded-md border border-gray-200 bg-gray-50/70 p-4">
+          <h3 id="capital-commitment-heading" className="text-sm font-bold text-gray-950">Capital commitment</h3>
+          <p className="mt-1 text-xs leading-5 text-gray-500">Enter this owner position's committed capital. It remains on the partnership profile; recallable distributions increase the effective commitment automatically.</p>
+          <label className="mt-3 block text-sm font-medium text-gray-800">Committed amount <span className="font-normal text-gray-500">(optional)</span><CurrencyInput value={capitalCommitment} onChange={setCapitalCommitment} allowNegative={false} placeholder="$0.00" /></label>
+        </section>
         <section aria-labelledby="copy-k1-years-heading" className="relative overflow-hidden rounded-md border border-gray-200 bg-gray-50/70 p-4 pl-5">
           <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-jackson-gold" />
           <label className="flex cursor-pointer items-start gap-3">

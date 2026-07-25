@@ -17,6 +17,7 @@ const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 const detail: PartnershipTrackerDetail = {
   summary: summaryFixture,
   years: yearSummaryFixtures(4),
+  cashFlowEvents: [],
   commitments: [],
   navEntries: [],
   permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true },

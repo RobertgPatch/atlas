@@ -40,13 +40,62 @@ describe('Partnership Tracker HTTP contract', () => {
     expect(authenticated.statusCode).toBe(pool ? 200 : 503)
   })
 
+  it('protects and validates private investment reads and PDF exports', async () => {
+    const unauthenticated = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/partnership-tracker/private-investments',
+    })
+    expect(unauthenticated.statusCode).toBe(401)
+    const reversed = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/partnership-tracker/private-investments?dateFrom=2025-02-01&dateTo=2025-01-01',
+      headers: { cookie: fixture.cookie },
+    })
+    expect(reversed.statusCode).toBe(400)
+    const invalidPdf = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/partnership-tracker/private-investments/pdf',
+      headers: { cookie: fixture.cookie },
+      payload: {
+        filters: {},
+        summaryColumns: ['entity', 'unknown'],
+        detailColumns: ['entity'],
+      },
+    })
+    expect(invalidPdf.statusCode).toBe(400)
+  })
+
+  it('protects and validates partnership-level all-date cash activity routes', async () => {
+    const partnershipId = randomUUID()
+    const unauthenticated = await fixture.app.inject({
+      method: 'POST',
+      url: `/v1/partnership-tracker/partnerships/${partnershipId}/cash-flows/batch`,
+      payload: { entries: [{ kind: 'CAPITAL_CALL', activityDate: '2020-01-01', amount: '100.00' }] },
+    })
+    expect(unauthenticated.statusCode).toBe(401)
+
+    const invalid = await fixture.app.inject({
+      method: 'POST',
+      url: `/v1/partnership-tracker/partnerships/${partnershipId}/cash-flows/batch`,
+      headers: { cookie: fixture.cookie },
+      payload: { entries: [{ kind: 'CAPITAL_CALL', activityDate: 'not-a-date', amount: '100.00' }] },
+    })
+    expect(invalid.statusCode).toBe(400)
+  })
+
   it('validates inception dates and unit-ratio management fee configuration', () => {
+    expect(createTrackedPartnershipBodySchema.safeParse({
+      entityId: fixture.entityIds[0],
+      name: 'JSP fund',
+      partnershipType: 'JSP',
+    }).success).toBe(true)
     const validCreate = createTrackedPartnershipBodySchema.safeParse({
       entityId: fixture.entityIds[0],
       name: 'Configured fund',
       partnershipType: 'Private Equity',
       inceptionDate: '2023-08-03',
       managementFeeRate: '0.02000000',
+      capitalCommitment: '1000000.00',
     })
     expect(validCreate.success).toBe(true)
     expect(createTrackedPartnershipBodySchema.safeParse({
@@ -84,6 +133,16 @@ describe('Partnership Tracker HTTP contract', () => {
       managementFeeRate: '1.00000001',
       expectedUpdatedAt: '2026-07-14T12:00:00.000Z',
     }).success).toBe(false)
+    expect(createTrackedPartnershipBodySchema.safeParse({
+      entityId: fixture.entityIds[0],
+      name: 'Invalid negative commitment',
+      partnershipType: 'Private Equity',
+      capitalCommitment: '-1.00',
+    }).success).toBe(false)
+    expect(updateTrackedPartnershipBodySchema.safeParse({
+      capitalCommitment: '-1.00',
+      expectedUpdatedAt: '2026-07-14T12:00:00.000Z',
+    }).success).toBe(false)
     expect(updateTrackedPartnershipBodySchema.safeParse({
       inceptionDate: '2999-01-01',
       expectedUpdatedAt: '2026-07-14T12:00:00.000Z',
@@ -118,8 +177,9 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     expect(result.items[0]!.latestNav?.amount).toBe('900000.00')
     expect(result.items[0]).toMatchObject({
       latestSectionLCapital: null,
-      totalCapitalContributions: null,
-      totalDistributions: null,
+      totalCapitalContributions: '0.00',
+      totalDistributions: '0.00',
+      totalRecallableDistributions: '0.00',
       dpi: null,
       tvpi: null,
       irr: null,
@@ -134,6 +194,7 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
       name: 'This value is intentionally ignored',
       partnershipType: 'Other',
       existingPartnershipId: fixture.partnershipId,
+      capitalCommitment: '1000000.00',
     }, fixture.adminUserId, { isAdmin: true, entityIds: [] })
 
     expect(created.partnership.partnership).toMatchObject({
@@ -143,6 +204,7 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
       entity: { id: fixture.targetEntityId },
     })
     expect(created.partnership.partnership.id).not.toBe(fixture.partnershipId)
+    expect(created.partnership.currentCommittedCapital?.amount).toBe('1000000.00')
 
     const aggregation = await partnershipTrackerRepository.getAggregation({ isAdmin: true, entityIds: [] }, {
       ownerIds: [], partnershipTypes: [], statuses: [], workflowStatuses: [], dataQuality: [],

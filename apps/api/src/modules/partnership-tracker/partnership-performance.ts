@@ -4,38 +4,41 @@ import type {
   PartnershipTrackerPerformanceStatus,
 } from './partnership-tracker.contracts.js'
 
-export type PartnershipAnnualPerformanceValue = {
-  taxYear: number
-  hasCanonicalContribution: boolean
-  capitalContributions: string | null
-  legacyCapitalContributions: string | null
-  distributions: string | null
+export type PartnershipCashFlowEvent = {
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+  activityDate: string
+  amount: string
 }
 
 export type PartnershipPerformanceInput = {
-  annualValues: PartnershipAnnualPerformanceValue[]
-  cashFlowEvents?: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }>
+  cashFlowEvents: PartnershipCashFlowEvent[]
   latestNav: { amount: string; date: string } | null
   inceptionDate?: string | null
   currentCommitment?: string | null
-  latestEndingOutsideBasis?: string | null
   asOfDate?: string
 }
 
 export type PartnershipPerformance = {
-  totalCapitalContributions: string | null
-  totalDistributions: string | null
+  totalCapitalContributions: string
+  totalDistributions: string
+  totalRecallableDistributions: string
   dpi: string | null
   tvpi: string | null
   irr: string | null
   irrTerminalDate: string | null
   irrUsesCarriedForwardNav: boolean
+  simplifiedIrr: string | null
+  displayIrr: string | null
+  irrType: 'XIRR' | 'SIMPLIFIED' | null
+  vintageYear: number | null
   annualizedCashOnCashYield: string | null
   performanceAsOfDate: string
   unfundedCommitmentAmount: string | null
   unfundedCommitmentPercentage: string | null
-  unrealizedGain: string | null
   performanceStatus: PartnershipTrackerPerformanceStatus
+  extendedAvailability: {
+    simplifiedIrr: PartnershipTrackerMetricAvailability
+  }
 }
 
 const zero = 0n
@@ -43,7 +46,6 @@ const ratioScale = 100_000_000n
 const millisecondsPerDay = 24 * 60 * 60 * 1000
 const absolute = (value: bigint): bigint => value < zero ? -value : value
 const sum = (values: bigint[]): bigint => values.reduce((total, value) => total + value, zero)
-const dateAtYearEnd = (taxYear: number): string => `${taxYear}-12-31`
 const utcTimestamp = (date: string): number => Date.parse(`${date}T00:00:00Z`)
 const today = (): string => new Date().toISOString().slice(0, 10)
 
@@ -53,8 +55,10 @@ const defaultStatus = (): PartnershipTrackerPerformanceStatus => ({
   irr: 'MISSING_CONTRIBUTIONS',
   annualizedCashOnCashYield: 'MISSING_CONTRIBUTIONS',
   unfundedCommitment: 'MISSING_CONTRIBUTIONS',
-  unrealizedGain: 'MISSING_NAV',
 })
+
+const fixedRatio = (value: number): string | null =>
+  Number.isFinite(value) ? value.toFixed(8) : null
 
 const ratio = (numerator: bigint, denominator: bigint): string => {
   const negative = (numerator < zero) !== (denominator < zero)
@@ -115,65 +119,51 @@ const solveIrr = (flows: Array<{ date: string; cents: bigint }>): { value: strin
 }
 
 export const composePartnershipPerformance = ({
-  annualValues,
-  cashFlowEvents = [],
+  cashFlowEvents,
   latestNav,
   inceptionDate = null,
   currentCommitment = null,
-  latestEndingOutsideBasis = null,
   asOfDate = today(),
 }: PartnershipPerformanceInput): PartnershipPerformance => {
-  const contributions = annualValues.flatMap((year) => {
-    const cents = moneyToCents(year.capitalContributions)
-    return cents == null ? [] : [{ taxYear: year.taxYear, cents }]
-  })
-  const distributions = annualValues.flatMap((year) => {
-    const cents = moneyToCents(year.distributions)
-    return cents == null ? [] : [{ taxYear: year.taxYear, cents: absolute(cents) }]
-  })
-  const datedContributions = cashFlowEvents.filter((event) => event.kind === 'CAPITAL_CALL').map((event) => ({
+  const eligibleEvents = cashFlowEvents.filter((event) => event.activityDate <= asOfDate)
+  const calls = eligibleEvents.filter((event) => event.kind === 'CAPITAL_CALL').map((event) => ({
     date: event.activityDate,
-    taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),
   }))
-  const datedDistributions = cashFlowEvents.filter((event) => event.kind === 'DISTRIBUTION' || event.kind === 'RECALLABLE_DISTRIBUTION').map((event) => ({
+  const distributions = eligibleEvents.filter((event) => event.kind === 'DISTRIBUTION').map((event) => ({
     date: event.activityDate,
-    taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),
   }))
-  const totalContributionCents = contributions.length ? sum(contributions.map((item) => item.cents)) : null
-  const totalDistributionCents = distributions.length ? sum(distributions.map((item) => item.cents)) : null
-  const navCents = moneyToCents(latestNav?.amount)
+  const recallableDistributions = eligibleEvents.filter((event) => event.kind === 'RECALLABLE_DISTRIBUTION').map((event) => ({
+    date: event.activityDate,
+    cents: absolute(moneyToCents(event.amount) ?? zero),
+  }))
+  const totalContributionCents = sum(calls.map((item) => item.cents))
+  const totalDistributionCents = sum(distributions.map((item) => item.cents))
+  const totalRecallableDistributionCents = sum(recallableDistributions.map((item) => item.cents))
+  const eligibleNav = latestNav && latestNav.date <= asOfDate ? latestNav : null
+  const navCents = moneyToCents(eligibleNav?.amount)
   const commitmentCents = moneyToCents(currentCommitment)
-  const outsideBasisCents = moneyToCents(latestEndingOutsideBasis)
   const status = defaultStatus()
 
-  if (totalContributionCents != null && totalContributionCents > zero) status.dpi = 'AVAILABLE'
-  if (totalContributionCents != null && totalContributionCents > zero) status.tvpi = latestNav ? 'AVAILABLE' : 'MISSING_NAV'
+  if (totalContributionCents > zero) status.dpi = 'AVAILABLE'
+  if (totalContributionCents > zero) status.tvpi = eligibleNav ? 'AVAILABLE' : 'MISSING_NAV'
 
   let irr: string | null = null
   let irrTerminalDate: string | null = null
   let irrUsesCarriedForwardNav = false
-  if (totalContributionCents != null && totalContributionCents > zero) {
-    if (!latestNav) {
+  if (totalContributionCents > zero) {
+    if (!eligibleNav) {
       status.irr = 'MISSING_NAV'
     } else {
       const cashFlows = new Map<string, bigint>()
-      const datedContributionYears = new Set(datedContributions.map((entry) => entry.taxYear))
-      const datedDistributionYears = new Set(datedDistributions.map((entry) => entry.taxYear))
-      for (const entry of contributions.filter((item) => !datedContributionYears.has(item.taxYear))) {
-        const date = dateAtYearEnd(entry.taxYear)
-        cashFlows.set(date, (cashFlows.get(date) ?? zero) - entry.cents)
+      for (const entry of calls) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
+      for (const entry of [...distributions, ...recallableDistributions]) {
+        cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
       }
-      for (const entry of distributions.filter((item) => !datedDistributionYears.has(item.taxYear))) {
-        const date = dateAtYearEnd(entry.taxYear)
-        cashFlows.set(date, (cashFlows.get(date) ?? zero) + entry.cents)
-      }
-      for (const entry of datedContributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
-      for (const entry of datedDistributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
-      const latestAnnualDate = cashFlows.size ? [...cashFlows.keys()].sort().at(-1)! : latestNav.date
-      irrTerminalDate = latestNav.date > latestAnnualDate ? latestNav.date : latestAnnualDate
-      irrUsesCarriedForwardNav = irrTerminalDate > latestNav.date
+      const latestCashDate = cashFlows.size ? [...cashFlows.keys()].sort().at(-1)! : eligibleNav.date
+      irrTerminalDate = eligibleNav.date > latestCashDate ? eligibleNav.date : latestCashDate
+      irrUsesCarriedForwardNav = irrTerminalDate > eligibleNav.date
       cashFlows.set(irrTerminalDate, (cashFlows.get(irrTerminalDate) ?? zero) + (navCents ?? zero))
       const result = solveIrr([...cashFlows.entries()].map(([date, cents]) => ({ date, cents })))
       irr = result.value
@@ -181,15 +171,31 @@ export const composePartnershipPerformance = ({
     }
   }
 
+  const earliestCallDate = calls.map((call) => call.date).sort()[0] ?? null
+  const vintageYear = earliestCallDate == null ? null : Number(earliestCallDate.slice(0, 4))
+  let simplifiedIrr: string | null = null
+  let simplifiedStatus: PartnershipTrackerMetricAvailability = totalContributionCents > zero
+    ? eligibleNav ? 'INSUFFICIENT_HOLDING_PERIOD' : 'MISSING_NAV'
+    : 'MISSING_CONTRIBUTIONS'
+  if (earliestCallDate && eligibleNav && totalContributionCents > zero) {
+    const holdingDays = Math.floor((utcTimestamp(asOfDate) - utcTimestamp(earliestCallDate)) / millisecondsPerDay)
+    const terminalValue = Number(totalDistributionCents + (navCents ?? zero)) / Number(totalContributionCents)
+    if (holdingDays >= 1 && terminalValue > 0) {
+      simplifiedIrr = fixedRatio(Math.pow(terminalValue, 365.25 / holdingDays) - 1)
+      simplifiedStatus = simplifiedIrr == null ? 'INSUFFICIENT_CASH_FLOWS' : 'AVAILABLE'
+    }
+  }
+  const displayIrr = irr ?? simplifiedIrr
+  const irrType = irr != null ? 'XIRR' : simplifiedIrr != null ? 'SIMPLIFIED' : null
+
   let annualizedCashOnCashYield: string | null = null
-  if (!inceptionDate) {
+  const yieldStart = earliestCallDate ?? inceptionDate
+  if (!yieldStart) {
     status.annualizedCashOnCashYield = 'MISSING_INCEPTION_DATE'
-  } else if (totalContributionCents == null || totalContributionCents <= zero) {
+  } else if (totalContributionCents <= zero) {
     status.annualizedCashOnCashYield = 'MISSING_CONTRIBUTIONS'
-  } else if (totalDistributionCents == null) {
-    status.annualizedCashOnCashYield = 'MISSING_DISTRIBUTIONS'
   } else {
-    const elapsedDays = Math.max(1, Math.round((utcTimestamp(asOfDate) - utcTimestamp(inceptionDate)) / millisecondsPerDay))
+    const elapsedDays = Math.max(1, Math.round((utcTimestamp(asOfDate) - utcTimestamp(yieldStart)) / millisecondsPerDay))
     annualizedCashOnCashYield = ratio(totalDistributionCents * 1461n, totalContributionCents * BigInt(elapsedDays) * 4n)
     status.annualizedCashOnCashYield = 'AVAILABLE'
   }
@@ -198,8 +204,6 @@ export const composePartnershipPerformance = ({
   let unfundedCommitmentPercentage: string | null = null
   if (commitmentCents == null) {
     status.unfundedCommitment = 'MISSING_COMMITMENT'
-  } else if (totalContributionCents == null) {
-    status.unfundedCommitment = 'MISSING_CONTRIBUTIONS'
   } else {
     const unfundedCents = commitmentCents - totalContributionCents
     unfundedCommitmentAmount = centsToMoney(unfundedCents)
@@ -211,29 +215,26 @@ export const composePartnershipPerformance = ({
     }
   }
 
-  let unrealizedGain: string | null = null
-  if (navCents == null) {
-    status.unrealizedGain = 'MISSING_NAV'
-  } else if (outsideBasisCents == null) {
-    status.unrealizedGain = 'MISSING_OUTSIDE_BASIS'
-  } else {
-    unrealizedGain = centsToMoney(navCents - outsideBasisCents)
-    status.unrealizedGain = 'AVAILABLE'
-  }
-
   return {
-    totalCapitalContributions: centsToMoney(totalContributionCents),
-    totalDistributions: centsToMoney(totalDistributionCents),
-    dpi: status.dpi === 'AVAILABLE' ? ratio(totalDistributionCents ?? zero, totalContributionCents!) : null,
-    tvpi: status.tvpi === 'AVAILABLE' ? ratio((totalDistributionCents ?? zero) + (navCents ?? zero), totalContributionCents!) : null,
+    totalCapitalContributions: centsToMoney(totalContributionCents)!,
+    totalDistributions: centsToMoney(totalDistributionCents)!,
+    totalRecallableDistributions: centsToMoney(totalRecallableDistributionCents)!,
+    dpi: status.dpi === 'AVAILABLE' ? ratio(totalDistributionCents, totalContributionCents) : null,
+    tvpi: status.tvpi === 'AVAILABLE' ? ratio(totalDistributionCents + (navCents ?? zero), totalContributionCents) : null,
     irr,
     irrTerminalDate,
     irrUsesCarriedForwardNav,
+    simplifiedIrr,
+    displayIrr,
+    irrType,
+    vintageYear,
     annualizedCashOnCashYield,
     performanceAsOfDate: asOfDate,
     unfundedCommitmentAmount,
     unfundedCommitmentPercentage,
-    unrealizedGain,
     performanceStatus: status,
+    extendedAvailability: {
+      simplifiedIrr: simplifiedStatus,
+    },
   }
 }

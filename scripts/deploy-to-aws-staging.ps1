@@ -172,8 +172,21 @@ try {
   if ($registryAccountId -ne $identity.Account) {
     throw "ECR/account mismatch. Terraform state points to account $registryAccountId, but AWS authentication is for $($identity.Account)."
   }
-  & aws ecr get-login-password --region $AwsRegion --profile $AwsProfile |
-    docker login --username AWS --password-stdin $registry
+  if ($env:OS -eq 'Windows_NT') {
+    # Windows PowerShell 5 encodes native-command pipelines as UTF-16. Use
+    # cmd.exe so ECR's ASCII password reaches Docker without conversion.
+    $awsExecutable = (Get-Command aws).Source
+    $dockerExecutable = (Get-Command docker).Source
+    $loginCommand = (
+      '"{0}" ecr get-login-password --region "{1}" --profile "{2}" | "{3}" login --username AWS --password-stdin "{4}"' -f
+        $awsExecutable, $AwsRegion, $AwsProfile, $dockerExecutable, $registry
+    )
+    & $env:ComSpec /d /s /c $loginCommand
+  }
+  else {
+    & aws ecr get-login-password --region $AwsRegion --profile $AwsProfile |
+      docker login --username AWS --password-stdin $registry
+  }
   if ($LASTEXITCODE -ne 0) { throw 'ECR login failed.' }
 
   & docker tag "atlas-api:$releaseTag" "$($apiOutput.ecr_repository_url):$releaseTag"

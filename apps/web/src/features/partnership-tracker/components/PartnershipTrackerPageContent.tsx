@@ -7,10 +7,8 @@ import { PageHeader } from '../../../components/shared/PageHeader'
 import { PartnershipTrackerApiError } from '../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions, usePartnershipTrackerDetail, usePartnershipTrackerList } from '../hooks/usePartnershipTracker'
 import { AddPartnershipDialog } from './AddPartnershipDialog'
-import { CommitmentHistoryPanel } from './CommitmentHistoryPanel'
 import { EditPartnershipDialog } from './EditPartnershipDialog'
 import { K1BasisWorkspace } from './K1BasisWorkspace'
-import { ManagementFeePanel } from './ManagementFeePanel'
 import { NavHistoryPanel } from './NavHistoryPanel'
 import { NetCashActivityWorkspace } from './NetCashActivityWorkspace'
 import { PartnershipOverview } from './PartnershipOverview'
@@ -19,7 +17,7 @@ import { PartnershipViewSwitcher } from './PartnershipViewSwitcher'
 import { UnderlyingAssetsPlaceholder } from './UnderlyingAssetsPlaceholder'
 
 type Area = 'overview' | 'k1' | 'cash' | 'capital' | 'assets'
-const areas: Array<{ id: Area; label: string }> = [{ id: 'overview', label: 'Overview' }, { id: 'k1', label: 'K1 Entry' }, { id: 'cash', label: 'Net Cash Activity' }, { id: 'capital', label: 'Capital & NAV' }, { id: 'assets', label: 'Underlying Assets' }]
+const areas: Array<{ id: Area; label: string }> = [{ id: 'overview', label: 'Overview' }, { id: 'k1', label: 'K1 Entry' }, { id: 'cash', label: 'Cash Activity' }, { id: 'capital', label: 'FMV' }, { id: 'assets', label: 'Underlying Assets' }]
 const errorText = (error: unknown) => error instanceof PartnershipTrackerApiError && error.code === 'DATABASE_UNAVAILABLE'
   ? 'Partnership Tracker needs the configured database connection before it can load.'
   : 'There was a problem loading the partnership directory. Please try again.'
@@ -126,7 +124,6 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
     requestK1Discard(() => updateUrl({ partnership: id, year: undefined }))
   }
   const selectYear = (year: number) => updateUrl({ partnership: selectedId, year: String(year), area: 'k1' })
-  const selectCashActivityYear = (year: number) => updateUrl({ partnership: selectedId, year: String(year), area: 'cash' })
   const created = (id: string) => { setAdding(false); setHasUnsavedK1Changes(false); updateUrl({ partnership: id, area: 'k1', year: undefined }) }
   const deletePartnership = async () => {
     if (!selectedId) return
@@ -148,7 +145,7 @@ export function PartnershipTrackerPageContent({ canEdit }: { canEdit: boolean })
       <PartnershipPicker items={list.data?.items ?? []} selectedId={selectedId} selected={detail.data?.summary} search={search} loading={list.isLoading} error={list.isError ? errorText(list.error) : undefined} canEdit={canEdit} onSearch={setSearch} onSelect={selectPartnership} onAdd={() => setAdding(true)} />
       <main className="min-w-0" aria-label="Selected partnership workspace">
         {!selectedId && !list.isLoading ? <section className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center"><h2 className="font-semibold text-gray-900">No partnership selected</h2><p className="mt-2 text-sm text-gray-500">{canEdit ? 'Add a partnership to begin, or adjust the search.' : 'No partnership is available in your entity scope.'}</p></section> : detail.isLoading ? <div className="flex min-h-72 items-center justify-center rounded-xl border border-gray-200 bg-white" aria-label="Loading selected partnership"><Loader2 className="h-6 w-6 animate-spin text-gray-400 motion-reduce:animate-none" /></div> : detail.isError ? <section role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6"><h2 className="font-semibold text-red-900">Failed to load partnership</h2><p className="mt-2 text-sm text-red-700">{errorText(detail.error)}</p><button type="button" onClick={() => void detail.refetch()} className="mt-4 rounded-lg border border-red-300 px-3 py-2 text-sm font-medium text-red-800">Try again</button></section> : detail.data ? <div className="space-y-4"><PartnershipWorkspaceHeader summary={detail.data.summary} canEdit={canEdit} onEdit={() => setEditing(true)} onDelete={() => { setDeleteError(undefined); setConfirmDeletePartnership(true) }} /><div className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-1 shadow-sm" role="tablist" aria-label="Partnership Tracker areas"><div className="flex min-w-max gap-1">{areas.map((item) => <button key={item.id} type="button" role="tab" aria-selected={area === item.id} onClick={() => { if (item.id === area) return; requestK1Discard(() => updateUrl({ area: item.id })) }} className={`rounded-lg px-4 py-2.5 text-sm font-medium ${area === item.id ? 'bg-gray-950 text-white' : 'text-gray-600 hover:bg-gray-100'}`}>{item.label}</button>)}</div></div>
-          <div role="tabpanel">{area === 'overview' ? <PartnershipOverview summary={detail.data.summary} /> : area === 'k1' ? <K1BasisWorkspace detail={detail.data} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={selectYear} onDirtyChange={setHasUnsavedK1Changes} /> : area === 'cash' ? <NetCashActivityWorkspace detail={detail.data} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={selectCashActivityYear} /> : area === 'capital' ? <div className="space-y-5"><CommitmentHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.commitments} canEdit={canEdit} /><NavHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.navEntries} canEdit={canEdit} /><ManagementFeePanel summary={detail.data.summary} canEdit={canEdit} /></div> : <UnderlyingAssetsPlaceholder />}</div>
+          <div role="tabpanel">{area === 'overview' ? <PartnershipOverview summary={detail.data.summary} /> : area === 'k1' ? <K1BasisWorkspace detail={detail.data} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={selectYear} onDirtyChange={setHasUnsavedK1Changes} /> : area === 'cash' ? <NetCashActivityWorkspace detail={detail.data} canEdit={canEdit} /> : area === 'capital' ? <NavHistoryPanel partnershipId={detail.data.summary.partnership.id} items={detail.data.navEntries} canEdit={canEdit} /> : <UnderlyingAssetsPlaceholder />}</div>
         </div> : null}
       </main>
     </div>

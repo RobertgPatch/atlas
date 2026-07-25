@@ -3,6 +3,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
   Building2,
+  ChartNoAxesCombined,
   Landmark,
   Menu,
   Network,
@@ -25,6 +26,7 @@ type NavigationItem = { name: string; href: string; icon: React.ComponentType<{ 
 const navigation: NavigationItem[] = [
   { name: 'Liquidity', href: '/liquidity', icon: Landmark },
   { name: 'Partnerships', href: '/partnership-tracker', icon: Building2 },
+  { name: 'Investment Tracker', href: '/private-investment-tracker', icon: ChartNoAxesCombined },
   { name: 'TIC Registry', href: '/tic-registry', icon: Network },
   { name: 'Entities', href: '/entities', icon: Building2 },
 ]

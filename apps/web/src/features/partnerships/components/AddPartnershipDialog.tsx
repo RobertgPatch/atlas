@@ -12,7 +12,7 @@ interface AddPartnershipDialogProps {
 }
 
 const STATUS_OPTIONS: PartnershipStatus[] = ['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED']
-const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit', 'Infrastructure', 'Other']
+const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit', 'Infrastructure', 'JSP', 'Other']
 
 export function AddPartnershipDialog({ open, onClose }: AddPartnershipDialogProps) {
   const { mutateAsync, isPending } = useCreatePartnership()

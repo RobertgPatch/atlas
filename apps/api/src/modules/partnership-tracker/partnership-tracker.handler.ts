@@ -7,6 +7,8 @@ import {
   calculateManualYearBodySchema,
   commitmentListQuerySchema,
   managementFeeQuerySchema,
+  privateInvestmentPdfBodySchema,
+  privateInvestmentQuerySchema,
   createCommitmentBodySchema,
   createPartnershipCashFlowBodySchema,
   createPartnershipCashFlowsBodySchema,
@@ -20,6 +22,7 @@ import {
   partnershipAggregationQuerySchema,
   partnershipTrackerListQuerySchema,
   partnershipTrackerNavParamsSchema,
+  partnershipTrackerOperationalCashFlowParamsSchema,
   partnershipTrackerPartnershipParamsSchema,
   partnershipTrackerSignoffBodySchema,
   partnershipTrackerYearParamsSchema,
@@ -28,6 +31,10 @@ import {
   updateNavBodySchema,
   updateTrackedPartnershipBodySchema,
 } from './partnership-tracker.zod.js'
+import {
+  buildPrivateInvestmentPdfReportModel,
+  renderPrivateInvestmentPdf,
+} from './private-investment-tracker.pdf.js'
 
 const parse = <T>(schema: ZodType<T, ZodTypeDef, unknown>, value: unknown, reply: FastifyReply): T | null => {
   try { return schema.parse(value) } catch (error) {
@@ -69,6 +76,25 @@ export const listPartnershipTrackerHandler = async (request: FastifyRequest, rep
 export const getPartnershipAggregationHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const query = parse(partnershipAggregationQuerySchema, request.query, reply); if (!query) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.getAggregation(request.partnershipScope!, query)))
+}
+export const getPrivateInvestmentTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const query = parse(privateInvestmentQuerySchema, request.query, reply); if (!query) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.getPrivateInvestments(request.partnershipScope!, query)))
+}
+export const exportPrivateInvestmentTrackerPdfHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const body = parse(privateInvestmentPdfBodySchema, request.body, reply); if (!body) return
+  return run(reply, async () => {
+    const report = await partnershipTrackerRepository.getPrivateInvestmentReport(request.partnershipScope!, {
+      ...body.filters,
+      page: 1,
+      pageSize: 100,
+    })
+    const pdf = await renderPrivateInvestmentPdf(buildPrivateInvestmentPdfReportModel(report, body))
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', `attachment; filename="investment-tracker-${report.asOfDate}.pdf"`)
+      .send(pdf)
+  })
 }
 export const getPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply); if (!params) return
@@ -175,6 +201,47 @@ export const createPartnershipCashFlowHandler = async (request: FastifyRequest, 
   const params = parse(partnershipTrackerYearParamsSchema, request.params, reply)
   const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCashFlow(params.partnershipId, params.taxYear, body, request.authUser!.userId, request.partnershipScope!)))
+}
+export const createOperationalCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(
+    await partnershipTrackerRepository.createOperationalCashFlow(
+      params.partnershipId,
+      body,
+      request.authUser!.userId,
+      request.partnershipScope!,
+    ),
+  ))
+}
+export const createOperationalCashFlowsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowsBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(
+    await partnershipTrackerRepository.createOperationalCashFlows(
+      params.partnershipId,
+      body.entries,
+      request.authUser!.userId,
+      request.partnershipScope!,
+    ),
+  ))
+}
+export const deleteOperationalCashFlowHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerOperationalCashFlowParamsSchema, request.params, reply)
+  const query = parse(expectedUpdatedAtQuerySchema, request.query, reply); if (!params || !query) return
+  return run(reply, async () => {
+    await partnershipTrackerRepository.deleteOperationalCashFlow(
+      params.partnershipId,
+      params.cashFlowId,
+      query.expectedUpdatedAt,
+      request.authUser!.userId,
+      request.partnershipScope!,
+    )
+    return reply.code(204).send()
+  })
 }
 export const createPartnershipCashFlowsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

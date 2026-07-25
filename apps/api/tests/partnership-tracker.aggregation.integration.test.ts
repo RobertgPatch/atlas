@@ -44,11 +44,11 @@ durable('Partnership aggregation PostgreSQL integration', () => {
     expect(body.rollup).toMatchObject({
       partnershipCount: 4,
       committedCapital: { amount: '350000.00', knownCount: 3, totalCount: 4 },
-      paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
-      distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
+      paidInCapital: { amount: '235000.00', knownCount: 4, totalCount: 4 },
+      distributions: { amount: '50000.00', knownCount: 4, totalCount: 4 },
       latestNav: { amount: '270000.00', knownCount: 3, totalCount: 4 },
       unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
-      dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE' },
+      dpi: { value: '0.21276596', status: 'AVAILABLE' },
       tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE' },
       navValuationRange: { earliest: '2024-12-31', latest: '2026-03-31' },
     })

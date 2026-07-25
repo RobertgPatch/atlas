@@ -94,7 +94,12 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect(year.calculation.basis.contributions).toBe('125000.00')
     expect(year.calculation.distribution.cashOrPropertyDistribution).toBe('15000.00')
     const summary = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
-    expect(summary.summary).toMatchObject({ totalCapitalContributions: '100000.00', totalDistributions: '17500.00', currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' } })
+    expect(summary.summary).toMatchObject({
+      totalCapitalContributions: '100000.00',
+      totalDistributions: '10000.00',
+      totalRecallableDistributions: '7500.00',
+      currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' },
+    })
     expect(summary.summary.unfundedCommitmentAmount).toBe('157500.00')
     expect(summary.commitments.at(-1)).toMatchObject({ amount: '257500.00', sourceCashFlowEventId: secondRecallable.id, isCurrent: true })
     expect(summary.summary.performanceStatus.irr).toBe('AVAILABLE')
@@ -108,6 +113,44 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect(afterCashActivityChanges.revision).toBe(k1BeforeCashActivity.revision)
     expect(afterCashActivityChanges.values.find((value) => value.fieldKey === 'capital_contributions')?.amount).toBe('125000.00')
     expect(afterCashActivityChanges.values.find((value) => value.fieldKey === 'box_19_distributions')?.amount).toBe('15000.00')
+  })
+
+  it('records an all-date operational ledger without creating K-1 years and exposes it to Investment Tracker', async () => {
+    const created = await partnershipTrackerRepository.createOperationalCashFlows(fixture.partnershipId, [
+      { kind: 'CAPITAL_CALL', activityDate: '2020-03-15', amount: '100000.00', note: 'Historic call' },
+      { kind: 'DISTRIBUTION', activityDate: '2025-09-30', amount: '25000.00', note: 'Current distribution' },
+    ], fixture.adminUserId, scope)
+
+    expect(created.map((entry) => entry.activityDate)).toEqual(['2020-03-15', '2025-09-30'])
+    const detail = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(detail.years).toHaveLength(0)
+    expect(detail.cashFlowEvents.map((entry) => entry.activityDate)).toEqual(['2025-09-30', '2020-03-15'])
+    expect(detail.summary).toMatchObject({
+      totalCapitalContributions: '100000.00',
+      totalDistributions: '25000.00',
+    })
+
+    const report = await partnershipTrackerRepository.getPrivateInvestmentReport(scope, {
+      assetClasses: [],
+      entityIds: [fixture.entityId],
+      partnershipIds: [fixture.partnershipId],
+      dateFrom: null,
+      dateTo: null,
+      amountMin: null,
+      amountMax: null,
+      page: 1,
+      pageSize: 50,
+    })
+    expect(report.activities.map((entry) => entry.date)).toEqual(['2025-09-30', '2020-03-15'])
+
+    await partnershipTrackerRepository.deleteOperationalCashFlow(
+      fixture.partnershipId,
+      created[0]!.id,
+      created[0]!.updatedAt,
+      fixture.adminUserId,
+      scope,
+    )
+    expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).cashFlowEvents).toHaveLength(1)
   })
 
   it('raises current unfunded commitment when a historical recallable distribution is entered after a later commitment snapshot', async () => {
