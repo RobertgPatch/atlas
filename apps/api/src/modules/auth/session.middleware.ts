@@ -1,12 +1,12 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { authRepository } from './auth.repository.js'
-import { config } from '../../config.js'
+import { readSessionToken } from './session-cookie.js'
 
 export const withSession = async (
   request: FastifyRequest,
   _reply: FastifyReply,
 ): Promise<void> => {
-  const token = request.cookies[config.sessionCookieName]
+  const token = readSessionToken(request)
   if (!token) return
 
   const session = authRepository.getSessionByToken(token)

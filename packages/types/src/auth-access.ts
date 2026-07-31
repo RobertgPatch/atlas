@@ -12,7 +12,15 @@ export interface MfaChallengeResponse {
   status: 'MFA_REQUIRED'
 }
 
-export type LoginResponse = SessionResponse
+export interface MfaEnrollmentResponse {
+  enrollmentToken: string
+  status: 'MFA_ENROLL_REQUIRED'
+  otpAuthUrl: string
+  qrCodeDataUrl: string
+  manualEntryKey: string
+}
+
+export type LoginResponse = MfaChallengeResponse | MfaEnrollmentResponse
 
 export interface MfaVerifyRequest {
   challengeId: string

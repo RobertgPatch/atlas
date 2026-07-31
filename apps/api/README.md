@@ -55,13 +55,14 @@ Copy `.env.example` to `.env` and adjust as needed:
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `DATABASE_URL` | local Docker Postgres on `127.0.0.1:55432` in development, empty otherwise | PostgreSQL connection string. Set to an empty value only when intentionally using in-memory storage. |
-| `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Required for production durability. |
+| `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Production requires at least 32 characters. |
 | `REQUIRE_DURABLE_PERSISTENCE` | `false` | Set to `true` in production so startup fails without PostgreSQL. |
 | `WEB_ORIGIN` | _(empty)_ | Comma-separated allowed browser origins for credentialed CORS requests. |
 | `ADMIN_EMAIL` | `admin@jackson.com` | Bootstrap admin email inserted into durable databases on startup |
-| `ADMIN_PASSWORD` | `password123` | Bootstrap admin password used when the admin user is first created |
+| `ADMIN_PASSWORD` | `password123` in development; empty in production | Bootstrap admin password used when the admin user is first created. Production requires at least 12 characters. |
 | `USER_EMAIL` | `user@jackson.com` | Bootstrap standard user email inserted into durable databases on startup |
-| `USER_PASSWORD` | `password123` | Bootstrap standard user password used when the user is first created |
+| `USER_PASSWORD` | `password123` in development; empty in production | Optional bootstrap standard-user password. When set in production, it requires at least 12 characters. |
+| `SESSION_SECRET` | _(empty)_ | Cookie-signing secret. Production requires at least 32 characters. |
 | `SESSION_COOKIE_NAME` | `atlas_session` | Name of the session cookie |
 | `SESSION_COOKIE_SECURE` | `false` | Set to `true` in production (HTTPS only) |
 | `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie SameSite policy |

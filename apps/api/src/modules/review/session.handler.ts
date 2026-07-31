@@ -1,5 +1,4 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import path from 'node:path'
 import { promises as fs } from 'node:fs'
 import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
@@ -12,7 +11,7 @@ import type {
   K1Issue,
   K1ReviewSection,
 } from './review.types.js'
-import { config } from '../../config.js'
+import { resolvePdfStoragePath } from '../k1/storage/localPdfStore.js'
 
 const sendZodError = (reply: FastifyReply, err: ZodError) =>
   reply.code(400).send({
@@ -191,7 +190,13 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
   const storagePath = k1Repository.getDocumentStoragePath(k.id)
   if (!storagePath) return reply.code(404).send({ error: 'NOT_FOUND' })
 
-  const abs = path.resolve(config.storageRoot, storagePath)
+  let abs: string
+  try {
+    abs = resolvePdfStoragePath(storagePath)
+  } catch {
+    return reply.code(404).send({ error: 'NOT_FOUND' })
+  }
+
   try {
     const stat = await fs.stat(abs)
     if (!stat.isFile()) return reply.code(404).send({ error: 'NOT_FOUND' })

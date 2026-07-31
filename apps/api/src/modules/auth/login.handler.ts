@@ -3,7 +3,7 @@ import { authRepository } from './auth.repository.js'
 import { loginSchema } from './auth.schemas.js'
 import { lockoutService } from './lockout.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
-import { config } from '../../config.js'
+import { totpService } from './totp.service.js'
 
 export const loginHandler = async (
   request: FastifyRequest,
@@ -23,7 +23,8 @@ export const loginHandler = async (
   }
 
   const user = authRepository.findUserByEmail(email)
-  if (!user || user.status === 'Inactive' || !authRepository.verifyPassword(user, password)) {
+  const passwordValid = authRepository.verifyPassword(user, password)
+  if (!user || user.status !== 'Active' || !passwordValid) {
     const lockoutUntil = await lockoutService.recordFailure(email, 'PASSWORD')
     await auditRepository.record({
       eventName: 'auth.login.failed',
@@ -42,35 +43,33 @@ export const loginHandler = async (
   }
 
   await lockoutService.clear(email, 'PASSWORD')
-  const { token, session } = authRepository.createSession(user.id)
 
   await auditRepository.record({
     actorUserId: user.id,
-    eventName: 'auth.login.succeeded',
+    eventName: 'auth.password.verified',
     objectType: 'user',
     objectId: user.id,
   })
 
-  reply.setCookie(config.sessionCookieName, token, {
-    httpOnly: true,
-    secure: config.sessionCookieSecure,
-    sameSite: config.sessionCookieSameSite,
-    path: '/',
-    maxAge: config.sessionAbsoluteTimeoutSeconds,
-  })
+  if (authRepository.isMfaEnrollmentRequired(user)) {
+    const secret = totpService.generateSecret()
+    const enrollment = authRepository.createMfaEnrollment(user.id, secret)
+    const otpAuthUrl = totpService.buildOtpAuthUrl(user.email, secret)
+    const qrCodeDataUrl = await totpService.buildQrCodeDataUrl(otpAuthUrl)
 
+    reply.send({
+      enrollmentToken: enrollment.id,
+      status: 'MFA_ENROLL_REQUIRED',
+      otpAuthUrl,
+      qrCodeDataUrl,
+      manualEntryKey: secret,
+    })
+    return
+  }
+
+  const challenge = authRepository.createMfaChallenge(user.id)
   reply.send({
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-    },
-    role: user.role,
-    session: {
-      issuedAt: session.issuedAt.toISOString(),
-      idleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
-      absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
-    },
+    challengeId: challenge.id,
+    status: 'MFA_REQUIRED',
   })
 }

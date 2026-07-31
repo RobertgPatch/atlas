@@ -13,5 +13,8 @@ export default defineConfig({
       'src/**/*.test.ts',
     ],
     globals: true,
+    // Several UI performance and navigation assertions are intentionally
+    // tight. Keep them isolated from cross-file CPU contention on shared CI.
+    maxWorkers: 1,
   },
 })

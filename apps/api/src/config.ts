@@ -19,6 +19,7 @@ const asList = (value: string | undefined, fallback: string): string[] =>
     .filter(Boolean)
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
+const isProduction = nodeEnv === 'production'
 const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:55432/atlas'
 const databaseUrl =
   nodeEnv === 'test'
@@ -41,9 +42,9 @@ export const config = {
   persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
   requireDurablePersistence: asBoolean(process.env.REQUIRE_DURABLE_PERSISTENCE),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@jackson.com',
-  adminPassword: process.env.ADMIN_PASSWORD ?? 'password123',
+  adminPassword: process.env.ADMIN_PASSWORD ?? (isProduction ? '' : 'password123'),
   userEmail: process.env.USER_EMAIL ?? 'user@jackson.com',
-  userPassword: process.env.USER_PASSWORD ?? 'password123',
+  userPassword: process.env.USER_PASSWORD ?? (isProduction ? '' : 'password123'),
   webOrigin: process.env.WEB_ORIGIN ?? '',
   sessionSecret: process.env.SESSION_SECRET ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',

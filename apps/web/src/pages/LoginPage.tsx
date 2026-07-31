@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
-import { sessionStore } from '../auth/sessionStore'
+import { authFlowStore } from '../auth/authFlowStore'
 
 const getLoginErrorMessage = (error: unknown) => {
   if (
@@ -47,9 +47,14 @@ export function LoginPage() {
 
     setIsLoading(true)
     try {
-      const session = await authClient.login(email, password)
-      sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      const result = await authClient.login(email, password)
+      if (result.status === 'MFA_ENROLL_REQUIRED') {
+        authFlowStore.setEnrollment(result)
+        navigate('/mfa/setup')
+      } else {
+        authFlowStore.setChallenge(result)
+        navigate('/mfa')
+      }
     } catch (err) {
       setError(getLoginErrorMessage(err))
     } finally {

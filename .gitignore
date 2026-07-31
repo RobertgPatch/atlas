@@ -171,5 +171,7 @@ Thumbs.db
 *.secret
 *.secret.*
 secrets/
+!infra/aws/terraform/modules/secrets/
+!infra/aws/terraform/modules/secrets/*.tf
 aws-exports.*
 cdk.context.json

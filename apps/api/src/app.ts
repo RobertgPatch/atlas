@@ -88,7 +88,9 @@ export const buildApp = () => {
     credentials: true,
   })
 
-  app.register(cookie)
+  app.register(cookie, {
+    secret: config.sessionSecret || undefined,
+  })
   app.register(multipart, {
     limits: {
       fileSize: config.k1UploadMaxBytes,

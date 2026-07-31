@@ -13,7 +13,7 @@ const yearFolder = (taxYearOrFolder: number | string) => String(taxYearOrFolder)
 const storageRoot = path.resolve(config.storageRoot)
 const storageRootPrefix = `${storageRoot}${path.sep}`
 
-const resolveStoragePath = (storagePath: string) => {
+export const resolvePdfStoragePath = (storagePath: string) => {
   const resolvedPath = path.resolve(storageRoot, storagePath)
   if (!resolvedPath.startsWith(storageRootPrefix)) {
     throw new Error('Path traversal detected: storage path must be within configured storage root')
@@ -32,12 +32,12 @@ export const localPdfStore: PdfStore = {
   },
 
   get(storagePath) {
-    const abs = resolveStoragePath(storagePath)
+    const abs = resolvePdfStoragePath(storagePath)
     return createReadStream(abs)
   },
 
   async delete(storagePath) {
-    const abs = resolveStoragePath(storagePath)
+    const abs = resolvePdfStoragePath(storagePath)
     await fs.unlink(abs).catch(() => undefined)
   },
 }
