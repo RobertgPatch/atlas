@@ -116,4 +116,19 @@ describe('multi-factor login', () => {
     expect(response.statusCode).toBe(401)
     expect(response.headers['set-cookie']).toBeUndefined()
   })
+
+  it('rejects an otherwise valid session when the user is not active', async () => {
+    authRepository.updateUserStatus(fixture.user.id, 'Inactive')
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: fixture.userCookie },
+      })
+      expect(response.statusCode).toBe(401)
+    } finally {
+      authRepository.updateUserStatus(fixture.user.id, 'Active')
+    }
+  })
 })

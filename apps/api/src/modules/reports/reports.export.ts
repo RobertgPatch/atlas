@@ -5,6 +5,7 @@ import type {
   ReportType,
 } from './reports.zod.js'
 import { reportsRepository, type ReportsScope } from './reports.repository.js'
+import { escapeCsvCell } from '../../infra/export/csv.js'
 
 type ExportCell = string | number | boolean | null
 
@@ -23,17 +24,10 @@ const CSV_MIME_TYPE = 'text/csv; charset=utf-8'
 const XLSX_MIME_TYPE =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 
-const toCsvCell = (value: ExportCell): string => {
-  if (value == null) return ''
-  const str = String(value)
-  if (!/[",\n\r]/.test(str)) return str
-  return `"${str.replace(/"/g, '""')}"`
-}
-
 const toCsvBuffer = (headers: string[], rows: ExportCell[][]): Buffer => {
   const lines = [
-    headers.map((header) => toCsvCell(header)).join(','),
-    ...rows.map((row) => row.map((value) => toCsvCell(value)).join(',')),
+    headers.map((header) => escapeCsvCell(header)).join(','),
+    ...rows.map((row) => row.map((value) => escapeCsvCell(value)).join(',')),
   ]
   return Buffer.from(lines.join('\n'), 'utf8')
 }

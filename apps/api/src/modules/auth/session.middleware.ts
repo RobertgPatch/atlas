@@ -12,9 +12,9 @@ export const withSession = async (
   const session = authRepository.getSessionByToken(token)
   if (!session || !authRepository.isSessionValid(session)) return
 
-  authRepository.touchSession(session.id)
   const user = authRepository.getUserById(session.userId)
-  if (!user) return
+  if (!user || user.status !== 'Active') return
+  authRepository.touchSession(session.id)
 
   request.authUser = {
     userId: user.id,

@@ -137,7 +137,7 @@ export interface SourceHoldingRecord {
   asOfDate: string | null
 }
 
-interface PlaidAccountVisibility {
+export interface PlaidAccountVisibility {
   actorUserId?: string
   isAdmin?: boolean
 }
@@ -158,6 +158,12 @@ export interface PlaidConnectionRecord {
   accessToken: string
   status: 'connected' | 'needs_update' | 'disconnected'
   lastSuccessfulSyncAt: string | null
+}
+
+export class PlaidConnectionOwnershipError extends Error {
+  constructor() {
+    super('PLAID_CONNECTION_OWNERSHIP_CONFLICT')
+  }
 }
 
 interface AccountRow {
@@ -342,8 +348,16 @@ const accountIsVisible = (
 ) => {
   if (!visibility?.actorUserId || visibility.isAdmin) return true
   const connection = connections.find((item) => item.id === account.connectionId)
-  return !connection || connection.ownerUserId === visibility.actorUserId
+  return Boolean(connection && connection.ownerUserId === visibility.actorUserId)
 }
+
+const connectionIsVisible = (
+  connection: PlaidConnectionRecord,
+  visibility?: PlaidAccountVisibility,
+) =>
+  !visibility?.actorUserId ||
+  Boolean(visibility.isAdmin) ||
+  connection.ownerUserId === visibility.actorUserId
 
 const parseStringArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {
@@ -578,12 +592,12 @@ const persistConnection = (connection: PlaidConnectionRecord) => {
         )
         values ($1, $2, $3, $4, $5, $6, $7, $8, now())
         on conflict (plaid_item_id) do update
-        set owner_user_id = excluded.owner_user_id,
-            institution_id = excluded.institution_id,
+        set institution_id = excluded.institution_id,
             institution_name = excluded.institution_name,
             access_token_ciphertext = excluded.access_token_ciphertext,
             status = excluded.status,
             updated_at = now()
+        where plaid_connections.owner_user_id = excluded.owner_user_id
       `,
       [
         connection.id,
@@ -763,6 +777,95 @@ const clearPersistedState = async () => {
     await client.query('delete from holdings_sync_snapshots')
     await client.query('delete from holdings_refresh_attempts')
     await client.query('delete from plaid_connections')
+    await client.query('commit')
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+const clearPersistedStateForOwner = async (
+  ownerUserId: string,
+  plaidAccountIds: string[],
+) => {
+  if (!pool) return
+
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const affectedSnapshots =
+      plaidAccountIds.length > 0
+        ? await client.query<{ id: string }>(
+            `select id
+             from holdings_sync_snapshots
+             where selected_account_ids ?| $1::text[]`,
+            [plaidAccountIds],
+          )
+        : { rows: [] }
+
+    await client.query(
+      `delete from plaid_connections where owner_user_id = $1`,
+      [ownerUserId],
+    )
+
+    if (plaidAccountIds.length > 0) {
+      await client.query(
+        `update holdings_sync_snapshots snapshot
+         set selected_account_ids = coalesce(
+           (
+             select jsonb_agg(account_ids.account_id)
+             from jsonb_array_elements_text(snapshot.selected_account_ids)
+               as account_ids(account_id)
+             where not (account_ids.account_id = any($1::text[]))
+           ),
+           '[]'::jsonb
+         )
+         where snapshot.selected_account_ids ?| $1::text[]`,
+        [plaidAccountIds],
+      )
+      await client.query(
+        `update holdings_refresh_attempts attempt
+         set selected_account_ids = array(
+           select account_ids.account_id
+           from unnest(attempt.selected_account_ids) as account_ids(account_id)
+           where not (account_ids.account_id = any($1::text[]))
+         )
+         where attempt.selected_account_ids && $1::text[]`,
+        [plaidAccountIds],
+      )
+
+      const snapshotIds = affectedSnapshots.rows.map((row) => row.id)
+      if (snapshotIds.length > 0) {
+        await client.query(
+          `update holdings_sync_snapshots snapshot
+           set holdings_count = (
+             select count(*)::integer
+             from source_holdings holding
+             where holding.sync_snapshot_id = snapshot.id
+           ),
+           dashboard_eligible = dashboard_eligible and exists (
+             select 1
+             from source_holdings holding
+             where holding.sync_snapshot_id = snapshot.id
+           )
+           where snapshot.id = any($1::uuid[])`,
+          [snapshotIds],
+        )
+      }
+    }
+
+    await client.query(
+      `delete from holdings_sync_snapshots snapshot
+       where snapshot.requested_by_user_id = $1
+         and snapshot.selected_account_ids = '[]'::jsonb
+         and not exists (
+           select 1 from source_holdings holding
+           where holding.sync_snapshot_id = snapshot.id
+         )`,
+      [ownerUserId],
+    )
     await client.query('commit')
   } catch (error) {
     await client.query('rollback')
@@ -1581,6 +1684,9 @@ export const plaidRepository = {
     metadataAccounts: Array<Record<string, unknown>>
   }): PlaidConnectionResponse {
     const existing = connections.find((item) => item.plaidItemId === input.plaidItemId)
+    if (existing && existing.ownerUserId !== input.ownerUserId) {
+      throw new PlaidConnectionOwnershipError()
+    }
     const connection =
       existing ??
       ({
@@ -1644,22 +1750,99 @@ export const plaidRepository = {
     }
   },
 
-  listInvestmentAccounts(): PlaidInvestmentAccount[] {
-    return [...accounts].sort((a, b) =>
-      `${a.custodianName} ${a.name}`.localeCompare(`${b.custodianName} ${b.name}`),
-    )
+  listInvestmentAccounts(
+    visibility?: PlaidAccountVisibility,
+  ): PlaidInvestmentAccount[] {
+    return accounts
+      .filter((account) => accountIsVisible(account, visibility))
+      .sort((a, b) =>
+        `${a.custodianName} ${a.name}`.localeCompare(`${b.custodianName} ${b.name}`),
+      )
   },
 
-  updateSelectedInvestmentAccounts(selectedAccountIds: string[]): PlaidInvestmentAccount[] {
+  updateSelectedInvestmentAccounts(
+    selectedAccountIds: string[],
+    visibility?: PlaidAccountVisibility,
+  ): PlaidInvestmentAccount[] {
     const selected = new Set(selectedAccountIds)
     for (const account of accounts) {
+      if (!accountIsVisible(account, visibility)) continue
       account.selectedForHoldingsReport = selected.has(account.id)
       persistAccount(account)
     }
-    return this.listInvestmentAccounts()
+    return this.listInvestmentAccounts(visibility)
   },
 
-  async clearConnectedAccounts(): Promise<ClearConnectedAccountsResult> {
+  async clearConnectedAccounts(
+    visibility?: PlaidAccountVisibility,
+  ): Promise<ClearConnectedAccountsResult> {
+    const clearAll = !visibility?.actorUserId || Boolean(visibility.isAdmin)
+    if (!clearAll) {
+      const visibleConnections = connections.filter((connection) =>
+        connectionIsVisible(connection, visibility),
+      )
+      const connectionIds = new Set(visibleConnections.map((connection) => connection.id))
+      const visibleAccounts = accounts.filter((account) =>
+        connectionIds.has(account.connectionId),
+      )
+      const accountIds = new Set(visibleAccounts.map((account) => account.id))
+      const affectedSnapshotIds = new Set(
+        snapshots
+          .filter((snapshot) =>
+            snapshot.selectedAccountIds?.some((accountId) => accountIds.has(accountId)),
+          )
+          .map((snapshot) => snapshot.id),
+      )
+      const result = {
+        connectionCount: visibleConnections.length,
+        accountCount: visibleAccounts.length,
+        holdingCount: sourceHoldings.filter((holding) => accountIds.has(holding.accountId)).length,
+        snapshotCount: affectedSnapshotIds.size,
+      }
+
+      if (pool) {
+        const ownerUserId = visibility!.actorUserId!
+        const clearWrite = dbWriteQueue.then(() =>
+          clearPersistedStateForOwner(ownerUserId, [...accountIds]),
+        )
+        dbWriteQueue = clearWrite.catch((error) => {
+          console.error('[persistence] scoped plaid clear failed', error)
+        })
+        await clearWrite
+      }
+
+      for (let index = sourceHoldings.length - 1; index >= 0; index -= 1) {
+        if (accountIds.has(sourceHoldings[index]!.accountId)) {
+          sourceHoldings.splice(index, 1)
+        }
+      }
+      for (const snapshot of snapshots) {
+        if (!affectedSnapshotIds.has(snapshot.id)) continue
+        snapshot.selectedAccountIds = (snapshot.selectedAccountIds ?? []).filter(
+          (accountId) => !accountIds.has(accountId),
+        )
+        snapshot.holdingsCount = sourceHoldings.filter(
+          (holding) => holding.syncSnapshotId === snapshot.id,
+        ).length
+        snapshot.dashboardEligible =
+          Boolean(snapshot.dashboardEligible) && snapshot.holdingsCount > 0
+      }
+      for (const attempt of refreshAttempts) {
+        attempt.selectedAccountIds = attempt.selectedAccountIds.filter(
+          (accountId) => !accountIds.has(accountId),
+        )
+      }
+      for (let index = accounts.length - 1; index >= 0; index -= 1) {
+        if (accountIds.has(accounts[index]!.id)) accounts.splice(index, 1)
+      }
+      for (let index = connections.length - 1; index >= 0; index -= 1) {
+        if (connectionIds.has(connections[index]!.id)) connections.splice(index, 1)
+      }
+      for (const accountId of accountIds) dbAccountIdsByPlaidAccountId.delete(accountId)
+
+      return result
+    }
+
     const result = {
       connectionCount: connections.length,
       accountCount: accounts.length,
@@ -1689,13 +1872,20 @@ export const plaidRepository = {
     )
   },
 
-  getSelectedInvestmentAccountsByConnection(): Array<{
+  getSelectedInvestmentAccountsByConnection(
+    visibility?: PlaidAccountVisibility,
+  ): Array<{
     connection: PlaidConnectionRecord
     accounts: PlaidInvestmentAccount[]
   }> {
-    const selectedAccounts = this.getSelectedInvestmentAccounts()
+    const selectedAccounts = this.getSelectedInvestmentAccounts(visibility)
     return connections
-      .filter((connection) => connection.status === 'connected' && connection.accessToken)
+      .filter(
+        (connection) =>
+          connection.status === 'connected' &&
+          connection.accessToken &&
+          connectionIsVisible(connection, visibility),
+      )
       .map((connection) => ({
         connection,
         accounts: selectedAccounts.filter(

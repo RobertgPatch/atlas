@@ -147,6 +147,29 @@ describe('POST /v1/k1-documents — upload contract', () => {
     expect(res.statusCode).toBe(415)
   })
 
+  it('415 when a non-PDF payload spoofs the application/pdf media type', async () => {
+    const { entity } = uploadTarget()
+    const { body, contentType } = buildMultipart(
+      [{ name: 'entityId', value: entity.id }],
+      [
+        {
+          name: 'file',
+          filename: 'spoofed.pdf',
+          contentType: 'application/pdf',
+          data: Buffer.from('<html><script>alert(1)</script></html>'),
+        },
+      ],
+    )
+    const res = await f.app.inject({
+      method: 'POST',
+      url: '/v1/k1-documents',
+      headers: { cookie: f.cookie, 'content-type': contentType },
+      payload: body,
+    })
+    expect(res.statusCode).toBe(415)
+    expect(res.json().error).toBe('INVALID_PDF_FILE')
+  })
+
   it('400 on missing file part', async () => {
     const { entity } = uploadTarget()
     const { body, contentType } = buildMultipart(

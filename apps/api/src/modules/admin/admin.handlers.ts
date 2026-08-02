@@ -113,6 +113,12 @@ export const inviteUserHandler = async (
     return
   }
 
+  const existingUser = authRepository.findUserByEmail(payload.data.email)
+  if (existingUser && existingUser.status !== 'Invited') {
+    reply.status(409).send({ error: 'USER_ALREADY_EXISTS' })
+    return
+  }
+
   const invite = invitationRepository.create(payload.data.email, payload.data.role)
   const invitedUser = authRepository.upsertInvitedUser(payload.data.email, payload.data.role)
 

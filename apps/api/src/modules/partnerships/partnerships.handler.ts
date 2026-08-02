@@ -2,6 +2,7 @@ import type { FastifyRequest, FastifyReply } from 'fastify'
 import { ZodError } from 'zod'
 import { partnershipsRepository } from './partnerships.repository.js'
 import { pool, withTransaction } from '../../infra/db/client.js'
+import { escapeCsvCell } from '../../infra/export/csv.js'
 import type { PartnershipDirectoryRow } from './partnerships.types.js'
 import {
   listPartnershipsQuerySchema,
@@ -244,22 +245,13 @@ export const updatePartnershipHandler = async (
     if (msg.includes('DATABASE_URL')) {
       return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
     }
-    return reply.status(500).send({ error: 'INTERNAL_ERROR', message: msg })
+    return reply.status(500).send({ error: 'INTERNAL_ERROR' })
   }
 }
 
 // ---------------------------------------------------------------------------
 // CSV builder (T021)
 // ---------------------------------------------------------------------------
-
-function escapeCsvField(value: string | number | null | undefined): string {
-  if (value == null) return ''
-  const str = String(value)
-  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-    return `"${str.replace(/"/g, '""')}"`
-  }
-  return str
-}
 
 function buildCsv(rows: PartnershipDirectoryRow[]): string {
   const header = [
@@ -275,14 +267,14 @@ function buildCsv(rows: PartnershipDirectoryRow[]): string {
 
   const dataRows = rows.map((r) =>
     [
-      escapeCsvField(r.name),
-      escapeCsvField(r.entity.name),
-      escapeCsvField(r.assetClass),
-      escapeCsvField(r.status),
-      escapeCsvField(r.latestK1Year),
-      escapeCsvField(r.latestDistributionUsd),
-      escapeCsvField(r.latestFmv?.amountUsd),
-      escapeCsvField(r.latestFmv?.asOfDate),
+      escapeCsvCell(r.name),
+      escapeCsvCell(r.entity.name),
+      escapeCsvCell(r.assetClass),
+      escapeCsvCell(r.status),
+      escapeCsvCell(r.latestK1Year),
+      escapeCsvCell(r.latestDistributionUsd),
+      escapeCsvCell(r.latestFmv?.amountUsd),
+      escapeCsvCell(r.latestFmv?.asOfDate),
     ].join(','),
   )
 

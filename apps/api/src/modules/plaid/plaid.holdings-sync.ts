@@ -13,6 +13,7 @@ import {
   type HoldingsRefreshReason,
   type HoldingsRefreshTriggerSource,
   type HoldingsSyncSnapshot,
+  type PlaidAccountVisibility,
   type PlaidInvestmentAccount,
   type SourceHoldingRecord,
 } from './plaid.repository.js'
@@ -29,6 +30,7 @@ export interface SyncSelectedHoldingsInput {
   force?: boolean
   scheduledFor?: string | Date | null
   now?: Date
+  accountVisibility?: PlaidAccountVisibility
 }
 
 const typeLabel = (type: string | null | undefined): string => {
@@ -133,9 +135,12 @@ const dashboardEligible = (
 
 const normalizeSyncInput = (
   input: string | SyncSelectedHoldingsInput,
-): Required<Omit<SyncSelectedHoldingsInput, 'now' | 'scheduledFor'>> & {
+): Required<
+  Omit<SyncSelectedHoldingsInput, 'now' | 'scheduledFor' | 'accountVisibility'>
+> & {
   now: Date
   scheduledFor: string | null
+  accountVisibility?: PlaidAccountVisibility
 } => {
   if (typeof input === 'string') {
     return {
@@ -144,6 +149,7 @@ const normalizeSyncInput = (
       force: false,
       now: new Date(),
       scheduledFor: null,
+      accountVisibility: { actorUserId: input, isAdmin: false },
     }
   }
 
@@ -152,6 +158,7 @@ const normalizeSyncInput = (
     requestedByUserId: input.requestedByUserId ?? null,
     triggerSource: input.triggerSource ?? 'manual',
     force: input.force ?? false,
+    accountVisibility: input.accountVisibility,
     now,
     scheduledFor:
       input.scheduledFor instanceof Date
@@ -253,8 +260,12 @@ export const plaidHoldingsSync = {
     input: string | SyncSelectedHoldingsInput,
   ): Promise<HoldingsRefreshAttempt> {
     const request = normalizeSyncInput(input)
-    const selectedAccounts = plaidRepository.getSelectedInvestmentAccounts()
-    const selectedByConnection = plaidRepository.getSelectedInvestmentAccountsByConnection()
+    const selectedAccounts = plaidRepository.getSelectedInvestmentAccounts(
+      request.accountVisibility,
+    )
+    const selectedByConnection = plaidRepository.getSelectedInvestmentAccountsByConnection(
+      request.accountVisibility,
+    )
     const selectedAccountIds = selectedAccounts.map((account) => account.id)
     const activeAttempt =
       await plaidRepository.getActiveRefreshAttempt(selectedAccountIds)
@@ -401,7 +412,7 @@ export const plaidHoldingsSync = {
 
             for (const plaidAccount of response.data.accounts) {
               const existing = plaidRepository
-                .listInvestmentAccounts()
+                .listInvestmentAccounts(request.accountVisibility)
                 .find((account) => account.id === plaidAccount.account_id)
               const selected = selectedAccountIds.includes(plaidAccount.account_id)
               Object.assign(

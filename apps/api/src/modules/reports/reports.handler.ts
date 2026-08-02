@@ -210,6 +210,10 @@ export const refreshConsolidatedHoldingsHandler = async (
       requestedByUserId: request.authUser.userId,
       triggerSource: 'manual',
       force: body.force || body.reason === 'forced',
+      accountVisibility: {
+        actorUserId: request.authUser.userId,
+        isAdmin: request.authUser.role === 'Admin',
+      },
     })
 
     reply.status(202).send(attempt)
