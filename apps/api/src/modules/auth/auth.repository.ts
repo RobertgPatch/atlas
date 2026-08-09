@@ -1,4 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto'
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto'
 import { config } from '../../config.js'
 import { pool } from '../../infra/db/client.js'
 import { decryptSecret, encryptSecret } from '../../infra/crypto/secretCodec.js'
@@ -69,8 +75,58 @@ interface SessionRow {
   revoke_reason: string | null
 }
 
-const hash = (value: string) =>
+const hashToken = (value: string) =>
   createHash('sha256').update(value).digest('hex')
+
+const PASSWORD_HASH_VERSION = 'scrypt-v1'
+const PASSWORD_KEY_LENGTH = 64
+const AUTH_FLOW_TTL_MS = 5 * 60 * 1000
+
+const hashPassword = (password: string): string => {
+  const salt = randomBytes(16)
+  const digest = scryptSync(password, salt, PASSWORD_KEY_LENGTH)
+  return [
+    PASSWORD_HASH_VERSION,
+    salt.toString('base64url'),
+    digest.toString('base64url'),
+  ].join('$')
+}
+
+const constantTimeEqual = (left: Buffer, right: Buffer): boolean =>
+  left.length === right.length && timingSafeEqual(left, right)
+
+const verifyPasswordHash = (
+  password: string,
+  encodedHash: string,
+): { valid: boolean; needsRehash: boolean } => {
+  const [version, saltText, digestText] = encodedHash.split('$')
+  if (version === PASSWORD_HASH_VERSION && saltText && digestText) {
+    try {
+      const salt = Buffer.from(saltText, 'base64url')
+      const expected = Buffer.from(digestText, 'base64url')
+      const actual = scryptSync(password, salt, expected.length)
+      return {
+        valid: constantTimeEqual(actual, expected),
+        needsRehash: false,
+      }
+    } catch {
+      return { valid: false, needsRehash: false }
+    }
+  }
+
+  // Transparently migrate the legacy unsalted SHA-256 format after the next
+  // successful login. Session and invitation tokens continue to use SHA-256.
+  if (/^[a-f0-9]{64}$/i.test(encodedHash)) {
+    const expected = Buffer.from(encodedHash, 'hex')
+    const actual = Buffer.from(hashToken(password), 'hex')
+    const valid = constantTimeEqual(actual, expected)
+    return { valid, needsRehash: valid }
+  }
+
+  return { valid: false, needsRehash: false }
+}
+
+const dummyPasswordHash = hashPassword(randomBytes(32).toString('base64url'))
 
 const now = () => new Date()
 
@@ -132,7 +188,7 @@ const seedInMemoryUsers = () => {
   users.set(adminId, {
     id: adminId,
     email: config.adminEmail,
-    passwordHash: hash(config.adminPassword),
+    passwordHash: hashPassword(config.adminPassword),
     role: 'Admin',
     status: 'Active',
     mfaSecret: null,
@@ -146,7 +202,7 @@ const seedInMemoryUsers = () => {
   users.set(userId, {
     id: userId,
     email: config.userEmail,
-    passwordHash: hash(config.userPassword),
+    passwordHash: hashPassword(config.userPassword),
     role: 'User',
     status: 'Active',
     mfaSecret: null,
@@ -195,7 +251,7 @@ const upsertSeedUser = async (email: string, password: string, role: Role) => {
       set updated_at = now()
       returning id
     `,
-    [randomUUID(), email, hash(password)],
+    [randomUUID(), email, hashPassword(password)],
   )
   const userId = userResult.rows[0]?.id
   if (!userId) return
@@ -359,8 +415,12 @@ export const authRepository = {
       values (gen_random_uuid(), 'Admin'), (gen_random_uuid(), 'User')
       on conflict (name) do nothing
     `)
-  await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
-  await upsertSeedUser(config.userEmail, config.userPassword, 'User')
+    if (config.adminEmail && config.adminPassword) {
+      await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
+    }
+    if (config.userEmail && config.userPassword) {
+      await upsertSeedUser(config.userEmail, config.userPassword, 'User')
+    }
     await loadUsersFromDatabase()
     await loadSessionsFromDatabase()
   },
@@ -370,11 +430,27 @@ export const authRepository = {
     return [...users.values()].find((user) => user.email.toLowerCase() === lower)
   },
 
-  verifyPassword(user: UserRecord, password: string): boolean {
-    return user.passwordHash === hash(password)
+  verifyPassword(user: UserRecord | undefined, password: string): boolean {
+    const result = verifyPasswordHash(password, user?.passwordHash ?? dummyPasswordHash)
+    if (user && result.needsRehash) {
+      user.passwordHash = hashPassword(password)
+      users.set(user.id, user)
+      persistUser(user)
+    }
+    return result.valid
   },
 
   createMfaChallenge(userId: string): MfaChallengeRecord {
+    const currentTime = now().getTime()
+    for (const [id, existing] of challenges) {
+      if (
+        existing.userId === userId ||
+        existing.createdAt.getTime() + AUTH_FLOW_TTL_MS <= currentTime
+      ) {
+        challenges.delete(id)
+      }
+    }
+
     const challenge: MfaChallengeRecord = {
       id: randomUUID(),
       userId,
@@ -402,7 +478,13 @@ export const authRepository = {
   },
 
   getChallenge(challengeId: string): MfaChallengeRecord | undefined {
-    return challenges.get(challengeId)
+    const challenge = challenges.get(challengeId)
+    if (!challenge) return undefined
+    if (challenge.createdAt.getTime() + AUTH_FLOW_TTL_MS <= now().getTime()) {
+      challenges.delete(challengeId)
+      return undefined
+    }
+    return challenge
   },
 
   consumeChallenge(challengeId: string): MfaChallengeRecord | undefined {
@@ -413,7 +495,13 @@ export const authRepository = {
   },
 
   getMfaEnrollment(enrollmentId: string): MfaEnrollmentRecord | undefined {
-    return enrollments.get(enrollmentId)
+    const enrollment = enrollments.get(enrollmentId)
+    if (!enrollment) return undefined
+    if (enrollment.createdAt.getTime() + AUTH_FLOW_TTL_MS <= now().getTime()) {
+      enrollments.delete(enrollmentId)
+      return undefined
+    }
+    return enrollment
   },
 
   consumeMfaEnrollment(enrollmentId: string): MfaEnrollmentRecord | undefined {
@@ -428,7 +516,7 @@ export const authRepository = {
     const issuedAt = now()
     const session: SessionRecord = {
       id: randomUUID(),
-      tokenHash: hash(token),
+      tokenHash: hashToken(token),
       userId,
       issuedAt,
       lastActivityAt: issuedAt,
@@ -451,7 +539,7 @@ export const authRepository = {
   },
 
   getSessionByToken(token: string): SessionRecord | undefined {
-    const tokenHash = hash(token)
+    const tokenHash = hashToken(token)
     return [...sessions.values()].find((session) => session.tokenHash === tokenHash)
   },
 
@@ -557,7 +645,10 @@ export const authRepository = {
     const user: UserRecord = {
       id: randomUUID(),
       email,
-      passwordHash: hash(config.userPassword),
+      // Invitation acceptance is not implemented yet. Use an unknowable
+      // placeholder and keep the user non-active so shared bootstrap
+      // credentials can never activate an invited account.
+      passwordHash: hashPassword(randomBytes(32).toString('base64url')),
       role,
       status: 'Invited',
       mfaSecret: null,

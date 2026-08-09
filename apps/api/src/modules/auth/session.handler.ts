@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { authRepository } from './auth.repository.js'
 import { config } from '../../config.js'
+import { clearSessionCookie, readSessionToken } from './session-cookie.js'
 
 export const getSessionHandler = async (
   request: FastifyRequest,
@@ -32,7 +33,7 @@ export const logoutHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> => {
-  const token = request.cookies[config.sessionCookieName]
+  const token = readSessionToken(request)
   if (token) {
     const session = authRepository.getSessionByToken(token)
     if (session) {
@@ -40,6 +41,6 @@ export const logoutHandler = async (
     }
   }
 
-  reply.clearCookie(config.sessionCookieName, { path: '/' })
+  clearSessionCookie(reply)
   reply.status(204).send()
 }

@@ -4,7 +4,10 @@ import { randomUUID } from 'node:crypto'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { plaidApi, plaidClientConfig, isPlaidConfigured } from './plaid.client.js'
-import { plaidRepository } from './plaid.repository.js'
+import {
+  PlaidConnectionOwnershipError,
+  plaidRepository,
+} from './plaid.repository.js'
 import {
   plaidExchangePublicTokenBodySchema,
   plaidLinkTokenBodySchema,
@@ -13,6 +16,11 @@ import {
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
+
+const accountVisibilityFor = (request: FastifyRequest) => ({
+  actorUserId: request.authUser!.userId,
+  isAdmin: request.authUser!.role === 'Admin',
+})
 
 export const createPlaidLinkTokenHandler = async (
   request: FastifyRequest,
@@ -91,20 +99,29 @@ export const exchangePlaidPublicTokenHandler = async (
       ? (metadata.institution as Record<string, unknown>)
       : {}
 
-  const result = plaidRepository.createConnectionFromPublicToken({
-    ownerUserId: request.authUser.userId,
-    plaidItemId: exchange.data.item_id,
-    accessToken: exchange.data.access_token,
-    institutionId:
-      typeof institution.institution_id === 'string'
-        ? institution.institution_id
-        : null,
-    institutionName:
-      typeof institution.name === 'string' ? institution.name : 'Plaid Institution',
-    metadataAccounts: Array.isArray(metadata.accounts)
-      ? (metadata.accounts as Array<Record<string, unknown>>)
-      : [],
-  })
+  let result: ReturnType<typeof plaidRepository.createConnectionFromPublicToken>
+  try {
+    result = plaidRepository.createConnectionFromPublicToken({
+      ownerUserId: request.authUser.userId,
+      plaidItemId: exchange.data.item_id,
+      accessToken: exchange.data.access_token,
+      institutionId:
+        typeof institution.institution_id === 'string'
+          ? institution.institution_id
+          : null,
+      institutionName:
+        typeof institution.name === 'string' ? institution.name : 'Plaid Institution',
+      metadataAccounts: Array.isArray(metadata.accounts)
+        ? (metadata.accounts as Array<Record<string, unknown>>)
+        : [],
+    })
+  } catch (error) {
+    if (error instanceof PlaidConnectionOwnershipError) {
+      reply.status(409).send({ error: 'PLAID_CONNECTION_OWNERSHIP_CONFLICT' })
+      return
+    }
+    throw error
+  }
 
   reply.send(result)
 }
@@ -118,7 +135,9 @@ export const listPlaidInvestmentAccountsHandler = async (
     return
   }
 
-  reply.send({ accounts: plaidRepository.listInvestmentAccounts() })
+  reply.send({
+    accounts: plaidRepository.listInvestmentAccounts(accountVisibilityFor(request)),
+  })
 }
 
 export const updatePlaidInvestmentAccountsHandler = async (
@@ -142,7 +161,10 @@ export const updatePlaidInvestmentAccountsHandler = async (
   }
 
   reply.send({
-    accounts: plaidRepository.updateSelectedInvestmentAccounts(body.selectedAccountIds),
+    accounts: plaidRepository.updateSelectedInvestmentAccounts(
+      body.selectedAccountIds,
+      accountVisibilityFor(request),
+    ),
   })
 }
 
@@ -155,7 +177,9 @@ export const clearPlaidInvestmentAccountsHandler = async (
     return
   }
 
-  const cleared = await plaidRepository.clearConnectedAccounts()
+  const cleared = await plaidRepository.clearConnectedAccounts(
+    accountVisibilityFor(request),
+  )
 
   await auditRepository.record({
     actorUserId: request.authUser.userId,

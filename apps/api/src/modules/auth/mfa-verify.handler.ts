@@ -5,6 +5,7 @@ import { lockoutService } from './lockout.service.js'
 import { totpService } from './totp.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
+import { setSessionCookie } from './session-cookie.js'
 
 export const mfaVerifyHandler = async (
   request: FastifyRequest,
@@ -23,7 +24,7 @@ export const mfaVerifyHandler = async (
   }
 
   const user = authRepository.getUserById(challenge.userId)
-  if (!user || user.status === 'Inactive') {
+  if (!user || user.status !== 'Active') {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
@@ -70,13 +71,7 @@ export const mfaVerifyHandler = async (
     objectId: user.id,
   })
 
-  reply.setCookie(config.sessionCookieName, token, {
-    httpOnly: true,
-    secure: config.sessionCookieSecure,
-    sameSite: config.sessionCookieSameSite,
-    path: '/',
-    maxAge: config.sessionAbsoluteTimeoutSeconds,
-  })
+  setSessionCookie(reply, token)
 
   reply.send({
     user: {

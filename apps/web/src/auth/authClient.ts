@@ -57,6 +57,8 @@ export interface MfaEnrollmentResponse {
   manualEntryKey: string
 }
 
+export type LoginResponse = MfaChallengeResponse | MfaEnrollmentResponse
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ??
   '/v1'
@@ -97,7 +99,7 @@ const request = async <T>(
 
 export const authClient = {
   login(email: string, password: string) {
-    return request<SessionResponse>('/auth/login', {
+    return request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })

@@ -5,6 +5,7 @@ import { lockoutService } from './lockout.service.js'
 import { totpService } from './totp.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
+import { setSessionCookie } from './session-cookie.js'
 
 export const mfaEnrollCompleteHandler = async (
   request: FastifyRequest,
@@ -75,13 +76,7 @@ export const mfaEnrollCompleteHandler = async (
     objectId: user.id,
   })
 
-  reply.setCookie(config.sessionCookieName, token, {
-    httpOnly: true,
-    secure: config.sessionCookieSecure,
-    sameSite: config.sessionCookieSameSite,
-    path: '/',
-    maxAge: config.sessionAbsoluteTimeoutSeconds,
-  })
+  setSessionCookie(reply, token)
 
   reply.send({
     user: {

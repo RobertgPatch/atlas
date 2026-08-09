@@ -10,6 +10,8 @@ import {
 import { authClient } from './auth/authClient'
 import { sessionStore, useSession } from './auth/sessionStore'
 import { LoginPage } from './pages/LoginPage'
+import { MFAPage } from './pages/MFAPage'
+import { MFASetupPage } from './pages/MFASetupPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
 import { UserDetailPage } from './pages/UserDetailPage'
@@ -116,6 +118,8 @@ export function App() {
         <GlobalLoadingBar />
         <Routes>
           <Route path="/" element={<LoginPage />} />
+          <Route path="/mfa" element={<MFAPage />} />
+          <Route path="/mfa/setup" element={<MFASetupPage />} />
           <Route
             path="/dashboard"
             element={

@@ -11,12 +11,15 @@ interface RateLimitBucket {
   count: number
 }
 
-const apiRateLimitBuckets = new Map<string, RateLimitBucket>()
+const RATE_LIMIT_SWEEP_INTERVAL = 256
+const RATE_LIMIT_MAX_BUCKETS = 10_000
 
 export const buildApp = () => {
   const app = Fastify({
     logger: config.nodeEnv !== 'test',
   })
+  const apiRateLimitBuckets = new Map<string, RateLimitBucket>()
+  let requestsSinceRateLimitSweep = 0
 
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/v1')) return
@@ -24,7 +27,22 @@ export const buildApp = () => {
 
     const now = Date.now()
     const windowMs = config.security.rateLimitWindowSeconds * 1000
-    const key = `${request.ip}:${request.method}:${request.url.split('?')[0]}`
+    requestsSinceRateLimitSweep += 1
+    if (requestsSinceRateLimitSweep >= RATE_LIMIT_SWEEP_INTERVAL) {
+      for (const [bucketKey, bucket] of apiRateLimitBuckets) {
+        if (bucket.resetAt <= now) apiRateLimitBuckets.delete(bucketKey)
+      }
+      requestsSinceRateLimitSweep = 0
+    }
+
+    // A raw URL key allows path-parameter churn to bypass limits while growing
+    // the process-local map without bound. Fastify's route URL is normalized.
+    const routePattern = request.routeOptions.url || 'unmatched'
+    const key = `${request.ip}:${request.method}:${routePattern}`
+    if (!apiRateLimitBuckets.has(key) && apiRateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
+      const oldestKey = apiRateLimitBuckets.keys().next().value
+      if (oldestKey) apiRateLimitBuckets.delete(oldestKey)
+    }
     const existing = apiRateLimitBuckets.get(key)
     const bucket =
       existing && existing.resetAt > now
@@ -88,7 +106,9 @@ export const buildApp = () => {
     credentials: true,
   })
 
-  app.register(cookie)
+  app.register(cookie, {
+    secret: config.sessionSecret || undefined,
+  })
   app.register(multipart, {
     limits: {
       fileSize: config.k1UploadMaxBytes,

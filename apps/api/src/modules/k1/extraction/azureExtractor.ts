@@ -3,7 +3,6 @@ import DocumentIntelligence, {
   isUnexpected,
 } from '@azure-rest/ai-document-intelligence'
 import { readFile } from 'node:fs/promises'
-import path from 'node:path'
 import { pino } from 'pino'
 import { config } from '../../../config.js'
 import { mapAzureAnalyzeResult, type AnalyzeResult } from './mapAzureAnalyzeResult.js'
@@ -16,6 +15,7 @@ import {
   type OcrAnalyzeResult,
 } from './mapAzureOcrAnalyzeResult.js'
 import type { K1Extractor, ExtractCtx, ExtractResult } from './K1Extractor.js'
+import { resolvePdfStoragePath } from '../storage/localPdfStore.js'
 
 // ---------------------------------------------------------------------------
 // PII-safe child logger
@@ -143,7 +143,7 @@ export function createAzureExtractor(): K1Extractor {
       // --- Read PDF from local storage ---
       let pdfBuffer: Uint8Array
       try {
-        const buf = await readFile(path.resolve(config.storageRoot, ctx.storagePath))
+        const buf = await readFile(resolvePdfStoragePath(ctx.storagePath))
         pdfBuffer = new Uint8Array(buf)
       } catch (err) {
         return {

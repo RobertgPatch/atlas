@@ -141,6 +141,10 @@ vite.config.ts.timestamp-*
 # K-1 local storage
 .storage/
 
+# Local K-1 diagnostics and source documents
+/new_k1.pdf
+/apps/api/tmp-live-k1-check.mjs
+
 # K-1 local storage
 .storage/
 
@@ -171,5 +175,7 @@ Thumbs.db
 *.secret
 *.secret.*
 secrets/
+!infra/aws/terraform/modules/secrets/
+!infra/aws/terraform/modules/secrets/*.tf
 aws-exports.*
 cdk.context.json

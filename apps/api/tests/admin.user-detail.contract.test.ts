@@ -52,4 +52,25 @@ describe('GET /v1/admin/users/:userId — user detail contract', () => {
     expect(res.statusCode).toBe(404)
     expect(res.json().error).toBe('NOT_FOUND')
   })
+
+  it('does not let reinvitation mutate an existing active user', async () => {
+    const res = await f.app.inject({
+      method: 'POST',
+      url: '/v1/admin/users/invitations',
+      headers: { cookie: f.cookie },
+      payload: { email: f.user.email, role: 'Admin' },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json()).toEqual({ error: 'USER_ALREADY_EXISTS' })
+    expect(f.user.role).toBe('User')
+
+    const session = await f.app.inject({
+      method: 'GET',
+      url: '/v1/auth/session',
+      headers: { cookie: f.userCookie },
+    })
+    expect(session.statusCode).toBe(200)
+    expect(session.json().role).toBe('User')
+  })
 })
