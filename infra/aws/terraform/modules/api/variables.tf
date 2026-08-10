@@ -84,6 +84,12 @@ variable "additional_secret_arns" {
   default     = []
 }
 
+variable "task_secret_arns" {
+  description = "Secret ARNs the running application may retrieve at runtime."
+  type        = list(string)
+  default     = []
+}
+
 variable "log_retention_days" {
   description = "CloudWatch log retention in days."
   type        = number

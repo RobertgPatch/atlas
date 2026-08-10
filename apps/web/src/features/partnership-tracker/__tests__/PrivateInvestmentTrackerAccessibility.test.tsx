@@ -6,7 +6,7 @@ import { PrivateInvestmentPdfExportDialog } from '../components/private-investme
 import { privateInvestmentResponseFixture } from './fixtures'
 
 describe('Private Investment Tracker accessibility', () => {
-  it('provides only the three labeled autocomplete filters and a live filter count', async () => {
+  it('provides three accessible filters and a live filter count', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()
     const { container } = render(
@@ -17,9 +17,10 @@ describe('Private Investment Tracker accessibility', () => {
       />,
     )
 
-    for (const name of ['Asset class filter', 'Entity filter', 'Fund filter']) {
+    for (const name of ['Asset class filter', 'Entity filter']) {
       expect(screen.getByLabelText(name)).toBeInTheDocument()
     }
+    expect(screen.getByRole('button', { name: 'Open Fund filter' })).toBeInTheDocument()
     expect(screen.getByText('Showing full permitted portfolio')).toHaveAttribute('aria-live', 'polite')
     expect(container.querySelectorAll('input[type="date"]')).toHaveLength(0)
     expect(container.querySelectorAll('input[inputmode="decimal"]')).toHaveLength(0)
@@ -82,6 +83,55 @@ describe('Private Investment Tracker accessibility', () => {
     await user.click(screen.getByRole('button', { name: 'Open Asset class filter' }))
     expect(screen.getByText('Real Estate')).toBeInTheDocument()
     expect(screen.queryByText('Credit')).not.toBeInTheDocument()
+  })
+
+  it('rolls same-name funds up and supports group and owner-level selection', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const facets = {
+      assetClasses: [{ value: 'Real Estate' as const, label: 'Real Estate', count: 5 }],
+      entities: [
+        { value: 'e-1', label: 'Jackson Family Trust', count: 3 },
+        { value: 'e-2', label: 'Gardner Family Trust', count: 2 },
+      ],
+      partnerships: [
+        { value: 'p-1', label: 'Redwood Fund', count: 3, entityId: 'e-1', entityName: 'Jackson Family Trust', assetClass: 'Real Estate' as const },
+        { value: 'p-2', label: 'Redwood Fund', count: 2, entityId: 'e-2', entityName: 'Gardner Family Trust', assetClass: 'Real Estate' as const },
+      ],
+    }
+    const { rerender } = render(
+      <PrivateInvestmentFilters
+        query={privateInvestmentResponseFixture.query}
+        facets={facets}
+        onChange={onChange}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open Fund filter' }))
+    expect(screen.getByText('2 owner records')).toBeInTheDocument()
+    expect(screen.queryByText('Jackson Family Trust')).not.toBeInTheDocument()
+    expect(screen.queryByText('Gardner Family Trust')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Select all 2 owner records for Redwood Fund' }))
+    const groupedQuery = onChange.mock.calls.at(-1)?.[0]
+    expect(groupedQuery).toEqual(expect.objectContaining({ partnershipIds: ['p-1', 'p-2'], page: 1 }))
+    rerender(<PrivateInvestmentFilters query={groupedQuery} facets={facets} onChange={onChange} />)
+    expect(screen.getByRole('checkbox', { name: 'Deselect all 2 owner records for Redwood Fund' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Remove Redwood Fund' })).toBeInTheDocument()
+
+    const expandButton = screen.getByRole('button', { name: 'Expand owners for Redwood Fund' })
+    expect(expandButton).toHaveClass('border-0', 'bg-transparent')
+    await user.click(expandButton)
+    const ownerOption = screen.getByRole('checkbox', { name: 'Deselect Redwood Fund for Jackson Family Trust' })
+    expect(ownerOption).toHaveClass('min-h-16', 'border-0', 'bg-transparent', 'pl-14', 'py-3')
+    expect(ownerOption.parentElement).toHaveClass('divide-y', 'bg-gray-50/80', 'border-l-jackson-gold/50')
+    expect(screen.getAllByText(/Owner record · Real Estate/)).toHaveLength(2)
+    await user.click(screen.getByRole('checkbox', { name: 'Deselect Redwood Fund for Gardner Family Trust' }))
+    const partialQuery = onChange.mock.calls.at(-1)?.[0]
+    expect(partialQuery).toEqual(expect.objectContaining({ partnershipIds: ['p-1'], page: 1 }))
+    rerender(<PrivateInvestmentFilters query={partialQuery} facets={facets} onChange={onChange} />)
+    expect(screen.getByRole('checkbox', { name: 'Select all 2 owner records for Redwood Fund' })).toHaveAttribute('aria-checked', 'mixed')
+    expect(screen.getByRole('button', { name: 'Remove Redwood Fund · Jackson Family Trust' })).toBeInTheDocument()
   })
 
   it('uses a focus-managed dialog with sticky, disabled-safe actions', () => {

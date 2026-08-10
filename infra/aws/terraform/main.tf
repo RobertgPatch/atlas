@@ -28,6 +28,11 @@ locals {
     USER_PASSWORD          = "${local.name_prefix}/USER_PASSWORD"
   }
 
+  application_secret_arns = {
+    for name, arn in module.secrets.secret_arns :
+    name => arn if name != "DATABASE_URL"
+  }
+
   api_environment_variables = {
     NODE_ENV                        = "production"
     PORT                            = tostring(var.api_container_port)
@@ -45,6 +50,11 @@ locals {
     AWS_APP_DOMAIN                  = local.configured_app_domain == null ? "" : local.configured_app_domain
     AWS_ENVIRONMENT_NAME            = var.environment_name
     AWS_ENVIRONMENT_PROFILE         = var.environment_cost_profile
+    DATABASE_HOST                   = module.database.db_endpoint
+    DATABASE_NAME                   = var.database_name
+    DATABASE_PORT                   = tostring(module.database.db_port)
+    DATABASE_SECRET_ARN             = module.database.master_user_secret_arn
+    DATABASE_USER                   = var.database_master_username
   }
 
   refresh_time_parts     = split(":", var.plaid_refresh_time_local)
@@ -135,8 +145,8 @@ module "api" {
   task_memory              = var.api_task_memory
   desired_count            = var.api_desired_count
   environment_variables    = local.api_environment_variables
-  secret_arns              = module.secrets.secret_arns
-  additional_secret_arns   = [module.database.master_user_secret_arn]
+  secret_arns              = local.application_secret_arns
+  task_secret_arns         = [module.database.master_user_secret_arn]
   log_retention_days       = var.log_retention_days
   ecr_image_tag_mutability = var.ecr_image_tag_mutability
   ecr_force_delete         = var.ecr_force_delete
@@ -192,7 +202,7 @@ module "scheduler" {
   private_subnet_ids      = module.network.private_subnet_ids
   security_group_ids      = [module.network.api_security_group_id]
   environment_variables   = local.api_environment_variables
-  secret_arns             = module.secrets.secret_arns
+  secret_arns             = local.application_secret_arns
   schedule_expression     = local.refresh_schedule_cron
   schedule_timezone       = var.plaid_refresh_timezone
   scheduler_enabled       = var.scheduler_enabled

@@ -15,16 +15,16 @@ const loaded = () => ({ data: privateInvestmentResponseFixture, isLoading: false
 describe('PrivateInvestmentTrackerPageContent', () => {
   beforeEach(() => { state.current = loaded(); exportMutation.mutate.mockReset(); exportMutation.reset.mockReset() })
 
-  it('renders the application-aligned lifetime summary and newest-first detail ledger', () => {
+  it('renders the application-aligned lifetime summary without the retired activity ledger', () => {
     const { container } = render(<MemoryRouter initialEntries={['/private-investment-tracker']}><PrivateInvestmentTrackerPageContent /></MemoryRouter>)
     expect(screen.getByRole('heading', { level: 1, name: 'Investment Tracker' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Fund investment summary' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Cash flow & valuation detail' })).toBeInTheDocument()
-    expect(screen.getAllByText('Redwood Fund').length).toBeGreaterThan(1)
-    expect(screen.getAllByText('($1,000,000.00)')).toHaveLength(2)
+    expect(screen.queryByRole('heading', { name: 'Cash flow & valuation detail' })).not.toBeInTheDocument()
+    expect(screen.getByText('Redwood Fund')).toBeInTheDocument()
+    expect(screen.getAllByText('($1,000,000.00)')).toHaveLength(1)
     expect(screen.getAllByText('$950,000.00').length).toBeGreaterThan(0)
     expect(screen.getByText(/Lifetime metrics for every matching entity-fund position/)).toBeInTheDocument()
-    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(2)
+    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1)
     expect(container.firstElementChild).toHaveClass('border-l-4', 'border-jackson-gold')
     expect(screen.getAllByRole('columnheader')[0].parentElement).toHaveClass('bg-gray-50')
     const summary = screen.getByRole('table', { name: /Lifetime investment metrics/ })
@@ -32,8 +32,7 @@ describe('PrivateInvestmentTrackerPageContent', () => {
     expect(within(summary).queryByRole('columnheader', { name: 'Recallable Distributions' })).not.toBeInTheDocument()
     expect(container.innerHTML).not.toContain('bg-[#315e9e]')
     expect(container.innerHTML).not.toContain('bg-[#eef4fb]')
-    const detail = screen.getByRole('table', { name: /Filtered cash flow and valuation activity/ })
-    expect(within(detail).getAllByRole('row')).toHaveLength(4)
+    expect(screen.queryByRole('table', { name: /Filtered cash flow and valuation activity/ })).not.toBeInTheDocument()
   })
 
   it('distinguishes loading, base-empty, filtered-empty, and error states', () => {
@@ -56,20 +55,20 @@ describe('PrivateInvestmentTrackerPageContent', () => {
     state.current = { ...loaded(), data: commitmentOnly }
     const commitmentOnlyView = render(<MemoryRouter><PrivateInvestmentTrackerPageContent /></MemoryRouter>)
     expect(screen.getByRole('heading', { name: 'Fund investment summary' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'No Cash Activity or FMV entries yet' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'No Cash Activity or FMV entries yet' })).not.toBeInTheDocument()
     commitmentOnlyView.unmount()
 
     state.current = { data: undefined, isLoading: false, isFetching: false, isPlaceholderData: false, isError: true, refetch: vi.fn() }
     render(<MemoryRouter><PrivateInvestmentTrackerPageContent /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: 'The investment ledger could not be loaded' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'The investment tracker could not be loaded' })).toBeInTheDocument()
   })
 
   it('exposes labeled filters, polite result counts, and a report export action', () => {
     render(<MemoryRouter><PrivateInvestmentTrackerPageContent /></MemoryRouter>)
     expect(screen.getByLabelText('Asset class filter')).toBeInTheDocument()
     expect(screen.getByLabelText('Entity filter')).toBeInTheDocument()
-    expect(screen.getByLabelText('Fund filter')).toBeInTheDocument()
-    expect(screen.getByText('1 position • 3 ledger rows')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByRole('button', { name: 'Open Fund filter' })).toBeInTheDocument()
+    expect(screen.getByText('1 position')).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByRole('button', { name: 'Export PDF' })).toBeEnabled()
   })
 })

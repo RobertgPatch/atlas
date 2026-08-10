@@ -18,12 +18,50 @@ const asList = (value: string | undefined, fallback: string): string[] =>
     .map((item) => item.trim())
     .filter(Boolean)
 
+const databaseUrlFromManagedConnection = (connection: {
+  databaseName: string
+  username?: string
+  host?: string
+  port?: string
+}): string => {
+  const username = connection.username
+  const host = connection.host
+  const port = Number(connection.port)
+  if (
+    !username ||
+    !host ||
+    !Number.isInteger(port) ||
+    port <= 0
+  ) {
+    throw new Error('Managed database configuration is missing required connection fields')
+  }
+
+  const url = new URL('postgresql://localhost')
+  url.username = username
+  url.hostname = host
+  url.port = String(port)
+  url.pathname = `/${connection.databaseName}`
+  url.searchParams.set('uselibpqcompat', 'true')
+  url.searchParams.set('sslmode', 'require')
+  return url.toString()
+}
+
 const nodeEnv = process.env.NODE_ENV ?? 'development'
 const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:55432/atlas'
+const databaseSecretArn = nodeEnv === 'test' ? '' : (process.env.DATABASE_SECRET_ARN ?? '')
+const managedDatabaseUrl = databaseSecretArn
+  ? databaseUrlFromManagedConnection({
+    databaseName: process.env.DATABASE_NAME ?? 'atlas',
+    username: process.env.DATABASE_USER,
+    host: process.env.DATABASE_HOST,
+    port: process.env.DATABASE_PORT,
+  })
+  : ''
 const databaseUrl =
   nodeEnv === 'test'
     ? (process.env.ATLAS_TEST_DATABASE_URL ?? '')
-    : (process.env.DATABASE_URL ??
+    : (managedDatabaseUrl ||
+      process.env.DATABASE_URL ||
       (nodeEnv === 'development' ? defaultDevelopmentDatabaseUrl : ''))
 const plaidClientId =
   nodeEnv === 'test'
@@ -38,6 +76,7 @@ export const config = {
   nodeEnv,
   port: asNumber(process.env.PORT, 3000),
   databaseUrl,
+  databaseSecretArn,
   persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
   requireDurablePersistence: asBoolean(process.env.REQUIRE_DURABLE_PERSISTENCE),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@jackson.com',

@@ -84,6 +84,23 @@ resource "aws_iam_role" "task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume_role.json
 }
 
+data "aws_iam_policy_document" "task_secrets" {
+  count = length(var.task_secret_arns) > 0 ? 1 : 0
+
+  statement {
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = var.task_secret_arns
+  }
+}
+
+resource "aws_iam_role_policy" "task_secrets" {
+  count = length(var.task_secret_arns) > 0 ? 1 : 0
+
+  name   = "${var.name_prefix}-runtime-secrets"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_secrets[0].json
+}
+
 resource "aws_lb" "api" {
   name               = "${var.name_prefix}-api"
   internal           = false

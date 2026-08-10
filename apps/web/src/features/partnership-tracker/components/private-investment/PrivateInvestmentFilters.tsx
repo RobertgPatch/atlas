@@ -5,6 +5,7 @@ import type {
   PrivateInvestmentQuery,
 } from '../../../../../../../packages/types/src/partnership-tracker'
 import { PrivateInvestmentFilterCombobox } from './PrivateInvestmentFilterCombobox'
+import { PrivateInvestmentFundFilter } from './PrivateInvestmentFundFilter'
 
 export function PrivateInvestmentFilters({
   query,
@@ -36,7 +37,6 @@ export function PrivateInvestmentFilters({
       (!query.assetClasses.length || query.assetClasses.includes(option.assetClass))
       && (!query.entityIds.length || query.entityIds.includes(option.entityId))
     ))
-    .map((option) => ({ ...option, context: `${option.entityName} · ${option.assetClass}` }))
 
   const changeAssetClasses = (assetClasses: string[]) => {
     const selected = assetClasses as PartnershipType[]
@@ -86,14 +86,14 @@ export function PrivateInvestmentFilters({
   return (
     <section aria-labelledby="private-investment-filters-title" className="border border-gray-300 bg-white p-4 shadow-sm">
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="mr-auto"><p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">Activity ledger</p><h2 id="private-investment-filters-title" className="mt-1 font-serif text-xl font-semibold text-gray-950">Filter investments</h2></div>
+        <div className="mr-auto"><p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">Position summary</p><h2 id="private-investment-filters-title" className="mt-1 font-serif text-xl font-semibold text-gray-950">Filter investments</h2></div>
         <p className="text-xs font-semibold text-gray-600" aria-live="polite">{activeCount ? `${activeCount} active filter${activeCount === 1 ? '' : 's'}` : 'Showing full permitted portfolio'}</p>
         <button type="button" onClick={clear} disabled={activeCount === 0} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-xs font-bold text-gray-800 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold"><RotateCcw className="h-3.5 w-3.5" /> Clear all</button>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <PrivateInvestmentFilterCombobox id="investment-asset-class-filter" label="Asset class" options={assetClassOptions} values={query.assetClasses} onChange={changeAssetClasses} />
         <PrivateInvestmentFilterCombobox id="investment-entity-filter" label="Entity" options={entityOptions} values={query.entityIds} onChange={changeEntityIds} />
-        <PrivateInvestmentFilterCombobox id="investment-fund-filter" label="Fund" options={fundOptions} values={query.partnershipIds} onChange={(partnershipIds) => change({ partnershipIds })} />
+        <PrivateInvestmentFundFilter id="investment-fund-filter" options={fundOptions} values={query.partnershipIds} onChange={(partnershipIds) => change({ partnershipIds })} />
       </div>
     </section>
   )

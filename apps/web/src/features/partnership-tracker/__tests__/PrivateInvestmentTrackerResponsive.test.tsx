@@ -27,18 +27,18 @@ describe('Private Investment Tracker responsive containment', () => {
     const { container, unmount } = render(
       <MemoryRouter><PrivateInvestmentTrackerPageContent /></MemoryRouter>,
     )
-    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(2)
-    expect(screen.getAllByRole('table')).toHaveLength(2)
+    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1)
+    expect(screen.getAllByRole('table')).toHaveLength(1)
     expect(container.querySelectorAll('.sticky').length).toBeGreaterThan(1)
     unmount()
   })
 
-  it('keeps the two data regions locally scrollable at 200% browser zoom', () => {
+  it('keeps the summary table locally scrollable at 200% browser zoom', () => {
     document.documentElement.style.zoom = '2'
     const { container, unmount } = render(
       <MemoryRouter><PrivateInvestmentTrackerPageContent /></MemoryRouter>,
     )
-    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(2)
+    expect(container.querySelectorAll('.overflow-x-auto')).toHaveLength(1)
     unmount()
     document.documentElement.style.zoom = ''
   })

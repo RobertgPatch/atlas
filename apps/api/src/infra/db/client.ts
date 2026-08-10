@@ -1,11 +1,29 @@
 import pg from 'pg'
 import { config } from '../../config.js'
+import {
+  createDatabasePasswordProvider,
+  createManagedDatabasePoolConfig,
+} from './managedDatabasePassword.js'
 
 const { Pool } = pg
 
-export const pool = config.databaseUrl
-  ? new Pool({ connectionString: config.databaseUrl })
-  : undefined
+const databaseUsername = config.databaseUrl
+  ? new URL(config.databaseUrl).username
+  : ''
+
+export const pool = !config.databaseUrl
+  ? undefined
+  : config.databaseSecretArn
+    ? new Pool(
+        createManagedDatabasePoolConfig({
+          databaseUrl: config.databaseUrl,
+          password: createDatabasePasswordProvider({
+            secretArn: config.databaseSecretArn,
+            expectedUsername: databaseUsername,
+          }),
+        }),
+      )
+    : new Pool({ connectionString: config.databaseUrl })
 
 export const isDatabaseConfigured = () => Boolean(pool)
 

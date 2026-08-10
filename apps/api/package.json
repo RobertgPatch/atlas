@@ -11,6 +11,7 @@
     "capture-di-fixture": "tsx src/modules/k1/extraction/_captureFixture.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1102.0",
     "@azure-rest/ai-document-intelligence": "^1.1.0",
     "@fastify/cookie": "^10.0.1",
     "@fastify/cors": "^11.2.0",
