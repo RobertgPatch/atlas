@@ -22,9 +22,13 @@ import { LiquidityPage } from './pages/LiquidityPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
 import { PartnershipTrackerPage } from './pages/PartnershipTrackerPage'
 import { PartnershipAggregationPage } from './pages/PartnershipAggregationPage'
+import { EstateMapPage } from './pages/EstateMapPage'
+import { InvestmentTrackerPage } from './pages/InvestmentTrackerPage'
+import { MagicPatternDashboardPage } from './pages/magic-patterns/MagicPatternDashboardPage'
 import { AppShell } from './components/shared/AppShell'
 import { PageHeader } from './components/shared/PageHeader'
 import { GlobalLoadingBar } from './components/GlobalLoadingBar'
+import { featureFlags } from './config/featureFlags'
 
 const PlaceholderPage = ({ title }: { title: string }) => {
   const { session } = useSession()
@@ -120,7 +124,11 @@ export function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Navigate to="/liquidity" replace />
+                {featureFlags.magicPatternDesigns ? (
+                  <MagicPatternDashboardPage />
+                ) : (
+                  <Navigate to="/liquidity" replace />
+                )}
               </ProtectedRoute>
             }
           />
@@ -219,6 +227,22 @@ export function App() {
             element={
               <ProtectedRoute>
                 <PartnershipTrackerPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/estate-maps"
+            element={
+              <ProtectedRoute>
+                <EstateMapPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/investment-tracker"
+            element={
+              <ProtectedRoute>
+                <InvestmentTrackerPage />
               </ProtectedRoute>
             }
           />

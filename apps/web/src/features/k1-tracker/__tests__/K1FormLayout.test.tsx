@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS } from '../../../../../../packages/types/src/k1-tracker'
 import { K1YearEntryForm } from '../components/K1YearEntryForm'
 import { K1_EDITABLE_FIELDS } from '../k1FieldGroups'
+import { K1_OFFICIAL_FORM_FIELDS } from '../k1OfficialFormFields'
 import {
   K1_FORM_HEADER_FIELD_KEYS,
   K1_FORM_IDENTITY_FIELD_KEYS,
@@ -40,6 +41,61 @@ describe('K-1 form layout contract', () => {
     ]
     expect(new Set(officialKeys)).toHaveLength(officialKeys.length)
     expect([...officialKeys].sort()).toEqual([...K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS].sort())
+  })
+
+  it('renders every calculation and official-form entry exactly once as an available control', () => {
+    const { container } = render(<K1YearEntryForm
+      detail={k1EntryDetailFixture}
+      canEdit
+      pending={false}
+      onCalculate={vi.fn()}
+      onSave={vi.fn()}
+      onDirtyChange={vi.fn()}
+    />)
+
+    for (const field of K1_EDITABLE_FIELDS) {
+      expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(1)
+    }
+    for (const field of K1_OFFICIAL_FORM_FIELDS) {
+      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(1)
+    }
+  })
+
+  it('keeps the complete field inventory in the Magic Patterns form composition', () => {
+    const { container } = render(<K1YearEntryForm
+      appearance="magic-pattern"
+      detail={k1EntryDetailFixture}
+      canEdit
+      pending={false}
+      onCalculate={vi.fn()}
+      onSave={vi.fn()}
+      onReconcile={vi.fn()}
+      onDirtyChange={vi.fn()}
+    />)
+
+    const magicPatternFieldKeys = new Set(K1_FORM_PLACEMENTS
+      .filter((placement) => placement.region !== 'supplemental-book-tax' && placement.fieldKey !== 'opening_suspended_loss')
+      .map((placement) => placement.fieldKey))
+    for (const field of K1_EDITABLE_FIELDS) {
+      expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(magicPatternFieldKeys.has(field.key) ? 1 : 0)
+    }
+    for (const field of K1_OFFICIAL_FORM_FIELDS) {
+      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(1)
+    }
+
+    const headings = Array.from(container.querySelectorAll('h4, h5')).map((heading) => heading.textContent?.trim())
+    expect(headings).toEqual(expect.arrayContaining([
+      'Part I - Information about the partnership',
+      'Part II - Information about the partner',
+      "Partner's share of profit, loss, and capital",
+      "Partner's share of liabilities",
+      "Part III - Partner's share of current year income and deductions",
+      "Partner's capital account analysis and outside basis",
+    ]))
+    expect(screen.getByLabelText('Ending outside basis (calculated)')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Jackson supplemental workpaper' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark reconciled' })).toBeInTheDocument()
   })
 
   it('renders one recognizable K-1 hierarchy with loaded identity context', () => {

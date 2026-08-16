@@ -241,6 +241,75 @@ variable "scheduler_enabled" {
   default     = true
 }
 
+variable "market_data_provider" {
+  description = "Server-side public-market data provider. Set to alpaca after populating its Secrets Manager credentials."
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "alpaca"], var.market_data_provider)
+    error_message = "market_data_provider must be none or alpaca."
+  }
+}
+
+variable "market_data_refresh_on_read" {
+  description = "Refresh stale market prices when a user reads the Liquidity report."
+  type        = bool
+  default     = true
+}
+
+variable "market_data_max_age_seconds" {
+  description = "Maximum age of a cached quote before a user read requests a fresh price."
+  type        = number
+  default     = 60
+}
+
+variable "market_data_request_timeout_ms" {
+  description = "Timeout for a market data provider request."
+  type        = number
+  default     = 4000
+}
+
+variable "alpaca_market_data_base_url" {
+  description = "Alpaca Market Data API base URL."
+  type        = string
+  default     = "https://data.alpaca.markets"
+}
+
+variable "alpaca_market_data_feed" {
+  description = "Alpaca stock feed: sip for consolidated coverage, iex for IEX-only, or delayed_sip."
+  type        = string
+  default     = "sip"
+
+  validation {
+    condition     = contains(["sip", "iex", "delayed_sip"], var.alpaca_market_data_feed)
+    error_message = "alpaca_market_data_feed must be sip, iex, or delayed_sip."
+  }
+}
+
+variable "market_price_refresh_time_local" {
+  description = "Weekday end-of-day market price refresh time."
+  type        = string
+  default     = "16:20"
+
+  validation {
+    condition     = can(regex("^[0-2][0-9]:[0-5][0-9]$", var.market_price_refresh_time_local))
+    error_message = "market_price_refresh_time_local must be HH:MM."
+  }
+}
+
+variable "market_price_refresh_timezone" {
+  description = "IANA timezone for the end-of-day market price refresh."
+  type        = string
+  default     = "America/New_York"
+}
+
+variable "market_price_scheduler_enabled" {
+  description = "Whether the weekday end-of-day market price schedule is enabled."
+  type        = bool
+  default     = false
+}
+
 variable "log_retention_days" {
   description = "CloudWatch log retention for API and refresh task logs. Staging can use shorter retention."
   type        = number

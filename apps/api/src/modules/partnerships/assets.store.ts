@@ -4,19 +4,24 @@ import type {
   AssetFmvSnapshotPreview,
   CreateAssetFmvSnapshotRequest,
   CreatePartnershipAssetRequest,
+  PartnershipAssetCategory,
   PartnershipAssetDetail,
   PartnershipAssetRow,
   PartnershipAssetsResponse,
   PartnershipAssetSource,
+  PartnershipAssetStatus,
+  UpdatePartnershipAssetRequest,
 } from './partnerships.types.js'
 
 interface InMemoryAssetRecord {
   id: string
   partnershipId: string
   name: string
+  assetCategory: PartnershipAssetCategory
   assetType: string
   sourceType: PartnershipAssetSource
-  status: string
+  status: PartnershipAssetStatus
+  displayDetail: string | null
   description: string | null
   notes: string | null
   createdAt: string
@@ -27,6 +32,15 @@ interface InMemoryAssetSnapshotRecord extends AssetFmvSnapshot {}
 
 const assetRecords = new Map<string, InMemoryAssetRecord>()
 const assetSnapshots = new Map<string, InMemoryAssetSnapshotRecord[]>()
+
+export function inferAssetCategory(assetType: string): PartnershipAssetCategory {
+  const normalized = assetType.trim().toLowerCase()
+  if (['real estate', 'real_estate'].includes(normalized)) return 'real_estate'
+  if (['marketable securities', 'marketable_securities', 'public equity', 'public equities'].includes(normalized)) return 'marketable_securities'
+  if (['private equity', 'hedge fund', 'venture capital', 'credit', 'infrastructure', 'alternatives'].includes(normalized)) return 'alternatives'
+  if (['cash', 'cash equivalents', 'cash & equivalents', 'cash_equivalents'].includes(normalized)) return 'cash_equivalents'
+  return 'other'
+}
 
 function compareSnapshotsDesc(left: { createdAt: string; valuationDate: string; id: string }, right: { createdAt: string; valuationDate: string; id: string }) {
   return (
@@ -108,9 +122,11 @@ export function createInMemoryAsset(partnershipId: string, body: CreatePartnersh
     id: randomUUID(),
     partnershipId,
     name: body.name.trim(),
+    assetCategory: body.assetCategory ?? inferAssetCategory(body.assetType),
     assetType: body.assetType.trim(),
     sourceType: 'manual',
     status: 'ACTIVE',
+    displayDetail: body.displayDetail?.trim() || null,
     description: body.description?.trim() || null,
     notes: body.notes?.trim() || null,
     createdAt: timestamp,
@@ -118,6 +134,37 @@ export function createInMemoryAsset(partnershipId: string, body: CreatePartnersh
   }
   assetRecords.set(record.id, record)
   return record
+}
+
+export function updateInMemoryAsset(
+  partnershipId: string,
+  assetId: string,
+  body: UpdatePartnershipAssetRequest,
+): PartnershipAssetDetail | null {
+  const current = assetRecords.get(assetId)
+  if (!current || current.partnershipId !== partnershipId) return null
+  const updated: InMemoryAssetRecord = {
+    ...current,
+    name: body.name?.trim() ?? current.name,
+    assetCategory: body.assetCategory ?? current.assetCategory,
+    assetType: body.assetType?.trim() ?? current.assetType,
+    status: body.status ?? current.status,
+    displayDetail: body.displayDetail === undefined ? current.displayDetail : body.displayDetail?.trim() || null,
+    description: body.description === undefined ? current.description : body.description?.trim() || null,
+    notes: body.notes === undefined ? current.notes : body.notes?.trim() || null,
+    updatedAt: new Date().toISOString(),
+  }
+  assetRecords.set(assetId, updated)
+  return getInMemoryAssetDetail(partnershipId, assetId)
+}
+
+export function deleteInMemoryAsset(partnershipId: string, assetId: string): PartnershipAssetRow | null {
+  const current = assetRecords.get(assetId)
+  if (!current || current.partnershipId !== partnershipId) return null
+  const row = buildPartnershipAssetRow(current)
+  assetRecords.delete(assetId)
+  assetSnapshots.delete(assetId)
+  return row
 }
 
 export function createInMemoryAssetSnapshot(

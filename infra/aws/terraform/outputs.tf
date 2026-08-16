@@ -86,11 +86,15 @@ output "edge" {
 output "scheduler" {
   description = "Non-secret scheduler identifiers."
   value = {
-    environment_name            = var.environment_name
-    schedule_name               = module.scheduler.schedule_name
-    schedule_arn                = module.scheduler.schedule_arn
-    refresh_task_definition_arn = module.scheduler.refresh_task_definition_arn
-    refresh_log_group_name      = module.scheduler.refresh_log_group_name
+    environment_name                 = var.environment_name
+    schedule_name                    = module.scheduler.schedule_name
+    schedule_arn                     = module.scheduler.schedule_arn
+    refresh_task_definition_arn      = module.scheduler.refresh_task_definition_arn
+    refresh_log_group_name           = module.scheduler.refresh_log_group_name
+    market_price_schedule_name       = module.scheduler.market_price_schedule_name
+    market_price_schedule_arn        = module.scheduler.market_price_schedule_arn
+    market_price_task_definition_arn = module.scheduler.market_price_task_definition_arn
+    market_price_log_group_name      = module.scheduler.market_price_log_group_name
   }
 }
 

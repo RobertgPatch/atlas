@@ -1,6 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { EntityDetail } from 'packages/types/src'
-import { entitiesClient, type EntityListItem } from '../api/entitiesClient'
+import {
+  entitiesClient,
+  type CreateEntityInput,
+  type EntityListItem,
+} from '../api/entitiesClient'
 
 const invalidateOwnerReads = (qc: ReturnType<typeof useQueryClient>) => Promise.all([
   qc.invalidateQueries({ queryKey: ['entity'] }),
@@ -33,7 +37,7 @@ export function useEntityList() {
 export function useCreateEntity() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (name: string) => entitiesClient.create(name),
+    mutationFn: (input: string | CreateEntityInput) => entitiesClient.create(input),
     onSuccess: () => invalidateOwnerReads(qc),
   })
 }

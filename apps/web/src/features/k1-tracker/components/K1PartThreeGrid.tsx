@@ -20,12 +20,13 @@ const entriesFor = (region: 'part-iii-left' | 'part-iii-right'): PartThreeEntry[
 
 const visibleLineLabel = (label: string): string => label.replace(/^Line\s+[^-]+\s+-\s+/, '')
 
-function PartThreeColumn({ region, fieldStateFor, officialFieldStateFor }: {
+function PartThreeColumn({ region, fieldStateFor, officialFieldStateFor, workspace }: {
   region: 'part-iii-left' | 'part-iii-right'
   fieldStateFor: K1FormFieldStateGetter
   officialFieldStateFor: K1OfficialFormFieldStateGetter
+  workspace: boolean
 }) {
-  return <div className="min-w-0 border-x border-b border-gray-950 first:border-l-2 last:border-r-2 lg:first:border-r-0" data-k1-column={region}>
+  return <div className={workspace ? 'min-w-0 border-x border-b border-slate-300 lg:first:border-r-0' : 'min-w-0 border-x border-b border-gray-950 first:border-l-2 last:border-r-2 lg:first:border-r-0'} data-k1-column={region}>
     {entriesFor(region).map((entry) => {
       if (entry.kind === 'official') {
         const definition = K1_OFFICIAL_FORM_FIELD_BY_KEY.get(entry.placement.fieldKey)
@@ -51,18 +52,20 @@ function PartThreeColumn({ region, fieldStateFor, officialFieldStateFor }: {
   </div>
 }
 
-export function K1PartThreeGrid({ fieldStateFor, officialFieldStateFor }: {
+export function K1PartThreeGrid({ fieldStateFor, officialFieldStateFor, appearance = 'default' }: {
   fieldStateFor: K1FormFieldStateGetter
   officialFieldStateFor: K1OfficialFormFieldStateGetter
+  appearance?: 'default' | 'workspace'
 }) {
+  const workspace = appearance === 'workspace'
   return <section aria-labelledby="k1-part-iii-heading" className="min-w-0 bg-white" data-testid="k1-part-three">
-    <div className="flex items-stretch border-y-2 border-gray-950 bg-gray-100">
-      <span aria-hidden="true" className="flex w-16 shrink-0 items-center justify-center bg-gray-950 px-2 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white">Part III</span>
-      <h4 id="k1-part-iii-heading" className="px-3 py-2 text-xs font-black uppercase leading-tight tracking-[0.035em] text-gray-950"><span className="sr-only">Part III - </span>Partner's Share of Current Year Income, Deductions, Credits, and Other Items</h4>
+    <div className={workspace ? 'flex items-stretch border-y border-slate-300 bg-slate-50' : 'flex items-stretch border-y-2 border-gray-950 bg-gray-100'}>
+      <span aria-hidden="true" className={workspace ? 'flex w-16 shrink-0 items-center justify-center bg-[#166534] px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-white' : 'flex w-16 shrink-0 items-center justify-center bg-gray-950 px-2 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white'}>Part III</span>
+      <h4 id="k1-part-iii-heading" className={workspace ? 'px-3 py-2 text-xs font-semibold uppercase leading-tight tracking-[0.035em] text-slate-950' : 'px-3 py-2 text-xs font-black uppercase leading-tight tracking-[0.035em] text-gray-950'}><span className="sr-only">Part III - </span>Partner's Share of Current Year Income, Deductions, Credits, and Other Items</h4>
     </div>
     <div className="grid min-w-0 grid-cols-1 lg:grid-cols-2" data-testid="k1-part-three-grid">
-      <PartThreeColumn region="part-iii-left" fieldStateFor={fieldStateFor} officialFieldStateFor={officialFieldStateFor} />
-      <PartThreeColumn region="part-iii-right" fieldStateFor={fieldStateFor} officialFieldStateFor={officialFieldStateFor} />
+      <PartThreeColumn region="part-iii-left" fieldStateFor={fieldStateFor} officialFieldStateFor={officialFieldStateFor} workspace={workspace} />
+      <PartThreeColumn region="part-iii-right" fieldStateFor={fieldStateFor} officialFieldStateFor={officialFieldStateFor} workspace={workspace} />
     </div>
   </section>
 }

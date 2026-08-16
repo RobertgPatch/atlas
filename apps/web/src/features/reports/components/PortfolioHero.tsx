@@ -5,7 +5,7 @@ import {
   TrendingDownIcon,
   TrendingUpIcon,
 } from 'lucide-react'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrencyWithCents } from '../utils/formatters'
 
 interface PortfolioHeroProps {
   totalValue: number
@@ -15,13 +15,6 @@ interface PortfolioHeroProps {
   totalGainLossPercent: number | null
   totalPositions: number
   connectedAccounts: number
-}
-
-function formatCompactCurrency(value: number | null): string {
-  if (value == null || !Number.isFinite(value)) return 'N/A'
-  if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
-  if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}K`
-  return formatCurrency(value)
 }
 
 export function PortfolioHero({
@@ -45,7 +38,7 @@ export function PortfolioHero({
         </p>
         <div className="flex flex-wrap items-baseline gap-4">
           <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {formatCurrency(totalValue)}
+            {formatCurrencyWithCents(totalValue)}
           </h2>
           {totalGainLoss !== null && totalGainLossPercent !== null ? (
             <div
@@ -61,7 +54,7 @@ export function PortfolioHero({
                 <TrendingDownIcon className="h-4 w-4" />
               )}
               {isPositive ? '+' : ''}
-              {formatCurrency(totalGainLoss)}
+              {formatCurrencyWithCents(totalGainLoss)}
               <span className="text-xs opacity-80">
                 ({isPositive ? '+' : ''}
                 {totalGainLossPercent.toFixed(2)}%)
@@ -78,7 +71,7 @@ export function PortfolioHero({
             <div>
               <p className="text-xs font-medium text-gray-400">Cost Basis</p>
               <p className="text-sm font-semibold text-white">
-                {formatCompactCurrency(totalCostBasis)}
+                {formatCurrencyWithCents(totalCostBasis)}
                 {costBasisIsPartial && (
                   <span className="ml-1 text-xs font-medium text-amber-400">
                     Partial

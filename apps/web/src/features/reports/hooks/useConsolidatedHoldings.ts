@@ -53,9 +53,10 @@ export const useConsolidatedHoldings = () => {
     queryKey: consolidatedHoldingsKeys.report(queryInput),
     queryFn: () => reportsClient.getConsolidatedHoldings(queryInput),
     placeholderData: (previous) => previous,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     gcTime: 30 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   })
 
   const refresh = useMutation({

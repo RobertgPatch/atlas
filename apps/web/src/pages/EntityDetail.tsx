@@ -11,6 +11,8 @@ import { EntityReportsPreviewSection } from '../features/partnerships/components
 import { useEntityDetail } from '../features/partnerships/hooks/useEntityQueries'
 import { useSession, sessionStore } from '../auth/sessionStore'
 import { authClient } from '../auth/authClient'
+import { featureFlags } from '../config/featureFlags'
+import { MagicPatternEntityDetailPage } from './magic-patterns/MagicPatternEntityDetailPage'
 
 function formatUsd(value: number | null | undefined): string {
   if (value == null) return '—'
@@ -19,7 +21,15 @@ function formatUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-export function EntityDetail() {
+export function EntityDetail({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: {
+  magicPatternDesigns?: boolean
+} = {}) {
+  return magicPatternDesigns ? <MagicPatternEntityDetailPage /> : <LegacyEntityDetail />
+}
+
+function LegacyEntityDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { session } = useSession()

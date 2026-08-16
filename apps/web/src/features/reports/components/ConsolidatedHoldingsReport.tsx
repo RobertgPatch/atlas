@@ -7,10 +7,14 @@ import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts'
 import { usePlaidLink } from '../hooks/usePlaidLink'
 import {
+  EQUITY_SECTORS,
+  filterHoldingsBySectors,
+  getAssetAllocation,
   getCostBasisQuality,
   getCustodianBreakdown,
   getSectorAllocation,
   getTopHoldings,
+  type EquitySector,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { AllocationChart } from './AllocationChart'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
@@ -24,37 +28,55 @@ import { TopHoldings } from './TopHoldings'
 export function ConsolidatedHoldingsReport() {
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false)
   const [accountSelectorError, setAccountSelectorError] = useState<string | null>(null)
+  const [selectedSectors, setSelectedSectors] = useState<EquitySector[]>(() => [
+    ...EQUITY_SECTORS,
+  ])
   const holdings = useConsolidatedHoldings()
   const plaidAccounts = usePlaidAccounts()
   const plaidLink = usePlaidLink()
+  const preparePlaidLink = plaidLink.prepare
 
   useEffect(() => {
-    void plaidLink.prepare().catch(() => {
+    void preparePlaidLink().catch(() => {
       // Surface token creation errors only when the user actively opens Link.
     })
-  }, [plaidLink.prepare])
+  }, [preparePlaidLink])
 
   const data = holdings.query.data
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalMarketValue = data?.kpis.totalMarketValue ?? 0
   const quality = useMemo(() => getCostBasisQuality(rows), [rows])
-  const sectorData = useMemo(
-    () => getSectorAllocation(rows, totalMarketValue),
+  const assetData = useMemo(
+    () => getAssetAllocation(rows, totalMarketValue),
     [rows, totalMarketValue],
+  )
+  const sectorData = useMemo(() => getSectorAllocation(rows), [rows])
+  const sectorFilterIsActive = selectedSectors.length !== EQUITY_SECTORS.length
+  const visibleRows = useMemo(
+    () =>
+      sectorFilterIsActive
+        ? filterHoldingsBySectors(rows, selectedSectors)
+        : rows,
+    [rows, sectorFilterIsActive, selectedSectors],
   )
   const custodianData = useMemo(
     () => (data ? getCustodianBreakdown(data, totalMarketValue) : []),
     [data, totalMarketValue],
   )
-  const topHoldings = useMemo(
-    () => getTopHoldings(rows, totalMarketValue),
-    [rows, totalMarketValue],
+  const visibleMarketValue = useMemo(
+    () => visibleRows.reduce((total, row) => total + (row.marketValue ?? 0), 0),
+    [visibleRows],
   )
-  const lastUpdated = data?.sync.lastSuccessfulSyncAt
+  const topHoldings = useMemo(
+    () => getTopHoldings(visibleRows, visibleMarketValue),
+    [visibleMarketValue, visibleRows],
+  )
+  const lastUpdatedAt = data?.pricing.priceAsOf ?? data?.sync.lastSuccessfulSyncAt
+  const lastUpdated = lastUpdatedAt
     ? new Intl.DateTimeFormat('en-US', {
         dateStyle: 'full',
         timeStyle: 'short',
-      }).format(new Date(data.sync.lastSuccessfulSyncAt))
+      }).format(new Date(lastUpdatedAt))
     : 'Not synced yet'
 
   const handleClearAccounts = () => {
@@ -152,16 +174,21 @@ export function ConsolidatedHoldingsReport() {
         connectedAccounts={data?.kpis.selectedAccountCount ?? 0}
       />
 
-      <ConsolidatedHoldingsSyncStatus sync={data?.sync} />
+      <ConsolidatedHoldingsSyncStatus sync={data?.sync} pricing={data?.pricing} />
 
       {rows.length > 0 ? (
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AllocationChart sectorData={sectorData} />
+            <AllocationChart
+              assetData={assetData}
+              sectorData={sectorData}
+              selectedSectors={selectedSectors}
+              onSelectedSectorsChange={setSelectedSectors}
+            />
             <CustodianBreakdown custodians={custodianData} />
           </div>
 
-          <TopHoldings holdings={topHoldings} />
+          {visibleRows.length > 0 ? <TopHoldings holdings={topHoldings} /> : null}
         </>
       ) : null}
 
@@ -172,7 +199,7 @@ export function ConsolidatedHoldingsReport() {
         />
       ) : (
         <ConsolidatedHoldingsTable
-          rows={rows}
+          rows={visibleRows}
           selectedAccountCount={data?.kpis.selectedAccountCount ?? 0}
           search={holdings.filters.search}
           sort={holdings.filters.sort}
@@ -182,13 +209,21 @@ export function ConsolidatedHoldingsReport() {
             holdings.updateFilter('sort', sort)
             holdings.updateFilter('direction', direction)
           }}
+          sectorFilter={
+            sectorFilterIsActive
+              ? {
+                  sectors: selectedSectors,
+                  onClear: () => setSelectedSectors([...EQUITY_SECTORS]),
+                }
+              : undefined
+          }
         />
       )}
 
       <div className="space-y-0.5 text-center text-xs text-gray-400">
         <p>
-          Holdings data refreshed overnight via Plaid - Cost basis subject to
-          custodian availability
+          Positions and cost basis are sourced from Plaid; public-market prices
+          refresh on view and after market close
         </p>
         <p>Not investment advice - For informational purposes only</p>
       </div>

@@ -5,6 +5,7 @@ import type {
   DuplicatePartnershipAssetError,
   PartnershipAssetDetail,
   PartnershipAssetsResponse,
+  UpdatePartnershipAssetRequest,
 } from '../../../../../../packages/types/src/partnership-management'
 import { PartnershipsApiError } from './partnershipsClient'
 
@@ -73,5 +74,27 @@ export const assetsClient = {
       method: 'POST',
       body: JSON.stringify(body),
     })
+  },
+
+  async update(
+    partnershipId: string,
+    assetId: string,
+    body: UpdatePartnershipAssetRequest,
+  ): Promise<PartnershipAssetDetail | DuplicatePartnershipAssetError> {
+    try {
+      return await request<PartnershipAssetDetail>(`/partnerships/${partnershipId}/assets/${assetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+    } catch (error) {
+      if (error instanceof PartnershipsApiError && error.status === 409) {
+        return { kind: 'duplicate-asset', error: 'DUPLICATE_PARTNERSHIP_ASSET' }
+      }
+      throw error
+    }
+  },
+
+  remove(partnershipId: string, assetId: string): Promise<void> {
+    return request<void>(`/partnerships/${partnershipId}/assets/${assetId}`, { method: 'DELETE' })
   },
 }

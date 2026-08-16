@@ -4,6 +4,8 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { sessionStore } from '../auth/sessionStore'
+import { featureFlags } from '../config/featureFlags'
+import { MagicPatternLoginPage } from './magic-patterns/MagicPatternLoginPage'
 
 const getLoginErrorMessage = (error: unknown) => {
   if (
@@ -27,7 +29,13 @@ const getLoginErrorMessage = (error: unknown) => {
   return 'Invalid email or password. Please try again.'
 }
 
-export function LoginPage() {
+interface LoginPageProps {
+  magicPatternDesigns?: boolean
+}
+
+export function LoginPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: LoginPageProps = {}) {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -49,12 +57,30 @@ export function LoginPage() {
     try {
       const session = await authClient.login(email, password)
       sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
     } catch (err) {
       setError(getLoginErrorMessage(err))
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (magicPatternDesigns) {
+    return (
+      <MagicPatternLoginPage
+        email={email}
+        password={password}
+        rememberMe={rememberMe}
+        showPassword={showPassword}
+        isLoading={isLoading}
+        error={error}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onRememberMeChange={setRememberMe}
+        onTogglePassword={() => setShowPassword((visible) => !visible)}
+        onSubmit={handleSubmit}
+      />
+    )
   }
 
   return (

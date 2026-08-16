@@ -13,6 +13,14 @@ import type {
 export interface EntityRecord {
   id: string
   name: string
+  entityType: string
+  jurisdiction: string | null
+  taxId: string | null
+  formedOn: string | null
+  status: string
+  notes: string | null
+  registeredAgent: string | null
+  primaryContact: string | null
 }
 
 export interface PartnershipRecord {
@@ -105,7 +113,18 @@ const seed = () => {
   seeded = true
 
   const makeEntity = (name: string): EntityRecord => {
-    const e: EntityRecord = { id: randomUUID(), name }
+    const e: EntityRecord = {
+      id: randomUUID(),
+      name,
+      entityType: 'UNKNOWN',
+      jurisdiction: null,
+      taxId: null,
+      formedOn: null,
+      status: 'ACTIVE',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(e.id, e)
     return e
   }
@@ -209,7 +228,18 @@ const seed = () => {
 const seedMinimal = () => {
   if (entities.size > 0) return
   const makeEntity = (name: string): EntityRecord => {
-    const e: EntityRecord = { id: randomUUID(), name }
+    const e: EntityRecord = {
+      id: randomUUID(),
+      name,
+      entityType: 'UNKNOWN',
+      jurisdiction: null,
+      taxId: null,
+      formedOn: null,
+      status: 'ACTIVE',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(e.id, e)
     return e
   }
@@ -401,8 +431,25 @@ export const k1Repository = {
   },
 
   /** Create a new entity. Grants membership to every existing user so the entity is visible. */
-  createEntity(args: { name: string }): EntityRecord {
-    const entity: EntityRecord = { id: randomUUID(), name: args.name.trim() }
+  createEntity(args: {
+    name: string
+    entityType?: string
+    jurisdiction?: string | null
+    taxId?: string | null
+    formedOn?: string | null
+  }): EntityRecord {
+    const entity: EntityRecord = {
+      id: randomUUID(),
+      name: args.name.trim(),
+      entityType: args.entityType ?? 'UNKNOWN',
+      jurisdiction: args.jurisdiction?.trim() || null,
+      taxId: args.taxId?.trim() || null,
+      formedOn: args.formedOn?.trim() || null,
+      status: 'DRAFT',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(entity.id, entity)
     for (const user of authRepository.listUsers()) {
       if (!memberships.some((m) => m.userId === user.id && m.entityId === entity.id)) {

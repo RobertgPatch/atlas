@@ -3,8 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { consolidatedHoldingsFixture } from '../fixtures/consolidatedHoldingsFixture'
 import {
+  getAssetAllocation,
   getCustodianBreakdown,
-  getSectorAllocation,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { ConsolidatedHoldingsSummaryCards } from './ConsolidatedHoldingsSummaryCards'
@@ -43,6 +43,63 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText('Taxable')).toBeInTheDocument()
     expect(screen.getByText('IRA')).toBeInTheDocument()
     expect(screen.getByText('70')).toBeInTheDocument()
+  })
+
+  it('preserves cents in equity cost basis and market values', async () => {
+    const user = userEvent.setup()
+    const [baseRow] = consolidatedHoldingsFixture.rows
+    const rowWithCents = {
+      ...baseRow,
+      institutionPrice: 175.01,
+      costBasis: 8_000.12,
+      averageCostBasis: 114.29,
+      unrealizedGainLoss: 4_250.22,
+      marketValue: 12_250.34,
+      details: [],
+    }
+
+    render(
+      <ConsolidatedHoldingsTable
+        rows={[rowWithCents]}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="desc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByText('Equities'))
+
+    expect(screen.getByText('$8,000.12')).toBeInTheDocument()
+    expect(screen.getByText('Avg $114.29')).toBeInTheDocument()
+    expect(screen.getAllByText('$12,250.34')).toHaveLength(2)
+    expect(screen.getByText(/\$175\.01/)).toBeInTheDocument()
+  })
+
+  it('shows active multi-sector filters and clears them from the positions list', async () => {
+    const user = userEvent.setup()
+    const onClear = vi.fn()
+
+    render(
+      <ConsolidatedHoldingsTable
+        rows={consolidatedHoldingsFixture.rows}
+        selectedAccountCount={2}
+        search=""
+        sort="marketValue"
+        direction="desc"
+        onSearchChange={vi.fn()}
+        onSortChange={vi.fn()}
+        sectorFilter={{ sectors: ['Technology', 'Financials'], onClear }}
+      />,
+    )
+
+    expect(screen.getByText(/Sector filter: Technology, Financials/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show all positions' }))
+
+    expect(onClear).toHaveBeenCalledOnce()
   })
 
   it('sorts positions alphabetically within each asset-class section', async () => {
@@ -156,7 +213,7 @@ describe('Consolidated holdings analytics', () => {
       details: [],
     }
 
-    const allocation = getSectorAllocation(
+    const allocation = getAssetAllocation(
       [baseRow, unidentifiedRow],
       (baseRow.marketValue ?? 0) + (unidentifiedRow.marketValue ?? 0),
     )
@@ -211,7 +268,7 @@ describe('ConsolidatedHoldingsSummaryCards', () => {
     render(<ConsolidatedHoldingsSummaryCards kpis={consolidatedHoldingsFixture.kpis} />)
 
     expect(screen.getByText('Total Portfolio Value')).toBeInTheDocument()
-    expect(screen.getByText('$12,250')).toBeInTheDocument()
+    expect(screen.getByText('$12,250.00')).toBeInTheDocument()
     expect(screen.getByText('Connected Accounts')).toBeInTheDocument()
   })
 })
@@ -220,6 +277,7 @@ describe('ConsolidatedHoldingsSyncStatus', () => {
   it('renders fresh saved snapshot status details', () => {
     render(
       <ConsolidatedHoldingsSyncStatus
+        pricing={consolidatedHoldingsFixture.pricing}
         sync={{
           status: 'success',
           freshnessStatus: 'fresh',
@@ -247,8 +305,27 @@ describe('ConsolidatedHoldingsSyncStatus', () => {
     )
 
     expect(screen.getByText('Fresh')).toBeInTheDocument()
-    expect(screen.getByText(/Data as of May 11, 2026/i)).toBeInTheDocument()
+    expect(screen.getByText(/Holdings as of May 11, 2026/i)).toBeInTheDocument()
+    expect(screen.getByText(/Live SIP prices via Alpaca/i)).toBeInTheDocument()
     expect(screen.getByText(/Next refresh/i)).toBeInTheDocument()
+  })
+
+  it('names both pricing sources when OTC fallback prices are used', () => {
+    render(
+      <ConsolidatedHoldingsSyncStatus
+        sync={consolidatedHoldingsFixture.sync}
+        pricing={{
+          ...consolidatedHoldingsFixture.pricing,
+          status: 'eod',
+          provider: 'alpaca+massive',
+          feed: null,
+        }}
+      />,
+    )
+
+    expect(
+      screen.getByText(/Official closing prices via Alpaca \+ Massive/i),
+    ).toBeInTheDocument()
   })
 
   it('renders partial sync warnings', () => {

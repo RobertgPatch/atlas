@@ -118,7 +118,7 @@ Terraform now models the target baseline locally:
 - ECR, ECS/Fargate API service, ALB origin, IAM roles, and CloudWatch logs
 - S3 web bucket and CloudFront distribution with `/v1/*` API behavior
 - WAF managed rules, rate limiting, and WAF logs
-- EventBridge Scheduler running an ECS one-shot Plaid refresh task
+- EventBridge Scheduler running separate one-shot Plaid holdings and end-of-day market-price tasks
 - CloudWatch alarms and optional SNS email notifications
 - AWS Budget with optional email thresholds
 
@@ -139,6 +139,6 @@ Do not apply production until staging has passed health, auth, Plaid sandbox, sc
 
 - Store staging and production secrets in separate AWS Secrets Manager namespaces.
 - Keep local `.env` files for development only.
-- Never commit Plaid secrets, database URLs with credentials, scheduler tokens, session tokens, MFA secrets, `PERSISTENCE_SECRET_KEY`, Terraform state, or real `*.tfvars`.
+- Never commit Plaid or market-data credentials, database URLs with credentials, scheduler tokens, session tokens, MFA secrets, `PERSISTENCE_SECRET_KEY`, Terraform state, or real `*.tfvars`.
 - Record only secret names or ARNs in documentation.
 - Never reuse production database credentials, Plaid production credentials, scheduler tokens, admin bootstrap credentials, or persistence keys in staging.

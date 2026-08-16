@@ -33,6 +33,18 @@ const plaidSecret =
   nodeEnv === 'test'
     ? (process.env.ATLAS_TEST_PLAID_SECRET ?? '')
     : (process.env.PLAID_SECRET ?? '')
+const alpacaMarketDataKeyId =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_ALPACA_MARKET_DATA_KEY_ID ?? '')
+    : (process.env.ALPACA_MARKET_DATA_KEY_ID ?? '')
+const alpacaMarketDataSecret =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_ALPACA_MARKET_DATA_SECRET ?? '')
+    : (process.env.ALPACA_MARKET_DATA_SECRET ?? '')
+const massiveMarketDataApiKey =
+  nodeEnv === 'test'
+    ? (process.env.ATLAS_TEST_MASSIVE_MARKET_DATA_API_KEY ?? '')
+    : (process.env.MASSIVE_MARKET_DATA_API_KEY ?? '')
 
 export const config = {
   nodeEnv,
@@ -69,6 +81,32 @@ export const config = {
       | 'eventbridge'
       | 'manual',
     schedulerToken: process.env.ATLAS_SCHEDULER_TOKEN ?? '',
+  },
+  marketData: {
+    provider: (process.env.MARKET_DATA_PROVIDER ?? 'none') as 'none' | 'alpaca',
+    refreshOnRead: asBoolean(process.env.MARKET_DATA_REFRESH_ON_READ, true),
+    maxAgeSeconds: asNumber(process.env.MARKET_DATA_MAX_AGE_SECONDS, 60),
+    requestTimeoutMs: asNumber(process.env.MARKET_DATA_REQUEST_TIMEOUT_MS, 4_000),
+    alpaca: {
+      baseUrl:
+        process.env.ALPACA_MARKET_DATA_BASE_URL ?? 'https://data.alpaca.markets',
+      keyId: alpacaMarketDataKeyId,
+      secret: alpacaMarketDataSecret,
+      feed: (process.env.ALPACA_MARKET_DATA_FEED ?? 'sip') as
+        | 'sip'
+        | 'iex'
+        | 'delayed_sip',
+    },
+    massive: {
+      enabled: asBoolean(process.env.MASSIVE_OTC_ENABLED),
+      baseUrl:
+        process.env.MASSIVE_MARKET_DATA_BASE_URL ?? 'https://api.massive.com',
+      apiKey: massiveMarketDataApiKey,
+      cacheTtlSeconds: asNumber(
+        process.env.MASSIVE_OTC_CACHE_TTL_SECONDS,
+        900,
+      ),
+    },
   },
   security: {
     rateLimitEnabled: asBoolean(process.env.RATE_LIMIT_ENABLED, true),

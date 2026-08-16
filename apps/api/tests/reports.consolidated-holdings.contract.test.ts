@@ -34,6 +34,12 @@ describe('GET /v1/reports/consolidated-holdings contract', () => {
     expect(body).toHaveProperty('kpis')
     expect(body).toHaveProperty('rows')
     expect(body).toHaveProperty('selectedAccounts')
+    expect(body).toHaveProperty('pricing')
+    expect(body.pricing).toMatchObject({
+      status: expect.any(String),
+      pricedHoldingCount: expect.any(Number),
+      fallbackHoldingCount: expect.any(Number),
+    })
     expect(body).toHaveProperty('sync')
     expect(body).toHaveProperty('page')
     expect(body.rows[0]).toHaveProperty('details')

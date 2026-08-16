@@ -22,6 +22,8 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   CAPITAL_ACTIVITY_CREATED: 'partnership.capital_activity.created',
   CAPITAL_ACTIVITY_UPDATED: 'partnership.capital_activity.updated',
   ASSET_CREATED: 'partnership.asset.created',
+  ASSET_UPDATED: 'partnership.asset.updated',
+  ASSET_DELETED: 'partnership.asset.deleted',
   ASSET_FMV_RECORDED: 'partnership.asset.fmv_recorded',
   REPORT_COMMITMENT_EDITED: 'reports.portfolio_summary.commitment.edited',
   REPORT_COMMITMENT_UNDONE: 'reports.portfolio_summary.commitment.undone',

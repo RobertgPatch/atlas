@@ -56,7 +56,7 @@ export function K1FormFieldCell({
   const label = visibleLabel === undefined ? field.label : visibleLabel
   const hasAnnotation = derivedFromCashActivity || Boolean(source) || Boolean(carryforward)
 
-  return <label className="block min-w-0">
+  return <label className="block min-w-0" data-k1-field={field.key}>
     <span className={label === false ? 'sr-only' : 'block text-[11px] font-semibold leading-tight text-gray-800'}>
       {label === false ? field.label : label}
     </span>

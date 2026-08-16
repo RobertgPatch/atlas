@@ -6,8 +6,29 @@ const API_BASE =
 export interface EntityListItem {
   id: string
   name: string
+  entityType: string
+  jurisdiction: string | null
+  taxId: string | null
+  formedOn: string | null
+  status: string
+  notes: string | null
+  registeredAgent: string | null
+  primaryContact: string | null
+  ownerCount: number
   partnershipCount: number
+  investmentCount: number
+  holdingsValueUsd: number
   totalDistributionsUsd: number
+}
+
+export type EntityKind = 'llc' | 'trust' | 'corporation' | 'partnership' | 'individual'
+
+export interface CreateEntityInput {
+  name: string
+  kind: EntityKind
+  jurisdiction: string
+  taxId: string
+  formedOn: string
 }
 
 export class EntitiesApiError extends Error {
@@ -46,10 +67,14 @@ export const entitiesClient = {
   list(): Promise<{ items: EntityListItem[] }> {
     return request<{ items: EntityListItem[] }>(`/entities`)
   },
-  create(name: string): Promise<{ id: string; name: string }> {
+  create(input: string | CreateEntityInput): Promise<{ id: string; name: string }> {
+    const body: CreateEntityInput =
+      typeof input === 'string'
+        ? { name: input, kind: 'llc', jurisdiction: 'Not on file', taxId: '', formedOn: '' }
+        : input
     return request<{ id: string; name: string }>(`/entities`, {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(body),
     })
   },
   update(id: string, name: string): Promise<{ id: string; name: string }> {

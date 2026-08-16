@@ -9,7 +9,7 @@ describe('Partnership Tracker navigation', () => {
   beforeEach(() => window.localStorage.clear())
 
   it('shows one consolidated active navigation item', () => {
-    render(<MemoryRouter><AppShell currentPath="/partnership-tracker" userRole="Admin"><div>Workspace</div></AppShell></MemoryRouter>)
+    render(<MemoryRouter><AppShell currentPath="/partnership-tracker" userRole="Admin" magicPatternDesigns={false}><div>Workspace</div></AppShell></MemoryRouter>)
     expect(screen.getByText('Jackson')).toBeInTheDocument()
     expect(screen.queryByText('Atlas')).not.toBeInTheDocument()
     const link = screen.getByRole('link', { name: 'Partnerships' })
@@ -40,12 +40,12 @@ describe('Partnership Tracker navigation', () => {
   })
 
   it('keeps the consolidated sidebar item active for the aggregate route', () => {
-    render(<MemoryRouter><AppShell currentPath="/partnership-aggregation"><div>Aggregate</div></AppShell></MemoryRouter>)
+    render(<MemoryRouter><AppShell currentPath="/partnership-aggregation" magicPatternDesigns={false}><div>Aggregate</div></AppShell></MemoryRouter>)
     expect(screen.getByRole('link', { name: 'Partnerships' }).className).toContain('text-jackson-gold')
   })
 
   it('collapses to an icon rail and temporarily reveals the full navigation on hover', () => {
-    render(<MemoryRouter><AppShell currentPath="/partnership-aggregation"><div>Aggregate</div></AppShell></MemoryRouter>)
+    render(<MemoryRouter><AppShell currentPath="/partnership-aggregation" magicPatternDesigns={false}><div>Aggregate</div></AppShell></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
 
     const frame = screen.getByTestId('app-sidebar-frame')
@@ -65,7 +65,7 @@ describe('Partnership Tracker navigation', () => {
   })
 
   it('navigates on the first click while the collapsed rail expands on hover', () => {
-    render(<MemoryRouter initialEntries={['/liquidity']}><Routes><Route path="*" element={<AppShell currentPath="/liquidity"><LocationPath /></AppShell>} /></Routes></MemoryRouter>)
+    render(<MemoryRouter initialEntries={['/liquidity']}><Routes><Route path="*" element={<AppShell currentPath="/liquidity" magicPatternDesigns={false}><LocationPath /></AppShell>} /></Routes></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
     fireEvent.mouseEnter(screen.getByTestId('app-sidebar-frame'))
     fireEvent.click(screen.getByRole('link', { name: 'Entities' }))

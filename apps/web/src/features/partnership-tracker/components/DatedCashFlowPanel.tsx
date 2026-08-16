@@ -25,14 +25,16 @@ interface DraftCashFlowRow {
   kind: K1TrackerCashFlowKind
 }
 
-export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate, onDelete }: {
+export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate, onDelete, appearance = 'default' }: {
   taxYear: number
   events: K1TrackerCashFlowEvent[]
   canEdit: boolean
   pending: boolean
   onCreate: (entries: CreatePartnershipCashFlowRequest[]) => Promise<void>
   onDelete: (event: K1TrackerCashFlowEvent) => Promise<void>
+  appearance?: 'default' | 'workspace'
 }) {
+  const workspace = appearance === 'workspace'
   const [dialogOpen, setDialogOpen] = useState(false)
   const [draftRows, setDraftRows] = useState<DraftCashFlowRow[]>([])
   const [formError, setFormError] = useState<string>()
@@ -108,15 +110,15 @@ export function DatedCashFlowPanel({ taxYear, events, canEdit, pending, onCreate
   }
 
   return <>
-    <section aria-labelledby="cash-activity-title" className="border border-gray-200 bg-white">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
-        <div><p className="text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover">Dated cash activity</p><h3 id="cash-activity-title" className="mt-1 text-lg font-semibold text-gray-950">Net cash activity</h3><p className="mt-1 max-w-2xl text-sm text-gray-600">Record exact-dated capital calls and distributions for annual K-1 totals and XIRR. Recallable distributions also restore commitment.</p></div>
-        {canEdit && <button type="button" onClick={openDialog} disabled={pending} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"><Plus className="h-4 w-4" aria-hidden="true" />Net Cash Activity</button>}
+    <section aria-labelledby="cash-activity-title" className={workspace ? 'overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm' : 'border border-gray-200 bg-white'}>
+      <div className={workspace ? 'flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3' : 'flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4'}>
+        <div><p className={workspace ? 'text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-[#166534]' : 'text-xs font-bold uppercase tracking-[0.14em] text-jackson-hover'}>Dated cash activity</p><h3 id="cash-activity-title" className={workspace ? 'mt-0.5 text-sm font-semibold text-slate-950' : 'mt-1 text-lg font-semibold text-gray-950'}>Net cash activity</h3><p className={workspace ? 'mt-0.5 max-w-2xl text-xs text-slate-600' : 'mt-1 max-w-2xl text-sm text-gray-600'}>Record exact-dated capital calls and distributions for annual K-1 totals and XIRR. Recallable distributions also restore commitment.</p></div>
+        {canEdit && <button type="button" onClick={openDialog} disabled={pending} className={workspace ? 'inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 disabled:opacity-40' : 'inline-flex min-h-11 items-center gap-2 rounded-md bg-gray-950 px-4 text-sm font-semibold text-white transition-colors hover:bg-gray-800 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2'}><Plus className="h-4 w-4" aria-hidden="true" />{workspace ? 'Add activity' : 'Net Cash Activity'}</button>}
       </div>
-      <div className="grid border-b border-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-gray-200">
-        <div className="px-5 py-3"><p className="text-xs uppercase tracking-wide text-gray-500">{taxYear} capital calls</p><p className="mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950">{money(totals.CAPITAL_CALL)}</p></div>
-        <div className="border-t border-gray-200 px-5 py-3 sm:border-t-0"><p className="text-xs uppercase tracking-wide text-gray-500">{taxYear} distributions</p><p className="mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950">{money(distributionTotal)}</p></div>
-        <div className="border-t border-gray-200 px-5 py-3 sm:border-t-0"><p className="text-xs uppercase tracking-wide text-gray-500">Recallable portion</p><p className="mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950">{money(totals.RECALLABLE_DISTRIBUTION)}</p></div>
+      <div className={workspace ? 'grid border-b border-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-slate-200' : 'grid border-b border-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-gray-200'}>
+        <div className="px-4 py-3"><p className="text-[0.68rem] uppercase tracking-wide text-slate-500">{taxYear} capital calls</p><p className={workspace ? 'mt-1 font-mono text-sm font-semibold tabular-nums text-slate-950' : 'mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950'}>{money(totals.CAPITAL_CALL)}</p></div>
+        <div className="border-t border-slate-200 px-4 py-3 sm:border-t-0"><p className="text-[0.68rem] uppercase tracking-wide text-slate-500">{taxYear} distributions</p><p className={workspace ? 'mt-1 font-mono text-sm font-semibold tabular-nums text-slate-950' : 'mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950'}>{money(distributionTotal)}</p></div>
+        <div className="border-t border-slate-200 px-4 py-3 sm:border-t-0"><p className="text-[0.68rem] uppercase tracking-wide text-slate-500">Recallable portion</p><p className={workspace ? 'mt-1 font-mono text-sm font-semibold tabular-nums text-slate-950' : 'mt-1 font-serif text-xl font-semibold tabular-nums text-gray-950'}>{money(totals.RECALLABLE_DISTRIBUTION)}</p></div>
       </div>
       <div className="overflow-x-auto"><table className="w-full min-w-[44rem] text-left text-sm"><thead className="bg-gray-50 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-gray-500"><tr><th className="px-5 py-3">Activity</th><th className="px-3 py-3">Date</th><th className="px-3 py-3 text-right">Amount</th><th className="px-3 py-3">Note</th><th aria-label="Actions" className="w-14 px-3 py-3" /></tr></thead><tbody className="divide-y divide-gray-100">
         {events.map((cashEvent) => <tr key={cashEvent.id}><td className="px-5 py-3 font-semibold text-gray-800">{labelFor(cashEvent.kind)}</td><td className="px-3 py-3 text-gray-600">{date(cashEvent.activityDate)}</td><td className="px-3 py-3 text-right font-mono font-semibold tabular-nums text-gray-900">{money(cashEvent.amount)}</td><td className="max-w-xs truncate px-3 py-3 text-gray-500" title={cashEvent.note ?? ''}>{cashEvent.note ?? '\u2014'}</td><td className="px-3 py-3">{canEdit && <button type="button" aria-label={`Delete ${labelFor(cashEvent.kind).toLowerCase()} from ${cashEvent.activityDate}`} onClick={() => setDeleteTarget(cashEvent)} disabled={pending} className="grid min-h-11 min-w-11 place-items-center rounded-md text-gray-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold"><Trash2 className="h-4 w-4" aria-hidden="true" /></button>}</td></tr>)}

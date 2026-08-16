@@ -1,9 +1,17 @@
 import { authClient } from '../auth/authClient'
 import { sessionStore, useSession } from '../auth/sessionStore'
 import { AppShell } from '../components/shared/AppShell'
-import { PartnershipTrackerPageContent } from '../features/partnership-tracker'
+import { featureFlags } from '../config/featureFlags'
+import {
+  MagicPatternPartnershipTrackerPageContent,
+  PartnershipTrackerPageContent,
+} from '../features/partnership-tracker'
 
-export function PartnershipTrackerPage() {
+export function PartnershipTrackerPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: {
+  magicPatternDesigns?: boolean
+} = {}) {
   const { session } = useSession()
   return (
     <AppShell
@@ -11,8 +19,13 @@ export function PartnershipTrackerPage() {
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
       onSignOut={() => { void authClient.logout().finally(() => sessionStore.setUnauthenticated()) }}
+      contentClassName={magicPatternDesigns ? 'max-w-[2200px]' : undefined}
     >
-      <PartnershipTrackerPageContent canEdit={session?.role === 'Admin'} />
+      {magicPatternDesigns ? (
+        <MagicPatternPartnershipTrackerPageContent canEdit={session?.role === 'Admin'} />
+      ) : (
+        <PartnershipTrackerPageContent canEdit={session?.role === 'Admin'} />
+      )}
     </AppShell>
   )
 }

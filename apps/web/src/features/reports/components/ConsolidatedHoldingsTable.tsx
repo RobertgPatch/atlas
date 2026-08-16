@@ -18,7 +18,7 @@ import type {
   ConsolidatedHoldingsQuery,
 } from '../../../../../../packages/types/src/reports'
 import { inferSector } from '../utils/consolidatedHoldingsAnalytics'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrencyWithCents } from '../utils/formatters'
 import { ConsolidatedHoldingsRow } from './ConsolidatedHoldingsRow'
 
 interface ConsolidatedHoldingsTableProps {
@@ -32,6 +32,10 @@ interface ConsolidatedHoldingsTableProps {
     sort: NonNullable<ConsolidatedHoldingsQuery['sort']>,
     direction: 'asc' | 'desc',
   ) => void
+  sectorFilter?: {
+    sectors: readonly string[]
+    onClear: () => void
+  }
 }
 
 type SortKey = NonNullable<ConsolidatedHoldingsQuery['sort']>
@@ -202,6 +206,7 @@ export function ConsolidatedHoldingsTable({
   direction,
   onSearchChange,
   onSortChange,
+  sectorFilter,
 }: ConsolidatedHoldingsTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -339,6 +344,27 @@ export function ConsolidatedHoldingsTable({
             {groupedByCategory.length} asset class
             {groupedByCategory.length === 1 ? '' : 'es'}
           </p>
+          {sectorFilter ? (
+            <div
+              className="mt-2 flex flex-wrap items-center gap-2 text-xs"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
+                Sector filter:{' '}
+                {sectorFilter.sectors.length > 0
+                  ? sectorFilter.sectors.join(', ')
+                  : 'No sectors selected'}
+              </span>
+              <button
+                type="button"
+                onClick={sectorFilter.onClear}
+                className="font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
+                Show all positions
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="relative">
           <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -387,7 +413,9 @@ export function ConsolidatedHoldingsTable({
             <tbody>
               <tr>
                 <td colSpan={7} className="py-16 text-center text-sm text-gray-400">
-                  No holdings found. Try adjusting your search or account selection.
+                  {sectorFilter
+                    ? 'No holdings match the selected sectors.'
+                    : 'No holdings found. Try adjusting your search or account selection.'}
                 </td>
               </tr>
             </tbody>
@@ -445,7 +473,7 @@ export function ConsolidatedHoldingsTable({
                               }`}
                             >
                               {gainLossPositive ? '+' : ''}
-                              {formatCurrency(group.totalGainLoss)}
+                              {formatCurrencyWithCents(group.totalGainLoss)}
                             </span>
                           ) : null}
                         </div>
@@ -456,7 +484,7 @@ export function ConsolidatedHoldingsTable({
                           {group.accountCount}
                         </span>
                         <span className="text-right text-sm font-bold text-gray-900">
-                          {formatCurrency(group.totalValue)}
+                          {formatCurrencyWithCents(group.totalValue)}
                         </span>
                       </div>
                     </td>

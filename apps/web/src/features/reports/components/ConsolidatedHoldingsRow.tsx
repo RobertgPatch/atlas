@@ -5,7 +5,7 @@ import {
 } from 'lucide-react'
 import type { ConsolidatedHoldingRow } from '../../../../../../packages/types/src/reports'
 import { getCostBasisStatus } from '../utils/consolidatedHoldingsAnalytics'
-import { formatCurrency, formatPercent } from '../utils/formatters'
+import { formatCurrencyWithCents, formatPercent } from '../utils/formatters'
 
 interface ConsolidatedHoldingsRowProps {
   row: ConsolidatedHoldingRow
@@ -53,7 +53,9 @@ function GainLossCell({
   return (
     <div className="flex flex-col items-end">
       <div className="flex items-center gap-1">
-        <span className={`text-sm font-medium ${color}`}>{formatCurrency(value)}</span>
+        <span className={`text-sm font-medium ${color}`}>
+          {formatCurrencyWithCents(value)}
+        </span>
         {status === 'partial' && (
           <AlertCircleIcon className="h-3.5 w-3.5 text-amber-400" />
         )}
@@ -133,7 +135,7 @@ export function ConsolidatedHoldingsRow({
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {row.costBasis !== null ? (
             <div>
-              <div>{formatCurrency(row.costBasis)}</div>
+              <div>{formatCurrencyWithCents(row.costBasis)}</div>
               {costBasisStatus === 'partial' ? (
                 <div className="mt-0.5 flex items-center justify-end gap-1">
                   <AlertCircleIcon className="h-3 w-3 text-amber-400" />
@@ -143,7 +145,7 @@ export function ConsolidatedHoldingsRow({
                 </div>
               ) : (
                 <div className="text-xs font-normal text-gray-400">
-                  Avg {formatCurrency(row.averageCostBasis)}
+                  Avg {formatCurrencyWithCents(row.averageCostBasis)}
                 </div>
               )}
             </div>
@@ -170,9 +172,10 @@ export function ConsolidatedHoldingsRow({
           {formatNumber(row.quantity)}
         </td>
         <td className="py-3.5 pl-3 pr-4 text-right text-sm font-semibold text-gray-900">
-          <div>{formatCurrency(row.marketValue)}</div>
+          <div>{formatCurrencyWithCents(row.marketValue)}</div>
           <div className="text-xs font-normal text-gray-400">
-            {formatCurrency(row.institutionPrice)} {formatPriceDate(row.priceAsOfDate)}
+            {formatCurrencyWithCents(row.institutionPrice)}{' '}
+            {formatPriceDate(row.priceAsOfDate)}
           </div>
         </td>
       </tr>
@@ -197,9 +200,9 @@ export function ConsolidatedHoldingsRow({
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {detail.costBasis !== null ? (
                 <div>
-                  <div>{formatCurrency(detail.costBasis)}</div>
+                  <div>{formatCurrencyWithCents(detail.costBasis)}</div>
                   <div className="text-gray-400">
-                    Avg {formatCurrency(detail.averageCostBasis)}
+                    Avg {formatCurrencyWithCents(detail.averageCostBasis)}
                   </div>
                 </div>
               ) : (
@@ -222,9 +225,10 @@ export function ConsolidatedHoldingsRow({
               {formatNumber(detail.quantity)}
             </td>
             <td className="py-2.5 pl-3 pr-4 text-right text-xs text-gray-600">
-              <div>{formatCurrency(detail.marketValue)}</div>
+              <div>{formatCurrencyWithCents(detail.marketValue)}</div>
               <div className="text-gray-400">
-                {formatCurrency(detail.institutionPrice)} {formatPriceDate(detail.priceAsOfDate)}
+                {formatCurrencyWithCents(detail.institutionPrice)}{' '}
+                {formatPriceDate(detail.priceAsOfDate)}
               </div>
             </td>
           </tr>

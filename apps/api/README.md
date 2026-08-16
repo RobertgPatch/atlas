@@ -87,6 +87,18 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `PLAID_REFRESH_SCHEDULER_ENABLED` | `false` | Whether production automatic refresh infrastructure is expected |
 | `PLAID_REFRESH_SCHEDULER_MODE` | `none` | Scheduler mode: `none`, `eventbridge`, or `manual` |
 | `ATLAS_SCHEDULER_TOKEN` | _(empty)_ | Shared token for the protected scheduler trigger |
+| `MARKET_DATA_PROVIDER` | `none` | Public-market provider: `none` or `alpaca` |
+| `MARKET_DATA_REFRESH_ON_READ` | `true` | Refresh stale public-market quotes while serving the Liquidity report |
+| `MARKET_DATA_MAX_AGE_SECONDS` | `60` | Server-side quote cache lifetime |
+| `MARKET_DATA_REQUEST_TIMEOUT_MS` | `4000` | Timeout for provider HTTP requests |
+| `ALPACA_MARKET_DATA_BASE_URL` | `https://data.alpaca.markets` | Alpaca Market Data API origin |
+| `ALPACA_MARKET_DATA_KEY_ID` | _(empty)_ | Server-only Alpaca market-data key id |
+| `ALPACA_MARKET_DATA_SECRET` | _(empty)_ | Server-only Alpaca market-data secret |
+| `ALPACA_MARKET_DATA_FEED` | `sip` | Alpaca feed: `sip`, `iex`, or `delayed_sip` |
+| `MASSIVE_OTC_ENABLED` | `false` | Use Massive end-of-day aggregates for OTC symbols Alpaca leaves unpriced |
+| `MASSIVE_MARKET_DATA_BASE_URL` | `https://api.massive.com` | Massive REST API origin |
+| `MASSIVE_MARKET_DATA_API_KEY` | _(empty)_ | Server-only Massive API key |
+| `MASSIVE_OTC_CACHE_TTL_SECONDS` | `900` | Cache lifetime for Massive grouped OTC daily responses |
 | `RATE_LIMIT_ENABLED` | `true` | Enables API-side rate-limit guardrail configuration |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | Rate-limit window size used by production readiness checks |
 | `RATE_LIMIT_MAX_REQUESTS` | `120` | Maximum requests per rate-limit window |
@@ -96,6 +108,26 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `AWS_APP_DOMAIN` | _(empty)_ | Public app domain used by CloudFront, for example `app.example.com` |
 | `AWS_CLOUDFRONT_DISTRIBUTION_ID` | _(empty)_ | CloudFront distribution id for diagnostics/runbook evidence |
 | `AWS_WEB_ASSETS_BUCKET` | _(empty)_ | S3 bucket name for static web assets |
+
+## Liquidity market pricing
+
+Plaid remains authoritative for account selection, quantities, and cost basis. When
+`MARKET_DATA_PROVIDER=alpaca`, the consolidated holdings read path obtains a fresh
+batch quote for stale USD ticker symbols, saves the observation, and recomputes
+market value as `quantity × price`. A provider or cache failure falls back to the
+last saved price or the custodian value and is disclosed in the response metadata.
+
+For the AWS deployment, the separate `market-price-refresh` scheduled task runs
+`dist/scripts/run-market-price-refresh.js` after the US market close and stores daily
+closing prices. Keep Alpaca credentials in the generated Secrets Manager entries;
+do not place them in web environment variables.
+
+When `MASSIVE_OTC_ENABLED=true`, Alpaca remains the primary source. Symbols that
+Alpaca does not price are passed to Massive's grouped daily endpoint, and only
+results explicitly marked as OTC are accepted. Massive observations are persisted
+with `provider=massive` and never replace an Alpaca price for the same request.
+The free Massive plan is end-of-day only, so OTC holdings show the most recent
+eligible closing trade rather than an intraday quote.
 
 ## K-1 Extraction backend
 

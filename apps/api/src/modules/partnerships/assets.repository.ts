@@ -9,15 +9,19 @@ import type {
   PartnershipAssetDetail,
   PartnershipAssetRow,
   PartnershipAssetsResponse,
+  UpdatePartnershipAssetRequest,
 } from './partnerships.types.js'
 import {
   buildAssetsResponse,
   createInMemoryAsset,
   createInMemoryAssetSnapshot,
+  deleteInMemoryAsset,
   findInMemoryDuplicateAsset,
   getInMemoryAssetDetail,
   listInMemoryAssetRows,
   resetInMemoryAssets,
+  updateInMemoryAsset,
+  inferAssetCategory,
 } from './assets.store.js'
 
 export const assetsRepository = {
@@ -32,9 +36,11 @@ export const assetsRepository = {
         asset.id,
         asset.partnership_id,
         asset.name,
+        asset.asset_category,
         asset.asset_type,
         asset.source_type,
         asset.status,
+        asset.display_detail,
         asset.description,
         asset.notes,
         asset.created_at,
@@ -62,9 +68,11 @@ export const assetsRepository = {
       id: row.id,
       partnershipId: row.partnership_id,
       name: row.name,
+      assetCategory: row.asset_category,
       assetType: row.asset_type,
       sourceType: row.source_type,
       status: row.status,
+      displayDetail: row.display_detail ?? null,
       description: row.description ?? null,
       notes: row.notes ?? null,
       createdAt: row.created_at,
@@ -94,9 +102,11 @@ export const assetsRepository = {
         asset.id,
         asset.partnership_id,
         asset.name,
+        asset.asset_category,
         asset.asset_type,
         asset.source_type,
         asset.status,
+        asset.display_detail,
         asset.description,
         asset.notes,
         asset.created_at,
@@ -133,9 +143,11 @@ export const assetsRepository = {
         id: row.id,
         partnershipId: row.partnership_id,
         name: row.name,
+        assetCategory: row.asset_category,
         assetType: row.asset_type,
         sourceType: row.source_type,
         status: row.status,
+        displayDetail: row.display_detail ?? null,
         description: row.description ?? null,
         notes: row.notes ?? null,
         createdAt: row.created_at,
@@ -171,9 +183,11 @@ export const assetsRepository = {
     _partnershipId: string,
     _name: string,
     _assetType: string,
+    _excludeAssetId?: string,
   ): Promise<PartnershipAssetRow | null> {
     if (!pool) {
-      return findInMemoryDuplicateAsset(_partnershipId, _name, _assetType)
+      const duplicate = findInMemoryDuplicateAsset(_partnershipId, _name, _assetType)
+      return duplicate?.id === _excludeAssetId ? null : duplicate
     }
 
     const result = await pool.query(
@@ -183,9 +197,10 @@ export const assetsRepository = {
       where partnership_id = $1
         and lower(trim(name)) = lower(trim($2))
         and lower(trim(asset_type)) = lower(trim($3))
+        and ($4::uuid is null or id <> $4::uuid)
       limit 1
       `,
-      [_partnershipId, _name, _assetType],
+      [_partnershipId, _name, _assetType, _excludeAssetId ?? null],
     )
 
     const existing = result.rows[0]
@@ -236,16 +251,18 @@ export const assetsRepository = {
     const createdAssetResult = await client.query(
       `
       insert into partnership_assets
-        (id, partnership_id, name, asset_type, source_type, status, description, notes, created_at, updated_at)
+        (id, partnership_id, name, asset_category, asset_type, source_type, status, display_detail, description, notes, created_at, updated_at)
       values
-        ($1, $2, $3, $4, 'manual', 'ACTIVE', $5, $6, now(), now())
+        ($1, $2, $3, $4, $5, 'manual', 'ACTIVE', $6, $7, $8, now(), now())
       returning *
       `,
       [
         assetId,
         _partnershipId,
         _body.name.trim(),
+        _body.assetCategory ?? inferAssetCategory(_body.assetType),
         _body.assetType.trim(),
+        _body.displayDetail?.trim() || null,
         _body.description?.trim() || null,
         _body.notes?.trim() || null,
       ],
@@ -304,6 +321,114 @@ export const assetsRepository = {
     }
 
     return (await this.getPartnershipAsset(_partnershipId, assetId))!
+  },
+
+  async updatePartnershipAsset(
+    _partnershipId: string,
+    _assetId: string,
+    _body: UpdatePartnershipAssetRequest,
+    _actorUserId: string,
+    client?: PoolClient | null,
+  ): Promise<boolean> {
+    const before = await this.getPartnershipAsset(_partnershipId, _assetId)
+    if (!before) return false
+
+    if (!pool || !client) {
+      const updated = updateInMemoryAsset(_partnershipId, _assetId, _body)
+      if (!updated) return false
+      await auditRepository.record({
+        actorUserId: _actorUserId,
+        eventName: PARTNERSHIP_AUDIT_EVENTS.ASSET_UPDATED,
+        objectType: 'partnership_asset',
+        objectId: _assetId,
+        before: before.asset,
+        after: updated.asset,
+      })
+      return true
+    }
+
+    const current = before.asset
+    const result = await client.query(
+      `
+      update partnership_assets
+      set name = $3,
+          asset_category = $4,
+          asset_type = $5,
+          status = $6,
+          display_detail = $7,
+          description = $8,
+          notes = $9,
+          updated_at = now()
+      where partnership_id = $1 and id = $2
+      returning *
+      `,
+      [
+        _partnershipId,
+        _assetId,
+        _body.name?.trim() ?? current.name,
+        _body.assetCategory ?? current.assetCategory,
+        _body.assetType?.trim() ?? current.assetType,
+        _body.status ?? current.status,
+        _body.displayDetail === undefined ? current.displayDetail : _body.displayDetail?.trim() || null,
+        _body.description === undefined ? current.description : _body.description?.trim() || null,
+        _body.notes === undefined ? current.notes : _body.notes?.trim() || null,
+      ],
+    )
+    if (!result.rows[0]) return false
+    await auditRepository.record(
+      {
+        actorUserId: _actorUserId,
+        eventName: PARTNERSHIP_AUDIT_EVENTS.ASSET_UPDATED,
+        objectType: 'partnership_asset',
+        objectId: _assetId,
+        before: current,
+        after: result.rows[0],
+      },
+      client,
+    )
+    return true
+  },
+
+  async deletePartnershipAsset(
+    _partnershipId: string,
+    _assetId: string,
+    _actorUserId: string,
+    client?: PoolClient | null,
+  ): Promise<boolean> {
+    const before = await this.getPartnershipAsset(_partnershipId, _assetId)
+    if (!before) return false
+
+    if (!pool || !client) {
+      const deleted = deleteInMemoryAsset(_partnershipId, _assetId)
+      if (!deleted) return false
+      await auditRepository.record({
+        actorUserId: _actorUserId,
+        eventName: PARTNERSHIP_AUDIT_EVENTS.ASSET_DELETED,
+        objectType: 'partnership_asset',
+        objectId: _assetId,
+        before: deleted,
+        after: null,
+      })
+      return true
+    }
+
+    const result = await client.query(
+      'delete from partnership_assets where partnership_id = $1 and id = $2 returning id',
+      [_partnershipId, _assetId],
+    )
+    if (!result.rows[0]) return false
+    await auditRepository.record(
+      {
+        actorUserId: _actorUserId,
+        eventName: PARTNERSHIP_AUDIT_EVENTS.ASSET_DELETED,
+        objectType: 'partnership_asset',
+        objectId: _assetId,
+        before: before.asset,
+        after: null,
+      },
+      client,
+    )
+    return true
   },
 
   _debugReset(): void {

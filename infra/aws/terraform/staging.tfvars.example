@@ -48,6 +48,16 @@ plaid_refresh_timezone   = "America/Los_Angeles"
 # Set to true before validating the daily Plaid refresh path.
 scheduler_enabled = false
 
+# Enable after populating ALPACA_MARKET_DATA_KEY_ID and
+# ALPACA_MARKET_DATA_SECRET in the generated Secrets Manager entries.
+market_data_provider               = "none"
+alpaca_market_data_feed            = "sip"
+market_data_refresh_on_read        = true
+market_data_max_age_seconds        = 60
+market_price_refresh_time_local    = "16:20"
+market_price_refresh_timezone      = "America/New_York"
+market_price_scheduler_enabled     = false
+
 log_retention_days     = 7
 waf_log_retention_days = 7
 

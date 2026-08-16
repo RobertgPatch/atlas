@@ -5,7 +5,7 @@ import {
   WalletIcon,
 } from 'lucide-react'
 import type { ConsolidatedHoldingsKpis } from '../../../../../../packages/types/src/reports'
-import { formatCurrency, formatPercent } from '../utils/formatters'
+import { formatCurrencyWithCents, formatPercent } from '../utils/formatters'
 
 interface ConsolidatedHoldingsSummaryCardsProps {
   kpis: ConsolidatedHoldingsKpis | undefined
@@ -20,7 +20,7 @@ export function ConsolidatedHoldingsSummaryCards({
   const cards = [
     {
       label: 'Total Portfolio Value',
-      value: formatCurrency(kpis?.totalMarketValue),
+      value: formatCurrencyWithCents(kpis?.totalMarketValue),
       icon: <DollarSignIcon className="h-5 w-5" />,
       iconBg: 'bg-blue-100 text-blue-600',
       bg: 'bg-white',
@@ -28,7 +28,7 @@ export function ConsolidatedHoldingsSummaryCards({
     },
     {
       label: 'Total Cost Basis',
-      value: formatCurrency(kpis?.totalCostBasis),
+      value: formatCurrencyWithCents(kpis?.totalCostBasis),
       icon: <WalletIcon className="h-5 w-5" />,
       iconBg: 'bg-violet-100 text-violet-600',
       bg: 'bg-white',
@@ -36,7 +36,7 @@ export function ConsolidatedHoldingsSummaryCards({
     },
     {
       label: 'Unrealized Gain/Loss',
-      value: formatCurrency(gainLoss),
+      value: formatCurrencyWithCents(gainLoss),
       subValue: formatPercent(kpis?.gainLossPercent, 2),
       icon: <TrendingUpIcon className="h-5 w-5" />,
       iconBg: gainLossPositive

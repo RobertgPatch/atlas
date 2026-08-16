@@ -7,7 +7,7 @@ describe('Partnership navigation', () => {
   it('uses the consolidated Partnerships management destination', () => {
     render(
       <MemoryRouter>
-        <AppShell currentPath="/partnership-tracker" userRole="Admin">
+        <AppShell currentPath="/partnership-tracker" userRole="Admin" magicPatternDesigns={false}>
           <div>Partnership management</div>
         </AppShell>
       </MemoryRouter>,
