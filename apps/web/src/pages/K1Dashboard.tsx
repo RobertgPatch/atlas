@@ -23,12 +23,14 @@ import { useSession, sessionStore } from '../auth/sessionStore'
 import { authClient } from '../auth/authClient'
 import {
   useK1Kpis,
+  useK1Batch,
   useK1List,
   useK1Lookups,
   useK1Reparse,
 } from '../features/k1/hooks/useK1Queries'
 import { k1Client } from '../features/k1/api/k1Client'
 import { K1UploadDialog } from '../features/k1/components/K1UploadDialog'
+import { K1BatchQueue } from '../features/k1/components/K1BatchQueue'
 import type {
   K1DocumentSummary,
   K1Status,
@@ -69,9 +71,13 @@ export function K1Dashboard() {
   const [pendingDropFile, setPendingDropFile] = useState<File | null>(null)
   const [isPageDragActive, setIsPageDragActive] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(() =>
+    typeof window === 'undefined' ? null : window.localStorage.getItem('k1.activeBatchId'),
+  )
 
   const lookups = useK1Lookups()
   const reparse = useK1Reparse()
+  const activeBatchQuery = useK1Batch(activeBatchId)
   const navigate = useNavigate()
 
   const apiSort = useMemo(() => {
@@ -330,6 +336,49 @@ export function K1Dashboard() {
         <KPICard label="Finalized" value={counts.FINALIZED} icon={ShieldCheck} />
       </div>
 
+      {activeBatchQuery.data && (
+        <section aria-label="Active K-1 upload batch" className="mb-4 rounded-lg border border-blue-200 bg-blue-50/70 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-blue-950">Latest upload batch</p>
+              <p className="mt-0.5 text-xs text-blue-800">
+                {activeBatchQuery.data.counts.total} files · {activeBatchQuery.data.counts.active} processing · {activeBatchQuery.data.counts.actionRequired} need attention · {activeBatchQuery.data.counts.failed} failed
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-blue-900">
+                {activeBatchQuery.data.status.replaceAll('_', ' ')}
+              </span>
+              <button
+                onClick={() => {
+                  setActiveBatchId(null)
+                  window.localStorage.removeItem('k1.activeBatchId')
+                }}
+                className="text-xs text-blue-800 hover:underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {activeBatchQuery.data.items.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                disabled={!item.k1DocumentId || !['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY', 'APPLIED'].includes(item.status)}
+                onClick={() => item.k1DocumentId && navigate(`/k1/${item.k1DocumentId}/review`)}
+                className="flex items-center justify-between gap-2 rounded-md border border-blue-100 bg-white px-3 py-2 text-left disabled:cursor-default"
+              >
+                <span className="min-w-0 truncate text-xs font-medium text-gray-800">{item.fileName}</span>
+                <span className={item.status === 'FAILED' ? 'shrink-0 text-xs text-error' : 'shrink-0 text-xs text-gray-500'}>
+                  {item.status.replaceAll('_', ' ')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {dropError && (
         <div className="mb-4 rounded-md border border-error/30 bg-error-light px-3 py-2 text-sm text-error flex items-center justify-between gap-3">
           <span>{dropError}</span>
@@ -341,6 +390,8 @@ export function K1Dashboard() {
           </button>
         </div>
       )}
+
+      <K1BatchQueue entityId={entityId || undefined} />
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
         <input
@@ -433,6 +484,10 @@ export function K1Dashboard() {
         onUploaded={() => {
           void listQuery.refetch()
           void kpiQuery.refetch()
+        }}
+        onBatchCreated={(batch) => {
+          setActiveBatchId(batch.id)
+          window.localStorage.setItem('k1.activeBatchId', batch.id)
         }}
       />
 

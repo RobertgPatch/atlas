@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowDownIcon,
   ArrowUpDownIcon,
@@ -267,6 +267,23 @@ export function ConsolidatedHoldingsTable({
         b.totalValue - a.totalValue,
     )
   }, [direction, rows, sort])
+
+  const autoExpandCategoryKey =
+    sectorFilter && groupedByCategory.length === 1
+      ? groupedByCategory[0]?.category.key ?? null
+      : null
+  const sectorSelectionKey = sectorFilter?.sectors.join('\u001f') ?? ''
+
+  useEffect(() => {
+    if (!autoExpandCategoryKey) return
+
+    setExpandedCategories((previous) => {
+      if (previous.has(autoExpandCategoryKey)) return previous
+      const next = new Set(previous)
+      next.add(autoExpandCategoryKey)
+      return next
+    })
+  }, [autoExpandCategoryKey, sectorSelectionKey])
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {

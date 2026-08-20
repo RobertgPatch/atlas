@@ -53,6 +53,38 @@ const quote = (
 })
 
 describe('market data pricing service', () => {
+  it('returns the saved database price immediately and persists a later live update', async () => {
+    const store = createInMemoryMarketPriceStore()
+    await store.savePrices([quote({ price: 180, receivedAt: '2026-08-15T17:00:00.000Z' })])
+    const getLatestPrices = vi.fn(async () => [quote({ price: 205 })])
+    const provider: MarketDataProvider = {
+      id: 'alpaca',
+      feed: 'sip',
+      isDelayed: false,
+      getLatestPrices,
+      getClosingPrices: vi.fn(async () => []),
+    }
+    const service = createMarketDataService({
+      provider,
+      store,
+      refreshOnRead: true,
+      maxAgeSeconds: 60,
+      now: () => new Date('2026-08-15T18:00:10.000Z'),
+    })
+
+    const saved = await service.priceHoldingsForRead([holding()], { refreshStale: false })
+    expect(saved.holdings[0]?.marketValue).toBe(1_800)
+    expect(getLatestPrices).not.toHaveBeenCalled()
+
+    const refreshed = await service.priceHoldingsForRead([holding()])
+    expect(refreshed.holdings[0]?.marketValue).toBe(2_050)
+    expect(getLatestPrices).toHaveBeenCalledTimes(1)
+
+    const persisted = await service.priceHoldingsForRead([holding()], { refreshStale: false })
+    expect(persisted.holdings[0]?.marketValue).toBe(2_050)
+    expect(getLatestPrices).toHaveBeenCalledTimes(1)
+  })
+
   it('reprices holdings on read and reuses a fresh server-side quote', async () => {
     const getLatestPrices = vi.fn(async () => [quote()])
     const provider: MarketDataProvider = {

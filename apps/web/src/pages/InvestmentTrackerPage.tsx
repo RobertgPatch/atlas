@@ -20,10 +20,9 @@ export function InvestmentTrackerPage({
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())
       }}
       magicPatternDesigns={magicPatternDesigns}
-      contentClassName={magicPatternDesigns ? 'max-w-[2400px]' : undefined}
       mainClassName={magicPatternDesigns ? 'bg-[#e7edf4]' : undefined}
       topBarBreadcrumbs={magicPatternDesigns
-        ? [{ label: 'Portfolio', href: '/partnership-tracker' }, { label: 'Investment tracker' }]
+        ? [{ label: 'Portfolio' }, { label: 'Investment tracker' }]
         : undefined}
     >
       {magicPatternDesigns ? (

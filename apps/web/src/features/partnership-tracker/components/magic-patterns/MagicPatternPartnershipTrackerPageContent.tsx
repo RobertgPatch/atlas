@@ -11,7 +11,7 @@ import { MagicButton, MagicCard } from './MagicPatternPrimitives'
 
 const validAreas = new Set<MagicWorkspaceArea>([
   'overview',
-  'cash-activity',
+  'capital-activity',
   'valuations',
   'k1-history',
   'underlying-assets',
@@ -24,6 +24,8 @@ export function MagicPatternPartnershipTrackerPageContent({ canEdit }: { canEdit
   const rawArea = params.get('area')
   const area: MagicWorkspaceArea = rawArea && validAreas.has(rawArea as MagicWorkspaceArea)
     ? rawArea as MagicWorkspaceArea
+    : rawArea === 'cash-activity'
+      ? 'capital-activity'
     : rawArea === 'k1'
       ? 'k1-history'
       : rawArea === 'capital'

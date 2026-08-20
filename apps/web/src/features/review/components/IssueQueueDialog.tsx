@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X, AlertCircle } from 'lucide-react'
 import type { K1FieldValue, K1IssueSeverity } from '../../../../../../packages/types/src/review-finalization'
+import { getK1FieldDisplay } from '../k1FieldDisplay'
 
 interface Props {
   fields: K1FieldValue[]
@@ -19,6 +20,11 @@ const SEVERITY_LABELS: Record<K1IssueSeverity, string> = {
   LOW: 'Low',
   MEDIUM: 'Medium',
   HIGH: 'High',
+}
+
+const fieldOptionLabel = (field: K1FieldValue): string => {
+  const display = getK1FieldDisplay(field)
+  return `${display.title}${display.detail ? ` — ${display.detail}` : ''}`
 }
 
 export const IssueQueueDialog = ({
@@ -83,7 +89,7 @@ export const IssueQueueDialog = ({
               <option value="">— None —</option>
               {fields.map((f) => (
                 <option key={f.id} value={f.id}>
-                  {f.label}
+                  {fieldOptionLabel(f)}
                 </option>
               ))}
             </select>

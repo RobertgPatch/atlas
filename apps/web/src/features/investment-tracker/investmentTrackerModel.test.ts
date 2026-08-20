@@ -3,6 +3,7 @@ import type { PartnershipAggregationResponse } from '../../../../../packages/typ
 import {
   buildFundOptions,
   buildInvestmentCsv,
+  groupInvestmentRecordsByFund,
   multipleOf,
   recordsFromAggregation,
   totalsOf,
@@ -29,6 +30,9 @@ const aggregation = {
           totalDistributions: '20.00',
           latestNav: { amount: '120.00', date: '2026-06-30' },
           unfundedCommitmentAmount: '50.00',
+          dpi: '0.20',
+          tvpi: '1.40',
+          irr: '0.12',
           performanceAsOfDate: '2026-06-30',
         },
       ],
@@ -52,6 +56,9 @@ describe('investment tracker model', () => {
         invested: 100,
         distributions: 20,
         currentValue: 120,
+        dpi: 0.2,
+        tvpi: 1.4,
+        irr: 0.12,
         lastActivityDate: '2026-06-30',
         status: 'Active',
       }),
@@ -73,6 +80,44 @@ describe('investment tracker model', () => {
       currentValue: 120,
     })
     expect(multipleOf(totals)).toBe(1.4)
+  })
+
+  it('aggregates every owner record in a fund without averaging return ratios', () => {
+    const records = recordsFromAggregation(aggregation)
+    records.push({
+      ...records[0]!,
+      id: 'position-2',
+      ownerId: 'owner-2',
+      ownerName: 'Owner Two Trust',
+      commitment: 250,
+      invested: 200,
+      unfunded: 50,
+      distributions: 40,
+      currentValue: 260,
+      dpi: 0.2,
+      tvpi: 1.5,
+      irr: 0.3,
+    })
+
+    expect(groupInvestmentRecordsByFund(records)).toEqual([
+      expect.objectContaining({
+        id: 'fund-one',
+        ownerCount: 2,
+        totals: {
+          commitment: 400,
+          invested: 300,
+          unfunded: 100,
+          distributions: 60,
+          currentValue: 380,
+        },
+        dpi: 0.2,
+        tvpi: 440 / 300,
+        records: expect.arrayContaining([
+          expect.objectContaining({ id: 'position-1', irr: 0.12 }),
+          expect.objectContaining({ id: 'position-2', irr: 0.3 }),
+        ]),
+      }),
+    ])
   })
 
   it('exports the visible owner records as escaped CSV', () => {

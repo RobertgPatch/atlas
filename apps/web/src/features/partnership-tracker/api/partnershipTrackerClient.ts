@@ -22,6 +22,7 @@ import type {
   PartnershipTrackerSignoffAction,
   PartnershipTrackerSummary,
   PartnershipTrackerYearDetail,
+  SettlePartnershipCashFlowRequest,
   PartnershipType,
   UpdatePartnershipCommitmentEntryRequest,
   UpdatePartnershipNavEntryRequest,
@@ -164,14 +165,17 @@ export const partnershipTrackerClient = {
   calculate(partnershipId: string, taxYear: number, expectedRevision: number, body: CalculatePartnershipTrackerYearRequest): Promise<K1TrackerCalculation> {
     return request(`${root}/${partnershipId}/years/${taxYear}/calculate`, { method: 'POST', body: JSON.stringify({ ...body, expectedRevision }) })
   },
-  createCashFlow(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
+  createCashFlow(partnershipId: string, body: CreatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
+    return request(`${root}/${partnershipId}/cash-flows`, { method: 'POST', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
   },
-  createCashFlows(partnershipId: string, taxYear: number, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
+  createCashFlows(partnershipId: string, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
+    return request(`${root}/${partnershipId}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
   },
-  deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
-    return request(`${root}/${partnershipId}/years/${taxYear}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })
+  deleteCashFlow(partnershipId: string, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
+    return request(`${root}/${partnershipId}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })
+  },
+  settleCashFlow(partnershipId: string, cashFlowId: string, body: SettlePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
+    return request(`${root}/${partnershipId}/cash-flows/${cashFlowId}/settlement`, { method: 'PATCH', body: JSON.stringify(body) })
   },
   signoff(partnershipId: string, taxYear: number, expectedRevision: number, action: PartnershipTrackerSignoffAction, reason?: string): Promise<PartnershipTrackerYearDetail> {
     return request(`${root}/${partnershipId}/years/${taxYear}/signoffs`, { method: 'POST', body: JSON.stringify({ expectedRevision, action, reason }) })

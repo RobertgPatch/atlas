@@ -27,6 +27,7 @@ import {
   useEntityDetail,
   useEntityList,
 } from '../../features/partnerships/hooks/useEntityQueries'
+import { entityTypeLabel } from '../../features/partnerships/entityTypeLabels'
 import { errorMessage } from '../entitiesPageUtils'
 
 type DetailTab = 'overview' | 'owners' | 'partnerships' | 'investments'
@@ -46,18 +47,6 @@ const formatCurrency = (value: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
-
-const entityTypeLabel = (value: string) => {
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'llc') return 'LLC'
-  if (normalized === 'trust') return 'Trust'
-  if (normalized === 'corporation' || normalized === 'corp') return 'Corporation'
-  if (normalized === 'partnership' || normalized === 'lp' || normalized === 'llp') {
-    return 'Partnership'
-  }
-  if (normalized === 'individual') return 'Individual'
-  return 'Entity'
-}
 
 const normalizeStatus = (value: string) => {
   const normalized = value.trim().toLowerCase()
@@ -321,7 +310,6 @@ export function MagicPatternEntityDetailPage() {
     onSignOut: () => {
       void authClient.logout().finally(() => sessionStore.setUnauthenticated())
     },
-    contentClassName: 'max-w-[1600px]',
     mainClassName: 'bg-[#E7EDF4]',
     magicPatternDesigns: true,
   }

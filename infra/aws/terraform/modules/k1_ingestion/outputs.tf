@@ -1,0 +1,17 @@
+output "document_bucket_name" { value = aws_s3_bucket.documents.id }
+output "document_bucket_arn" { value = aws_s3_bucket.documents.arn }
+output "kms_key_arn" { value = aws_kms_key.documents.arn }
+output "start_queue_url" { value = aws_sqs_queue.start.url }
+output "start_queue_arn" { value = aws_sqs_queue.start.arn }
+output "completion_queue_url" { value = aws_sqs_queue.completion.url }
+output "completion_queue_arn" { value = aws_sqs_queue.completion.arn }
+output "start_dlq_arn" { value = aws_sqs_queue.start_dlq.arn }
+output "completion_dlq_arn" { value = aws_sqs_queue.completion_dlq.arn }
+output "worker_service_name" { value = aws_ecs_service.worker.name }
+output "worker_log_group_name" { value = aws_cloudwatch_log_group.worker.name }
+output "reconciler_rule_name" { value = aws_cloudwatch_event_rule.reconciler.name }
+output "bda_blueprint_arn" { value = awscc_bedrock_blueprint.k1.blueprint_arn }
+output "bda_fallback_blueprint_arn" { value = awscc_bedrock_blueprint.fallback.blueprint_arn }
+output "bda_project_arn" { value = awscc_bedrock_data_automation_project.k1.project_arn }
+output "bda_project_stage" { value = awscc_bedrock_data_automation_project.k1.project_stage }
+output "bda_blueprint_stage" { value = awscc_bedrock_blueprint.k1.blueprint_stage }

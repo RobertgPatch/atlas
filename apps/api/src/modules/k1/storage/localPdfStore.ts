@@ -1,7 +1,6 @@
-import { promises as fs, createReadStream } from 'node:fs'
-import path from 'node:path'
-import type { Readable } from 'node:stream'
-import { config } from '../../../config.js'
+import { PassThrough, type Readable } from 'node:stream'
+
+import { localK1ObjectStore } from './localK1ObjectStore.js'
 
 export interface PdfStore {
   put(documentId: string, taxYearOrFolder: number | string, buffer: Buffer): Promise<string>
@@ -9,35 +8,28 @@ export interface PdfStore {
   delete(storagePath: string): Promise<void>
 }
 
-const yearFolder = (taxYearOrFolder: number | string) => String(taxYearOrFolder)
-const storageRoot = path.resolve(config.storageRoot)
-const storageRootPrefix = `${storageRoot}${path.sep}`
-
-const resolveStoragePath = (storagePath: string) => {
-  const resolvedPath = path.resolve(storageRoot, storagePath)
-  if (!resolvedPath.startsWith(storageRootPrefix)) {
-    throw new Error('Path traversal detected: storage path must be within configured storage root')
-  }
-  return resolvedPath
-}
-
 export const localPdfStore: PdfStore = {
   async put(documentId, taxYear, buffer) {
-    const dir = path.resolve(storageRoot, 'k1', yearFolder(taxYear))
-    await fs.mkdir(dir, { recursive: true })
-    const filePath = path.join(dir, `${documentId}.pdf`)
-    await fs.writeFile(filePath, buffer)
-    // Return a relative-ish path that is stable for audit.
-    return path.relative(storageRoot, filePath).replaceAll('\\', '/')
+    const key = `k1/${String(taxYear)}/${documentId}.pdf`
+    await localK1ObjectStore.put({
+      key,
+      body: buffer,
+      contentType: 'application/pdf',
+      sizeBytes: buffer.byteLength,
+    })
+    return key
   },
 
   get(storagePath) {
-    const abs = resolveStoragePath(storagePath)
-    return createReadStream(abs)
+    // Legacy synchronous contract. The local adapter is intentionally the only
+    // implementation exposed here; new code uses the async K1ObjectStore API.
+    const pending = localK1ObjectStore.read({ key: storagePath })
+    const proxy = new PassThrough()
+    void pending.then(({ body }) => body.pipe(proxy), (error) => proxy.destroy(error as Error))
+    return proxy
   },
 
   async delete(storagePath) {
-    const abs = resolveStoragePath(storagePath)
-    await fs.unlink(abs).catch(() => undefined)
+    await localK1ObjectStore.delete({ key: storagePath })
   },
 }

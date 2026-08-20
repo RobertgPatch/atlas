@@ -2,6 +2,7 @@ import { CalendarRange, Eye, EyeOff, Landmark, MapPin, UserRound } from 'lucide-
 import { useState } from 'react'
 import type { PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
 import { PerformanceMetricStrip } from './PerformanceMetricStrip'
+import { formatEinInput } from '../einInput'
 
 const currency = (value?: string | null) => value == null ? 'Not entered' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Number(value))
 const date = (value?: string | null) => value ? new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`)) : '—'
@@ -9,7 +10,7 @@ const date = (value?: string | null) => value ? new Intl.DateTimeFormat('en-US',
 export function PartnershipOverview({ summary }: { summary: PartnershipTrackerSummary }) {
   const partnership = summary.partnership
   const [showEin, setShowEin] = useState(false)
-  const formattedEin = partnership.ein ? `${partnership.ein.slice(0, 2)}-${partnership.ein.slice(2)}` : null
+  const formattedEin = partnership.ein ? formatEinInput(partnership.ein) : null
   const address = [partnership.addressLine1, partnership.addressLine2, [partnership.addressCity, partnership.addressRegion].filter(Boolean).join(', '), partnership.addressPostalCode, partnership.addressCountry].filter(Boolean).join(' · ')
   const cards = [
     { label: 'Committed capital', value: currency(summary.currentCommittedCapital?.amount), detail: summary.currentCommittedCapital ? `Effective ${date(summary.currentCommittedCapital.date)}` : 'Add an effective-dated total', icon: Landmark },

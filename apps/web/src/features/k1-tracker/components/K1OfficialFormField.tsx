@@ -2,6 +2,7 @@ import { Plus, X } from 'lucide-react'
 import { useId } from 'react'
 import type {
   K1TrackerCodeEntry,
+  K1TrackerOfficialFormSource,
   K1TrackerOfficialFormValue,
 } from '../../../../../../packages/types/src/k1-tracker'
 import { CurrencyInput } from '../../../components/shared/CurrencyField'
@@ -12,6 +13,7 @@ export interface K1OfficialFormFieldState {
   value: K1TrackerOfficialFormValue
   onChange: (value: K1TrackerOfficialFormValue) => void
   canEdit: boolean
+  source?: K1TrackerOfficialFormSource
 }
 
 export type K1OfficialFormFieldStateGetter = (fieldKey: K1OfficialFormFieldDefinition['key']) => K1OfficialFormFieldState
@@ -83,12 +85,23 @@ function CodedEntries({ field, value, onChange, canEdit, compact = false }: K1Of
   </fieldset>
 }
 
-export function K1OfficialFormField({ field, value, onChange, canEdit, compact = false }: K1OfficialFormFieldState & { compact?: boolean }) {
+function SourceEvidence({ source }: { source?: K1TrackerOfficialFormSource }) {
+  if (!source) return null
+  const label = source.sourceType === 'FINALIZED_K1' ? 'Imported from reviewed K-1' : source.sourceType.replaceAll('_', ' ').toLowerCase()
+  return <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[9px] font-semibold uppercase tracking-[0.06em] text-indigo-700" data-testid="official-field-source">
+    {source.sourceK1DocumentId
+      ? <a href={`/k1/${source.sourceK1DocumentId}/review`} className="underline decoration-indigo-300 underline-offset-2 hover:text-indigo-950">{label}</a>
+      : <span>{label}</span>}
+    {source.createdByEmail && <span className="normal-case font-medium tracking-normal text-slate-500">by {source.createdByEmail}</span>}
+  </div>
+}
+
+export function K1OfficialFormField({ field, value, onChange, canEdit, source, compact = false }: K1OfficialFormFieldState & { compact?: boolean }) {
   const id = useId()
-  if (field.kind === 'coded') return <div data-k1-official-field={field.key}><CodedEntries field={field} value={value} onChange={onChange} canEdit={canEdit} compact={compact} /></div>
+  if (field.kind === 'coded') return <div data-k1-official-field={field.key}><CodedEntries field={field} value={value} onChange={onChange} canEdit={canEdit} source={source} compact={compact} /><SourceEvidence source={source} /></div>
 
   if (field.kind === 'boolean') {
-    return <label data-k1-official-field={field.key} className={`flex ${compact ? 'min-h-8' : 'min-h-11'} items-start gap-2.5 text-[11px] font-semibold leading-snug text-gray-800`}>
+    return <div data-k1-official-field={field.key}><label className={`flex ${compact ? 'min-h-8' : 'min-h-11'} items-start gap-2.5 text-[11px] font-semibold leading-snug text-gray-800`}>
       <input
         id={id}
         type="checkbox"
@@ -98,12 +111,12 @@ export function K1OfficialFormField({ field, value, onChange, canEdit, compact =
         className="mt-0.5 h-4 w-4 shrink-0 accent-jackson-gold focus:outline-none focus:ring-2 focus:ring-jackson-gold focus:ring-offset-1 disabled:opacity-60"
       />
       <span>{field.label}</span>
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   const stringValue = typeof value === 'string' ? value : ''
   if (field.kind === 'money') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
       <CurrencyInput
         id={id}
@@ -115,27 +128,27 @@ export function K1OfficialFormField({ field, value, onChange, canEdit, compact =
         placeholder="$0.00"
         className="min-w-0 rounded-none border-gray-400 bg-white py-1.5 text-right font-mono text-xs tabular-nums text-gray-950 disabled:bg-gray-100 disabled:text-gray-600"
       />
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   if (field.kind === 'choice') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
       <select id={id} aria-label={field.label} disabled={!canEdit} value={stringValue} onChange={(event) => onChange(event.target.value)} className={inputClass(compact)}>
         <option value="">Select</option>
         {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   if (field.kind === 'multiline') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
       <textarea id={id} aria-label={field.label} disabled={!canEdit} rows={compact ? 1 : 3} maxLength={4_000} value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} className={`${inputClass(compact)} resize-y`} />
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
-  return <label data-k1-official-field={field.key} className="block min-w-0">
+  return <div data-k1-official-field={field.key}><label className="block min-w-0">
     <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
     <div className="relative">
       <input
@@ -152,5 +165,5 @@ export function K1OfficialFormField({ field, value, onChange, canEdit, compact =
       />
       {field.kind === 'percentage' && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 font-mono text-xs text-gray-500">%</span>}
     </div>
-  </label>
+  </label><SourceEvidence source={source} /></div>
 }

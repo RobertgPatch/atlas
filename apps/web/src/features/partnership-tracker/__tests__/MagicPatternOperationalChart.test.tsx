@@ -21,9 +21,10 @@ describe('MagicPatternOperationalChart', () => {
       navEntry('latest', '2026-08-26', '5000000.00'),
     ]} />)
 
-    expect(screen.getByTestId('nav-fmv-plot')).toHaveClass('max-w-[680px]')
-    expect(screen.getByText('$5,000,000.00')).toBeInTheDocument()
-    expect(screen.getByText('+400.0%')).toBeInTheDocument()
+    const plot = screen.getByTestId('nav-fmv-plot')
+    expect(plot).toHaveClass('max-w-[680px]')
+    expect(screen.getByRole('img', { name: 'NAV and fair market value history' })).toBeInTheDocument()
+    expect(plot.querySelectorAll('circle')).toHaveLength(2)
 
     const range = screen.getByRole('group', { name: 'Chart date range' })
     expect(within(range).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
@@ -31,6 +32,6 @@ describe('MagicPatternOperationalChart', () => {
     fireEvent.click(within(range).getByRole('button', { name: '3 yr' }))
 
     expect(within(range).getByRole('button', { name: '3 yr' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByText('1', { selector: 'dd' })).toBeInTheDocument()
+    expect(plot.querySelectorAll('circle')).toHaveLength(1)
   })
 })

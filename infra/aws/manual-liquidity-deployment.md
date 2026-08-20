@@ -92,7 +92,6 @@ Create Secrets Manager entries for:
 - `ATLAS_SCHEDULER_TOKEN`
 - `ADMIN_PASSWORD` or invitation bootstrap equivalent
 - `USER_PASSWORD` only if the deployment still uses the local bootstrap user flow
-- Azure Document Intelligence secrets only when `K1_EXTRACTOR=azure`
 
 Use an environment-qualified namespace such as `atlas-staging/...` or `atlas-production/...`. Do not reuse production secrets, Plaid production credentials, scheduler tokens, admin bootstrap credentials, or databases in staging.
 

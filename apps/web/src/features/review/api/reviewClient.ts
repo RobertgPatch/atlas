@@ -9,6 +9,8 @@ import type {
   K1OpenIssueRequest,
   K1OpenIssueResponse,
   K1ResolveIssueResponse,
+  K1ResolveIssueRequest,
+  K1ResolveMatchRequest,
   K1ReviewErrorBody,
   K1ReviewSession,
 } from '../../../../../../packages/types/src/review-finalization'
@@ -156,11 +158,22 @@ export const reviewClient = {
     k1DocumentId: string,
     issueId: string,
     version: number,
+    body: K1ResolveIssueRequest = {},
   ): Promise<VersionedResponse<K1ResolveIssueResponse>> {
     return request<K1ResolveIssueResponse>(
       `/k1-documents/${k1DocumentId}/issues/${issueId}/resolve`,
-      { method: 'POST', version },
+      { method: 'POST', version, body },
     )
+  },
+
+  async resolveMatch(k1DocumentId: string, body: K1ResolveMatchRequest) {
+    return request<{
+      documentVersion: number
+      entityId: string
+      partnershipId: string
+      taxYear: number
+      matchStatus: 'MATCHED' | 'REQUIRES_REVIEW'
+    }>(`/k1-documents/${k1DocumentId}/match`, { method: 'PUT', body })
   },
 }
 

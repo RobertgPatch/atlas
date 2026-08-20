@@ -20,7 +20,7 @@ npm run dev:db
 In separate terminals:
 
 ```powershell
-$env:DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/atlas'
+$env:DATABASE_URL='postgres://postgres:postgres@127.0.0.1:15432/atlas'
 npm run dev:api
 ```
 
@@ -177,7 +177,7 @@ Expected behavior:
 ## 11. Focused Validation Commands
 
 ```powershell
-$env:ATLAS_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:55432/atlas'
+$env:ATLAS_TEST_DATABASE_URL='postgres://postgres:postgres@127.0.0.1:15432/atlas'
 npm run test:api -- partnership-tracker
 ```
 

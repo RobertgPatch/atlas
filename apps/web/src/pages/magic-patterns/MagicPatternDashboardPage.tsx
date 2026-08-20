@@ -25,6 +25,7 @@ import { useLiquiditySummary } from '../../features/dashboard/hooks/useLiquidity
 type DashboardData = DashboardSummaryResponse
 type OpenIssue = DashboardData['openIssues'][number]
 type RecentK1 = DashboardData['recentK1Activity'][number]
+type ReviewK1 = DashboardData['reviewK1s'][number]
 
 const formatUsd = (value: number | null | undefined) => {
   if (value == null) return null
@@ -106,6 +107,7 @@ const issueTone: Record<OpenIssue['severity'], { icon: LucideIcon; iconClass: st
 interface ModuleCardProps {
   title: string
   icon: LucideIcon
+  tone: 'forest' | 'gold' | 'blue' | 'teal'
   value: string | null
   caption: string
   href: string
@@ -114,9 +116,33 @@ interface ModuleCardProps {
   stats?: Array<{ label: string; value: string }>
 }
 
+const moduleToneClasses: Record<ModuleCardProps['tone'], { card: string; icon: string; accent: string }> = {
+  forest: {
+    card: 'border-emerald-200/90 bg-gradient-to-br from-white via-white to-emerald-50/90 hover:border-emerald-300',
+    icon: 'bg-emerald-100 text-emerald-800',
+    accent: 'bg-emerald-700',
+  },
+  gold: {
+    card: 'border-amber-200/90 bg-gradient-to-br from-white via-white to-amber-50/90 hover:border-amber-300',
+    icon: 'bg-amber-100 text-amber-800',
+    accent: 'bg-amber-500',
+  },
+  blue: {
+    card: 'border-sky-200/90 bg-gradient-to-br from-white via-white to-sky-50/90 hover:border-sky-300',
+    icon: 'bg-sky-100 text-sky-800',
+    accent: 'bg-sky-600',
+  },
+  teal: {
+    card: 'border-teal-200/90 bg-gradient-to-br from-white via-white to-teal-50/90 hover:border-teal-300',
+    icon: 'bg-teal-100 text-teal-800',
+    accent: 'bg-teal-600',
+  },
+}
+
 function ModuleCard({
   title,
   icon: Icon,
+  tone,
   value,
   caption,
   href,
@@ -124,14 +150,17 @@ function ModuleCard({
   unavailableReason,
   stats = [],
 }: ModuleCardProps) {
+  const theme = moduleToneClasses[tone]
   return (
     <Link
       to={href}
-      className="group flex h-full flex-col rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
+      data-module-tone={tone}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] motion-reduce:transform-none ${theme.card}`}
     >
+      <span className={`absolute inset-x-0 top-0 h-1 ${theme.accent}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-2">
         <span className="flex min-w-0 items-center gap-2">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${theme.icon}`}>
             <Icon className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <span className="truncate text-sm font-semibold text-gray-900">{title}</span>
@@ -154,7 +183,7 @@ function ModuleCard({
       <p className="mt-1 text-xs text-gray-500">{caption}</p>
 
       {stats.length > 0 ? (
-        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+        <dl className={`mt-4 grid gap-3 border-t border-gray-100 pt-3 ${stats.length >= 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
           {stats.map((stat) => (
             <div key={stat.label} className="min-w-0">
               <dt className="truncate text-xs text-gray-500">{stat.label}</dt>
@@ -190,10 +219,10 @@ function QuickActionCard({ title, description, href, icon: Icon, badge }: QuickA
     <li>
       <Link
         to={href}
-        className="group flex h-full flex-col rounded-lg border border-gray-200 bg-white p-4 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
+        className="group flex h-full flex-col rounded-xl border border-[#d6e3da] bg-white/85 p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-[#f4f9f6] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] motion-reduce:transform-none"
       >
         <span className="flex items-start justify-between gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-[#EAF3EE] text-[#1B4332]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-[#E1EFE6] text-[#1B4332]">
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
           {badge ? (
@@ -286,9 +315,11 @@ function PortfolioSummary({
   return (
     <section
       aria-labelledby="portfolio-summary-title"
-      className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm"
+      className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-[#fffdf7] p-5 shadow-[0_12px_30px_rgba(61,48,22,0.08)]"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-amber-200/35 blur-3xl" aria-hidden="true" />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#1B4332] via-emerald-500 to-amber-400" aria-hidden="true" />
+      <div className="relative flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2
             id="portfolio-summary-title"
@@ -324,7 +355,7 @@ function PortfolioSummary({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-emerald-200 bg-white/85 px-3 text-sm font-medium text-[#1B4332] shadow-sm transition-colors hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] disabled:cursor-wait disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
           Refresh
@@ -334,7 +365,7 @@ function PortfolioSummary({
       {segments.length > 0 ? (
         <>
           <div
-            className="mt-5 flex h-3 w-full overflow-hidden rounded-full bg-gray-100"
+            className="relative mt-5 flex h-3 w-full overflow-hidden rounded-full bg-[#eee7d6]"
             aria-label="Portfolio value by asset class"
           >
             {segments.map((segment, index) => (
@@ -368,7 +399,7 @@ function PortfolioSummary({
         </>
       ) : null}
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
+      <div className="relative mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-amber-200/70 pt-3 text-xs text-gray-500">
         <span>Source: partnership valuations, capital activity, and connected holdings</span>
         <span>Updated {formatTimestamp(updatedAt)}</span>
       </div>
@@ -376,32 +407,69 @@ function PortfolioSummary({
   )
 }
 
-function ActionItems({ items, onSelect }: { items: OpenIssue[]; onSelect: (item: OpenIssue) => void }) {
+function ActionItems({
+  items,
+  reviewItems,
+  onSelect,
+  onSelectReview,
+}: {
+  items: OpenIssue[]
+  reviewItems: ReviewK1[]
+  onSelect: (item: OpenIssue) => void
+  onSelectReview: (item: ReviewK1) => void
+}) {
+  const actionCount = reviewItems.length + items.length
   return (
     <section
       id="dashboard-action-items"
       aria-labelledby="action-items-title"
-      className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-xl border border-amber-200/90 bg-[#fffdf8] shadow-sm"
     >
-      <header className="flex items-baseline justify-between gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
+      <header className="flex items-baseline justify-between gap-3 border-b border-amber-200/80 bg-amber-50/80 px-4 py-3">
         <div>
           <h2 id="action-items-title" className="text-sm font-semibold text-gray-900">
             Needs your attention
           </h2>
-          <p className="mt-0.5 text-xs text-gray-500">Open review issues across your K-1 records</p>
+          <p className="mt-0.5 text-xs text-gray-500">K-1 reviews and extraction checks ready for you</p>
         </div>
         <span className="shrink-0 text-xs tabular-nums text-gray-500">
-          {items.length} open
+          {actionCount} open
         </span>
       </header>
 
-      {items.length === 0 ? (
+      {actionCount === 0 ? (
         <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
           <CheckCircle2 className="h-6 w-6 text-emerald-600" aria-hidden="true" />
           <p className="text-sm text-gray-600">Nothing outstanding right now.</p>
         </div>
       ) : (
         <ul className="divide-y divide-gray-100">
+          {reviewItems.map((item) => (
+            <li key={`review-${item.id}`}>
+              <button
+                type="button"
+                onClick={() => onSelectReview(item)}
+                className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+                aria-label={`Review ${item.partnership} K-1`}
+              >
+                <FileText className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-gray-900">Review {item.partnership} K-1</span>
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {item.entity} &middot; {item.taxYear ?? 'Tax year pending'}
+                  </span>
+                  <span className="mt-1 block text-xs text-gray-400">
+                    {item.openIssueCount > 0
+                      ? `${item.openIssueCount} open extraction check${item.openIssueCount === 1 ? '' : 's'}`
+                      : 'Open the review to verify and finalize this K-1'}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-800">
+                  In review
+                </span>
+              </button>
+            </li>
+          ))}
           {items.map((item) => {
             const tone = issueTone[item.severity]
             const Icon = tone.icon
@@ -410,7 +478,7 @@ function ActionItems({ items, onSelect }: { items: OpenIssue[]; onSelect: (item:
                 <button
                   type="button"
                   onClick={() => onSelect(item)}
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
                 >
                   <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.iconClass}`} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
@@ -433,7 +501,7 @@ function ActionItems({ items, onSelect }: { items: OpenIssue[]; onSelect: (item:
       )}
       <Link
         to="/k1"
-        className="block border-t border-gray-100 px-4 py-2.5 text-sm font-medium text-[#1B4332] transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+        className="block border-t border-amber-200/70 bg-amber-50/40 px-4 py-2.5 text-sm font-medium text-[#1B4332] transition-colors hover:bg-amber-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
       >
         Open K-1 workspace
       </Link>
@@ -445,9 +513,9 @@ function RecentActivity({ entries, onSelect }: { entries: RecentK1[]; onSelect: 
   return (
     <section
       aria-labelledby="recent-activity-title"
-      className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-xl border border-emerald-200/90 bg-white/90 shadow-sm"
     >
-      <header className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+      <header className="border-b border-emerald-200/80 bg-emerald-50/80 px-4 py-3">
         <h2 id="recent-activity-title" className="text-sm font-semibold text-gray-900">
           Recent activity
         </h2>
@@ -460,7 +528,7 @@ function RecentActivity({ entries, onSelect }: { entries: RecentK1[]; onSelect: 
       ) : (
         <ol className="relative px-4 py-2">
           <span
-            className="absolute bottom-6 left-[29px] top-6 w-px bg-gray-200"
+            className="absolute bottom-6 left-[29px] top-6 w-px bg-emerald-200"
             aria-hidden="true"
           />
           {entries.map((entry) => (
@@ -471,7 +539,7 @@ function RecentActivity({ entries, onSelect }: { entries: RecentK1[]; onSelect: 
               <button
                 type="button"
                 onClick={() => onSelect(entry)}
-                className="w-full rounded-md py-3 pl-2 pr-2 text-left transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
+                className="w-full rounded-md py-3 pl-2 pr-2 text-left transition-colors hover:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
               >
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="min-w-0 text-sm font-medium text-gray-900">
@@ -516,6 +584,7 @@ export function MagicPatternDashboardPage() {
 
     const data = dashboard.data
     const reviewCount = data.statusCounts.NEEDS_REVIEW + data.statusCounts.READY_FOR_APPROVAL
+    const attentionCount = reviewCount + data.kpis.openIssuesCount
     const finalizedPercent = data.kpis.totalK1Documents
       ? Math.round((data.kpis.finalizedK1Documents / data.kpis.totalK1Documents) * 100)
       : 0
@@ -530,36 +599,42 @@ export function MagicPatternDashboardPage() {
 
     return (
       <div className="flex flex-col gap-6">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 sm:text-3xl">
+        <header
+          data-testid="dashboard-hero"
+          className="relative flex flex-col gap-5 overflow-hidden rounded-2xl border border-emerald-950/20 bg-[#183f2e] p-5 text-white shadow-[0_16px_36px_rgba(20,52,38,0.2)] sm:p-6 lg:flex-row lg:items-start lg:justify-between"
+        >
+          <div className="pointer-events-none absolute -right-12 -top-24 h-64 w-64 rounded-full border-[42px] border-amber-300/10" aria-hidden="true" />
+          <div className="pointer-events-none absolute bottom-0 right-1/4 h-24 w-48 bg-emerald-300/10 blur-3xl" aria-hidden="true" />
+          <div className="relative min-w-0">
+            <p className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-amber-200">Jackson family office</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
               {greetingForCurrentHour()}, {displayNameFromEmail(session?.user.email)}
             </h1>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-emerald-50/80">
               Your portfolio, document work, and open reviews in one place.
             </p>
             <button
               type="button"
               onClick={() => document.getElementById('dashboard-action-items')?.scrollIntoView({ behavior: 'smooth' })}
               className={`mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium ${
-                data.kpis.openIssuesCount > 0
-                  ? 'border-amber-200 bg-amber-50 text-amber-800'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                attentionCount > 0
+                  ? 'border-amber-300/50 bg-amber-100/10 text-amber-100'
+                  : 'border-emerald-200/50 bg-emerald-100/10 text-emerald-100'
               }`}
             >
-              {data.kpis.openIssuesCount > 0 ? (
+              {attentionCount > 0 ? (
                 <AlertCircle className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               )}
-              {data.kpis.openIssuesCount > 0
-                ? `${data.kpis.openIssuesCount} item${data.kpis.openIssuesCount === 1 ? '' : 's'} need your attention`
+              {attentionCount > 0
+                ? `${attentionCount} review task${attentionCount === 1 ? '' : 's'} need your attention`
                 : 'Nothing needs your attention'}
             </button>
           </div>
           <Link
             to="/reports"
-            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[#1B4332] px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#143426] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] focus-visible:ring-offset-2"
+            className="relative inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-amber-100/60 bg-[#f3dfaa] px-4 text-sm font-semibold text-[#173b2b] shadow-sm transition-colors hover:bg-[#ffeabd] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#183f2e]"
           >
             <FileBarChart className="h-4 w-4" aria-hidden="true" />
             Run report
@@ -579,7 +654,7 @@ export function MagicPatternDashboardPage() {
           }}
         />
 
-        <section aria-labelledby="modules-title">
+        <section aria-labelledby="modules-title" className="rounded-2xl border border-emerald-900/10 bg-[#f8fbf8]/85 p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="modules-title" className="text-sm font-semibold text-gray-900">
               Workspace overview
@@ -588,11 +663,12 @@ export function MagicPatternDashboardPage() {
           </div>
           <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <ModuleCard
-              title="Partnerships"
+              title="Investment tracker"
               icon={Layers3}
+              tone="forest"
               value={formatUsd(data.kpis.portfolioValueUsd)}
-              caption={`${data.kpis.totalPartnerships.toLocaleString()} partnership records`}
-              href="/partnership-tracker"
+              caption={`${data.kpis.totalPartnerships.toLocaleString()} partnership positions`}
+              href="/investment-tracker"
               stats={[
                 { label: 'Commitment', value: formatUsd(data.kpis.totalCommitmentUsd) ?? '—' },
                 { label: 'Unfunded', value: formatUsd(data.kpis.totalUnfundedUsd) ?? '—' },
@@ -601,18 +677,21 @@ export function MagicPatternDashboardPage() {
             <ModuleCard
               title="K-1s"
               icon={FileText}
+              tone="gold"
               value={data.kpis.totalK1Documents.toLocaleString()}
               caption={`${finalizedPercent}% finalized`}
               href="/k1"
               attentionCount={reviewCount}
               stats={[
                 { label: 'Finalized', value: data.kpis.finalizedK1Documents.toLocaleString() },
+                { label: 'In review', value: reviewCount.toLocaleString() },
                 { label: 'Processing', value: data.statusCounts.PROCESSING.toLocaleString() },
               ]}
             />
             <ModuleCard
               title="Entities"
               icon={Building2}
+              tone="blue"
               value={data.kpis.totalEntities.toLocaleString()}
               caption="Entities available to your account"
               href="/entities"
@@ -625,6 +704,7 @@ export function MagicPatternDashboardPage() {
             <ModuleCard
               title="Liquidity"
               icon={Wallet}
+              tone="teal"
               value={formatUsd(liquidityKpis?.totalMarketValue)}
               caption={liquidityCaption}
               href="/liquidity"
@@ -657,7 +737,7 @@ export function MagicPatternDashboardPage() {
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
           <div className="flex min-w-0 flex-col gap-6">
-            <section aria-labelledby="quick-actions-title">
+            <section aria-labelledby="quick-actions-title" className="rounded-2xl border border-amber-900/10 bg-[#fffaf0]/80 p-4 shadow-sm sm:p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 id="quick-actions-title" className="text-sm font-semibold text-gray-900">
                   Quick actions
@@ -673,9 +753,9 @@ export function MagicPatternDashboardPage() {
                   badge={reviewCount || undefined}
                 />
                 <QuickActionCard
-                  title="Open partnerships"
-                  description="Review valuations, commitments, and capital activity."
-                  href="/partnership-tracker"
+                  title="Open investment tracker"
+                  description="Create partnerships and review valuations, commitments, and capital activity."
+                  href="/investment-tracker"
                   icon={CircleDollarSign}
                 />
                 <QuickActionCard
@@ -700,7 +780,9 @@ export function MagicPatternDashboardPage() {
           </div>
           <ActionItems
             items={data.openIssues}
+            reviewItems={data.reviewK1s}
             onSelect={(item) => navigate(`/k1/${item.k1DocumentId}/review`)}
+            onSelectReview={(item) => navigate(`/k1/${item.id}/review`)}
           />
         </div>
       </div>
@@ -710,13 +792,22 @@ export function MagicPatternDashboardPage() {
   return (
     <AppShell
       currentPath="/dashboard"
+      mainClassName="bg-[#e7eee9]"
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())
       }}
     >
-      <div data-design-variant="magic-patterns-home">{content}</div>
+      <div
+        data-design-variant="magic-patterns-home"
+        data-dashboard-theme="forest-gold"
+        className="relative"
+      >
+        <div className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-emerald-200/25 blur-3xl" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-amber-200/20 blur-3xl" aria-hidden="true" />
+        <div className="relative">{content}</div>
+      </div>
     </AppShell>
   )
 }

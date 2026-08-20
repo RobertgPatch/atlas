@@ -17,7 +17,7 @@ npm run dev --workspace=api
 
 The server starts on port `3000` by default. Copy `apps/api/.env.example` to `apps/api/.env` and fill in the required values before starting.
 
-By default, development mode targets the local Docker Postgres database at `postgres://postgres:postgres@127.0.0.1:55432/atlas`. The API runs migrations on startup when `DATABASE_URL` is set.
+By default, development mode targets the local Docker Postgres database at `postgres://postgres:postgres@127.0.0.1:15432/atlas`. The API runs migrations on startup when `DATABASE_URL` is set.
 
 Useful local database commands from the repo root:
 
@@ -45,7 +45,7 @@ cd apps/api
 npm test
 ```
 
-The default extractor backend is `stub` (`K1_EXTRACTOR=stub`), which runs fully offline and requires no Azure credentials.
+The default extractor backend is `stub` (`K1_EXTRACTOR=stub`), which runs fully offline and requires no AWS credentials.
 
 ## Environment variables
 
@@ -54,7 +54,7 @@ Copy `.env.example` to `.env` and adjust as needed:
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
-| `DATABASE_URL` | local Docker Postgres on `127.0.0.1:55432` in development, empty otherwise | PostgreSQL connection string. Set to an empty value only when intentionally using in-memory storage. |
+| `DATABASE_URL` | local Docker Postgres on `127.0.0.1:15432` in development, empty otherwise | PostgreSQL connection string. Set to an empty value only when intentionally using in-memory storage. |
 | `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Required for production durability. |
 | `REQUIRE_DURABLE_PERSISTENCE` | `false` | Set to `true` in production so startup fails without PostgreSQL. |
 | `WEB_ORIGIN` | _(empty)_ | Comma-separated allowed browser origins for credentialed CORS requests. |
@@ -71,11 +71,19 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `AUTH_LOCKOUT_MINUTES` | `30` | Lockout duration |
 | `STORAGE_ROOT` | `./.storage` | Local directory for uploaded PDFs |
 | `K1_UPLOAD_MAX_BYTES` | `26214400` | Max upload size (25 MB) |
-| `K1_EXTRACTOR` | `stub` | K-1 extraction backend: `stub` or `azure` |
-| `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` | _(empty)_ | Required when `K1_EXTRACTOR=azure` |
-| `AZURE_DOCUMENT_INTELLIGENCE_KEY` | _(empty)_ | Azure DI subscription key (Key 1) |
-| `AZURE_DOCUMENT_INTELLIGENCE_API_VERSION` | `2024-11-30` | Azure DI REST API version |
-| `AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID` | `prebuilt-layout` | Optional Azure model ID. Set this to your custom or composed model ID to analyze uploaded PDFs with that model. |
+| `K1_EXTRACTOR` | `stub` | K-1 extraction backend: `stub` or `aws_bda` |
+| `K1_AWS_INGESTION_ENABLED` | `false` | Enables durable K-1 batch ingestion |
+| `K1_OBJECT_STORE` | `local` | K-1 object store: `local` or `s3` |
+| `K1_QUEUE` | `local` | K-1 work queue: `local` or `sqs` |
+| `K1_S3_BUCKET` | _(empty)_ | Private KMS-encrypted K-1 document bucket |
+| `K1_KMS_KEY_ARN` | _(empty)_ | KMS key for source and BDA result objects |
+| `K1_WORK_QUEUE_URL` | _(empty)_ | SQS extraction-start queue URL |
+| `K1_COMPLETION_QUEUE_URL` | _(empty)_ | SQS BDA-completion queue URL |
+| `K1_BDA_PROFILE_ARN` | _(empty)_ | Bedrock Data Automation profile ARN |
+| `K1_BDA_PROJECT_ARN` | _(empty)_ | Bedrock Data Automation project ARN containing the K-1 blueprint |
+| `K1_BDA_PROJECT_STAGE` | `DEVELOPMENT` | BDA project stage: `DEVELOPMENT` or `LIVE` |
+| `K1_BEDROCK_CHECKBOX_MODEL_ID` | `us.amazon.nova-2-lite-v1:0` | Bedrock vision model used only when BDA returns an ambiguous K-1 status checkbox |
+| `K1_BEDROCK_CHECKBOX_MAX_BYTES` | `5242880` | Maximum PDF size sent to the secondary Bedrock checkbox verifier |
 | `PLAID_CLIENT_ID` | _(empty)_ | Plaid client id |
 | `PLAID_SECRET` | _(empty)_ | Plaid secret |
 | `PLAID_ENV` | `sandbox` | Plaid environment: `sandbox`, `development`, or `production` |
@@ -129,61 +137,27 @@ with `provider=massive` and never replace an Alpaca price for the same request.
 The free Massive plan is end-of-day only, so OTC holdings show the most recent
 eligible closing trade rather than an intraday quote.
 
-## K-1 Extraction backend
+## K-1 extraction backend
 
-The API supports two extraction backends, selectable via the `K1_EXTRACTOR` environment variable:
+K-1 extraction supports only the offline stub and AWS Bedrock Data Automation:
 
 | Value | Description |
 |---|---|
-| `stub` | Deterministic in-process stub. No network calls, no Azure cost. Default. |
-| `azure` | Real Azure Document Intelligence. The app posts the uploaded PDF bytes to the configured Azure model ID and maps the returned fields into the K-1 review shape. |
+| `stub` | Deterministic offline extractor for unit tests and development without AWS. |
+| `aws_bda` | Durable S3/SQS worker flow using the configured BDA project and K-1 blueprint. |
 
-### Switching to Azure
-
-Set these values in `apps/api/.env`:
-
-```ini
-K1_EXTRACTOR=azure
-AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT=https://atlaswc.cognitiveservices.azure.com/
-AZURE_DOCUMENT_INTELLIGENCE_KEY=<Key 1 from Azure portal>
-AZURE_DOCUMENT_INTELLIGENCE_API_VERSION=2024-11-30
-AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID=<your-custom-or-composed-model-id>
-```
-
-Restart the API. On first use you should see:
-
-```text
-INFO  k1.extractor backend=azure endpoint=https://atlaswc.cognitiveservices.azure.com/ apiVersion=2024-11-30
-```
-
-For full onboarding instructions, smoke-test steps, key rotation procedure, and troubleshooting, see [specs/008-azure-document-intelligence/quickstart.md](../../specs/008-azure-document-intelligence/quickstart.md).
-
-### Switching back to the stub
-
-```ini
-K1_EXTRACTOR=stub
-```
-
-Restart the API. Use this for offline development, CI, and unit tests.
-
-### Running the Azure extractor contract test (no credentials needed)
-
-The contract test uses a recorded fixture and runs fully offline:
+For a local app connected to real AWS services, set `K1_EXTRACTOR=aws_bda`,
+`K1_AWS_INGESTION_ENABLED=true`, `K1_OBJECT_STORE=s3`, and `K1_QUEUE=sqs`,
+then configure the bucket, KMS key, queues, BDA profile, and BDA project values.
+Run the API and worker in separate terminals:
 
 ```powershell
-cd apps/api
-npm test -- k1.azure-extractor.contract
+npm run dev:api
+npm run --workspace=api dev:k1-worker
 ```
 
-### Regenerating the fixture (requires real credentials)
-
-To update the recorded fixture with a live Azure DI response:
-
-```powershell
-cd apps/api
-npm run capture-di-fixture -- --pdf path/to/sample-k1.pdf
-```
-
-This submits the PDF to Azure DI using the configured model ID, scrubs TIN/EIN patterns, and overwrites `tests/fixtures/azure-di-analyze-result.sample.json`. Requires `K1_EXTRACTOR=azure` and valid credentials in `.env`.
-
-If your custom model returns structured fields that match the app's expected K-1 mapping, the extractor will use them directly. If it does not, the app falls back to OCR/layout text mapping and keeps the document in `NEEDS_REVIEW` for manual verification.
+The browser uploads each PDF directly to a checksum-bound, KMS-encrypted
+presigned S3 URL. The local worker reads SQS, invokes BDA asynchronously, follows
+the returned job manifest, and persists normalized values for review. No
+extracted tax values are applied to a partnership tracker until a reviewer
+confirms the entity, partnership, tax year, issues, and revision-bound preview.

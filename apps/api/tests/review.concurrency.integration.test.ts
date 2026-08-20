@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createReviewFixture, type ReviewFixture } from './helpers/reviewFixture.js'
+import { pool } from '../src/infra/db/client.js'
+import { createDurableK1ReviewFixture, type DurableK1ReviewFixture } from './helpers/durableK1ReviewFixture.js'
 
 // T037 — two interleaved corrections requests against the same K-1 with the same
 // starting version must commit exactly once; the loser returns 409 STALE_K1_VERSION
@@ -46,5 +48,28 @@ describe('Review corrections — optimistic-concurrency (SC-011)', () => {
     const after = f.fieldByName(f.k1NeedsReview, 'box_1_ordinary_income')!
     expect(after.rawValue).toBe('50000.00')
     expect(['11111.11', '22222.22']).toContain(after.reviewerCorrectedValue)
+  })
+})
+
+const durable = pool ? describe : describe.skip
+
+durable('Feature 022 durable correction concurrency', () => {
+  let f: DurableK1ReviewFixture
+  beforeEach(async () => { f = await createDurableK1ReviewFixture() })
+  afterEach(async () => { await f.cleanup() })
+
+  it('commits one of two typed corrections and records exactly one history row', async () => {
+    const request = (value: number) => f.app.inject({
+      method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/corrections`,
+      headers: { cookie: f.cookie, 'if-match': '3' },
+      payload: { corrections: [{ fieldValueId: f.moneyFieldId, value }] },
+    })
+    const responses = await Promise.all([request(111), request(222)])
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 409])
+    const history = await pool!.query<{ count: string }>(
+      'select count(*)::text as count from k1_field_value_corrections where k1_field_value_id = $1',
+      [f.moneyFieldId],
+    )
+    expect(history.rows[0].count).toBe('1')
   })
 })

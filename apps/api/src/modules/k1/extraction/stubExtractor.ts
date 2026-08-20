@@ -2,13 +2,80 @@ import type {
   ExtractCtx,
   ExtractFieldValue,
   ExtractResult,
-  K1Extractor,
+  K1AsyncExtractor,
+  K1AsyncJobStatus,
+  K1AsyncSubmission,
+  K1AsyncSubmissionInput,
 } from './K1Extractor.js'
+import { getK1ObjectStore } from '../storage/index.js'
 
 // V1 stub: deterministic pseudo-extraction driven by the PDF byte count.
 // Not a real parser — just exercises the lifecycle contract (FR-019, FR-024, FR-025).
-export const stubExtractor: K1Extractor = {
+const localKey = (uri: string): string => {
+  if (!uri.startsWith('local:///')) throw Object.assign(new Error('STUB_OUTPUT_URI_INVALID'), { code: 'STUB_OUTPUT_URI_INVALID' })
+  return uri.slice('local:///'.length)
+}
+
+const stableNumber = (id: string): number => Number.parseInt(id.replace(/-/g, '').slice(0, 8), 16)
+
+export const stubExtractor: K1AsyncExtractor = {
   backend: 'stub',
+  async submit(input: K1AsyncSubmissionInput): Promise<K1AsyncSubmission> {
+    const seed = stableNumber(input.k1DocumentId)
+    const key = localKey(input.outputS3Uri)
+    const raw = {
+      revisionYear: 2025,
+      outputSegments: [{
+        customOutputStatus: 'MATCH',
+        standardOutput: { document: { elements: [] } },
+        customOutput: {
+          matched_blueprint: { name: 'deterministic-local-stub', version: '1', confidence: 1 },
+          inference_result: {
+            extracted_fields: [
+              { canonical_path: 'match.partner_tin', value_kind: 'STRING', value: '987-65-4321', confidence: 1 },
+              { canonical_path: 'match.partnership_ein', value_kind: 'STRING', value: '12-3456789', confidence: 1 },
+              { canonical_path: 'match.partner_name', value_kind: 'STRING', value: 'Synthetic Partner Trust', confidence: 1 },
+              { canonical_path: 'match.partnership_name', value_kind: 'STRING', value: `Synthetic Partnership ${seed % 97}`, confidence: 1 },
+              { canonical_path: 'match.tax_year', value_kind: 'NUMBER', value: 2025, confidence: 1 },
+              { canonical_path: 'official.part_i_a_partnership_ein', value_kind: 'STRING', value: '12-3456789', confidence: 1 },
+              { canonical_path: 'official.part_ii_e_partner_tin', value_kind: 'STRING', value: '987-65-4321', confidence: 1 },
+              { canonical_path: 'official.k1_status_final', value_kind: 'BOOLEAN', value: true, confidence: 1 },
+              { canonical_path: 'calculation.box_1_ordinary_income_loss', value_kind: 'MONEY', value: String(seed % 200000), confidence: 0.99 },
+              { canonical_path: 'official.box_13_entries', value_kind: 'CODE_ROW', value: { code: 'W', description: 'Synthetic stub deduction', amount: '(125)' }, confidence: 0.95 },
+            ],
+          },
+        },
+      }],
+    }
+    const bytes = Buffer.from(JSON.stringify(raw))
+    await getK1ObjectStore().putRawResult({
+      key,
+      body: bytes,
+      contentType: 'application/json',
+      sizeBytes: bytes.length,
+    })
+    const providerJobId = `stub:${input.extractionAttemptId}:${Buffer.from(key).toString('base64url')}`
+    return {
+      providerJobId,
+      immediateCompletion: {
+        providerStatus: 'Success',
+        output: { key, bucket: null, versionId: null },
+      },
+    }
+  },
+  async getStatus(providerJobId: string): Promise<K1AsyncJobStatus> {
+    const encodedKey = providerJobId.split(':').at(-1)
+    if (!encodedKey) return {
+      status: 'FAILED', providerStatus: 'ClientError', outputS3Uri: null,
+      errorCode: 'STUB_JOB_ID_INVALID', errorMessage: 'The deterministic stub job ID is invalid.',
+      submittedAt: null, completedAt: new Date(),
+    }
+    const key = Buffer.from(encodedKey, 'base64url').toString('utf8')
+    return {
+      status: 'SUCCEEDED', providerStatus: 'Success', outputS3Uri: `local:///${key}`,
+      errorCode: null, errorMessage: null, submittedAt: null, completedAt: new Date(),
+    }
+  },
   async extract(ctx: ExtractCtx): Promise<ExtractResult> {
     // Small artificial delay so the UI can observe the PROCESSING state.
     await new Promise((r) => setTimeout(r, 400))

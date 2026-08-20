@@ -175,12 +175,21 @@ describe('AllocationChart', () => {
     expect(screen.getByText('60% in Technology')).toBeInTheDocument()
     expect(screen.getByText(/Funds and ETFs are excluded/i)).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /filter sectors/i }))
-    await user.click(screen.getByRole('button', { name: 'None' }))
-    await user.click(screen.getByRole('option', { name: /Technology/ }))
-    await user.click(screen.getByRole('option', { name: /Financials/ }))
+    const sectorCheckboxes = screen.getAllByRole('checkbox')
+    expect(sectorCheckboxes).toHaveLength(EQUITY_SECTORS.length)
+    sectorCheckboxes.forEach((checkbox) => expect(checkbox).toBeChecked())
 
-    expect(screen.getByText('2 sectors')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Uncheck all' }))
+    expect(screen.getByText('Selected total: $0 · 0.0%')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /Technology/ }))
+    expect(screen.getByText('Selected total: $600 · 60.0%')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: /Financials/ }))
     expect(screen.getByText('2 selected · 100.0% of direct stocks')).toBeInTheDocument()
+    expect(screen.getByText('Selected total: $1.0K · 100.0%')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Check all' }))
+    screen.getAllByRole('checkbox').forEach((checkbox) => expect(checkbox).toBeChecked())
   })
 })

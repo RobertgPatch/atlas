@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { PartnershipAssetRow } from '../../../../../../packages/types/src/partnership-management'
 import type { EntityListItem } from '../../partnerships/api/entitiesClient'
+import { entityTypeLabel } from '../../partnerships/entityTypeLabels'
 import { MagicStatusBadge } from '../../partnership-tracker/components/magic-patterns/MagicPatternPrimitives'
 import { formatEstateMoney, type EstateMapPartnership } from '../estateMapModel'
 
@@ -64,7 +65,7 @@ function RootNode({
           <div className="flex items-center gap-2">
             <MagicStatusBadge tone="success">Main trust / owner</MagicStatusBadge>
             <span className="text-[0.65rem] font-medium uppercase tracking-wide text-slate-500">
-              {entity.entityType}
+              {entityTypeLabel(entity.entityType)}
             </span>
           </div>
           <p className="mt-2 text-sm font-semibold leading-5 text-slate-950">{entity.name}</p>
@@ -193,7 +194,7 @@ function NodeDetailPanel({
         : asset?.name
   const subtitle =
     selected.kind === 'root'
-      ? `${root.entityType} Â· ${root.jurisdiction || 'Jurisdiction not on file'}`
+      ? `${entityTypeLabel(root.entityType)} Â· ${root.jurisdiction || 'Jurisdiction not on file'}`
       : selected.kind === 'partnership'
         ? `${branch?.summary.partnership.partnershipType ?? 'Partnership'} Â· ${branch?.summary.partnership.status ?? ''}`
         : `${asset?.assetType ?? 'Asset'} Â· ${asset?.status ?? ''}`

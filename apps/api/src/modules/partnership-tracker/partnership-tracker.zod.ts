@@ -86,6 +86,7 @@ export const partnershipTrackerYearParamsSchema = partnershipTrackerPartnershipP
 export const partnershipTrackerCommitmentParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ commitmentId: partnershipTrackerUuidSchema })
 export const partnershipTrackerNavParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ navEntryId: partnershipTrackerUuidSchema })
 export const partnershipTrackerCashFlowParamsSchema = partnershipTrackerYearParamsSchema.extend({ cashFlowId: partnershipTrackerUuidSchema })
+export const partnershipTrackerCapitalActivityParamsSchema = partnershipTrackerPartnershipParamsSchema.extend({ cashFlowId: partnershipTrackerUuidSchema })
 
 const inceptionDateSchema = partnershipTrackerDateSchema.nullable().refine(
   (value) => value == null || value <= new Date().toISOString().slice(0, 10),
@@ -177,11 +178,17 @@ export const createPartnershipCashFlowBodySchema = z.object({
   kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION', 'RECALLABLE_DISTRIBUTION']),
   activityDate: partnershipTrackerDateSchema,
   amount: partnershipTrackerNonnegativeMoneySchema.refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
+  settlementStatus: z.enum(['ANNOUNCED', 'SETTLED']).default('SETTLED'),
   note: z.string().trim().max(2_000).nullable().optional(),
 })
 
 export const createPartnershipCashFlowsBodySchema = z.object({
   entries: z.array(createPartnershipCashFlowBodySchema).min(1).max(50),
+})
+
+export const settlePartnershipCashFlowBodySchema = z.object({
+  settlementDate: partnershipTrackerDateSchema,
+  expectedUpdatedAt: partnershipTrackerDateTimeSchema,
 })
 
 export const manualFieldChangeSchema = z.object({

@@ -196,6 +196,7 @@ export const entitiesRepository = {
             0
           ) as paid_in_usd
         from capital_activity_events e
+        where e.settlement_status = 'SETTLED'
         group by e.partnership_id
       )
       select

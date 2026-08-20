@@ -54,6 +54,10 @@ describe('AppShell design flag', () => {
       'aria-current',
       'page',
     )
+    expect(screen.getByTestId('app-shell-content')).toHaveClass(
+      'w-full',
+      'max-w-[2400px]',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(onSignOut).toHaveBeenCalledOnce()
@@ -62,7 +66,7 @@ describe('AppShell design flag', () => {
   it('collapses the Magic Patterns navigation to a persistent 64px icon rail', () => {
     render(
       <MemoryRouter>
-        <AppShell currentPath="/partnership-aggregation" magicPatternDesigns>
+        <AppShell currentPath="/investment-tracker" magicPatternDesigns>
           <div>Aggregate content</div>
         </AppShell>
       </MemoryRouter>,
@@ -71,13 +75,13 @@ describe('AppShell design flag', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
 
     const frame = screen.getByTestId('app-sidebar-frame')
-    const partnerships = screen.getByRole('link', { name: 'Partnerships' })
-    const visibleLabel = partnerships.querySelector('.min-w-0')
+    const investmentTracker = screen.getByRole('link', { name: 'Investment tracker' })
+    const visibleLabel = investmentTracker.querySelector('.min-w-0')
 
     expect(frame).toHaveClass('lg:w-16')
     expect(visibleLabel).toHaveClass('lg:hidden')
-    expect(partnerships).toHaveClass('bg-gray-900', 'text-white')
-    expect(partnerships).toHaveAttribute('title', 'Partnerships')
+    expect(investmentTracker).toHaveClass('bg-gray-900', 'text-white')
+    expect(investmentTracker).toHaveAttribute('title', 'Investment tracker')
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute(
       'aria-expanded',
       'false',

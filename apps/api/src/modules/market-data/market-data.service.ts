@@ -102,6 +102,7 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
 
   const priceHoldingsForRead = async (
     holdings: SourceHoldingRecord[],
+    request: { refreshStale?: boolean } = {},
   ): Promise<PricedHoldingsResult> => {
     const symbols = [
       ...new Set(
@@ -140,7 +141,12 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       return !price || new Date(price.receivedAt).getTime() < staleBefore
     })
 
-    if (options.provider && options.refreshOnRead && staleSymbols.length > 0) {
+    if (
+      options.provider &&
+      options.refreshOnRead &&
+      request.refreshStale !== false &&
+      staleSymbols.length > 0
+    ) {
       try {
         const refreshed = await fetchLatestOnce(staleSymbols)
         for (const price of refreshed) bySymbol.set(price.symbol.toUpperCase(), price)

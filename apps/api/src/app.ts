@@ -18,6 +18,11 @@ export const buildApp = () => {
     logger: config.nodeEnv !== 'test',
   })
 
+  const allowedOrigins = config.webOrigin
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+
   app.addHook('onRequest', async (request, reply) => {
     if (!request.url.startsWith('/v1')) return
     if (!config.security.rateLimitEnabled || config.nodeEnv !== 'production') return
@@ -48,25 +53,38 @@ export const buildApp = () => {
 
   app.addHook('onSend', async (request, reply, payload) => {
     if (request.url.startsWith('/v1')) {
+      const isK1PdfPreview = /^\/v1\/k1-documents\/[^/?]+\/pdf(?:[?#]|$)/.test(
+        request.url,
+      )
+
       reply
         .header('Cache-Control', 'private, no-store, max-age=0, must-revalidate')
         .header('Pragma', 'no-cache')
         .header('Expires', '0')
         .header('Surrogate-Control', 'no-store')
         .header('X-Content-Type-Options', 'nosniff')
-        .header('X-Frame-Options', 'DENY')
         .header('Referrer-Policy', 'no-referrer')
-        .header('Cross-Origin-Resource-Policy', 'same-site')
         .header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+
+      if (isK1PdfPreview) {
+        // The authenticated source PDF is intentionally embedded by the review
+        // workspace. X-Frame-Options cannot express the production web/API
+        // cross-origin allowlist, so constrain it with CSP instead.
+        reply
+          .header(
+            'Content-Security-Policy',
+            `frame-ancestors ${["'self'", ...allowedOrigins].join(' ')}`,
+          )
+          .header('Cross-Origin-Resource-Policy', 'cross-origin')
+      } else {
+        reply
+          .header('X-Frame-Options', 'DENY')
+          .header('Cross-Origin-Resource-Policy', 'same-site')
+      }
     }
 
     return payload
   })
-
-  const allowedOrigins = config.webOrigin
-    .split(',')
-    .map((value) => value.trim())
-    .filter(Boolean)
 
   app.register(cors, {
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
@@ -95,6 +113,11 @@ export const buildApp = () => {
       files: 1,
     },
   })
+  app.addContentTypeParser(
+    'application/pdf',
+    { parseAs: 'buffer', bodyLimit: config.k1Ingestion.uploadMaxBytes },
+    (_request, body, done) => done(null, body),
+  )
 
   app.get('/health', async () => ({
     status: 'ok',

@@ -56,6 +56,10 @@ import {
   useDeleteEntity,
   useEntityList,
 } from '../../features/partnerships/hooks/useEntityQueries'
+import {
+  ENTITY_KIND_LABELS as ENTITY_KIND_LABEL,
+  normalizeEntityKind as normalizeKind,
+} from '../../features/partnerships/entityTypeLabels'
 import { errorMessage } from '../entitiesPageUtils'
 
 type EntitySortKey =
@@ -68,14 +72,6 @@ type EntitySortKey =
   | 'status'
 type SortDirection = 'asc' | 'desc'
 type ButtonVariant = 'primary' | 'secondary' | 'danger'
-
-const ENTITY_KIND_LABEL: Record<EntityKind, string> = {
-  llc: 'LLC',
-  trust: 'Trust',
-  corporation: 'Corporation',
-  partnership: 'Partnership',
-  individual: 'Individual',
-}
 
 const ENTITY_KIND_OPTIONS = (Object.keys(ENTITY_KIND_LABEL) as EntityKind[]).map((value) => ({
   value,
@@ -95,17 +91,6 @@ const buttonVariants: Record<ButtonVariant, string> = {
   secondary:
     'border border-[#CBD5CE] bg-white text-[#1B4332] hover:bg-[#F2F6F3] active:bg-[#E6EDE8]',
   danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800',
-}
-
-const normalizeKind = (value: string): EntityKind => {
-  const normalized = value.trim().toLowerCase()
-  if (normalized === 'trust') return 'trust'
-  if (normalized === 'corporation' || normalized === 'corp') return 'corporation'
-  if (normalized === 'partnership' || normalized === 'lp' || normalized === 'llp') {
-    return 'partnership'
-  }
-  if (normalized === 'individual') return 'individual'
-  return 'llc'
 }
 
 const normalizeStatus = (value: string) => {
@@ -750,7 +735,6 @@ export function MagicPatternEntitiesPage() {
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())
       }}
-      contentClassName="max-w-[1600px]"
       mainClassName="bg-[#E7EDF4]"
       topBarBreadcrumbs={[{ label: 'Records' }, { label: 'Entities & Owners' }]}
       magicPatternDesigns

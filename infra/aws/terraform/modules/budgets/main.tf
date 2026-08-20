@@ -31,3 +31,27 @@ resource "aws_budgets_budget" "monthly" {
     }
   }
 }
+
+resource "aws_budgets_budget" "k1_bedrock" {
+  name         = "${var.name_prefix}-k1-bedrock"
+  budget_type  = "COST"
+  limit_amount = tostring(max(1, var.monthly_limit_usd * 0.25))
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  cost_filter {
+    name   = "Service"
+    values = ["Amazon Bedrock"]
+  }
+
+  dynamic "notification" {
+    for_each = var.alert_email == null ? [] : [80, 100]
+    content {
+      comparison_operator        = "GREATER_THAN"
+      threshold                  = notification.value
+      threshold_type             = "PERCENTAGE"
+      notification_type          = "FORECASTED"
+      subscriber_email_addresses = [var.alert_email]
+    }
+  }
+}

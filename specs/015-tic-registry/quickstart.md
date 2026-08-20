@@ -10,7 +10,7 @@ npm run dev:db
 Copy `apps/api/.env.example` to `apps/api/.env` if it is not already present. Local development defaults to:
 
 ```text
-DATABASE_URL=postgres://postgres:postgres@127.0.0.1:55432/atlas
+DATABASE_URL=postgres://postgres:postgres@127.0.0.1:15432/atlas
 ```
 
 The API runs migrations on startup when `DATABASE_URL` is set, so `016_tic_registry.sql` and later TIC Registry migrations should apply automatically.

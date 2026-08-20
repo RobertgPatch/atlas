@@ -107,6 +107,7 @@ export const PartnershipTypeahead = ({
           className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
           aria-autocomplete="list"
           aria-expanded={open}
+          aria-label="Partnership that issued the K-1"
           role="combobox"
         />
         {loading && (

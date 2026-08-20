@@ -28,7 +28,7 @@ npm run --workspace=web dev
 Default local API database:
 
 ```text
-postgres://postgres:postgres@127.0.0.1:55432/atlas
+postgres://postgres:postgres@127.0.0.1:15432/atlas
 ```
 
 The API runs SQL migrations on startup when `DATABASE_URL` is configured. Local data is disposable and can be reset with:
@@ -36,6 +36,25 @@ The API runs SQL migrations on startup when `DATABASE_URL` is configured. Local 
 ```powershell
 npm run dev:db:reset
 ```
+
+### K-1 extraction modes
+
+The K-1 workflow is provider-neutral. Uploads, durable attempts, matching,
+review, conflict preview, and atomic application always use the same API,
+PostgreSQL schema, and web components; only object storage, queue delivery, and
+the extraction provider change.
+
+| Mode | Required settings | Network use | Intended use |
+|---|---|---|---|
+| Fully local | `K1_EXTRACTOR=stub`, `K1_OBJECT_STORE=local`, `K1_QUEUE=local`, `K1_AWS_INGESTION_ENABLED=false` | None for K-1 processing | Default development and CI; deterministic synthetic extraction |
+| Hybrid local/AWS | `K1_EXTRACTOR=aws_bda`, `K1_OBJECT_STORE=s3`, `K1_QUEUE=sqs`, plus staging ARNs/URLs and an approved AWS profile | Local API/worker call staging S3, SQS, KMS, and BDA | Explicit real-provider development against sanitized K-1s |
+| AWS staging/production | AWS settings supplied by ECS/Secrets Manager; immutable LIVE blueprint in production | Private AWS service calls | Staging smoke tests and controlled production cohorts |
+
+`npm run dev:local` explicitly starts the fully local mode. It does not discover
+or call AWS implicitly. To use hybrid mode, start the API and worker separately
+with the complete staging configuration and credentials; never point a local
+process at production buckets, queues, BDA projects, or databases. Keep real
+TINs and private K-1 PDFs out of source-controlled fixtures and local logs.
 
 ## Staging And Production
 
@@ -45,6 +64,7 @@ Staging and production must use different AWS resources:
 - separate Secrets Manager secrets
 - separate ECS services
 - separate S3 buckets and CloudFront distributions
+- separate private K-1 document/evidence buckets, KMS keys, queues, and BDA projects
 - separate EventBridge schedules
 - separate WAF/logging/budget evidence
 

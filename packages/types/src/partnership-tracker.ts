@@ -1,4 +1,5 @@
 import type {
+  K1TrackerCashFlowEvent,
   K1TrackerCalculation,
   K1TrackerFieldChange,
   K1TrackerOfficialFormData,
@@ -86,6 +87,7 @@ export interface PartnershipTrackerSummary {
   latestSectionLCapital: PartnershipTrackerMoney | null
   totalCapitalContributions: PartnershipTrackerMoney | null
   totalDistributions: PartnershipTrackerMoney | null
+  unsettledActivityAmount: PartnershipTrackerMoney
   dpi: string | null
   tvpi: string | null
   irr: string | null
@@ -144,6 +146,7 @@ export interface PartnershipTrackerPermissions {
 export interface PartnershipTrackerDetail {
   summary: PartnershipTrackerSummary
   years: K1TrackerYearSummary[]
+  cashFlowEvents: K1TrackerCashFlowEvent[]
   commitments: PartnershipCommitmentEntry[]
   navEntries: PartnershipNavEntry[]
   permissions: PartnershipTrackerPermissions
@@ -235,6 +238,7 @@ export interface PartnershipPortfolioRollup {
   distributions: PartnershipAggregationCoveredMoney
   latestNav: PartnershipAggregationCoveredMoney
   unfundedCommitment: PartnershipAggregationCoveredMoney
+  unsettledActivity: PartnershipAggregationCoveredMoney
   dpi: PartnershipAggregationCoveredRatio
   tvpi: PartnershipAggregationCoveredRatio
   annualizedCashOnCashYield: PartnershipAggregationCoveredRatio
@@ -334,11 +338,17 @@ export interface CreatePartnershipCashFlowRequest {
   kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
   activityDate: string
   amount: PartnershipTrackerMoney
+  settlementStatus?: 'ANNOUNCED' | 'SETTLED'
   note?: string | null
 }
 
 export interface CreatePartnershipCashFlowsRequest {
   entries: CreatePartnershipCashFlowRequest[]
+}
+
+export interface SettlePartnershipCashFlowRequest {
+  settlementDate: string
+  expectedUpdatedAt: string
 }
 
 export const PARTNERSHIP_MANAGEMENT_FEE_AVAILABILITY = [

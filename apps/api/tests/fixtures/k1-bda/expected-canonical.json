@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "k1-form-1065-v1",
+  "sampleValues": [
+    { "canonicalPath": "official.part_i_a_partnership_ein", "kind": "STRING", "normalizedValue": "12-3456789", "page": 1 },
+    { "canonicalPath": "match.partner_tin", "kind": "STRING", "normalizedValue": "987-65-4321", "page": 1 },
+    { "canonicalPath": "calculation.box_1_ordinary_income_loss", "kind": "MONEY", "normalizedValue": "2345.50", "page": 1 },
+    { "canonicalPath": "official.box_13_entries", "kind": "CODE_ROW", "normalizedValue": { "code": "W", "description": "Synthetic other deduction", "amount": "-1200.00" }, "page": 2 },
+    { "canonicalPath": "official.box_13_entries", "kind": "CODE_ROW", "normalizedValue": { "code": "AE", "description": "Synthetic continuation row", "amount": "-250.00" }, "page": 3 }
+  ]
+}

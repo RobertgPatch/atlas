@@ -1,0 +1,998 @@
+openapi: 3.1.0
+info:
+  title: Jackson AWS K-1 PDF Ingestion API
+  version: 0.1.0
+  description: >-
+    Batch upload, durable extraction status, matching, review, retry, and atomic
+    application of Schedule K-1 (Form 1065) PDFs. Existing session and entity
+    authorization apply to every operation.
+servers:
+  - url: /v1
+
+paths:
+  /k1-ingestion-batches:
+    get:
+      operationId: listK1IngestionBatches
+      summary: List durable batches in the caller's entity scope
+      parameters:
+        - name: entity_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/BatchStatus' }
+        - name: attention_only
+          in: query
+          schema: { type: boolean, default: false }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Authorized batch page with aggregate counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionBatchCollection'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      operationId: createK1IngestionBatch
+      summary: Create a batch and presigned upload slots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBatchRequest'
+      responses:
+        '201':
+          description: Batch and upload slots created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionBatch'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Duplicate file declared in the same batch request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-ingestion-batches/{batchId}:
+    get:
+      operationId: getK1IngestionBatch
+      summary: Read current batch and per-file progress
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+      responses:
+        '200':
+          description: Current batch snapshot
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionBatch'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /k1-ingestion-batches/{batchId}/complete-uploads:
+    post:
+      operationId: completeK1BatchUploads
+      summary: Verify uploaded S3 objects and enqueue valid documents
+      parameters:
+        - $ref: '#/components/parameters/BatchId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 25
+                  items:
+                    type: object
+                    required: [itemId, sha256]
+                    properties:
+                      itemId:
+                        type: string
+                        format: uuid
+                      sha256:
+                        $ref: '#/components/schemas/Sha256'
+                      objectVersionId:
+                        type: [string, 'null']
+      responses:
+        '202':
+          description: Uploaded objects verified or routed to per-item failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionBatch'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Batch or item is not in a completable state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-ingestion-items/{itemId}/cancel:
+    post:
+      operationId: cancelK1IngestionItem
+      summary: Cancel an item that has not been applied
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Item cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Item is already applied or otherwise terminal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-ingestion-items/{itemId}/attempts:
+    get:
+      operationId: listK1IngestionItemAttempts
+      summary: Read immutable extraction-attempt history for one item
+      parameters:
+        - $ref: '#/components/parameters/ItemId'
+      responses:
+        '200':
+          description: Attempt history and active-attempt identifier
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [itemId, activeExtractionAttemptId, attempts]
+                properties:
+                  itemId: { type: string, format: uuid }
+                  activeExtractionAttemptId: { type: [string, 'null'], format: uuid }
+                  attempts:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExtractionAttemptSummary' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /k1-documents/{k1DocumentId}/retry-extraction:
+    post:
+      operationId: retryK1DocumentExtraction
+      summary: Create a new extraction attempt without re-uploading the PDF
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedDocumentVersion]
+              properties:
+                expectedDocumentVersion:
+                  type: integer
+                  minimum: 0
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        '202':
+          description: New attempt queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractionAttemptSummary'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version stale or document not retryable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-documents/{k1DocumentId}/match:
+    put:
+      operationId: resolveK1DocumentMatch
+      summary: Select the entity, partnership, and tax year for review/apply
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - expectedDocumentVersion
+                - entityId
+                - partnershipId
+                - taxYear
+              properties:
+                expectedDocumentVersion:
+                  type: integer
+                  minimum: 0
+                entityId:
+                  type: string
+                  format: uuid
+                partnershipId:
+                  type: string
+                  format: uuid
+                taxYear:
+                  type: integer
+                  minimum: 2000
+                  maximum: 2100
+                createFromExtraction:
+                  type: boolean
+                  default: false
+                reviewedEvidence:
+                  type: boolean
+                  const: true
+      responses:
+        '200':
+          description: Match resolved and document version incremented
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MatchResolution'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Version stale or selected records are inconsistent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-documents/{k1DocumentId}/review-session:
+    get:
+      operationId: getK1ReviewSession
+      summary: Read source evidence, canonical fields, issues, and match candidates
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+      responses:
+        '200':
+          description: Review session for the active extraction attempt
+          headers:
+            ETag:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /k1-documents/{k1DocumentId}/corrections:
+    put:
+      operationId: updateK1Corrections
+      summary: Save typed reviewer corrections for the active extraction attempt
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [corrections]
+              properties:
+                corrections:
+                  type: array
+                  items:
+                    type: object
+                    required: [fieldValueId, value]
+                    properties:
+                      fieldValueId:
+                        type: string
+                        format: uuid
+                      value: {}
+                      reason:
+                        type: [string, 'null']
+                        maxLength: 500
+      responses:
+        '200':
+          description: Corrections saved and document version incremented
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [version]
+                properties:
+                  version:
+                    type: integer
+        '409':
+          description: Stale document version or inactive attempt field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '428':
+          description: If-Match header required
+
+  /k1-documents/{k1DocumentId}/apply-preview:
+    post:
+      operationId: previewK1DocumentApplication
+      summary: Compare reviewed extraction with the target tracker year
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedDocumentVersion]
+              properties:
+                expectedDocumentVersion:
+                  type: integer
+                  minimum: 0
+      responses:
+        '200':
+          description: Revision-bound field decision preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationPreview'
+        '409':
+          description: Review incomplete, stale version, or unresolved match/issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /k1-documents/{k1DocumentId}/apply:
+    post:
+      operationId: applyK1Document
+      summary: Atomically populate the tracker year and finalize the document
+      parameters:
+        - $ref: '#/components/parameters/K1DocumentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyRequest'
+      responses:
+        '200':
+          description: Document applied atomically
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Preview expired, version stale, conflict decisions incomplete, or document not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  parameters:
+    BatchId:
+      name: batchId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    K1DocumentId:
+      name: k1DocumentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The user cannot access the requested entity scope or action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found in the user's authorized scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Sha256:
+      type: string
+      pattern: '^[a-f0-9]{64}$'
+
+    CreateBatchRequest:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        entityScopeId:
+          type: [string, 'null']
+          format: uuid
+        files:
+          type: array
+          minItems: 1
+          maxItems: 25
+          items:
+            type: object
+            additionalProperties: false
+            required: [fileName, sizeBytes, sha256]
+            properties:
+              fileName:
+                type: string
+                minLength: 1
+                maxLength: 255
+              sizeBytes:
+                type: integer
+                minimum: 1
+                maximum: 26214400
+              sha256:
+                $ref: '#/components/schemas/Sha256'
+              mimeType:
+                type: string
+                const: application/pdf
+
+    BatchStatus:
+      type: string
+      enum: [OPEN, PROCESSING, ACTION_REQUIRED, COMPLETED, PARTIAL_FAILURE, CANCELLED]
+
+    ItemStatus:
+      type: string
+      enum:
+        - PENDING_UPLOAD
+        - UPLOADED
+        - VALIDATING
+        - QUEUED
+        - PROCESSING
+        - NEEDS_MATCH
+        - NEEDS_REVIEW
+        - READY_TO_APPLY
+        - APPLIED
+        - FAILED
+        - CANCELLED
+
+    IngestionBatch:
+      type: object
+      required: [id, status, createdAt, counts, items]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/BatchStatus'
+        entityScopeId:
+          type: [string, 'null']
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: [string, 'null']
+          format: date-time
+        counts:
+          type: object
+          required: [total, active, actionRequired, applied, failed]
+          properties:
+            total: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            actionRequired: { type: integer, minimum: 0 }
+            applied: { type: integer, minimum: 0 }
+            failed: { type: integer, minimum: 0 }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IngestionItem'
+
+    IngestionBatchCollection:
+      type: object
+      required: [items, counts, nextCursor]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/IngestionBatch' }
+        counts:
+          type: object
+          required: [total, active, attentionRequired, completed, cancelled]
+          properties:
+            total: { type: integer, minimum: 0 }
+            active: { type: integer, minimum: 0 }
+            attentionRequired: { type: integer, minimum: 0 }
+            completed: { type: integer, minimum: 0 }
+            cancelled: { type: integer, minimum: 0 }
+        nextCursor:
+          type: [string, 'null']
+
+    IngestionItem:
+      type: object
+      required: [id, fileName, sizeBytes, sha256, status, updatedAt, documentVersion, activeExtractionAttemptId, attemptHistory, canRetry, canCancel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+        sizeBytes:
+          type: integer
+        sha256:
+          $ref: '#/components/schemas/Sha256'
+        status:
+          $ref: '#/components/schemas/ItemStatus'
+        upload:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [method, url, headers, expiresAt]
+              properties:
+                method:
+                  type: string
+                  const: PUT
+                url:
+                  type: string
+                  format: uri
+                headers:
+                  type: object
+                  additionalProperties:
+                    type: string
+                expiresAt:
+                  type: string
+                  format: date-time
+        k1DocumentId:
+          type: [string, 'null']
+          format: uuid
+        error:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/Error'
+        updatedAt:
+          type: string
+          format: date-time
+        documentVersion:
+          type: [integer, 'null']
+        activeExtractionAttemptId:
+          type: [string, 'null']
+          format: uuid
+        attemptHistory:
+          type: array
+          items: { $ref: '#/components/schemas/ExtractionAttemptSummary' }
+        canRetry:
+          type: boolean
+        canCancel:
+          type: boolean
+
+    ExtractionAttemptSummary:
+      type: object
+      required: [id, attemptNumber, provider, status, schemaVersion, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        attemptNumber:
+          type: integer
+          minimum: 1
+        provider:
+          type: string
+          enum: [AWS_BDA, STUB]
+        status:
+          type: string
+          enum: [CREATED, SUBMITTED, IN_PROGRESS, SUCCEEDED, FAILED, SUPERSEDED]
+        active:
+          type: boolean
+        blueprintVersion:
+          type: [string, 'null']
+        schemaVersion:
+          type: string
+        startedAt:
+          type: [string, 'null']
+          format: date-time
+        completedAt:
+          type: [string, 'null']
+          format: date-time
+        error:
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/Error'
+
+    SourceLocation:
+      type: object
+      required: [page]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        bbox:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items:
+            type: number
+        textRef:
+          type: [string, 'null']
+
+    ReviewField:
+      type: object
+      required:
+        - id
+        - occurrenceId
+        - canonicalPath
+        - label
+        - valueKind
+        - rawValue
+        - normalizedValue
+        - confidence
+        - sourceLocations
+        - reviewStatus
+      properties:
+        id:
+          type: string
+          format: uuid
+        occurrenceId:
+          type: string
+          format: uuid
+        canonicalPath:
+          type: string
+        label:
+          type: string
+        valueKind:
+          type: string
+          enum: [STRING, NUMBER, BOOLEAN, DATE, PERCENTAGE, MONEY, CODE_ROW]
+        rawValue: {}
+        normalizedValue: {}
+        reviewerCorrectedValue: {}
+        effectiveValue: {}
+        confidence:
+          type: [number, 'null']
+          minimum: 0
+          maximum: 1
+        sourceLocations:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceLocation'
+        destination:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [kind]
+              properties:
+                kind:
+                  type: string
+                  enum: [CALCULATION, OFFICIAL, MATCH_SIGNAL, EVIDENCE_ONLY]
+                key:
+                  type: [string, 'null']
+        reviewStatus:
+          type: string
+          enum: [PENDING, ACCEPTED, CORRECTED, REJECTED]
+        linkedIssueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    MatchCandidate:
+      type: object
+      required: [id, type, recordId, maskedLabel, score, signals, decision]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [ENTITY, PARTNERSHIP]
+        recordId:
+          type: string
+          format: uuid
+        maskedLabel:
+          type: string
+        score:
+          type: number
+        signals:
+          type: array
+          items:
+            type: string
+        decision:
+          type: string
+          enum: [PROPOSED, SELECTED, REJECTED]
+
+    MatchResolution:
+      type: object
+      required: [documentVersion, entityId, partnershipId, taxYear, matchStatus]
+      properties:
+        documentVersion:
+          type: integer
+        entityId:
+          type: string
+          format: uuid
+        partnershipId:
+          type: string
+          format: uuid
+        taxYear:
+          type: integer
+        matchStatus:
+          type: string
+          enum: [MATCHED, REQUIRES_REVIEW]
+
+    ReviewSession:
+      type: object
+      required:
+        - k1DocumentId
+        - documentVersion
+        - status
+        - activeAttempt
+        - fields
+        - issues
+        - matchCandidates
+        - pdfUrl
+        - canApply
+      properties:
+        k1DocumentId:
+          type: string
+          format: uuid
+        documentVersion:
+          type: integer
+        status:
+          type: string
+        activeAttempt:
+          $ref: '#/components/schemas/ExtractionAttemptSummary'
+        entityId:
+          type: [string, 'null']
+          format: uuid
+        partnershipId:
+          type: [string, 'null']
+          format: uuid
+        taxYear:
+          type: [integer, 'null']
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewField'
+        issues:
+          type: array
+          items:
+            type: object
+            required: [id, code, severity, status, message]
+            properties:
+              id:
+                type: string
+                format: uuid
+              fieldValueId:
+                type: [string, 'null']
+                format: uuid
+              code:
+                type: string
+              severity:
+                type: string
+                enum: [LOW, MEDIUM, HIGH]
+              status:
+                type: string
+                enum: [OPEN, RESOLVED]
+              message:
+                type: string
+        matchCandidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchCandidate'
+        pdfUrl:
+          type: string
+        canApply:
+          type: boolean
+        applyBlockingReasons:
+          type: array
+          items:
+            type: string
+
+    FieldDecision:
+      type: object
+      additionalProperties: false
+      required: [decisionId, decision]
+      properties:
+        decisionId:
+          type: string
+          format: uuid
+        decision:
+          type: string
+          enum: [USE_EXTRACTED, KEEP_EXISTING, SKIP_UNMAPPED]
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+
+    ApplicationPreview:
+      type: object
+      required:
+        - applicationId
+        - k1DocumentId
+        - expectedDocumentVersion
+        - trackerYearId
+        - expectedTrackerRevision
+        - expiresAt
+        - decisions
+      properties:
+        applicationId:
+          type: string
+          format: uuid
+        k1DocumentId:
+          type: string
+          format: uuid
+        expectedDocumentVersion:
+          type: integer
+        trackerYearId:
+          type: string
+          format: uuid
+        expectedTrackerRevision:
+          type: integer
+        expiresAt:
+          type: string
+          format: date-time
+        decisions:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - destinationKind
+              - destinationKey
+              - extractedValue
+              - existingValue
+              - defaultDecision
+              - conflict
+            properties:
+              id:
+                type: string
+                format: uuid
+              destinationKind:
+                type: string
+                enum: [CALCULATION, OFFICIAL]
+              destinationKey:
+                type: string
+              extractedValue: {}
+              existingValue: {}
+              defaultDecision:
+                type: string
+                enum: [USE_EXTRACTED, KEEP_EXISTING, SKIP_UNMAPPED]
+              conflict:
+                type: boolean
+              sourceFieldValueIds:
+                type: array
+                items:
+                  type: string
+                  format: uuid
+
+    ApplyRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - applicationId
+        - expectedDocumentVersion
+        - expectedTrackerRevision
+        - decisions
+      properties:
+        applicationId:
+          type: string
+          format: uuid
+        expectedDocumentVersion:
+          type: integer
+          minimum: 0
+        expectedTrackerRevision:
+          type: integer
+          minimum: 1
+        decisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldDecision'
+
+    ApplyResponse:
+      type: object
+      required:
+        - applicationId
+        - k1DocumentId
+        - status
+        - trackerYearId
+        - trackerRevision
+        - appliedAt
+        - invalidatedTaxYears
+      properties:
+        applicationId:
+          type: string
+          format: uuid
+        k1DocumentId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: APPLIED
+        trackerYearId:
+          type: string
+          format: uuid
+        trackerRevision:
+          type: integer
+        appliedAt:
+          type: string
+          format: date-time
+        invalidatedTaxYears:
+          type: array
+          items:
+            type: integer
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean
+        itemId:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true

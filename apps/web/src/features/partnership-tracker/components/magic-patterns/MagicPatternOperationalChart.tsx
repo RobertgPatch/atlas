@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PartnershipNavEntry } from '../../../../../../../packages/types/src/partnership-tracker'
-import { MagicCard, MagicStatusBadge } from './MagicPatternPrimitives'
+import { MagicCard } from './MagicPatternPrimitives'
 
 type RangeKey = '3y' | '5y' | 'all'
 
@@ -68,9 +68,6 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
   const path = coords.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
   const first = points[0]
   const last = points.at(-1)
-  const change = first && last && Number(first.amount) !== 0
-    ? (Number(last.amount) - Number(first.amount)) / Number(first.amount)
-    : null
   const hasDistinctRange = first && last && first.id !== last.id
 
   return (
@@ -108,7 +105,7 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
           No valuations on file, so there is nothing to plot. Add a manager statement or appraisal to start the NAV history.
         </p>
       ) : (
-        <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_216px]">
+        <div className="p-4">
           <div className="mx-auto h-[260px] w-full max-w-[680px]" data-testid="nav-fmv-plot">
             <svg
               viewBox={`0 0 ${width} ${height}`}
@@ -177,29 +174,6 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
             </svg>
           </div>
 
-          <dl className="grid grid-cols-2 gap-3 self-start rounded-md border border-slate-200 bg-slate-50 p-3 xl:grid-cols-1">
-            <div>
-              <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Latest NAV</dt>
-              <dd className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-slate-950">{exact(Number(last!.amount))}</dd>
-              <p className="text-[0.68rem] text-slate-500">as of {date(last!.valuationDate)}</p>
-            </div>
-            <div>
-              <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Change over range</dt>
-              <dd className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${change != null && change < 0 ? 'text-red-800' : 'text-emerald-700'}`}>
-                {change == null ? '—' : `${change >= 0 ? '+' : ''}${(change * 100).toFixed(1)}%`}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-500">Valuations shown</dt>
-              <dd className="mt-0.5 font-mono text-sm font-semibold tabular-nums text-slate-950">{points.length}</dd>
-            </div>
-            <div className="col-span-2 border-t border-slate-200 pt-2 xl:col-span-1">
-              <MagicStatusBadge tone="success">
-                <span aria-hidden className="mr-1.5 h-0.5 w-4 rounded bg-[#166534]" />
-                NAV / FMV
-              </MagicStatusBadge>
-            </div>
-          </dl>
         </div>
       )}
 

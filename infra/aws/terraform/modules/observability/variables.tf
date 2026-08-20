@@ -65,6 +65,34 @@ variable "waf_blocked_requests_threshold" {
   type        = number
 }
 
+variable "k1_start_queue_name" {
+  type = string
+}
+
+variable "k1_completion_queue_name" {
+  type = string
+}
+
+variable "k1_queue_age_threshold_seconds" {
+  type    = number
+  default = 600
+}
+
+variable "k1_queue_depth_threshold" {
+  type    = number
+  default = 25
+}
+
+variable "k1_reconciliation_lag_threshold_seconds" {
+  type    = number
+  default = 900
+}
+
+variable "k1_page_count_threshold" {
+  type    = number
+  default = 10000
+}
+
 output "alarm_topic_arn" {
   description = "SNS alarm topic ARN, if configured."
   value       = length(aws_sns_topic.alarms) == 0 ? null : aws_sns_topic.alarms[0].arn
@@ -81,5 +109,10 @@ output "alarm_names" {
     aws_cloudwatch_metric_alarm.scheduler_target_errors.alarm_name,
     aws_cloudwatch_metric_alarm.market_price_scheduler_target_errors.alarm_name,
     aws_cloudwatch_metric_alarm.waf_blocked_requests.alarm_name,
+    aws_cloudwatch_metric_alarm.k1_workflow["worker-errors"].alarm_name,
+    aws_cloudwatch_metric_alarm.k1_workflow["extraction-failures"].alarm_name,
+    aws_cloudwatch_metric_alarm.k1_workflow["reconciliation-lag"].alarm_name,
+    aws_cloudwatch_metric_alarm.k1_workflow["apply-failures"].alarm_name,
+    aws_cloudwatch_metric_alarm.k1_workflow["page-count"].alarm_name,
   ]
 }
