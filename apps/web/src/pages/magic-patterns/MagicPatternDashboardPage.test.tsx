@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardSummaryResponse } from '../../features/dashboard/api/dashboardClient'
@@ -87,6 +87,17 @@ const summary: DashboardSummaryResponse = {
       uploadedAt: '2026-08-12T16:00:00.000Z',
     },
   ],
+  reviewK1s: [
+    {
+      id: 'doc-1',
+      entity: 'Jackson Holdings',
+      partnership: 'Summit Fund III',
+      taxYear: 2025,
+      status: 'NEEDS_REVIEW',
+      uploadedAt: '2026-08-12T16:00:00.000Z',
+      openIssueCount: 1,
+    },
+  ],
   openIssues: [
     {
       id: 'issue-1',
@@ -139,7 +150,7 @@ describe('MagicPatternDashboardPage', () => {
   })
 
   it('maps the real dashboard summary into the Magic Patterns home hierarchy', () => {
-    render(
+    const { container } = render(
       <MemoryRouter initialEntries={['/dashboard']}>
         <MagicPatternDashboardPage />
       </MemoryRouter>,
@@ -152,8 +163,15 @@ describe('MagicPatternDashboardPage', () => {
     expect(screen.getByText('2 connected accounts')).toBeTruthy()
     expect(screen.getByText('Private Equity')).toBeTruthy()
     expect(screen.getByText('Confirm the reported capital account balance.')).toBeTruthy()
+    const k1Module = container.querySelector<HTMLElement>('[data-module-tone="gold"]')!
+    expect(within(k1Module).getByText('In review')).toBeTruthy()
+    expect(within(k1Module).getByText('2')).toBeTruthy()
+    expect(screen.getByText('Review Summit Fund III K-1')).toBeTruthy()
     expect(screen.getByText('K-1 needs review')).toBeTruthy()
     expect(screen.queryByText('$284.6M')).toBeNull()
+    expect(container.querySelector('[data-dashboard-theme="forest-gold"]')).toBeInTheDocument()
+    expect(screen.getByTestId('dashboard-hero')).toHaveClass('bg-[#183f2e]')
+    expect(container.querySelectorAll('[data-module-tone]')).toHaveLength(4)
   })
 
   it('opens the existing K-1 review workspace from an action item', () => {
@@ -165,6 +183,19 @@ describe('MagicPatternDashboardPage', () => {
     )
 
     fireEvent.click(screen.getByText('Confirm the reported capital account balance.'))
+
+    expect(screen.getByTestId('current-location').textContent).toBe('/k1/doc-1/review')
+  })
+
+  it('opens a pending K-1 directly from the homepage review item', () => {
+    render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <MagicPatternDashboardPage />
+        <LocationProbe />
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Review Summit Fund III K-1' }))
 
     expect(screen.getByTestId('current-location').textContent).toBe('/k1/doc-1/review')
   })

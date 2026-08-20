@@ -22,6 +22,6 @@ export function SignOffPanel({ state, checksPassing, canEdit, pending, onSignoff
       <button type="button" disabled={pending || signedOff || !checksPassing} onClick={onSignoff} className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40">Sign off year</button>
     </div>}
     {(state.history?.length ?? 0) > 0 && <ul className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-500">{state.history!.map((item) => <li key={`${item.action}-${item.at}`}>{historyLabel[item.action]} · {item.byEmail ?? 'system'} · {new Date(item.at).toLocaleString()}</li>)}</ul>}
-    {!checksPassing && <p className="mt-3 flex gap-1 text-xs text-amber-700"><CheckCircle2 className="h-3.5 w-3.5" />Resolve all checks before sign-off.</p>}
+    {!checksPassing && <p className="mt-3 flex gap-1 text-xs text-amber-700"><CheckCircle2 className="h-3.5 w-3.5" />Resolve all checks marked Required before sign-off. Calculated warnings may be signed off after review.</p>}
   </div>
 }

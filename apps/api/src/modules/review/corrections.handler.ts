@@ -1,7 +1,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
-import { reviewRepository } from './review.repository.js'
+import { durableK1Repository } from '../k1/k1.repository.js'
+import { durableReviewRepository, reviewRepository } from './review.repository.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import {
   correctionsBodySchema,
@@ -10,6 +11,8 @@ import {
 } from './review.schemas.js'
 import type { K1CorrectionsResponse } from './review.types.js'
 import { loadK1ForReview } from './session.handler.js'
+import { pool } from '../../infra/db/client.js'
+import { assertK1DocumentInScope } from '../k1/k1Scope.plugin.js'
 
 const sendZodError = (reply: FastifyReply, err: ZodError) =>
   reply.code(400).send({
@@ -24,6 +27,23 @@ const parseIfMatch = (header: unknown): number | null => {
   return Number.isFinite(n) ? n : null
 }
 
+const validateTypedValue = (kind: string | null, value: unknown): string | null => {
+  if (value == null) return null
+  if (kind === 'BOOLEAN') return typeof value === 'boolean' ? null : 'INVALID_BOOLEAN'
+  if (kind === 'DATE') return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? null : 'INVALID_DATE_FORMAT'
+  if (kind === 'NUMBER' || kind === 'MONEY' || kind === 'PERCENTAGE') {
+    const number = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN
+    return Number.isFinite(number) ? null : 'INVALID_NUMERIC_VALUE'
+  }
+  if (kind === 'CODE_ROW') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return 'INVALID_CODE_ROW'
+    const row = value as Record<string, unknown>
+    return typeof row.code === 'string' && row.code.length <= 20 && ('value' in row || 'amount' in row)
+      ? null : 'INVALID_CODE_ROW'
+  }
+  return typeof value === 'string' && value.length <= 1000 ? null : 'INVALID_STRING_VALUE'
+}
+
 export const correctionsHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -34,16 +54,54 @@ export const correctionsHandler = async (
   const body = correctionsBodySchema.safeParse(request.body)
   if (!body.success) return sendZodError(reply, body.error)
 
+  const expectedVersion = parseIfMatch(request.headers['if-match'])
+  if (expectedVersion == null) {
+    return reply.code(428).send({ error: 'IF_MATCH_REQUIRED' })
+  }
+  if (pool) {
+    const durable = await durableK1Repository.getById(params.data.k1DocumentId)
+    if (durable) {
+      if (!await assertK1DocumentInScope(request, reply, durable.id)) return
+      if (durable.version !== expectedVersion) {
+        return reply.code(409).send({ error: 'STALE_K1_VERSION', currentVersion: durable.version })
+      }
+      const activeFields = await durableReviewRepository.listForActiveAttempt(durable.id)
+      const byId = new Map(activeFields.map((field) => [field.id, field]))
+      const corrections = body.data.corrections.map((correction) => ({
+        fieldId: correction.fieldId ?? correction.fieldValueId!, correctedValue: correction.value,
+      }))
+      const validationErrors = corrections.flatMap((correction) => {
+        const field = byId.get(correction.fieldId)
+        if (!field) return [{ fieldId: correction.fieldId, error: 'INACTIVE_OR_UNKNOWN_FIELD' }]
+        const error = validateTypedValue(field.valueKind, correction.correctedValue)
+        return error ? [{ fieldId: correction.fieldId, error }] : []
+      })
+      if (validationErrors.length) return reply.code(400).send({ error: 'VALIDATION_FAILED', fields: validationErrors })
+      try {
+        const saved = await durableReviewRepository.saveCorrections({
+          k1DocumentId: durable.id, corrections, correctedByUserId: request.authUser!.userId,
+          expectedDocumentVersion: expectedVersion,
+        })
+        const res: K1CorrectionsResponse = {
+          version: saved.documentVersion, status: 'NEEDS_REVIEW',
+          resolvedIssueIds: saved.resolvedIssueIds, approvalRevoked: durable.approvedByUserId !== null,
+        }
+        return reply.header('ETag', String(saved.documentVersion)).send(res)
+      } catch (error) {
+        const cause = error as Error & { code?: string; currentVersion?: number }
+        if (cause.code === 'STALE_K1_VERSION' || cause.code === 'INACTIVE_EXTRACTION_ATTEMPT' || cause.code === 'K1_FINALIZED') {
+          return reply.code(409).send({ error: cause.code, currentVersion: cause.currentVersion })
+        }
+        throw error
+      }
+    }
+  }
+
   const k = loadK1ForReview(request, reply, params.data.k1DocumentId)
   if (!k) return
 
   if (k.processingStatus === 'FINALIZED') {
     return reply.code(409).send({ error: 'K1_FINALIZED' })
-  }
-
-  const expectedVersion = parseIfMatch(request.headers['if-match'])
-  if (expectedVersion == null) {
-    return reply.code(428).send({ error: 'IF_MATCH_REQUIRED' })
   }
   if (expectedVersion !== k.version) {
     return reply
@@ -65,19 +123,21 @@ export const correctionsHandler = async (
   }> = []
 
   for (const c of body.data.corrections) {
-    const field = reviewRepository.getFieldValue(c.fieldId)
+    const fieldId = c.fieldId ?? c.fieldValueId!
+    const field = reviewRepository.getFieldValue(fieldId)
     if (!field || field.k1DocumentId !== k.id) {
-      validationErrors.push({ fieldId: c.fieldId, error: 'UNKNOWN_FIELD' })
+      validationErrors.push({ fieldId, error: 'UNKNOWN_FIELD' })
       continue
     }
-    const fmt = validateFieldValueFormat(field.fieldName, c.value)
+    const value: string | null = c.value == null ? null : typeof c.value === 'string' ? c.value : String(c.value)
+    const fmt = validateFieldValueFormat(field.fieldName, value)
     if (!fmt.ok) {
-      validationErrors.push({ fieldId: c.fieldId, error: fmt.error })
+      validationErrors.push({ fieldId, error: fmt.error })
       continue
     }
     resolvedFields.push({
-      fieldId: c.fieldId,
-      newValue: c.value,
+      fieldId,
+      newValue: value,
       fieldName: field.fieldName,
       before: {
         rawValue: field.rawValue,

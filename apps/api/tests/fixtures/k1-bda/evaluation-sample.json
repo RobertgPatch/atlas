@@ -1,0 +1,24 @@
+{
+  "id": "synthetic-complete-digital-2025",
+  "containsProductionData": false,
+  "expected": {
+    "values": [
+      { "canonicalPath": "calculation.box_1_ordinary_income_loss", "kind": "MONEY", "normalizedValue": "2345.50", "page": 1 },
+      { "canonicalPath": "official.k1_status_final", "kind": "BOOLEAN", "normalizedValue": true, "page": 1 },
+      { "canonicalPath": "official.box_13_entries", "kind": "CODE_ROW", "normalizedValue": { "code": "W", "description": "Synthetic deduction", "amount": "-1200.00" }, "page": 2 }
+    ],
+    "issueCodes": ["BDA_FALLBACK_OUTPUT"],
+    "matchOutcomes": ["ENTITY_MATCHED", "PARTNERSHIP_MATCHED"],
+    "applyResult": { "box_1_ordinary_income_loss": "2345.50", "k1_status_final": true }
+  },
+  "observed": {
+    "values": [
+      { "canonicalPath": "calculation.box_1_ordinary_income_loss", "kind": "MONEY", "normalizedValue": "2345.5", "sourceLocations": [{ "page": 1 }] },
+      { "canonicalPath": "official.k1_status_final", "kind": "BOOLEAN", "normalizedValue": true, "sourceLocations": [{ "page": 1 }] },
+      { "canonicalPath": "official.box_13_entries", "kind": "CODE_ROW", "normalizedValue": { "amount": "-1200.00", "description": "Synthetic deduction", "code": "W" }, "sourceLocations": [{ "page": 2 }] }
+    ],
+    "issues": [{ "code": "BDA_FALLBACK_OUTPUT" }],
+    "matchOutcomes": ["ENTITY_MATCHED", "PARTNERSHIP_MATCHED"],
+    "applyResult": { "k1_status_final": true, "box_1_ordinary_income_loss": "2345.50" }
+  }
+}

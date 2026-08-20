@@ -5,17 +5,26 @@ import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { withTransaction } from '../../infra/db/client.js'
-import { k1Repository } from './k1.repository.js'
+import { durableK1BatchRepository, k1Repository } from './k1.repository.js'
 import { reviewRepository } from '../review/review.repository.js'
 import { capitalRepository } from '../partnerships/capital.repository.js'
-import { localPdfStore } from './storage/localPdfStore.js'
+import { getK1ObjectStore } from './storage/index.js'
 import { getExtractor } from './extraction/index.js'
-import { assertEntityInScope, requireK1Scope } from './k1Scope.plugin.js'
+import { assertEntityInScope, k1AuditMetadata, requireK1Scope } from './k1Scope.plugin.js'
 import {
+  completeIngestionUploadsSchema,
+  createIngestionBatchSchema,
   detailParamsSchema,
   exportQuerySchema,
+  ingestionBatchParamsSchema,
+  ingestionBatchListSchema,
+  ingestionItemParamsSchema,
   kpiQuerySchema,
   listQuerySchema,
+  localUploadHeadersSchema,
+  retryExtractionBodySchema,
+  applyPreviewBodySchema,
+  applyK1BodySchema,
   uploadBodySchema,
 } from './k1.schemas.js'
 import type {
@@ -24,12 +33,60 @@ import type {
   K1UploadResponse,
 } from './k1.types.js'
 import { config } from '../../config.js'
+import { createK1IngestionBatch, getK1IngestionBatch, listK1IngestionBatches, toPublicItem } from './ingestion/k1Batch.service.js'
+import { acceptLocalK1Upload } from './ingestion/localUploadSlots.service.js'
+import { completeK1BatchUploads } from './ingestion/k1UploadCompletion.service.js'
+import { retryK1Extraction } from './extraction/k1Retry.service.js'
+import { assertK1DocumentInScope } from './k1Scope.plugin.js'
+import { createK1ApplyPreview } from './application/k1ApplyPreview.service.js'
+import { applyReviewedK1 } from './application/k1Apply.service.js'
+import { cancelK1IngestionItem } from './ingestion/k1Cancel.service.js'
+import { deleteK1IngestionItem } from './ingestion/k1Delete.service.js'
+import { logK1Workflow } from './k1Observability.js'
 
 const sendZodError = (reply: FastifyReply, err: ZodError) =>
   reply.code(400).send({
     error: 'VALIDATION_ERROR',
     issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
   })
+
+const ingestionErrorStatus = (code: string): number => {
+  if (code === 'BATCH_NOT_FOUND' || code === 'ITEM_NOT_FOUND' || code === 'UPLOAD_NOT_FOUND') return 404
+  if (code === 'FORBIDDEN_ENTITY' || code === 'FORBIDDEN_K1_DOCUMENT') return 403
+  if (code === 'UNSUPPORTED_MEDIA_TYPE') return 415
+  if (code === 'INVALID_FILE_COUNT' || code === 'INVALID_FILE_NAME' || code === 'INVALID_FILE_SIZE' || code === 'INVALID_CHECKSUM') return 400
+  return 409
+}
+
+const ingestionErrorMessage = (code: string): string => ({
+  DUPLICATE_K1_CONTENT: 'This exact PDF was already uploaded.',
+  OBJECT_CHECKSUM_MISMATCH: 'The uploaded file checksum does not match.',
+  OBJECT_SIZE_MISMATCH: 'The uploaded file size does not match.',
+  INVALID_ITEM_STATE: 'The upload item is not in a valid state.',
+  ITEM_NOT_CANCELLABLE: 'This item can no longer be cancelled.',
+  ITEM_NOT_DELETABLE: 'Only failed or cancelled uploads can be deleted.',
+  ITEM_DOCUMENT_NOT_FOUND: 'The upload document could not be found.',
+  APPLIED_DOCUMENT_RETAINED: 'Applied K-1 source documents cannot be cancelled or deleted.',
+  BATCH_NOT_FOUND: 'The upload batch was not found.',
+  ITEM_NOT_FOUND: 'The upload item was not found.',
+}[code] ?? 'The K-1 upload request could not be completed.')
+
+const sendIngestionError = (reply: FastifyReply, error: unknown) => {
+  const code = (error as { code?: string }).code ?? 'INTERNAL_INGESTION_ERROR'
+  const retryable = ['UPLOAD_NOT_FOUND', 'UPLOAD_INCOMPLETE', 'OBJECT_CHECKSUM_MISMATCH', 'OBJECT_SIZE_MISMATCH', 'INTERNAL_INGESTION_ERROR'].includes(code)
+  return reply.code(ingestionErrorStatus(code)).send({
+    error: code,
+    message: ingestionErrorMessage(code),
+    retryable,
+  })
+}
+
+const batchInScope = (
+  request: FastifyRequest,
+  batch: { createdByUserId: string; entityScopeId: string | null },
+): boolean => request.authUser?.role === 'Admin'
+  || batch.createdByUserId === request.authUser?.userId
+  || (batch.entityScopeId != null && request.k1Scope?.entityIds.includes(batch.entityScopeId) === true)
 
 const PARSE_MISSING_METADATA = 'PARSE_MISSING_REQUIRED_METADATA'
 
@@ -148,6 +205,7 @@ const mirrorK1ToDb = async (args: {
   partnershipId: string
   taxYear: number
   processingStatus: string
+  extractionMethod: 'AWS_BDA' | 'STUB'
   fieldValues: Array<{
     fieldName: string
     rawValue: string | null
@@ -187,8 +245,15 @@ const mirrorK1ToDb = async (args: {
           `insert into k1_field_values
              (id, k1_document_id, field_name, raw_value, normalized_value, confidence_score,
               extraction_method, review_status, page_number)
-           values (gen_random_uuid(), $1, $2, $3, $3, $4, 'AZURE_DI', 'PENDING', $5)`,
-          [args.k1DocumentId, fv.fieldName, fv.rawValue, fv.confidenceScore, fv.sourceLocation?.page ?? null],
+           values (gen_random_uuid(), $1, $2, $3, $3, $4, $5, 'PENDING', $6)`,
+          [
+            args.k1DocumentId,
+            fv.fieldName,
+            fv.rawValue,
+            fv.confidenceScore,
+            args.extractionMethod,
+            fv.sourceLocation?.page ?? null,
+          ],
         )
       }
 
@@ -381,6 +446,7 @@ const runParsePipeline = (k1DocumentId: string, sizeBytes: number, storagePath: 
         partnershipId: resolved.partnershipId,
         taxYear: extractedTaxYear,
         processingStatus: nextStatus,
+        extractionMethod: getExtractor().backend === 'aws_bda' ? 'AWS_BDA' : 'STUB',
         fieldValues: result.fieldValues.map((fv) => ({
           fieldName: fv.fieldName,
           rawValue: fv.rawValue,
@@ -507,7 +573,13 @@ const uploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
 
   // Persist PDF + K-1 record.
   const documentId = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-  const storagePath = await localPdfStore.put(documentId, 'pending', fileBuffer)
+  const storagePath = `k1/pending/${documentId}.pdf`
+  await getK1ObjectStore().put({
+    key: storagePath,
+    body: fileBuffer,
+    contentType: fileMime,
+    sizeBytes: fileBuffer.byteLength,
+  })
 
   const inserted = k1Repository.insertUpload({
     uploaderUserId: request.authUser!.userId,
@@ -634,10 +706,294 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     .send([header.join(','), ...rows].join('\r\n'))
 }
 
+const createBatchHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = createIngestionBatchSchema.safeParse(request.body)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  if (!assertEntityInScope(request, reply, parsed.data.entityScopeId ?? undefined)) return
+  try {
+    const batch = await createK1IngestionBatch({
+      actorUserId: request.authUser!.userId,
+      entityScopeId: parsed.data.entityScopeId ?? null,
+      files: parsed.data.files,
+    })
+    await auditRepository.record({
+      eventName: 'k1.ingestion_batch.created',
+      objectType: 'k1_ingestion_batch',
+      objectId: batch.id,
+      actorUserId: request.authUser!.userId,
+      after: k1AuditMetadata(request, {
+        batchId: batch.id,
+        entityId: batch.entityScopeId ?? undefined,
+        status: batch.status,
+        counts: { ...batch.counts },
+      }),
+    })
+    logK1Workflow(request.log, 'k1.batch.created', { batchId: batch.id, entityId: batch.entityScopeId ?? undefined, status: batch.status, count: batch.counts.total })
+    return reply.code(201).send(batch)
+  } catch (error) {
+    return sendIngestionError(reply, error)
+  }
+}
+
+const getBatchHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = ingestionBatchParamsSchema.safeParse(request.params)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  const durable = await durableK1BatchRepository.getById(parsed.data.batchId)
+  if (!durable || !batchInScope(request, durable)) return reply.code(404).send({ error: 'BATCH_NOT_FOUND' })
+  const batch = await getK1IngestionBatch(durable.id)
+  if (!batch) return reply.code(404).send({ error: 'BATCH_NOT_FOUND' })
+  const version = Math.max(0, ...durable.items.map((item) => item.updatedAt.getTime()))
+  return reply.header('ETag', `"${version}"`).header('Cache-Control', 'private, no-store').send(batch)
+}
+
+const listBatchesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = ingestionBatchListSchema.safeParse(request.query)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  if (!assertEntityInScope(request, reply, parsed.data.entity_id)) return
+  try {
+    const collection = await listK1IngestionBatches({
+      actorUserId: request.authUser!.userId,
+      isAdmin: request.authUser!.role === 'Admin',
+      authorizedEntityIds: request.k1Scope?.entityIds ?? [],
+      entityId: parsed.data.entity_id,
+      status: parsed.data.status,
+      attentionOnly: parsed.data.attention_only,
+      limit: parsed.data.limit,
+      cursor: parsed.data.cursor,
+    })
+    return reply.header('Cache-Control', 'private, no-store').send(collection)
+  } catch (error) {
+    if ((error as { code?: string }).code === 'INVALID_CURSOR') {
+      return reply.code(400).send({ error: 'INVALID_CURSOR', message: 'The batch cursor is invalid.', retryable: false })
+    }
+    return sendIngestionError(reply, error)
+  }
+}
+
+const getItemAttemptsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = ingestionItemParamsSchema.safeParse(request.params)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  const item = await durableK1BatchRepository.getItemById(parsed.data.itemId)
+  if (!item) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  const batch = await durableK1BatchRepository.getById(item.batchId)
+  if (!batch || !batchInScope(request, batch)) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  const publicItem = await toPublicItem(item, false)
+  return reply.header('Cache-Control', 'private, no-store').send({
+    itemId: item.id, activeExtractionAttemptId: publicItem.activeExtractionAttemptId,
+    attempts: publicItem.attemptHistory,
+  })
+}
+
+const cancelItemHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = ingestionItemParamsSchema.safeParse(request.params)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  const item = await durableK1BatchRepository.getItemById(parsed.data.itemId)
+  if (!item) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  const batch = await durableK1BatchRepository.getById(item.batchId)
+  if (!batch || !batchInScope(request, batch)) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  try {
+    const cancelled = await cancelK1IngestionItem({ itemId: item.id, actorUserId: request.authUser!.userId })
+    logK1Workflow(request.log, 'k1.item.cancelled', { batchId: item.batchId, itemId: item.id, k1DocumentId: item.k1DocumentId ?? undefined, status: cancelled.status })
+    return reply.send(cancelled)
+  } catch (error) {
+    return sendIngestionError(reply, error)
+  }
+}
+
+const deleteItemHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const parsed = ingestionItemParamsSchema.safeParse(request.params)
+  if (!parsed.success) return sendZodError(reply, parsed.error)
+  const item = await durableK1BatchRepository.getItemById(parsed.data.itemId)
+  if (!item) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  const batch = await durableK1BatchRepository.getById(item.batchId)
+  if (!batch || !batchInScope(request, batch)) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  try {
+    const deleted = await deleteK1IngestionItem({
+      itemId: item.id,
+      actorUserId: request.authUser!.userId,
+    })
+    logK1Workflow(request.log, 'k1.item.deleted', {
+      batchId: deleted.batchId,
+      itemId: deleted.itemId,
+      k1DocumentId: deleted.k1DocumentId ?? undefined,
+      status: 'DELETED',
+    })
+    return reply.code(204).send()
+  } catch (error) {
+    return sendIngestionError(reply, error)
+  }
+}
+
+const localUploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (config.k1Ingestion.objectStore !== 'local') return reply.code(404).send({ error: 'NOT_FOUND' })
+  const params = ingestionItemParamsSchema.safeParse(request.params)
+  const headers = localUploadHeadersSchema.safeParse(request.headers)
+  if (!params.success) return sendZodError(reply, params.error)
+  if (!headers.success) return sendZodError(reply, headers.error)
+  const item = await durableK1BatchRepository.getItemById(params.data.itemId)
+  if (!item) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  const batch = await durableK1BatchRepository.getById(item.batchId)
+  if (!batch || !batchInScope(request, batch)) return reply.code(404).send({ error: 'ITEM_NOT_FOUND' })
+  if (!Buffer.isBuffer(request.body)) {
+    return reply.code(400).send({ error: 'UPLOAD_INCOMPLETE', message: 'A PDF body is required.', retryable: true })
+  }
+  try {
+    await acceptLocalK1Upload({
+      itemId: item.id,
+      body: request.body,
+      sizeBytes: headers.data['content-length'],
+      sha256: headers.data['x-amz-checksum-sha256'],
+    })
+    return reply.code(204).send()
+  } catch (error) {
+    return sendIngestionError(reply, error)
+  }
+}
+
+const completeBatchUploadsHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const params = ingestionBatchParamsSchema.safeParse(request.params)
+  const body = completeIngestionUploadsSchema.safeParse(request.body)
+  if (!params.success) return sendZodError(reply, params.error)
+  if (!body.success) return sendZodError(reply, body.error)
+  const durable = await durableK1BatchRepository.getById(params.data.batchId)
+  if (!durable || !batchInScope(request, durable)) return reply.code(404).send({ error: 'BATCH_NOT_FOUND' })
+  try {
+    const batch = await completeK1BatchUploads({ batchId: durable.id, items: body.data.items })
+    await auditRepository.record({
+      eventName: 'k1.ingestion_batch.uploads_completed',
+      objectType: 'k1_ingestion_batch',
+      objectId: batch.id,
+      actorUserId: request.authUser!.userId,
+      after: k1AuditMetadata(request, {
+        batchId: batch.id,
+        entityId: batch.entityScopeId ?? undefined,
+        status: batch.status,
+        counts: { ...batch.counts },
+      }),
+    })
+    logK1Workflow(request.log, 'k1.batch.uploads_completed', { batchId: batch.id, entityId: batch.entityScopeId ?? undefined, status: batch.status, count: batch.counts.total })
+    return reply.code(202).send(batch)
+  } catch (error) {
+    return sendIngestionError(reply, error)
+  }
+}
+
+const retryExtractionHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const params = detailParamsSchema.safeParse(request.params)
+  const body = retryExtractionBodySchema.safeParse(request.body)
+  if (!params.success) return sendZodError(reply, params.error)
+  if (!body.success) return sendZodError(reply, body.error)
+  if (!await assertK1DocumentInScope(request, reply, params.data.k1DocumentId)) return
+  try {
+    const result = await retryK1Extraction({
+      k1DocumentId: params.data.k1DocumentId,
+      expectedDocumentVersion: body.data.expectedDocumentVersion,
+      actorUserId: request.authUser!.userId,
+    })
+    await auditRepository.record({
+      eventName: 'k1.extraction.retry_requested',
+      objectType: 'k1_document',
+      objectId: result.k1DocumentId,
+      actorUserId: request.authUser!.userId,
+      after: k1AuditMetadata(request, {
+        k1DocumentId: result.k1DocumentId,
+        extractionAttemptId: result.attemptId,
+        status: result.status,
+        version: result.documentVersion,
+      }),
+    })
+    logK1Workflow(request.log, 'k1.extraction.retry_queued', { k1DocumentId: result.k1DocumentId, extractionAttemptId: result.attemptId, status: result.status })
+    return reply.code(202).send(result)
+  } catch (error) {
+    const code = (error as { code?: string }).code ?? 'INTERNAL_INGESTION_ERROR'
+    const status = code === 'K1_DOCUMENT_NOT_FOUND' ? 404
+      : code === 'FORBIDDEN_K1_DOCUMENT' ? 403
+        : code === 'STALE_K1_VERSION' ? 409
+          : 409
+    return reply.code(status).send({
+      error: code,
+      message: code === 'STALE_K1_VERSION'
+        ? 'The K-1 changed. Refresh before retrying extraction.'
+        : 'This K-1 extraction cannot be retried.',
+      retryable: code === 'STALE_K1_VERSION',
+    })
+  }
+}
+
+const sendApplicationError = (reply: FastifyReply, error: unknown) => {
+  const cause = error as Error & { code?: string; currentVersion?: number; currentRevision?: number; decisionId?: string }
+  const code = cause.code ?? 'K1_APPLICATION_FAILED'
+  const status = code === 'K1_DOCUMENT_NOT_FOUND' || code === 'APPLICATION_PREVIEW_NOT_FOUND' ? 404
+    : code === 'FORBIDDEN_ENTITY' || code === 'ROLE_REQUIRED_ADMIN' ? 403
+      : code.startsWith('STALE_') || code.includes('PREVIEW') || code.includes('INCOMPLETE')
+        || code.includes('AUTHORITATIVE') || code.includes('ALREADY_APPLIED') || code.includes('TARGET_CHANGED') ? 409
+        : code.includes('DECISION') || code.includes('INVALID') ? 400 : 500
+  return reply.code(status).send({
+    error: code,
+    currentVersion: cause.currentVersion,
+    currentRevision: cause.currentRevision,
+    decisionId: cause.decisionId,
+  })
+}
+
+const applyPreviewHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const params = detailParamsSchema.safeParse(request.params)
+  const body = applyPreviewBodySchema.safeParse(request.body)
+  if (!params.success) return sendZodError(reply, params.error)
+  if (!body.success) return sendZodError(reply, body.error)
+  if (!await assertK1DocumentInScope(request, reply, params.data.k1DocumentId)) return
+  try {
+    const preview = await createK1ApplyPreview({
+      k1DocumentId: params.data.k1DocumentId,
+      expectedDocumentVersion: body.data.expectedDocumentVersion,
+      actorUserId: request.authUser!.userId,
+      authorizedEntityIds: request.k1Scope?.entityIds ?? [],
+      isAdmin: request.authUser!.role === 'Admin',
+    })
+    logK1Workflow(request.log, 'k1.apply.previewed', { k1DocumentId: preview.k1DocumentId, applicationId: preview.applicationId, status: 'PREVIEWED', count: preview.decisions.length })
+    return reply.header('Cache-Control', 'private, no-store').send(preview)
+  } catch (error) {
+    return sendApplicationError(reply, error)
+  }
+}
+
+const applyK1Handler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const params = detailParamsSchema.safeParse(request.params)
+  const body = applyK1BodySchema.safeParse(request.body)
+  if (!params.success) return sendZodError(reply, params.error)
+  if (!body.success) return sendZodError(reply, body.error)
+  if (!await assertK1DocumentInScope(request, reply, params.data.k1DocumentId)) return
+  try {
+    const applied = await applyReviewedK1({
+      k1DocumentId: params.data.k1DocumentId,
+      applicationId: body.data.applicationId,
+      expectedDocumentVersion: body.data.expectedDocumentVersion,
+      expectedTrackerRevision: body.data.expectedTrackerRevision,
+      decisions: body.data.decisions,
+      actorUserId: request.authUser!.userId,
+      authorizedEntityIds: request.k1Scope?.entityIds ?? [],
+      isAdmin: request.authUser!.role === 'Admin',
+    })
+    logK1Workflow(request.log, 'k1.apply.completed', { k1DocumentId: applied.k1DocumentId, applicationId: applied.applicationId, status: applied.status, count: applied.invalidatedTaxYears.length })
+    return reply.send(applied)
+  } catch (error) {
+    return sendApplicationError(reply, error)
+  }
+}
+
 // --- Registration -------------------------------------------------------------
 
 export const registerK1Routes = async (app: FastifyInstance) => {
   const gated = { preHandler: [withSession, requireAuthenticated, requireK1Scope] }
+
+  app.post('/k1-ingestion-batches', gated, createBatchHandler)
+  app.get('/k1-ingestion-batches', gated, listBatchesHandler)
+  app.get('/k1-ingestion-batches/:batchId', gated, getBatchHandler)
+  app.put('/k1-ingestion-items/:itemId/local-upload', gated, localUploadHandler)
+  app.post('/k1-ingestion-batches/:batchId/complete-uploads', gated, completeBatchUploadsHandler)
+  app.get('/k1-ingestion-items/:itemId/attempts', gated, getItemAttemptsHandler)
+  app.post('/k1-ingestion-items/:itemId/cancel', gated, cancelItemHandler)
+  app.delete('/k1-ingestion-items/:itemId', gated, deleteItemHandler)
 
   app.get('/k1-documents', gated, listHandler)
   app.get('/k1-documents/kpis', gated, kpiHandler)
@@ -645,6 +1001,9 @@ export const registerK1Routes = async (app: FastifyInstance) => {
   app.get('/k1-documents/:k1DocumentId', gated, detailHandler)
   app.post('/k1-documents', gated, uploadHandler)
   app.post('/k1-documents/:k1DocumentId/reparse', gated, reparseHandler)
+  app.post('/k1-documents/:k1DocumentId/retry-extraction', gated, retryExtractionHandler)
+  app.post('/k1-documents/:k1DocumentId/apply-preview', gated, applyPreviewHandler)
+  app.post('/k1-documents/:k1DocumentId/apply', gated, applyK1Handler)
 
   // Lookup endpoints for upload form
   app.get('/k1/lookups/entities', gated, async (request, reply) => {

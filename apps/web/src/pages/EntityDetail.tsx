@@ -9,6 +9,7 @@ import { ErrorState } from '../components/ErrorState'
 import { PartnershipDirectoryTable } from '../features/partnerships/components/PartnershipDirectoryTable'
 import { EntityReportsPreviewSection } from '../features/partnerships/components/EntityReportsPreviewSection'
 import { useEntityDetail } from '../features/partnerships/hooks/useEntityQueries'
+import { entityTypeLabel } from '../features/partnerships/entityTypeLabels'
 import { useSession, sessionStore } from '../auth/sessionStore'
 import { authClient } from '../auth/authClient'
 import { featureFlags } from '../config/featureFlags'
@@ -59,7 +60,7 @@ function LegacyEntityDetail() {
           <>
             <PageHeader
               title={data.entity.name}
-              subtitle={data.entity.entityType ?? undefined}
+              subtitle={entityTypeLabel(data.entity.entityType)}
               secondaryActions={[
                 {
                   label: 'Back to Directory',

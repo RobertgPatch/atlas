@@ -3,6 +3,32 @@ import { composePartnershipPerformance } from '../src/modules/partnership-tracke
 import { twoYearPerformanceFixture } from './helpers/partnershipTrackerFixture.js'
 
 describe('Partnership Tracker performance', () => {
+  it('keeps an opening commitment separate from paid-in capital when the activity ledger is empty', () => {
+    const result = composePartnershipPerformance({
+      annualValues: [{
+        taxYear: 2021,
+        hasCanonicalContribution: true,
+        capitalContributions: '3000000.00',
+        legacyCapitalContributions: null,
+        distributions: '0.00',
+      }],
+      cashFlowEvents: [],
+      latestNav: null,
+      currentCommitment: '3000000.00',
+    })
+
+    expect(result.totalCapitalContributions).toBe('0.00')
+    expect(result.totalDistributions).toBe('0.00')
+    expect(result.unfundedCommitmentAmount).toBe('3000000.00')
+    expect(result.unfundedCommitmentPercentage).toBe('1.00000000')
+    expect(result.performanceStatus).toMatchObject({
+      dpi: 'MISSING_CONTRIBUTIONS',
+      tvpi: 'MISSING_CONTRIBUTIONS',
+      irr: 'MISSING_CONTRIBUTIONS',
+      unfundedCommitment: 'AVAILABLE',
+    })
+  })
+
   it('aggregates canonical contributions and absolute distributions into overview metrics', () => {
     const result = composePartnershipPerformance({
       annualValues: twoYearPerformanceFixture().map((value) => value.taxYear === 2022

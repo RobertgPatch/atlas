@@ -308,6 +308,7 @@ const buildConsolidatedHoldingsExportData = async (
     direction: query.direction === undefined ? 'desc' : query.direction,
     page: 1,
     pageSize: 250,
+    pricingMode: 'refresh',
   }, {
     actorUserId,
     scope,

@@ -419,3 +419,100 @@ variable "additional_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "k1_aws_ingestion_enabled" {
+  description = "Run the AWS K-1 worker and enable the staged AWS ingestion cohort; resources remain provisioned when false."
+  type        = bool
+  default     = false
+}
+
+variable "k1_input_prefix" {
+  description = "Opaque prefix for original K-1 PDF objects."
+  type        = string
+  default     = "originals"
+}
+
+variable "k1_output_prefix" {
+  description = "Opaque prefix for BDA raw results and evidence."
+  type        = string
+  default     = "extraction-results"
+}
+
+variable "k1_document_retention_days" {
+  description = "Retention for K-1 originals and evidence; align with the approved tax-document policy."
+  type        = number
+  default     = 2555
+}
+
+variable "k1_noncurrent_retention_days" {
+  description = "Retention for noncurrent versions of K-1 objects."
+  type        = number
+  default     = 365
+}
+
+variable "k1_force_destroy" {
+  description = "Allow deletion of a non-empty K-1 bucket only in a disposable environment."
+  type        = bool
+  default     = false
+}
+
+variable "k1_worker_cpu" {
+  type    = string
+  default = "512"
+}
+
+variable "k1_worker_memory" {
+  type    = string
+  default = "1024"
+}
+
+variable "k1_worker_desired_count" {
+  type    = number
+  default = 1
+}
+
+variable "k1_worker_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "k1_reconciliation_schedule_expression" {
+  type    = string
+  default = "rate(5 minutes)"
+}
+
+variable "k1_bda_profile_arn" {
+  description = "Optional approved BDA cross-Region inference profile ARN."
+  type        = string
+  default     = null
+}
+
+variable "k1_bda_stage" {
+  type    = string
+  default = "DEVELOPMENT"
+  validation {
+    condition     = contains(["DEVELOPMENT", "LIVE"], var.k1_bda_stage)
+    error_message = "k1_bda_stage must be DEVELOPMENT or LIVE."
+  }
+}
+
+variable "k1_bda_blueprint_version" {
+  description = "Immutable evaluated version required when the BDA stage is LIVE."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.k1_bda_stage != "LIVE" || can(regex("^[0-9]+$", var.k1_bda_blueprint_version))
+    error_message = "A numeric immutable K-1 blueprint version is required for LIVE."
+  }
+}
+
+variable "k1_mapping_schema_version" {
+  type    = string
+  default = "k1-form-1065-v1"
+}
+
+variable "k1_upload_allowed_origins" {
+  description = "Browser origins allowed to upload K-1 PDFs directly to S3."
+  type        = list(string)
+  default     = []
+}

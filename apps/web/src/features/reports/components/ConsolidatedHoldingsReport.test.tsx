@@ -78,7 +78,7 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText(/\$175\.01/)).toBeInTheDocument()
   })
 
-  it('shows active multi-sector filters and clears them from the positions list', async () => {
+  it('expands the only asset class for active sector filters and still allows collapse', async () => {
     const user = userEvent.setup()
     const onClear = vi.fn()
 
@@ -96,6 +96,11 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     )
 
     expect(screen.getByText(/Sector filter: Technology, Financials/i)).toBeInTheDocument()
+    expect(await screen.findByText('GOOGL')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Equities'))
+
+    expect(screen.queryByText('GOOGL')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show all positions' }))
 

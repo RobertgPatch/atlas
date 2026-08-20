@@ -64,6 +64,33 @@ durable('Partnership Tracker persistence compatibility', () => {
     }
   })
 
+  it('records capital activity before a K-1 exists and later rolls it into the matching tax year', async () => {
+    const created = await partnershipTrackerRepository.createCapitalActivity(fixture.partnershipId, {
+      kind: 'CAPITAL_CALL',
+      activityDate: '2024-04-15',
+      amount: '75000.00',
+      note: 'Manager capital call notice',
+    }, fixture.adminUserId, scope)
+
+    const beforeK1 = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(beforeK1.years).toEqual([])
+    expect(beforeK1.cashFlowEvents).toEqual([expect.objectContaining({
+      id: created.id,
+      taxYear: 2024,
+      kind: 'CAPITAL_CALL',
+      amount: '75000.00',
+    })])
+    expect(beforeK1.summary.totalCapitalContributions).toBe('75000.00')
+
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    const year = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
+    expect(year.cashFlowEvents).toEqual([expect.objectContaining({ id: created.id })])
+    expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({
+      amount: '75000.00',
+      originalSourceText: 'Dated cash activity rollup',
+    })
+  })
+
   it('rolls exact-dated cash activity into the K-1 year and XIRR inputs', async () => {
     const createdYear = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
     expect(createdYear.officialFormData).toMatchObject({

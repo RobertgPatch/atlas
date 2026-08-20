@@ -28,6 +28,7 @@ describe('GET /v1/dashboard — dashboard summary contract', () => {
     expect(body.kpis).toHaveProperty('portfolioValueUsd')
     expect(body.statusCounts).toHaveProperty('FINALIZED')
     expect(Array.isArray(body.recentK1Activity)).toBe(true)
+    expect(Array.isArray(body.reviewK1s)).toBe(true)
     expect(Array.isArray(body.openIssues)).toBe(true)
   })
 

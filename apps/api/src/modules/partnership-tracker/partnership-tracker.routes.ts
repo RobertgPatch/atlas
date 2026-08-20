@@ -4,6 +4,8 @@ import { withSession } from '../auth/session.middleware.js'
 import { requirePartnershipScope } from '../partnerships/partnershipScope.plugin.js'
 import {
   calculateManualYearHandler,
+  createCapitalActivitiesHandler,
+  createCapitalActivityHandler,
   createCommitmentHandler,
   createManualYearHandler,
   createPartnershipCashFlowHandler,
@@ -11,6 +13,7 @@ import {
   createNavHandler,
   createPartnershipTrackerHandler,
   deleteCommitmentHandler,
+  deleteCapitalActivityHandler,
   deleteManualYearHandler,
   deletePartnershipTrackerHandler,
   deletePartnershipCashFlowHandler,
@@ -23,6 +26,7 @@ import {
   listNavHandler,
   listPartnershipTrackerHandler,
   signoffManualYearHandler,
+  settleCapitalActivityHandler,
   updateCommitmentHandler,
   updateManualYearHandler,
   updateNavHandler,
@@ -47,6 +51,10 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   app.post(`${root}/:partnershipId/nav`, gated, createNavHandler)
   app.patch(`${root}/:partnershipId/nav/:navEntryId`, gated, updateNavHandler)
   app.delete(`${root}/:partnershipId/nav/:navEntryId`, gated, deleteNavHandler)
+  app.post(`${root}/:partnershipId/cash-flows`, gated, createCapitalActivityHandler)
+  app.post(`${root}/:partnershipId/cash-flows/batch`, gated, createCapitalActivitiesHandler)
+  app.patch(`${root}/:partnershipId/cash-flows/:cashFlowId/settlement`, gated, settleCapitalActivityHandler)
+  app.delete(`${root}/:partnershipId/cash-flows/:cashFlowId`, gated, deleteCapitalActivityHandler)
   app.post(`${root}/:partnershipId/years`, gated, createManualYearHandler)
   app.get(`${root}/:partnershipId/years/:taxYear`, gated, getManualYearHandler)
   app.patch(`${root}/:partnershipId/years/:taxYear`, gated, updateManualYearHandler)

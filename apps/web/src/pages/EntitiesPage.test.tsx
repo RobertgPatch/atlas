@@ -145,6 +145,20 @@ describe('EntitiesPage owner rename', () => {
     })
   })
 
+  it('distinguishes a holding partnership from an investment partnership', async () => {
+    render(<MemoryRouter><EntitiesPage magicPatternDesigns /></MemoryRouter>)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Add entity' }))
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Entity type' }))
+    })
+
+    expect(screen.getByRole('option', { name: 'Holding Partnership / Family LP' })).toBeTruthy()
+    expect(screen.queryByRole('option', { name: 'Partnership', exact: true })).toBeNull()
+  })
+
   it('matches the prototype add dialog fields, guidance, and custom validation', async () => {
     render(<MemoryRouter><EntitiesPage magicPatternDesigns /></MemoryRouter>)
 

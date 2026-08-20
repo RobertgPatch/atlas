@@ -164,8 +164,11 @@ export const reportsClient = {
 
   getConsolidatedHoldings(
     query: ConsolidatedHoldingsQuery,
+    options: { pricingMode?: 'saved' | 'refresh' } = {},
   ): Promise<ConsolidatedHoldingsResponse> {
-    const queryString = toQueryString(query)
+    const params = new URLSearchParams(toQueryString(query))
+    if (options.pricingMode) params.set('pricingMode', options.pricingMode)
+    const queryString = params.toString()
     const path = queryString
       ? `/reports/consolidated-holdings?${queryString}`
       : '/reports/consolidated-holdings'

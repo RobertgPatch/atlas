@@ -73,11 +73,8 @@ describe('K-1 form layout contract', () => {
       onDirtyChange={vi.fn()}
     />)
 
-    const magicPatternFieldKeys = new Set(K1_FORM_PLACEMENTS
-      .filter((placement) => placement.region !== 'supplemental-book-tax' && placement.fieldKey !== 'opening_suspended_loss')
-      .map((placement) => placement.fieldKey))
     for (const field of K1_EDITABLE_FIELDS) {
-      expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(magicPatternFieldKeys.has(field.key) ? 1 : 0)
+      expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(1)
     }
     for (const field of K1_OFFICIAL_FORM_FIELDS) {
       expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(1)
@@ -93,9 +90,10 @@ describe('K-1 form layout contract', () => {
       "Partner's capital account analysis and outside basis",
     ]))
     expect(screen.getByLabelText('Ending outside basis (calculated)')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Jackson supplemental workpaper' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reconciliation workpaper' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Book capital account')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mark reconciled' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Complete 1 required item' })).toBeDisabled()
   })
 
   it('renders one recognizable K-1 hierarchy with loaded identity context', () => {

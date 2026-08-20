@@ -9,6 +9,7 @@ import { approveHandler } from './approve.handler.js'
 import { finalizeHandler } from './finalize.handler.js'
 import { openIssueHandler, resolveIssueHandler } from './issue.handler.js'
 import { entityTypeaheadHandler, partnershipTypeaheadHandler } from './typeahead.handler.js'
+import { resolveK1MatchHandler } from '../k1/matching/k1Match.handler.js'
 
 export const registerReviewRoutes = async (app: FastifyInstance) => {
   const gated = { preHandler: [withSession, requireAuthenticated, requireK1Scope] }
@@ -26,6 +27,7 @@ export const registerReviewRoutes = async (app: FastifyInstance) => {
   app.put('/k1-documents/:k1DocumentId/corrections', gated, correctionsHandler)
   app.put('/k1-documents/:k1DocumentId/map-entity', gated, mapEntityHandler)
   app.put('/k1-documents/:k1DocumentId/map-partnership', gated, mapPartnershipHandler)
+  app.put('/k1-documents/:k1DocumentId/match', gated, resolveK1MatchHandler)
 
   // Approve / finalize
   app.post('/k1-documents/:k1DocumentId/approve', gated, approveHandler)

@@ -75,3 +75,14 @@ additional_tags = {
 # Optional notification destinations. Use real emails only in local tfvars.
 alarm_email        = null
 budget_alert_email = null
+
+# Keep the worker dormant until the DEVELOPMENT blueprint passes the sanitized
+# fixture evaluation. Promotion to LIVE is a separate, explicitly approved step.
+k1_aws_ingestion_enabled        = false
+k1_bda_stage                    = "DEVELOPMENT"
+k1_bda_blueprint_version        = ""
+k1_worker_desired_count         = 1
+k1_worker_concurrency           = 5
+k1_document_retention_days      = 365
+k1_noncurrent_retention_days    = 90
+k1_force_destroy                = false

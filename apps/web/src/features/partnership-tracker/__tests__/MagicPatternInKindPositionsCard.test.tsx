@@ -16,6 +16,8 @@ const event = (note: string | null): K1TrackerCashFlowEvent => ({
   taxYear: 2026,
   kind: 'DISTRIBUTION',
   activityDate: '2026-06-12',
+  settlementStatus: 'SETTLED',
+  announcedDate: null,
   amount: '4000.00',
   note,
   createdAt: '2026-06-12T12:00:00.000Z',

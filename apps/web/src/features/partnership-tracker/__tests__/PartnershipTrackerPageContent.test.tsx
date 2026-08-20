@@ -8,7 +8,7 @@ const update = vi.fn()
 const remove = vi.fn().mockResolvedValue(undefined)
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerList: () => ({ data: { items: [summaryFixture], total: 1, nextCursor: null }, isLoading: false, isError: false }),
-  usePartnershipTrackerDetail: () => ({ data: { summary: summaryFixture, years: [], commitments: [], navEntries: [], permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true } }, isLoading: false, isError: false, refetch: vi.fn() }),
+  usePartnershipTrackerDetail: () => ({ data: { summary: summaryFixture, years: [], cashFlowEvents: [], commitments: [], navEntries: [], permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true } }, isLoading: false, isError: false, refetch: vi.fn() }),
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: vi.fn(), isPending: false }, updatePartnership: { mutateAsync: update, isPending: false }, deletePartnership: { mutateAsync: remove, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Jackson Family Trust' }] }, isLoading: false, isError: false }) }))

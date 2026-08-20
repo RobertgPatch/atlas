@@ -16,12 +16,14 @@ import {
   deleteManualYearQuerySchema,
   expectedUpdatedAtQuerySchema,
   partnershipTrackerCommitmentParamsSchema,
+  partnershipTrackerCapitalActivityParamsSchema,
   partnershipTrackerCashFlowParamsSchema,
   partnershipAggregationQuerySchema,
   partnershipTrackerListQuerySchema,
   partnershipTrackerNavParamsSchema,
   partnershipTrackerPartnershipParamsSchema,
   partnershipTrackerSignoffBodySchema,
+  settlePartnershipCashFlowBodySchema,
   partnershipTrackerYearParamsSchema,
   updateCommitmentBodySchema,
   updateManualYearBodySchema,
@@ -190,6 +192,40 @@ export const deletePartnershipCashFlowHandler = async (request: FastifyRequest, 
     await partnershipTrackerRepository.deleteCashFlow(params.partnershipId, params.taxYear, params.cashFlowId, query.expectedUpdatedAt, request.authUser!.userId, request.partnershipScope!)
     return reply.code(204).send()
   })
+}
+export const createCapitalActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCapitalActivity(params.partnershipId, body, request.authUser!.userId, request.partnershipScope!)))
+}
+export const createCapitalActivitiesHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
+  const body = parse(createPartnershipCashFlowsBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCapitalActivities(params.partnershipId, body.entries, request.authUser!.userId, request.partnershipScope!)))
+}
+export const deleteCapitalActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerCapitalActivityParamsSchema, request.params, reply)
+  const query = parse(expectedUpdatedAtQuerySchema, request.query, reply); if (!params || !query) return
+  return run(reply, async () => {
+    await partnershipTrackerRepository.deleteCapitalActivity(params.partnershipId, params.cashFlowId, query.expectedUpdatedAt, request.authUser!.userId, request.partnershipScope!)
+    return reply.code(204).send()
+  })
+}
+export const settleCapitalActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerCapitalActivityParamsSchema, request.params, reply)
+  const body = parse(settlePartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.settleCapitalActivity(
+    params.partnershipId,
+    params.cashFlowId,
+    body.settlementDate,
+    body.expectedUpdatedAt,
+    request.authUser!.userId,
+    request.partnershipScope!,
+  )))
 }
 export const deleteManualYearHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

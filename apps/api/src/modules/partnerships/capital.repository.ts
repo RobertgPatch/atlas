@@ -322,6 +322,7 @@ async function listDbCapitalActivity(partnershipId: string, db: Queryable): Prom
     from capital_activity_events e
     left join users u on u.id = e.created_by_user_id
     where e.partnership_id = $1
+      and e.settlement_status = 'SETTLED'
     order by e.activity_date desc, e.created_at desc, e.id desc
     `,
     [partnershipId],

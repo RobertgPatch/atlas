@@ -15,10 +15,15 @@ export const k1ReviewIssueParamsSchema = z.object({
 
 const correctionItemSchema = z
   .object({
-    fieldId: uuidSchema,
-    value: z.string().max(1000).nullable(),
+    fieldId: uuidSchema.optional(),
+    fieldValueId: uuidSchema.optional(),
+    value: z.unknown(),
+    reason: z.string().max(500).nullable().optional(),
   })
   .strict()
+  .refine((value) => Boolean(value.fieldId ?? value.fieldValueId), { message: 'fieldId or fieldValueId is required' })
+  .refine((value) => Object.prototype.hasOwnProperty.call(value, 'value'), { message: 'value is required' })
+  .refine((value) => JSON.stringify(value.value ?? null).length <= 10_000, { message: 'value is too large' })
 
 export const correctionsBodySchema = z
   .object({
@@ -40,6 +45,15 @@ export const mapPartnershipBodySchema = z
   })
   .strict()
 
+export const resolveK1MatchBodySchema = z.object({
+  expectedDocumentVersion: z.number().int().nonnegative(),
+  entityId: uuidSchema,
+  partnershipId: uuidSchema,
+  taxYear: z.number().int().min(2000).max(2100),
+  createFromExtraction: z.boolean().optional().default(false),
+  reviewedEvidence: z.literal(true),
+}).strict()
+
 // Issues --------------------------------------------------------------------
 
 export const openIssueBodySchema = z
@@ -50,6 +64,11 @@ export const openIssueBodySchema = z
     issueType: z.string().max(100).optional(),
   })
   .strict()
+
+export const resolveIssueBodySchema = z.object({
+  acceptExtractedValue: z.boolean().optional().default(false),
+  acknowledgement: z.string().trim().min(3).max(500).optional(),
+}).strict()
 
 // Value format validators ---------------------------------------------------
 

@@ -34,6 +34,15 @@ export interface DashboardSummaryResponse {
     status: K1Status
     uploadedAt: string
   }>
+  reviewK1s: Array<{
+    id: string
+    entity: string
+    partnership: string
+    taxYear: number | null
+    status: Extract<K1Status, 'NEEDS_REVIEW' | 'READY_FOR_APPROVAL'>
+    uploadedAt: string
+    openIssueCount: number
+  }>
   openIssues: Array<{
     id: string
     entity: string

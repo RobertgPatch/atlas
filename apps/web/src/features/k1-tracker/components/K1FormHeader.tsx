@@ -6,7 +6,7 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor,
   hasDatedActivity: boolean
   officialFieldStateFor: K1OfficialFormFieldStateGetter
   appearance?: 'default' | 'workspace' | 'magic-pattern'
-  datedActivityLocation?: 'above' | 'cash-activity-tab'
+  datedActivityLocation?: 'above' | 'capital-activity-tab'
 }) {
   const workspace = appearance === 'workspace'
   const magicPattern = appearance === 'magic-pattern'
@@ -70,8 +70,8 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor,
     </div>}
     {hasDatedActivity && !magicPattern && <p className={workspace ? 'border-t border-slate-200 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-slate-700' : 'border-t border-gray-400 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-gray-800 sm:px-5'}>
       <span className={workspace ? 'mr-2 inline-block rounded bg-[#166534] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white' : 'mr-2 inline-block bg-jackson-gold px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white'}>Cash activity</span>
-      Annual contributions and distributions are read-only where dated activity is present. {datedActivityLocation === 'cash-activity-tab'
-        ? 'Open Cash Activity to update dated rows and recalculate totals and XIRR.'
+      Annual contributions and distributions are read-only where dated activity is present. {datedActivityLocation === 'capital-activity-tab'
+        ? 'Open Capital Activity to update dated rows and recalculate totals and XIRR.'
         : 'Update the dated rows above to recalculate totals and XIRR.'}
     </p>}
   </header>

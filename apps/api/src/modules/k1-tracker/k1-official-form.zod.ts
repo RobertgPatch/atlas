@@ -110,3 +110,12 @@ export const k1OfficialFormDataSchema = z.record(z.enum(K1_TRACKER_OFFICIAL_FORM
       }
     }
   })
+
+export const k1OfficialFieldSourceMetadataSchema = z.object({
+  sourceType: z.enum(['FINALIZED_K1', 'MANUAL_ENTRY', 'MANUAL_OVERRIDE']),
+  sourceK1DocumentId: z.string().uuid().nullable(),
+  sourceK1FieldValueIds: z.array(z.string().uuid()),
+  extractionAttemptId: z.string().uuid().nullable(),
+  createdByEmail: z.string().email().nullable(),
+  createdAt: z.string().datetime(),
+}).strict()

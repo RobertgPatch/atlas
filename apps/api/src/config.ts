@@ -19,7 +19,7 @@ const asList = (value: string | undefined, fallback: string): string[] =>
     .filter(Boolean)
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
-const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:55432/atlas'
+const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:15432/atlas'
 const databaseUrl =
   nodeEnv === 'test'
     ? (process.env.ATLAS_TEST_DATABASE_URL ?? '')
@@ -71,7 +71,48 @@ export const config = {
   totpIssuer: process.env.TOTP_ISSUER ?? 'Jackson',
   storageRoot: process.env.STORAGE_ROOT ?? './.storage',
   k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
-  k1ExtractorBackend: (process.env.K1_EXTRACTOR ?? 'stub') as 'stub' | 'azure',
+  k1ExtractorBackend: (process.env.K1_EXTRACTOR ?? 'stub') as
+    | 'stub'
+    | 'aws_bda',
+  k1Ingestion: {
+    awsEnabled: asBoolean(process.env.K1_AWS_INGESTION_ENABLED),
+    batchMaxFiles: asNumber(process.env.K1_BATCH_MAX_FILES, 25),
+    uploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
+    uploadMaxPages: asNumber(process.env.K1_UPLOAD_MAX_PAGES, 100),
+    uploadUrlTtlSeconds: asNumber(process.env.K1_UPLOAD_URL_TTL_SECONDS, 900),
+    objectStore: (process.env.K1_OBJECT_STORE ?? 'local') as 'local' | 's3',
+    queue: (process.env.K1_QUEUE ?? 'local') as 'local' | 'sqs',
+    workerConcurrency: asNumber(process.env.K1_WORKER_CONCURRENCY, 10),
+    reconciliationStaleSeconds: asNumber(
+      process.env.K1_RECONCILIATION_STALE_SECONDS,
+      300,
+    ),
+    s3: {
+      bucket: process.env.K1_S3_BUCKET ?? '',
+      kmsKeyArn: process.env.K1_KMS_KEY_ARN ?? '',
+      inputPrefix: process.env.K1_S3_INPUT_PREFIX ?? 'originals',
+      outputPrefix: process.env.K1_S3_OUTPUT_PREFIX ?? 'extraction-results',
+    },
+    sqs: {
+      workQueueUrl: process.env.K1_WORK_QUEUE_URL ?? '',
+      completionQueueUrl: process.env.K1_COMPLETION_QUEUE_URL ?? '',
+    },
+    bda: {
+      profileArn: process.env.K1_BDA_PROFILE_ARN ?? '',
+      projectArn: process.env.K1_BDA_PROJECT_ARN ?? '',
+      projectStage: (process.env.K1_BDA_PROJECT_STAGE ?? 'DEVELOPMENT') as
+        | 'DEVELOPMENT'
+        | 'LIVE',
+      blueprintArn: process.env.K1_BDA_BLUEPRINT_ARN ?? '',
+      blueprintVersion: process.env.K1_BDA_BLUEPRINT_VERSION ?? '',
+      mappingSchemaVersion:
+        process.env.K1_MAPPING_SCHEMA_VERSION ?? 'k1-form-1065-v1',
+    },
+    bedrockReview: {
+      modelId: process.env.K1_BEDROCK_CHECKBOX_MODEL_ID ?? 'us.amazon.nova-2-lite-v1:0',
+      maxDocumentBytes: asNumber(process.env.K1_BEDROCK_CHECKBOX_MAX_BYTES, 5 * 1024 * 1024),
+    },
+  },
   plaidRefresh: {
     timeLocal: process.env.PLAID_REFRESH_TIME_LOCAL ?? '05:00',
     timezone: process.env.PLAID_REFRESH_TIMEZONE ?? 'America/Los_Angeles',
@@ -123,12 +164,6 @@ export const config = {
     appDomain: process.env.AWS_APP_DOMAIN ?? '',
     cloudFrontDistributionId: process.env.AWS_CLOUDFRONT_DISTRIBUTION_ID ?? '',
     webAssetsBucket: process.env.AWS_WEB_ASSETS_BUCKET ?? '',
-  },
-  azureDocumentIntelligence: {
-    endpoint: process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT ?? '',
-    key: process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY ?? '',
-    apiVersion: process.env.AZURE_DOCUMENT_INTELLIGENCE_API_VERSION ?? '2024-11-30',
-    modelId: process.env.AZURE_DOCUMENT_INTELLIGENCE_MODEL_ID ?? 'prebuilt-layout',
   },
   plaid: {
     clientId: plaidClientId,

@@ -7,13 +7,14 @@ export type { K1Status }
 
 export type K1ConfidenceBand = 'high' | 'medium' | 'low' | 'none'
 export type K1ReviewSection = 'entityMapping' | 'partnershipMapping' | 'core'
-export type K1FieldReviewStatus = 'PENDING' | 'REVIEWED'
+export type K1FieldReviewStatus = 'PENDING' | 'REVIEWED' | 'ACCEPTED' | 'CORRECTED' | 'REJECTED'
 export type K1IssueSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
 export type K1IssueStatus = 'OPEN' | 'RESOLVED'
 
 export interface K1SourceLocation {
   page: number
-  bbox: [number, number, number, number]
+  bbox?: [number, number, number, number]
+  textRef?: string | null
 }
 
 export interface K1FieldValue {
@@ -32,6 +33,22 @@ export interface K1FieldValue {
   isModified: boolean
   linkedIssueIds: string[]
   updatedAt: string
+  extractionAttemptId?: string | null
+  occurrenceId?: string | null
+  occurrenceIndex?: number | null
+  canonicalPath?: string | null
+  valueKind?: string | null
+  rawValueJson?: unknown
+  normalizedValueJson?: unknown
+  reviewerCorrectedValueJson?: unknown
+  effectiveValueJson?: unknown
+  sourceLocations?: K1SourceLocation[]
+  destination?: { kind: 'CALCULATION' | 'OFFICIAL' | 'MATCH_SIGNAL' | 'EVIDENCE_ONLY'; key?: string | null } | null
+  mappingRuleVersion?: string | null
+  correctionHistory?: Array<{
+    id: string; correctedValue: unknown; correctedValueText: string | null
+    documentVersion: number; correctedByUserId: string; createdAt: string
+  }>
 }
 
 export interface K1Issue {
@@ -44,6 +61,32 @@ export interface K1Issue {
   resolvedAt: string | null
   resolvedByUserId: string | null
   createdAt: string
+  extractionAttemptId?: string | null
+  occurrenceId?: string | null
+  issueCode?: string | null
+  details?: Record<string, unknown> | null
+}
+
+export interface K1ExtractionAttemptSummary {
+  id: string
+  attemptNumber: number
+  provider: 'AWS_BDA' | 'STUB'
+  status: 'CREATED' | 'SUBMITTED' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'SUPERSEDED'
+  blueprintVersion: string | null
+  schemaVersion: string
+  startedAt: string | null
+  completedAt: string | null
+  error: { error: string; message?: string; retryable?: boolean } | null
+}
+
+export interface K1MatchCandidate {
+  id: string
+  type: 'ENTITY' | 'PARTNERSHIP'
+  recordId: string
+  maskedLabel: string
+  score: number
+  signals: string[]
+  decision: 'PROPOSED' | 'SELECTED' | 'REJECTED'
 }
 
 export interface K1ReviewSession {
@@ -69,6 +112,14 @@ export interface K1ReviewSession {
   canEdit: boolean
   approveBlockingReasons: K1ActionBlockingReason[]
   finalizeBlockingReasons: K1ActionBlockingReason[]
+  activeAttempt?: K1ExtractionAttemptSummary | null
+  attemptHistory?: K1ExtractionAttemptSummary[]
+  matchCandidates?: K1MatchCandidate[]
+  canApply?: boolean
+  applyBlockingReasons?: string[]
+  appliedTrackerYearId?: string | null
+  appliedAt?: string | null
+  appliedByEmail?: string | null
 }
 
 export type K1ActionBlockingReason =

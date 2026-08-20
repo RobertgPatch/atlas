@@ -7,7 +7,6 @@ import {
   ChevronRight,
   FileText,
   Landmark,
-  Layers,
   LayoutDashboard,
   LogOut,
   Map as MapIcon,
@@ -28,7 +27,6 @@ interface AppShellProps {
   userRole?: 'Admin' | 'User'
   userEmail?: string
   onSignOut?: () => void
-  contentClassName?: string
   mainClassName?: string
   magicPatternDesigns?: boolean
   workspaceName?: string
@@ -66,7 +64,6 @@ const magicPatternNavigation: NavigationSection[] = [
     id: 'modules',
     label: 'Modules',
     items: [
-      { name: 'Partnerships', href: '/partnership-tracker', icon: Layers },
       { name: 'Investment tracker', href: '/investment-tracker', icon: TrendingUp },
       { name: 'Liquidity', href: '/liquidity', icon: Wallet },
       { name: 'Entities & Owners', href: '/entities', icon: Users },
@@ -185,7 +182,6 @@ export function AppShell({
   userRole = 'User',
   userEmail,
   onSignOut,
-  contentClassName = 'max-w-7xl',
   mainClassName = 'bg-gray-50',
   magicPatternDesigns = featureFlags.magicPatternDesigns,
   workspaceName = 'Family Office',
@@ -503,10 +499,11 @@ export function AppShell({
 
         <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 ${mainClassName}`}>
           <motion.div
+            data-testid="app-shell-content"
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className={`${contentClassName} mx-auto`}
+            className="mx-auto w-full max-w-[2400px]"
           >
             {children}
           </motion.div>

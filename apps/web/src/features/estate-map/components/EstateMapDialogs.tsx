@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { EntityListItem } from '../../partnerships/api/entitiesClient'
+import { entityTypeLabel } from '../../partnerships/entityTypeLabels'
 import {
   MagicButton,
   MagicModal,
@@ -83,7 +84,7 @@ export function EstateMapEditorDialog({
             <option value="">Select an entity or individual</option>
             {entities.map((entity) => (
               <option key={entity.id} value={entity.id}>
-                {entity.name} · {entity.entityType}
+                {entity.name} · {entityTypeLabel(entity.entityType)}
               </option>
             ))}
           </select>

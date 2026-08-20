@@ -118,12 +118,40 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     expect(result.items[0]!.latestNav?.amount).toBe('900000.00')
     expect(result.items[0]).toMatchObject({
       latestSectionLCapital: null,
-      totalCapitalContributions: null,
-      totalDistributions: null,
+      totalCapitalContributions: '0.00',
+      totalDistributions: '0.00',
+      unfundedCommitmentAmount: '1000000.00',
       dpi: null,
       tvpi: null,
       irr: null,
       performanceStatus: { dpi: 'MISSING_CONTRIBUTIONS', tvpi: 'MISSING_CONTRIBUTIONS', irr: 'MISSING_CONTRIBUTIONS' },
+    })
+  })
+
+  it('accepts partnership-level capital activity before any K-1 year exists', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}/cash-flows`,
+      headers: { cookie },
+      payload: {
+        kind: 'CAPITAL_CALL',
+        activityDate: '2024-04-15',
+        amount: '75000.00',
+        note: 'Manager notice',
+      },
+    })
+    expect(created.statusCode).toBe(201)
+    expect(created.json()).toMatchObject({ taxYear: 2024, kind: 'CAPITAL_CALL', amount: '75000.00' })
+
+    const detail = await app.inject({
+      method: 'GET',
+      url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}`,
+      headers: { cookie },
+    })
+    expect(detail.statusCode).toBe(200)
+    expect(detail.json()).toMatchObject({
+      years: [],
+      cashFlowEvents: [expect.objectContaining({ kind: 'CAPITAL_CALL', amount: '75000.00' })],
     })
   })
 

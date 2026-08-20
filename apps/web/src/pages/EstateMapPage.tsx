@@ -13,7 +13,6 @@ export function EstateMapPage() {
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())
       }}
-      contentClassName="max-w-none"
       magicPatternDesigns
       mainClassName="bg-slate-100"
       topBarBreadcrumbs={[{ label: 'Workspace' }, { label: 'Estate Maps' }]}

@@ -23,6 +23,9 @@ export interface InvestmentActivityRecord {
   unfunded: number | null
   distributions: number | null
   currentValue: number | null
+  dpi: number | null
+  tvpi: number | null
+  irr: number | null
   lastActivityDate: string | null
   lastActivityType: string | null
   status: InvestmentPositionStatus
@@ -47,6 +50,19 @@ export interface InvestmentFundOption {
     ownerType: string
     assetClass: string
   }>
+}
+
+export interface InvestmentFundGroup {
+  id: string
+  name: string
+  records: InvestmentActivityRecord[]
+  ownerCount: number
+  assetClasses: string[]
+  statuses: InvestmentPositionStatus[]
+  vintages: Array<number | null>
+  totals: InvestmentActivityTotals
+  dpi: number | null
+  tvpi: number | null
 }
 
 const moneyToNumber = (value: string | null | undefined) => {
@@ -101,6 +117,9 @@ export function recordsFromAggregation(
         unfunded: moneyToNumber(row.unfundedCommitmentAmount),
         distributions: moneyToNumber(row.totalDistributions),
         currentValue: moneyToNumber(row.latestNav?.amount),
+        dpi: moneyToNumber(row.dpi),
+        tvpi: moneyToNumber(row.tvpi),
+        irr: moneyToNumber(row.irr),
         lastActivityDate: activity?.date ?? null,
         lastActivityType: activity?.type ?? null,
         status: statusLabel(row.partnership.status),
@@ -140,6 +159,38 @@ export function multipleOf(
   if (totals.invested == null || totals.invested <= 0) return null
   if (totals.distributions == null || totals.currentValue == null) return null
   return (totals.distributions + totals.currentValue) / totals.invested
+}
+
+export function dpiOf(
+  totals: Pick<InvestmentActivityTotals, 'invested' | 'distributions'>,
+) {
+  if (totals.invested == null || totals.invested <= 0 || totals.distributions == null) return null
+  return totals.distributions / totals.invested
+}
+
+export function groupInvestmentRecordsByFund(records: InvestmentActivityRecord[]): InvestmentFundGroup[] {
+  const funds = new Map<string, InvestmentActivityRecord[]>()
+  for (const record of records) {
+    const existing = funds.get(record.fundId)
+    if (existing) existing.push(record)
+    else funds.set(record.fundId, [record])
+  }
+
+  return [...funds.entries()].map(([id, fundRecords]) => {
+    const totals = totalsOf(fundRecords)
+    return {
+      id,
+      name: fundRecords[0]?.fundName ?? 'Unnamed fund',
+      records: fundRecords,
+      ownerCount: new Set(fundRecords.map((record) => record.ownerId)).size,
+      assetClasses: [...new Set(fundRecords.map((record) => record.assetClass))],
+      statuses: [...new Set(fundRecords.map((record) => record.status))],
+      vintages: [...new Set(fundRecords.map((record) => record.vintage))],
+      totals,
+      dpi: dpiOf(totals),
+      tvpi: multipleOf(totals),
+    }
+  })
 }
 
 export function buildFundOptions(records: InvestmentActivityRecord[]): InvestmentFundOption[] {
