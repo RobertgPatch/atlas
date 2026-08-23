@@ -29,7 +29,7 @@ interface TicPropertyCardProps {
 }
 
 const BAR_COLORS = [
-  'bg-jackson-gold',
+  'bg-primary',
   'bg-sky-500',
   'bg-emerald-500',
   'bg-violet-500',

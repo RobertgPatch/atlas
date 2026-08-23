@@ -162,13 +162,13 @@ export const calculateTrackerYear = (
   const sectionLContributions = contributions
   const sectionLNetIncome = values.section_l_current_year_net_income_loss ?? null
   const sectionLOther = amount(values, 'section_l_other_increase_decrease')
-  const sectionLWithdrawals = absolute(amount(values, 'section_l_withdrawals_distributions'))
+  const sectionLWithdrawals = amount(values, 'section_l_withdrawals_distributions')
   const sectionLEnding = values.section_l_ending_capital ?? null
   const bookCapital = values.book_capital_account ?? sectionLEnding
   const inferredNondeductibleExpenses = (() => {
     if (enteredNondeductibleExpenses != null || sectionLBeginning == null || sectionLNetIncome == null || sectionLEnding == null || bookCapital == null) return zero
     const inferredAmount = calculatedNetIncomeBeforeNondeductibleExpenses - sectionLNetIncome
-    const calculatedSectionLEndingBeforeNondeductibleExpenses = sectionLBeginning + sectionLContributions + calculatedNetIncomeBeforeNondeductibleExpenses + sectionLOther - sectionLWithdrawals
+    const calculatedSectionLEndingBeforeNondeductibleExpenses = sectionLBeginning + sectionLContributions + calculatedNetIncomeBeforeNondeductibleExpenses + sectionLOther + sectionLWithdrawals
     const sectionLEndingVariance = calculatedSectionLEndingBeforeNondeductibleExpenses - sectionLEnding
     const bookTaxVariance = endingOutsideBasisBeforeNondeductibleExpenses - bookCapital
     const canApplyWithoutChangingLossLimit = basisAfterDistributions >= totalLossPool + inferredAmount
@@ -196,7 +196,7 @@ export const calculateTrackerYear = (
   const calculatedNetIncome = calculatedNetIncomeBeforeNondeductibleExpenses - nondeductibleExpenses
   const calculatedSectionLEnding = sectionLBeginning == null
     ? null
-    : sectionLBeginning + sectionLContributions + calculatedNetIncome + sectionLOther - sectionLWithdrawals
+    : sectionLBeginning + sectionLContributions + calculatedNetIncome + sectionLOther + sectionLWithdrawals
   const sectionLBeginningDifference = sectionLBeginning == null ? null : sectionLBeginning - (previous?.sectionLEndingCapital ?? sectionLBeginning)
   const sectionLContributionDifference = zero
   const sectionLNetIncomeDifference = sectionLNetIncome == null ? null : sectionLNetIncome - calculatedNetIncome
@@ -239,7 +239,22 @@ export const calculateTrackerYear = (
     check('suspended-losses', cumulativeSuspendedLoss > zero ? 'WARNING' : 'PASS', cumulativeSuspendedLoss > zero ? 'Losses or deductions remain suspended.' : 'No suspended losses or deductions remain.', cumulativeSuspendedLoss),
     check('taxable-excess-distribution', taxableExcessDistribution > zero ? 'WARNING' : 'PASS', taxableExcessDistribution > zero ? 'Distributions exceed available basis.' : 'No taxable excess distribution.', taxableExcessDistribution),
     check('section-l-net-income', sectionLNetIncomeDifference == null ? 'INCOMPLETE' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'PASS' : 'FAIL', sectionLNetIncomeDifference == null ? 'Section L current-year net income is missing.' : absolute(sectionLNetIncomeDifference) <= TOLERANCE ? 'Section L net income ties to calculated K-1 activity.' : 'Section L net income differs from calculated K-1 activity.', sectionLNetIncome, calculatedNetIncome, sectionLNetIncomeDifference),
-    check('section-l-ending', sectionLEndingDifference == null ? 'INCOMPLETE' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'PASS' : 'FAIL', sectionLEndingDifference == null ? 'Section L ending capital is incomplete.' : absolute(sectionLEndingDifference) <= TOLERANCE ? 'Section L ending capital reconciles.' : 'Section L ending capital variance exceeds $1.', sectionLEnding, calculatedSectionLEnding, sectionLEndingDifference),
+    check(
+      'section-l-ending',
+      sectionLEnding == null || calculatedSectionLEnding == null
+        ? 'INCOMPLETE'
+        : absolute(sectionLEndingDifference!) <= TOLERANCE ? 'PASS' : 'FAIL',
+      sectionLEnding == null
+        ? 'Section L ending capital is missing.'
+        : calculatedSectionLEnding == null
+          ? 'Section L ending capital was imported, but beginning capital is missing.'
+          : absolute(sectionLEndingDifference!) <= TOLERANCE
+            ? 'Section L ending capital reconciles.'
+            : 'Section L ending capital variance exceeds $1.',
+      sectionLEnding,
+      calculatedSectionLEnding,
+      sectionLEndingDifference,
+    ),
     check('book-tax-unexplained', unexplainedVariance == null ? 'INCOMPLETE' : absolute(unexplainedVariance) <= TOLERANCE ? 'PASS' : 'FAIL', unexplainedVariance == null ? 'Book capital is incomplete.' : absolute(unexplainedVariance) <= TOLERANCE ? 'Book-tax difference is explained.' : 'Book-tax unexplained variance exceeds $1.', bookTaxDifference, reconTotal, unexplainedVariance),
     check('journal-balance', absolute(journalBalance) <= TOLERANCE ? 'PASS' : 'FAIL', absolute(journalBalance) <= TOLERANCE ? 'Journal entry balances.' : 'Journal entry does not balance to zero.', journalBalance, zero, journalBalance),
   ]

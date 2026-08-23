@@ -288,7 +288,7 @@ variable "alpaca_market_data_feed" {
 }
 
 variable "market_price_refresh_time_local" {
-  description = "Weekday end-of-day market price refresh time."
+  description = "Weekday closing-price refresh and Liquidity valuation snapshot time."
   type        = string
   default     = "16:20"
 
@@ -305,7 +305,7 @@ variable "market_price_refresh_timezone" {
 }
 
 variable "market_price_scheduler_enabled" {
-  description = "Whether the weekday end-of-day market price schedule is enabled."
+  description = "Whether the weekday closing-price and Liquidity snapshot schedule is enabled."
   type        = bool
   default     = false
 }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { PartnershipNavEntry } from '../../../../../../../packages/types/src/partnership-tracker'
+import { colorTokens } from '../../../../../design-tokens.js'
 import { MagicCard } from './MagicPatternPrimitives'
 
 type RangeKey = '3y' | '5y' | 'all'
@@ -90,7 +91,7 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
               onClick={() => setRange(item.key)}
               className={`min-h-8 border-l border-slate-300 px-2.5 text-xs font-semibold first:border-l-0 ${
                 range === item.key
-                  ? 'bg-[#166534] text-white'
+                  ? 'bg-primary text-white'
                   : 'bg-white text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -145,7 +146,7 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
               <path
                 d={path}
                 fill="none"
-                stroke="#166534"
+                stroke={colorTokens.visualization.seriesSix}
                 strokeWidth="2.5"
                 vectorEffect="non-scaling-stroke"
               />
@@ -156,7 +157,7 @@ export function MagicPatternOperationalChart({ items }: { items: PartnershipNavE
                   cy={point.y}
                   r="3.5"
                   fill="#fff"
-                  stroke="#166534"
+                  stroke={colorTokens.visualization.seriesSix}
                   strokeWidth="2"
                   vectorEffect="non-scaling-stroke"
                 >

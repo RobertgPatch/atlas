@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1BasisWorkspace } from '../components/K1BasisWorkspace'
@@ -28,33 +28,48 @@ const detail: PartnershipTrackerDetail = {
   navEntries: [],
   permissions: { canEditPartnership: true, canEditK1: true, canEditCommitment: true, canEditNav: true, canSignoff: true },
 }
+let trackerActions: ReturnType<typeof usePartnershipTrackerActions>
 
 describe('K1BasisWorkspace year actions', () => {
   beforeEach(() => {
     vi.mocked(usePartnershipTrackerYear).mockReturnValue({ data: k1EntryDetailFixture, isLoading: false, isError: false } as ReturnType<typeof usePartnershipTrackerYear>)
-    vi.mocked(usePartnershipTrackerActions).mockReturnValue({
+    trackerActions = {
       createYear: mutation(),
       calculate: mutation(),
       updateYear: mutation(),
       deleteYear: mutation(),
+      deleteYears: mutation(),
       createCashFlows: mutation(),
       deleteCashFlow: mutation(),
       signoff: mutation(),
-    } as unknown as ReturnType<typeof usePartnershipTrackerActions>)
+    } as unknown as ReturnType<typeof usePartnershipTrackerActions>
+    vi.mocked(usePartnershipTrackerActions).mockReturnValue(trackerActions)
   })
 
-  it('groups Delete year with the other year-level actions', () => {
+  it('selects multiple K-1 entry years and deletes them in one confirmed action', async () => {
     render(<K1BasisWorkspace detail={detail} selectedYear={2024} canEdit onSelectYear={vi.fn()} onDirtyChange={vi.fn()} />)
 
     const actions = screen.getByRole('group', { name: 'K-1 year actions' })
-    expect(within(actions).getByRole('button', { name: 'Compare years' })).toBeInTheDocument()
-    expect(within(actions).getByRole('button', { name: 'Delete year' })).toBeInTheDocument()
-    expect(within(actions).getByRole('button', { name: 'Add year' })).toBeInTheDocument()
+    expect(within(actions).getByRole('button', { name: 'Select years' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'K-1 tax data and outside basis' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Delete year' })).toHaveLength(1)
 
-    fireEvent.click(within(actions).getByRole('button', { name: 'Delete year' }))
-    expect(screen.getByRole('dialog', { name: 'Delete the 2024 K-1 year?' })).toBeInTheDocument()
+    fireEvent.click(within(actions).getByRole('button', { name: 'Select years' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select 2024 K-1 year' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select 2022 K-1 year' }))
+    expect(screen.getByRole('status')).toHaveTextContent('2 selected')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selected (2)' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete 2 K-1 years?' })
+    expect(within(dialog).getByText(/2022, 2024/)).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete 2 years' }))
+
+    await waitFor(() => expect(trackerActions.deleteYears.mutateAsync).toHaveBeenCalledWith({
+      id: 'p-1',
+      years: [
+        { year: 2024, expectedRevision: 1 },
+        { year: 2022, expectedRevision: 1 },
+      ],
+    }))
   })
 
   it('maps the Magic Patterns K-1 History hierarchy without duplicating operational cash entry', () => {
@@ -65,7 +80,7 @@ describe('K1BasisWorkspace year actions', () => {
     expect(screen.getAllByRole('tablist', { name: 'Tax year' })).toHaveLength(1)
     expect(screen.getByRole('tablist', { name: 'Tax year' })).toHaveClass('overflow-x-auto')
     expect(screen.getByRole('button', { name: 'Add tax year' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete 2024' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select years' })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'K-1 document workflow' })).toBeInTheDocument()
     expect(screen.queryByText('Cash activity', { selector: 'div' })).not.toBeInTheDocument()
     expect(screen.queryByText('K-1 results')).not.toBeInTheDocument()

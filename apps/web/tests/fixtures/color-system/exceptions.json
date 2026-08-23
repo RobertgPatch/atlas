@@ -1,0 +1,10 @@
+[
+  {
+    "id": "decorative-fixture-brand-accent",
+    "path": "tests/fixtures/color-system/decorative.tsx",
+    "match": "#C9A96E",
+    "category": "decorative",
+    "rationale": "Exercises an exact non-interaction decorative exception.",
+    "review": "color-system-governance-test"
+  }
+]

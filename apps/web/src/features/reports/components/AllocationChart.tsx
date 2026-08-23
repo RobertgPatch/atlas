@@ -117,7 +117,7 @@ export function AllocationChart({
                   onSelectedSectorsChange([...EQUITY_SECTORS])
                 }
               }}
-              className="min-h-11 max-w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-9 text-sm font-semibold text-gray-900 outline-none transition-colors hover:border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="min-h-11 max-w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-9 text-sm font-semibold text-gray-900 outline-none transition-colors hover:border-gray-300 focus:border-focus focus:ring-2 focus:ring-focus"
             >
               <option value="asset">Asset allocation</option>
               <option value="sector">Sector allocation</option>
@@ -177,7 +177,7 @@ export function AllocationChart({
                   type="button"
                   onClick={() => onSelectedSectorsChange([...EQUITY_SECTORS])}
                   disabled={!sectorFilterIsActive}
-                  className="min-h-8 rounded-md px-2.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
+                  className="min-h-8 rounded-md px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
                 >
                   Check all
                 </button>
@@ -185,7 +185,7 @@ export function AllocationChart({
                   type="button"
                   onClick={() => onSelectedSectorsChange([])}
                   disabled={selectedSectors.length === 0}
-                  className="min-h-8 rounded-md px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
+                  className="min-h-8 rounded-md px-2.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
                 >
                   Uncheck all
                 </button>
@@ -200,7 +200,7 @@ export function AllocationChart({
                 return (
                   <label
                     key={sector}
-                    className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors hover:bg-blue-50 focus-within:bg-blue-50 ${
+                    className={`flex min-h-10 cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 transition-colors hover:bg-primary-subtle focus-within:bg-primary-subtle ${
                       checked ? 'text-gray-900' : 'text-gray-500'
                     }`}
                   >
@@ -215,7 +215,7 @@ export function AllocationChart({
                           : selectedSectors.filter((candidate) => candidate !== sector)
                         onSelectedSectorsChange(next)
                       }}
-                      className="h-4 w-4 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                      className="h-4 w-4 flex-shrink-0 rounded border-border-control accent-primary focus:ring-2 focus:ring-focus focus:ring-offset-1"
                     />
                     <span
                       aria-hidden="true"

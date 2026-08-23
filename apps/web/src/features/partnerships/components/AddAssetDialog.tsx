@@ -240,7 +240,7 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
                               type="checkbox"
                               checked={includeInitialValuation}
                               onChange={(event) => setIncludeInitialValuation(event.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-jackson-gold focus:ring-jackson-gold"
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-focus"
                             />
                             Record an initial FMV estimate now
                           </label>

@@ -355,7 +355,7 @@ export function ReportsPage() {
             data-testid="reports-tab-portfolio"
             className={`rounded-card px-3 py-1.5 text-sm font-medium transition ${
               activeTab === 'portfolio_summary'
-                ? 'bg-accent text-white'
+                ? 'bg-primary text-white'
                 : 'text-text-secondary hover:bg-gray-100'
             }`}
           >
@@ -367,7 +367,7 @@ export function ReportsPage() {
             data-testid="reports-tab-asset-class"
             className={`rounded-card px-3 py-1.5 text-sm font-medium transition ${
               activeTab === 'asset_class_summary'
-                ? 'bg-accent text-white'
+                ? 'bg-primary text-white'
                 : 'text-text-secondary hover:bg-gray-100'
             }`}
           >
@@ -379,7 +379,7 @@ export function ReportsPage() {
             data-testid="reports-tab-activity-detail"
             className={`rounded-card px-3 py-1.5 text-sm font-medium transition ${
               activeTab === 'activity_detail'
-                ? 'bg-accent text-white'
+                ? 'bg-primary text-white'
                 : 'text-text-secondary hover:bg-gray-100'
             }`}
           >
@@ -495,7 +495,7 @@ export function ReportsPage() {
                 clearFilters()
                 setActivityTaxYear('')
               }}
-              className="text-sm font-medium text-accent hover:text-accent-hover"
+              className="text-sm font-medium text-primary hover:text-primary-hover"
             >
               Clear filters
             </button>

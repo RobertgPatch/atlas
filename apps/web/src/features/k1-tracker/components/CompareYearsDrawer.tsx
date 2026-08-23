@@ -43,7 +43,7 @@ export function CompareYearsDrawer({
           <legend className="text-sm font-medium text-gray-800">Years</legend>
           <div className="mt-2 flex flex-wrap gap-2">{years.map((year) => {
             const active = chosen.includes(year.taxYear)
-            return <button key={year.taxYear} type="button" aria-pressed={active} onClick={() => toggleYear(year.taxYear)} className={`rounded-md border px-3 py-2 text-sm ${active ? 'border-jackson-gold bg-amber-50' : 'border-gray-300'}`}>{year.taxYear}</button>
+            return <button key={year.taxYear} type="button" aria-pressed={active} onClick={() => toggleYear(year.taxYear)} className={`rounded-md border px-3 py-2 text-sm ${active ? 'border-primary bg-primary-subtle text-primary' : 'border-gray-300'}`}>{year.taxYear}</button>
           })}</div>
         </fieldset>
         <div data-testid="compare-years-table-scroll" className="min-h-0 flex-1 overflow-auto border-y border-gray-200">

@@ -95,7 +95,7 @@
     "calculation__box_19_distributions": {
       "type": "string",
       "inferenceType": "explicit",
-      "instruction": "Visible Schedule K-1 line 19 value for box 19 distributions. Preserve printed sign and parentheses; do not calculate. Extract this as document evidence; do not derive dated activity."
+      "instruction": "Extract a value only when Schedule K-1 line 19 contains a visibly entered amount with no letter code. Leave this field empty when line 19 has coded rows such as 19A, 19B, or 19C; those belong only in official__box_19_entries. Never duplicate a coded line 19 amount here. Preserve printed sign and parentheses; do not calculate."
     },
     "calculation__box_21_foreign_taxes": {
       "type": "string",
@@ -275,12 +275,7 @@
     "official__part_ii_j_decrease_sale": {
       "type": "boolean",
       "inferenceType": "explicit",
-      "instruction": "Whether the Schedule K-1 checkbox for part ii j decrease sale is selected."
-    },
-    "official__part_ii_j_decrease_exchange": {
-      "type": "boolean",
-      "inferenceType": "explicit",
-      "instruction": "Whether the Schedule K-1 checkbox for part ii j decrease exchange is selected."
+      "instruction": "Whether the single Schedule K-1 Part II, Item J checkbox labeled 'Check if decrease is due to sale or exchange of partnership interest' is selected. This is one checkbox, not separate sale and exchange fields."
     },
     "official__part_ii_k2_lower_tier_liabilities": {
       "type": "boolean",
@@ -348,7 +343,7 @@
     "official__box_13_entries": {
       "type": "array",
       "inferenceType": "explicit",
-      "instruction": "All visible coded rows for box 13 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "instruction": "Return all populated Schedule K-1 line 13 rows. When the face of the K-1 shows a code followed by STMT or an asterisk, follow the matching Federal Statements page in the same tax package and return each actual statement deduction with its code, description, and amount; do not leave a blank STMT placeholder when numeric statement rows are available. Do not extract the printed code legend. Each item must be compact JSON with code, description, and amount. Preserve row order.",
       "items": {
         "type": "string"
       }
@@ -377,7 +372,7 @@
     "official__box_17_entries": {
       "type": "array",
       "inferenceType": "explicit",
-      "instruction": "All visible coded rows for box 17 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "instruction": "Return only actually populated Schedule K-1 line 17 entries. Do not extract the form's printed A-F code taxonomy or its blank template lines as separate rows. A row is populated only when a value or statement marker is visibly entered beside its code. If line 17 is visible but entirely blank, return exactly one compact JSON placeholder with code '', description 'Alternative Minimum Tax (AMT)', and amount ''. Each item must be compact JSON with code, description, and amount. Preserve row order.",
       "items": {
         "type": "string"
       }
@@ -393,7 +388,7 @@
     "official__box_19_entries": {
       "type": "array",
       "inferenceType": "explicit",
-      "instruction": "All visible coded rows for box 19 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "instruction": "Return only actually populated Schedule K-1 line 19 coded rows. Each item must use the letter code visibly printed beside that same amount; do not also emit an uncoded generic line 19 row and do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
       "items": {
         "type": "string"
       }
@@ -401,7 +396,7 @@
     "official__box_20_entries": {
       "type": "array",
       "inferenceType": "explicit",
-      "instruction": "All visible coded rows for box 20 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "instruction": "Return only actually populated Schedule K-1 line 20 rows. Read the code and value from the same physical line: an amount printed as 20A must have code A, and statement rows such as Z* or AG* must retain the asterisk. Never copy a line 19 distribution amount into line 20 and never emit an uncoded numeric line 20 row when a code is visibly present. Do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
       "items": {
         "type": "string"
       }

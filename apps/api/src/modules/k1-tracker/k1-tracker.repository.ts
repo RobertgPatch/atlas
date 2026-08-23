@@ -39,6 +39,13 @@ const expireStalePreviews = async (client: Queryable): Promise<void> => {
 }
 const iso = (value: Date | string | null | undefined): string | null => value == null ? null : new Date(value).toISOString()
 const cents = (value: string | null) => moneyToCents(value) ?? 0n
+const canonicalChange = (change: K1TrackerFieldChange): K1TrackerFieldChange => {
+  if (change.fieldKey !== 'section_l_withdrawals_distributions' || change.amount == null) return change
+  const parsed = moneyToCents(change.amount)
+  return parsed != null && parsed > 0n
+    ? { ...change, amount: centsToMoney(-parsed) }
+    : change
+}
 const scoped = (row: { entity_id: string }, scope: TrackerScope) => isInScope(row.entity_id, scope)
 
 const partnershipFor = async (partnershipId: string, client: Queryable): Promise<PartnershipRow | null> => (
@@ -374,7 +381,8 @@ const refreshAfterCashFlowChange = async (client: Queryable, partnershipId: stri
 const reviseValues = async (client: Queryable, yearId: string, changes: K1TrackerFieldChange[], actorUserId: string | null, source: 'MANUAL' | 'IMPORT' | 'FINALIZED' = 'MANUAL', importBatchId?: string, sourceSheet?: string, sourceDocumentId?: string, sourceFieldValueIds?: Map<K1TrackerFieldChange['fieldKey'], string>) : Promise<{ conflicts: K1TrackerFieldChange['fieldKey'][]; changed: boolean }> => {
   const conflicts: K1TrackerFieldChange['fieldKey'][] = []
   let changed = false
-  for (const change of changes) {
+  for (const rawChange of changes) {
+    const change = canonicalChange(rawChange)
     const current = (await client.query<TrackerValueRow>('select * from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and is_active', [yearId, change.fieldKey])).rows[0]
     if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount === change.amount) continue
     if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount !== change.amount) {
@@ -804,7 +812,7 @@ export const k1TrackerRepository = {
     await assertPartnership(partnershipId, scope, db()); const years = await yearRowsFor(partnershipId, db()); const year = years.find((item) => item.tax_year === taxYear)
     if (!year) throw new K1TrackerError('TRACKER_NOT_FOUND'); if (year.revision !== expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION')
     const values = await activeValues(years.map((item) => item.id), db()); const target = values.filter((item) => item.tracker_year_id === year.id)
-    for (const change of changes) { const current = target.find((value) => value.field_key === change.fieldKey); if (current) current.amount = change.amount; else target.push({ id: `draft-${change.fieldKey}`, tracker_year_id: year.id, field_key: change.fieldKey, amount: change.amount, original_source_text: null, source_type: change.sourceType, source_k1_document_id: null, source_k1_field_value_id: null, import_batch_id: null, source_sheet: null, source_cell: null, carryforward_from_year_id: null, override_reason: change.overrideReason ?? null, is_active: true, created_by_user_id: null, created_at: new Date() }) }
+    for (const rawChange of changes) { const change = canonicalChange(rawChange); const current = target.find((value) => value.field_key === change.fieldKey); if (current) current.amount = change.amount; else target.push({ id: `draft-${change.fieldKey}`, tracker_year_id: year.id, field_key: change.fieldKey, amount: change.amount, original_source_text: null, source_type: change.sourceType, source_k1_document_id: null, source_k1_field_value_id: null, import_batch_id: null, source_sheet: null, source_cell: null, carryforward_from_year_id: null, override_reason: change.overrideReason ?? null, is_active: true, created_by_user_id: null, created_at: new Date() }) }
     const withoutTarget = values.filter((item) => item.tracker_year_id !== year.id); return calculateRows(years, [...withoutTarget, ...target]).calculations.get(year.id)!
   },
 

@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom'
 import { authClient } from './auth/authClient'
 import { sessionStore, useSession } from './auth/sessionStore'
+import { SessionExpiryDialog } from './auth/SessionExpiryDialog'
 import { LoginPage } from './pages/LoginPage'
 import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
 import { UserManagementPage } from './pages/UserManagementPage'
@@ -118,6 +119,7 @@ export function App() {
     <Router>
       <SessionBootstrap>
         <GlobalLoadingBar />
+        <SessionExpiryDialog />
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route

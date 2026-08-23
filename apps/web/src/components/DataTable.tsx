@@ -99,9 +99,9 @@ export function DataTable<T>({
                     {col.sortable && (
                       <span className="inline-flex w-3.5 h-3.5">
                         {sortKey === col.key && sortDir === 'asc' ? (
-                          <ArrowUpIcon className="w-3.5 h-3.5 text-accent" />
+                          <ArrowUpIcon className="w-3.5 h-3.5 text-primary" />
                         ) : sortKey === col.key && sortDir === 'desc' ? (
-                          <ArrowDownIcon className="w-3.5 h-3.5 text-accent" />
+                          <ArrowDownIcon className="w-3.5 h-3.5 text-primary" />
                         ) : (
                           <ChevronsUpDownIcon className="w-3.5 h-3.5 opacity-30" />
                         )}

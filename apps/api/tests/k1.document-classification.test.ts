@@ -13,7 +13,7 @@ const draft = (overrides: Partial<K1ExtractionDraft> = {}): K1ExtractionDraft =>
 })
 
 describe('K-1 document classification', () => {
-  it.each([2000, 2012, 2023, 2024, 2025])(
+  it.each([2000, 2012, 2021, 2023, 2024, 2025])(
     'accepts a grounded %i K-1 without inventing issues',
     (revisionYear) => {
       expect(classifyK1Document({
@@ -94,5 +94,22 @@ describe('K-1 document classification', () => {
     expect(result.issues.map((entry) => entry.code)).toEqual(expect.arrayContaining([
       'MULTIPLE_K1_PACKAGE', 'MISSING_DOCUMENT_PAGES',
     ]))
+  })
+
+  it('retains segment-level multiple-K-1 detection after only one page is selected', () => {
+    const result = classifyK1Document({
+      draft: draft({
+        validationIssues: [{
+          code: 'MULTIPLE_K1_PACKAGE',
+          severity: 'HIGH',
+          message: 'The PDF appears to contain more than one Schedule K-1 (Form 1065).',
+        }],
+      }),
+      pageCount: 10,
+    })
+
+    expect(result.multipleK1Package).toBe(true)
+    expect(result.blocksApply).toBe(true)
+    expect(result.issues.filter((issue) => issue.code === 'MULTIPLE_K1_PACKAGE')).toHaveLength(1)
   })
 })

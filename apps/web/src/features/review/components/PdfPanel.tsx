@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Crosshair } from 'lucide-react'
 import type { K1SourceLocation } from '../../../../../../packages/types/src/review-finalization'
 import { ErrorState } from '../../../components/ErrorState'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 interface Props {
   pdfUrl: string
@@ -26,7 +27,7 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
     let active = true
     setUnavailable(false)
 
-    void fetch(pdfUrl, {
+    void authenticatedFetch(pdfUrl, {
       method: 'HEAD',
       credentials: 'include',
       headers: { Accept: 'application/pdf' },

@@ -106,7 +106,7 @@ export function UserDetailPage() {
         header: 'View',
         align: 'center',
         accessor: (row) => (
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.view ? 'bg-jackson-gold' : 'bg-gray-300'}`} />
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.view ? 'bg-primary' : 'bg-gray-300'}`} />
         ),
       },
       {
@@ -114,7 +114,7 @@ export function UserDetailPage() {
         header: 'Edit',
         align: 'center',
         accessor: (row) => (
-          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.edit ? 'bg-jackson-gold' : 'bg-gray-300'}`} />
+          <span className={`inline-block h-2.5 w-2.5 rounded-full ${row.edit ? 'bg-primary' : 'bg-gray-300'}`} />
         ),
       },
       {
@@ -254,7 +254,7 @@ export function UserDetailPage() {
             <button
               onClick={() => void handleToggleRole()}
               disabled={action !== null || !data}
-              className="inline-flex items-center px-3 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover disabled:opacity-60 disabled:cursor-wait"
+              className="inline-flex items-center px-3 py-2 rounded-lg bg-primary text-white text-sm hover:bg-primary-hover disabled:opacity-60 disabled:cursor-wait"
             >
               {action === 'role' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <UserCog className="w-4 h-4 mr-2" />}
               Toggle Role
@@ -312,7 +312,7 @@ export function UserDetailPage() {
             <div className="space-y-6">
               <section className="rounded-lg border border-gray-200 bg-white p-6">
                 <div className="mb-4 flex items-center gap-2">
-                  <Shield className="h-5 w-5 text-jackson-gold" />
+                  <Shield className="h-5 w-5 text-primary" />
                   <h3 className="text-lg font-semibold text-text-primary">Security Settings</h3>
                 </div>
 
@@ -356,7 +356,7 @@ export function UserDetailPage() {
                       {(['Admin', 'User'] as JacksonRole[]).map((role) => (
                         <span
                           key={role}
-                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${role === data.user.role ? 'border-gray-900 bg-gray-900 text-white' : 'border-gray-200 bg-white text-text-primary'}`}
+                          className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border ${role === data.user.role ? 'border-primary bg-primary-subtle text-primary' : 'border-gray-200 bg-white text-text-primary'}`}
                         >
                           {role}
                         </span>
@@ -368,7 +368,7 @@ export function UserDetailPage() {
 
               <section className="rounded-lg border border-gray-200 bg-white p-6">
                 <h3 className="mb-3 text-lg font-semibold text-text-primary">Permissions Matrix</h3>
-                <div className="mb-4 rounded-lg border border-jackson-gold/20 bg-jackson-light px-4 py-3 text-sm text-text-secondary">
+                <div className="mb-4 rounded-lg border border-primary/20 bg-primary-subtle px-4 py-3 text-sm text-text-secondary">
                   Permissions are role-driven in the current admin model. Changing the role updates access across the app.
                 </div>
                 <DataTable columns={permissionColumns} data={permissionRows} />

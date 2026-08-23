@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Building2, Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
 import { ConfirmationDialog } from '../components/shared/ConfirmationDialog'
+import { Button } from '../components/shared/Button'
 import { PageHeader } from '../components/shared/PageHeader'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -139,16 +140,14 @@ function LegacyEntitiesPage() {
                   if (e.key === 'Enter') void handleCreate()
                 }}
                 placeholder="e.g. Whitfield Family Trust"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
               />
               {createError && <p className="mt-1 text-xs text-error">{createError}</p>}
             </div>
-            <button
+            <Button
               onClick={() => void handleCreate()}
-              disabled={create.isPending}
-              className={`inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover sm:mt-[22px] ${
-                create.isPending ? 'opacity-60 cursor-wait' : ''
-              }`}
+              pending={create.isPending}
+              className="sm:mt-[22px]"
             >
               {create.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -156,7 +155,7 @@ function LegacyEntitiesPage() {
                 <Plus className="w-4 h-4 mr-2" />
               )}
               Add entity
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -216,7 +215,7 @@ function LegacyEntitiesPage() {
                               if (e.key === 'Escape') cancelEdit()
                             }}
                             autoFocus
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
                           />
                           {rowErr && <p className="mt-1 text-xs text-error">{rowErr}</p>}
                         </div>
@@ -224,7 +223,7 @@ function LegacyEntitiesPage() {
                         <button
                           type="button"
                           onClick={() => navigate(`/entities/${row.id}`)}
-                          className="text-jackson-gold hover:underline font-medium"
+                          className="text-primary hover:underline font-medium"
                         >
                           {row.name}
                         </button>

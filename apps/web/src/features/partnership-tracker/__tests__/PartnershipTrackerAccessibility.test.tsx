@@ -10,7 +10,8 @@ import { navFixtures, summaryFixture } from './fixtures'
 
 const inlineDetail = {
   partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'NOT_STARTED', values: [],
-  calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {} },
+  calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {}, checks: [] },
+  sourceConflicts: [],
 } as unknown as PartnershipTrackerYearDetail
 
 describe('Partnership Tracker accessibility', () => {
@@ -21,6 +22,7 @@ describe('Partnership Tracker accessibility', () => {
     expect(screen.getByRole('combobox', { name: 'Partnership workspace' })).toHaveAttribute('aria-autocomplete', 'list')
     await user.click(screen.getByRole('button', { name: 'Open partnership options' }))
     expect(screen.getByRole('option', { name: /Redwood Fund/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: /Redwood Fund/ })).toHaveClass('border-primary', 'bg-primary-subtle')
     expect(screen.getByRole('img', { name: /NAV values plotted proportionally/i })).toBeInTheDocument()
     expect(screen.getByText(/NAV increased/i)).toBeInTheDocument()
   })

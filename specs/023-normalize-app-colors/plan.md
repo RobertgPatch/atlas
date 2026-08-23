@@ -1,6 +1,6 @@
 # Implementation Plan: Normalize Application Color System
 
-**Branch**: `023-normalize-app-colors` | **Date**: 2026-08-19 | **Spec**: [spec.md](./spec.md)
+**Branch**: `codex/023-normalize-app-colors` | **Date**: 2026-08-19 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/023-normalize-app-colors/spec.md`
 
 ## Summary
@@ -138,4 +138,3 @@ apps/web/src/features/
 ## Complexity Tracking
 
 No constitution violations or exceptional architecture are introduced. The shared token bridge is necessary because Tailwind configuration, React TypeScript, MUI, and Node audit code run in different contexts; the ESM module keeps those consumers on one palette without adding a package.
-

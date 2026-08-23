@@ -10,10 +10,12 @@ import type {
   ActivityDetailQuery,
   AssetClassSummaryQuery,
   ConsolidatedHoldingsQuery,
+  LiquidityPerformanceQuery,
   PortfolioSummaryQuery,
   UpdateActivityDetailBody,
 } from './reports.zod.js'
 import { buildConsolidatedHoldingsResponse } from './consolidatedHoldings.service.js'
+import { buildLiquidityPerformanceResponse } from './liquidityPerformance.service.js'
 
 interface ReportTotals {
   originalCommitmentUsd: number
@@ -881,6 +883,13 @@ export const reportsRepository = {
     context: ConsolidatedHoldingsReadContext,
   ) {
     return buildConsolidatedHoldingsResponse(query, context)
+  },
+
+  async getLiquidityPerformance(
+    query: LiquidityPerformanceQuery,
+    context: ConsolidatedHoldingsReadContext,
+  ) {
+    return buildLiquidityPerformanceResponse(query, context)
   },
 
   async getPortfolioSummary(

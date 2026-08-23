@@ -101,7 +101,7 @@ export function PlaidAccountSelector({
               type="button"
               onClick={onConnect}
               disabled={isConnecting}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-colors hover:text-primary-hover"
             >
               <BuildingIcon className="h-4 w-4" />
               {isConnecting ? 'Connecting...' : 'Connect'}
@@ -109,7 +109,7 @@ export function PlaidAccountSelector({
             <button
               type="button"
               onClick={toggleAll}
-              className="text-sm font-medium text-blue-600 transition-colors hover:text-blue-700"
+              className="text-sm font-medium text-primary transition-colors hover:text-primary-hover"
             >
               {allSelected ? 'Deselect All' : 'Select All'}
             </button>
@@ -146,13 +146,13 @@ export function PlaidAccountSelector({
                         onClick={() => toggleAccount(account.id)}
                         className={`flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all ${
                           isSelected
-                            ? 'border-blue-200 bg-blue-50/50'
+                            ? 'border-primary bg-primary-subtle'
                             : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
                       >
                         <div
                           className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 transition-colors ${
-                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                            isSelected ? 'border-primary bg-primary' : 'border-gray-300'
                           }`}
                         >
                           {isSelected && <CheckIcon className="h-3.5 w-3.5 text-white" />}
@@ -187,7 +187,7 @@ export function PlaidAccountSelector({
             type="button"
             disabled={isSaving}
             onClick={() => onConfirm([...localSelected])}
-            className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isSaving ? 'Applying...' : `Apply Selection (${localSelected.size})`}
           </button>

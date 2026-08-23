@@ -7,7 +7,8 @@ export const getSessionHandler = async (
   reply: FastifyReply,
 ): Promise<void> => {
   const authUser = request.authUser
-  if (!authUser) {
+  const authSession = request.authSession
+  if (!authUser || !authSession) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
@@ -21,7 +22,7 @@ export const getSessionHandler = async (
     },
     role: authUser.role,
     session: {
-      issuedAt: new Date().toISOString(),
+      issuedAt: authSession.issuedAt.toISOString(),
       idleTimeoutSeconds: config.sessionIdleTimeoutSeconds,
       absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
     },

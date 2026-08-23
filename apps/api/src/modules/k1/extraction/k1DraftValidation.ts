@@ -27,7 +27,10 @@ export const normalizeMoney = (raw: unknown): string | null => {
   if (typeof raw !== 'string') return null
   let value = raw.trim()
   if (!value) return null
-  const negative = /^\(.*\)$/.test(value) || /-$/.test(value)
+  // Printed K-1 currency cells can place the dollar sign before the accounting
+  // parentheses (for example, "$ ( 190,773)"). The parentheses still carry
+  // the sign even though they do not wrap the entire source string.
+  const negative = /\([^)]*\)/.test(value) || /-$/.test(value)
   value = value.replace(/[()$,%\s,]/g, '').replace(/-$/, '')
   if (!/^[+-]?\d+(?:\.\d+)?$/.test(value)) return null
   const amount = Number(value)
@@ -78,6 +81,16 @@ const normalizeIdentifier = (canonicalPath: string, raw: unknown): string | null
     : `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`
 }
 
+const isMaskedTaxIdentifier = (raw: unknown): boolean => {
+  if (typeof raw !== 'string') return false
+  return /[*x•]/i.test(raw) && /\d{4}\D*$/.test(raw)
+}
+
+const isBlankMoneyPlaceholder = (raw: unknown): boolean => {
+  if (typeof raw !== 'string' || !raw.trim()) return false
+  return raw.replace(/[$(),\s\-–—]/g, '').length === 0
+}
+
 const normalizeChoice = (canonicalPath: string, raw: unknown): string | null => {
   if (typeof raw !== 'string') return null
   const value = raw.trim().toUpperCase().replace(/[\s-]+/g, '_')
@@ -107,7 +120,18 @@ export const isK1StatementReference = (raw: unknown): boolean => {
     || /(?:amount|value)\s*:\s*(?:see\s+)?(?:stmt|statement|attached|attachment)\b/i.test(value)
 }
 
-const normalizeCodeRow = (raw: unknown): K1NormalizationResult => {
+const codeRowDisplayName = (canonicalPath: string, code: string): {
+  label: string
+  line: string | null
+} => {
+  const line = /^official\.box_(\d+[a-z]?)_entries$/i.exec(canonicalPath)?.[1] ?? null
+  return {
+    label: line ? `Part III, Line ${line}${code ? `, code ${code}` : ''}` : canonicalPath,
+    line,
+  }
+}
+
+const normalizeCodeRow = (canonicalPath: string, raw: unknown): K1NormalizationResult => {
   let candidate = raw
   if (typeof raw === 'string') {
     try {
@@ -123,18 +147,32 @@ const normalizeCodeRow = (raw: unknown): K1NormalizationResult => {
   const code = typeof record.code === 'string' ? record.code.trim().toUpperCase() : ''
   const description = typeof record.description === 'string' ? record.description.trim() : ''
   const amountRaw = record.amount ?? record.value
+  const amountIsBlank = amountRaw === null
+    || amountRaw === undefined
+    || (typeof amountRaw === 'string' && !amountRaw.trim())
   if (isK1StatementReference(amountRaw)) {
     return { value: { code, description: description || 'See statement', amount: null } }
   }
+  if (amountIsBlank) {
+    if (!code && !description) return blank()
+    return { value: { code, description, amount: null } }
+  }
   const amount = normalizeMoney(amountRaw)
   if (!code && !description && amount === null) return blank()
-  if (amountRaw !== undefined && amount === null) {
+  if (amount === null) {
+    const display = codeRowDisplayName(canonicalPath, code)
     return {
       value: { code, description, amount: null },
       issue: {
         code: 'INVALID_EXTRACTED_VALUE',
         severity: 'HIGH',
-        message: 'The coded-row amount is not valid money.',
+        message: `${display.label}: the extracted amount "${String(amountRaw)}" is not valid money.`,
+        details: {
+          line: display.line,
+          code: code || null,
+          description: description || null,
+          rawAmount: String(amountRaw),
+        },
       },
     }
   }
@@ -147,7 +185,14 @@ export const normalizeK1ExtractedValue = (
   raw: unknown,
 ): K1NormalizationResult => {
   if (raw === null || raw === undefined || (typeof raw === 'string' && !raw.trim())) return blank()
-  if (kind === 'CODE_ROW') return normalizeCodeRow(raw)
+  if (kind === 'CODE_ROW') return normalizeCodeRow(canonicalPath, raw)
+
+  // Masked TINs and empty printed currency cells are absence signals, not bad
+  // data. Keep the raw evidence but do not force a reviewer to "correct" it.
+  if ((canonicalPath === 'match.partner_tin' || canonicalPath === 'match.partnership_ein')
+    && isMaskedTaxIdentifier(raw)) return { value: null }
+  if ((kind === 'MONEY' || (kind === 'NUMBER' && canonicalPath.startsWith('calculation.')))
+    && isBlankMoneyPlaceholder(raw)) return { value: null }
 
   let value: unknown
   if (kind === 'MONEY' || (kind === 'NUMBER' && canonicalPath.startsWith('calculation.'))) {

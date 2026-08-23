@@ -47,8 +47,8 @@ describe('AppShell design flag', () => {
       '/reports',
     )
     expect(within(navigation).getByRole('link', { name: 'Liquidity' })).toHaveClass(
-      'bg-gray-900',
-      'text-white',
+      'bg-primary-subtle',
+      'text-primary',
     )
     expect(within(navigation).getByRole('link', { name: 'Liquidity' })).toHaveAttribute(
       'aria-current',
@@ -58,9 +58,14 @@ describe('AppShell design flag', () => {
       'w-full',
       'max-w-[2400px]',
     )
+    expect(screen.getByTestId('app-shell-content').closest('main')).toHaveClass(
+      'relative',
+      'overflow-y-auto',
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(onSignOut).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Sign out' })).toHaveClass('focus-visible:ring-focus')
   })
 
   it('collapses the Magic Patterns navigation to a persistent 64px icon rail', () => {
@@ -80,7 +85,7 @@ describe('AppShell design flag', () => {
 
     expect(frame).toHaveClass('lg:w-16')
     expect(visibleLabel).toHaveClass('lg:hidden')
-    expect(investmentTracker).toHaveClass('bg-gray-900', 'text-white')
+    expect(investmentTracker).toHaveClass('bg-primary-subtle', 'text-primary')
     expect(investmentTracker).toHaveAttribute('title', 'Investment tracker')
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toHaveAttribute(
       'aria-expanded',

@@ -55,7 +55,7 @@ function RootNode({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`relative w-80 rounded-lg border bg-white p-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${selected ? 'border-blue-600 ring-2 ring-blue-100' : 'border-slate-300 hover:border-slate-400 hover:shadow-md'}`}
+      className={`relative w-80 rounded-lg border bg-white p-4 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${selected ? 'border-primary bg-primary-subtle ring-1 ring-focus/10' : 'border-slate-300 hover:border-slate-400 hover:shadow-md'}`}
     >
       <div className="flex items-start gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-800">
@@ -100,7 +100,7 @@ function PartnershipNode({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-lg border bg-white p-3.5 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${selected ? 'border-blue-600 ring-2 ring-blue-100' : 'border-slate-300 hover:border-slate-400 hover:shadow-md'}`}
+      className={`w-full rounded-lg border bg-white p-3.5 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${selected ? 'border-primary bg-primary-subtle ring-1 ring-focus/10' : 'border-slate-300 hover:border-slate-400 hover:shadow-md'}`}
     >
       <div className="flex items-start gap-3">
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-700">
@@ -144,7 +144,7 @@ function AssetNode({
       type="button"
       aria-pressed={selected}
       onClick={onSelect}
-      className={`w-full rounded-md border bg-white px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${selected ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-400'}`}
+      className={`w-full rounded-md border bg-white px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${selected ? 'border-primary bg-primary-subtle' : 'border-slate-200 hover:border-slate-400'}`}
     >
       <div className="flex items-start gap-2.5">
         <CircleDollarSign className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
@@ -245,7 +245,7 @@ function NodeDetailPanel({
             type="button"
             aria-label="Close details panel"
             onClick={onClose}
-            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -270,7 +270,7 @@ function NodeDetailPanel({
       <footer className="border-t border-slate-200 bg-slate-50 p-4">
         <Link
           to={href}
-          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
         >
           Open source record
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -393,7 +393,7 @@ export function EstateMapCanvas({
                 </p>
                 <Link
                   to="/partnership-tracker"
-                  className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                  className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 >
                   Open partnerships
                   <ChevronRight className="h-4 w-4" aria-hidden="true" />

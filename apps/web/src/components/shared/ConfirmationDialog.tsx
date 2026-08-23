@@ -1,6 +1,7 @@
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react'
 import { AlertTriangle, Loader2, X } from 'lucide-react'
 import { useId, type ReactNode } from 'react'
+import { Button } from './Button'
 
 interface ConfirmationDialogProps {
   open: boolean
@@ -48,7 +49,7 @@ export function ConfirmationDialog({
           className="w-full overflow-hidden rounded-t-xl border border-gray-200 bg-white shadow-2xl transition duration-200 ease-out data-[closed]:translate-y-3 data-[closed]:scale-[0.98] data-[closed]:opacity-0 motion-reduce:transform-none motion-reduce:transition-none sm:max-w-md sm:rounded-xl"
         >
           <div aria-hidden="true" className="grid h-1 grid-cols-[4.5rem_1fr]">
-            <div className="bg-jackson-gold" />
+            <div className="bg-decorative-brand-accent" />
             <div className={isWarning ? 'bg-gray-950' : 'bg-red-600'} />
           </div>
 
@@ -58,22 +59,23 @@ export function ConfirmationDialog({
                 <AlertTriangle className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-jackson-hover">
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-primary">
                   {eyebrow ?? (isWarning ? 'Unsaved changes' : 'Permanent action')}
                 </p>
                 <DialogTitle className="mt-1 font-serif text-xl font-semibold text-gray-950">
                   {title}
                 </DialogTitle>
               </div>
-              <button
-                type="button"
+              <Button
                 aria-label="Close confirmation"
                 onClick={close}
                 disabled={pending}
-                className="grid min-h-11 min-w-11 place-items-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold disabled:cursor-not-allowed disabled:opacity-40"
+                variant="ghost"
+                size="icon"
+                className="text-content-muted"
               >
                 <X className="h-5 w-5" aria-hidden="true" />
-              </button>
+              </Button>
             </div>
 
             <div id={descriptionId} className="mt-4 text-sm leading-6 text-gray-600">
@@ -82,24 +84,22 @@ export function ConfirmationDialog({
           </div>
 
           <div className="flex flex-col-reverse gap-3 border-t border-gray-200 bg-gray-50 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-            <button
-              type="button"
+            <Button
               autoFocus
               onClick={close}
               disabled={pending}
-              className="min-h-11 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              variant="secondary"
             >
               {cancelLabel}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               onClick={() => void onConfirm()}
-              disabled={pending}
-              className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 ${isWarning ? 'bg-gray-950 hover:bg-gray-800 focus-visible:ring-jackson-gold' : 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-600'}`}
+              pending={pending}
+              variant="danger"
             >
               {pending && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
               {pending ? pendingLabel : confirmLabel}
-            </button>
+            </Button>
           </div>
         </DialogPanel>
       </div>

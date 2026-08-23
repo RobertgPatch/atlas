@@ -62,10 +62,13 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `ADMIN_PASSWORD` | `password123` | Bootstrap admin password used when the admin user is first created |
 | `USER_EMAIL` | `user@jackson.com` | Bootstrap standard user email inserted into durable databases on startup |
 | `USER_PASSWORD` | `password123` | Bootstrap standard user password used when the user is first created |
+| `PASSWORD_HASH_MEMORY_KIB` | `65536` | Argon2id memory cost per password operation; values below the OWASP minimum are clamped |
+| `PASSWORD_HASH_TIME_COST` | `3` | Argon2id iteration count; minimum `2` |
+| `PASSWORD_HASH_PARALLELISM` | `1` | Argon2id lanes per password operation; minimum `1` |
 | `SESSION_COOKIE_NAME` | `atlas_session` | Name of the session cookie |
 | `SESSION_COOKIE_SECURE` | `false` | Set to `true` in production (HTTPS only) |
 | `SESSION_COOKIE_SAMESITE` | `lax` | Session cookie SameSite policy |
-| `SESSION_IDLE_TIMEOUT_SECONDS` | `900` | Session idle expiry |
+| `SESSION_IDLE_TIMEOUT_SECONDS` | `1800` | Sliding session idle expiry (30 minutes) |
 | `SESSION_ABSOLUTE_TIMEOUT_SECONDS` | `28800` | Maximum session lifetime |
 | `AUTH_LOCKOUT_THRESHOLD` | `3` | Failed login attempts before lockout |
 | `AUTH_LOCKOUT_MINUTES` | `30` | Lockout duration |
@@ -75,6 +78,7 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `K1_AWS_INGESTION_ENABLED` | `false` | Enables durable K-1 batch ingestion |
 | `K1_OBJECT_STORE` | `local` | K-1 object store: `local` or `s3` |
 | `K1_QUEUE` | `local` | K-1 work queue: `local` or `sqs` |
+| `K1_RECONCILIATION_INTERVAL_SECONDS` | `15` | Poll interval for local BDA completion reconciliation |
 | `K1_S3_BUCKET` | _(empty)_ | Private KMS-encrypted K-1 document bucket |
 | `K1_KMS_KEY_ARN` | _(empty)_ | KMS key for source and BDA result objects |
 | `K1_WORK_QUEUE_URL` | _(empty)_ | SQS extraction-start queue URL |
@@ -117,6 +121,15 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `AWS_CLOUDFRONT_DISTRIBUTION_ID` | _(empty)_ | CloudFront distribution id for diagnostics/runbook evidence |
 | `AWS_WEB_ASSETS_BUCKET` | _(empty)_ | S3 bucket name for static web assets |
 
+## Password storage
+
+New password records use Argon2id with a unique salt and the configured memory,
+time, and parallelism costs. The application recognizes the former 64-character
+SHA-256 format only as a migration bridge: a correct legacy login is re-hashed
+with Argon2id and durably stored before the session is created. Incorrect or
+malformed password records are never upgraded. Users who never sign in should be
+migrated later through a forced password-reset policy.
+
 ## Liquidity market pricing
 
 Plaid remains authoritative for account selection, quantities, and cost basis. When
@@ -126,9 +139,13 @@ market value as `quantity × price`. A provider or cache failure falls back to t
 last saved price or the custodian value and is disclosed in the response metadata.
 
 For the AWS deployment, the separate `market-price-refresh` scheduled task runs
-`dist/scripts/run-market-price-refresh.js` after the US market close and stores daily
-closing prices. Keep Alpaca credentials in the generated Secrets Manager entries;
-do not place them in web environment variables.
+`dist/scripts/run-market-price-refresh.js` at 4:20 p.m. Eastern on weekdays. The
+task stores daily closing prices and one idempotent portfolio valuation snapshot
+for the trading date. Each valuation preserves the selected account set and its
+position-level quantities, cost basis, closing price, market value, and any
+custodian fallback. Provider holidays do not create a false point when no official
+close is returned. Keep Alpaca credentials in the generated Secrets Manager
+entries; do not place them in web environment variables.
 
 When `MASSIVE_OTC_ENABLED=true`, Alpaca remains the primary source. Symbols that
 Alpaca does not price are passed to Massive's grouped daily endpoint, and only
@@ -144,20 +161,21 @@ K-1 extraction supports only the offline stub and AWS Bedrock Data Automation:
 | Value | Description |
 |---|---|
 | `stub` | Deterministic offline extractor for unit tests and development without AWS. |
-| `aws_bda` | Durable S3/SQS worker flow using the configured BDA project and K-1 blueprint. |
+| `aws_bda` | Durable S3 worker flow using the configured BDA project and K-1 blueprint. |
 
 For a local app connected to real AWS services, set `K1_EXTRACTOR=aws_bda`,
-`K1_AWS_INGESTION_ENABLED=true`, `K1_OBJECT_STORE=s3`, and `K1_QUEUE=sqs`,
-then configure the bucket, KMS key, queues, BDA profile, and BDA project values.
-Run the API and worker in separate terminals:
+`K1_AWS_INGESTION_ENABLED=true`, `K1_OBJECT_STORE=s3`, and `K1_QUEUE=local`,
+then configure the bucket, KMS key, BDA profile, and BDA project values. Start
+the complete local stack with:
 
 ```powershell
-npm run dev:api
-npm run --workspace=api dev:k1-worker
+npm run dev:local:bda
 ```
 
 The browser uploads each PDF directly to a checksum-bound, KMS-encrypted
-presigned S3 URL. The local worker reads SQS, invokes BDA asynchronously, follows
-the returned job manifest, and persists normalized values for review. No
+presigned S3 URL. The local worker reads its durable Postgres queue, invokes BDA
+asynchronously, polls BDA for completion, and persists normalized values for
+review. Keeping the queue local is required because local uploads are stored in
+local Postgres; a shared AWS SQS worker cannot access those records. No
 extracted tax values are applied to a partnership tracker until a reviewer
 confirms the entity, partnership, tax year, issues, and revision-bound preview.

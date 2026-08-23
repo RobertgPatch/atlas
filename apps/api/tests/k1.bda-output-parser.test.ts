@@ -152,6 +152,171 @@ describe('BDA output parser', () => {
     expect(draft.validationIssues).toEqual([])
   })
 
+  it('accepts coded statement and printed placeholder rows with blank amounts', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      {
+        canonical_path: 'official.box_20_entries',
+        value_kind: 'CODE_ROW',
+        value: '{code:AG*,description:STMT,amount:}',
+      },
+      {
+        canonical_path: 'official.box_14_entries',
+        value_kind: 'CODE_ROW',
+        value: { code: '', description: 'Self-employment earnings (loss)', amount: '' },
+      },
+    ]))
+
+    expect(draft.values.map((value) => value.normalizedValue)).toEqual([
+      { code: 'AG*', description: 'STMT', amount: null },
+      { code: '', description: 'Self-employment earnings (loss)', amount: null },
+    ])
+    expect(draft.validationIssues).toEqual([])
+  })
+
+  it('removes blank Line 17 taxonomy rows and prevents Line 19 values from bleeding into Line 20', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      {
+        canonical_path: 'official.box_17_entries',
+        value_kind: 'CODE_ROW',
+        value: [
+          { code: 'A', description: 'Post-1986 depreciation adjustment', amount: '' },
+          { code: 'B', description: 'Adjusted gain or loss', amount: '' },
+          { code: 'C', description: 'Depletion (other than oil & gas)', amount: '' },
+          { code: 'D', description: 'Oil, gas, & geothermal - gross income', amount: '' },
+          { code: 'E', description: 'Oil, gas, & geothermal - deductions', amount: '' },
+          { code: 'F', description: 'Other AMT items', amount: '' },
+        ],
+      },
+      {
+        canonical_path: 'calculation.box_19_distributions',
+        value_kind: 'MONEY',
+        value: '245,063',
+      },
+      {
+        canonical_path: 'official.box_19_entries',
+        value_kind: 'CODE_ROW',
+        value: { code: 'A', description: 'Cash and marketable securities', amount: '245,063' },
+      },
+      {
+        canonical_path: 'official.box_20_entries',
+        value_kind: 'CODE_ROW',
+        value: [
+          { code: 'A', description: 'Distributions', amount: '245,063' },
+          { code: '', description: 'Other information', amount: '13,816' },
+          { code: 'Z*', description: 'STMT', amount: '' },
+          { code: 'AG*', description: 'STMT', amount: '' },
+        ],
+      },
+    ]))
+
+    expect(draft.values.filter((value) => value.canonicalPath === 'official.box_17_entries'))
+      .toHaveLength(1)
+    expect(draft.values.find((value) => value.canonicalPath === 'official.box_17_entries')?.normalizedValue)
+      .toEqual({ code: '', description: 'Alternative Minimum Tax (AMT)', amount: null })
+    expect(draft.values.some((value) => value.canonicalPath === 'calculation.box_19_distributions'))
+      .toBe(false)
+    expect(draft.values.filter((value) => value.canonicalPath === 'official.box_19_entries')
+      .map((value) => value.normalizedValue)).toEqual([
+      { code: 'A', description: 'Cash and marketable securities', amount: '245063.00' },
+    ])
+    expect(draft.values.filter((value) => value.canonicalPath === 'official.box_20_entries')
+      .map((value) => value.normalizedValue)).toEqual([
+      { code: 'A', description: 'Other information', amount: '13816.00' },
+      { code: 'Z*', description: 'STMT', amount: null },
+      { code: 'AG*', description: 'STMT', amount: null },
+    ])
+    expect(draft.validationIssues).toEqual([])
+  })
+
+  it('resolves a Line 13 STMT marker from the numeric Federal Statements table', () => {
+    const draft = mapBdaResult({
+      outputSegments: [{
+        customOutputStatus: 'MATCH',
+        standardOutput: {
+          document: { representation: { text: 'Schedule K-1 (Form 1065) 2025' } },
+          elements: [
+            {
+              id: 'k1-heading',
+              reading_order: 0,
+              locations: [{ page_index: 1 }],
+              type: 'TEXT',
+              representation: { text: 'Schedule K-1 (Form 1065)' },
+            },
+            {
+              id: 'line-13-heading',
+              reading_order: 5,
+              locations: [{ page_index: 3 }],
+              type: 'TEXT',
+              representation: { text: 'Schedule K-1, Line 13 - Other Deductions' },
+            },
+            {
+              id: 'line-13-table',
+              reading_order: 6,
+              locations: [{
+                page_index: 3,
+                bounding_box: { left: 0.05, top: 0.15, width: 0.89, height: 0.08 },
+              }],
+              type: 'TABLE',
+              representation: {
+                text: 'Code\tDescription\tAmount\nZZ\tP/T INTEREST EXPENSE\t$ 2,313\nZZ\tSPECIALLY ALLOC DEPRECIATION\t22',
+              },
+            },
+          ],
+        },
+        customOutput: {
+          inference_result: {
+            official__box_13_entries: [
+              '{code:A,description:Other deductions,amount:891}',
+              '{code:ZZ*,description:STMT,amount:}',
+            ],
+          },
+        },
+      }],
+    })
+
+    const line13 = draft.values.filter((value) => value.canonicalPath === 'official.box_13_entries')
+    expect(line13.map((value) => value.normalizedValue)).toEqual([
+      { code: 'A', description: 'Other deductions', amount: '891.00' },
+      { code: 'ZZ', description: 'P/T INTEREST EXPENSE', amount: '2313.00' },
+      { code: 'ZZ', description: 'SPECIALLY ALLOC DEPRECIATION', amount: '22.00' },
+    ])
+    expect(line13.slice(1).every((value) => value.sourceLocations[0]?.page === 4)).toBe(true)
+    expect(draft.values.some((value) => {
+      const row = value.normalizedValue as { description?: string }
+      return row?.description === 'STMT'
+    })).toBe(false)
+    expect(draft.validationIssues).toEqual([])
+  })
+
+  it('identifies the exact Part III line and code when a coded amount is invalid', () => {
+    const draft = mapBdaResult(result('MATCH', [{
+      canonical_path: 'official.box_20_entries',
+      value_kind: 'CODE_ROW',
+      value: { code: 'Z*', description: 'Other information', amount: 'not money' },
+    }]))
+
+    expect(draft.validationIssues).toContainEqual(expect.objectContaining({
+      code: 'INVALID_EXTRACTED_VALUE',
+      message: 'Part III, Line 20, code Z*: the extracted amount "not money" is not valid money.',
+      details: expect.objectContaining({ line: '20', code: 'Z*' }),
+    }))
+  })
+
+  it('coalesces legacy Item J sale and exchange fields into the one printed checkbox', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      { canonical_path: 'official.part_ii_j_decrease_sale', value_kind: 'BOOLEAN', value: false },
+      { canonical_path: 'official.part_ii_j_decrease_exchange', value_kind: 'BOOLEAN', value: true },
+    ]))
+
+    expect(draft.values).toHaveLength(1)
+    expect(draft.values[0]).toMatchObject({
+      canonicalPath: 'official.part_ii_j_decrease_sale',
+      normalizedValue: true,
+      destination: { kind: 'OFFICIAL', key: 'part_ii_j_decrease_sale' },
+    })
+    expect(draft.validationIssues).toEqual([])
+  })
+
   it('normalizes dates, percentages, checkboxes, choices, and identifiers', () => {
     const draft = mapBdaResult(result('MATCH', [
       { canonical_path: 'official.tax_period_beginning', value_kind: 'DATE', value: '01/01/2025' },
@@ -316,5 +481,137 @@ describe('BDA output parser', () => {
       }],
     })
     expect(draft.form.revisionYear).toBe(2025)
+  })
+
+  it('selects the Schedule K-1 Form 1065 page from a later segment and ignores other pages', () => {
+    const draft = mapBdaResult({
+      outputSegments: [
+        {
+          customOutputStatus: 'FALLBACK',
+          standardOutput: {
+            document: {
+              elements: [{
+                page_indices: [0],
+                representation: { text: 'Annual tax package cover letter' },
+              }],
+            },
+          },
+          customOutput: {
+            inference_result: {
+              document_classification: 'OTHER_TAX_FORM',
+            },
+          },
+        },
+        {
+          customOutputStatus: 'MATCH',
+          standardOutput: {
+            document: { representation: { text: 'Schedule K-1 package' } },
+            pages: [{
+              page_index: 1,
+              representation: { text: 'Schedule K-1 (Form 1065)' },
+            }, {
+              page_index: 7,
+              representation: {
+                text: 'California adjustments reported using amounts from federal Schedule K-1 Form 1065. This supporting worksheet is not a federal Schedule K-1 and contains state-specific instructions and reconciliation details for the taxpayer.',
+              },
+            }, {
+              page_index: 8,
+              representation: {
+                text: 'Use the amounts from federal Schedule K-1 Form 1065 when completing this California statement. This attachment is supporting information rather than another federal form and continues with state adjustment details.',
+              },
+            }],
+            elements: [
+              {
+                id: 'attachment',
+                page_indices: [4],
+                representation: { text: 'Unrelated attachment amount 999' },
+              },
+            ],
+          },
+          customOutput: {
+            inference_result: {
+              extracted_fields: [
+                { canonical_path: 'match.tax_year', value_kind: 'NUMBER', value: 2021, page_number: 2 },
+                { canonical_path: 'official.part_i_a_partnership_ein', value_kind: 'STRING', value: '12-3456789', page_number: 2 },
+                { canonical_path: 'calculation.box_1_ordinary_income_loss', value_kind: 'MONEY', value: '999', page_number: 5 },
+              ],
+            },
+          },
+        },
+      ],
+    })
+
+    expect(draft.form).toMatchObject({
+      family: 'SCHEDULE_K1_FORM_1065',
+      revisionYear: 2021,
+      customOutputStatus: 'MATCH',
+    })
+    expect(draft.values.map((value) => value.canonicalPath)).toEqual([
+      'match.tax_year',
+      'official.part_i_a_partnership_ein',
+    ])
+    expect(draft.values.every((value) => value.sourceLocations.every((location) => location.page === 2))).toBe(true)
+    expect(draft.evidence.every((reference) => reference.page === 2)).toBe(true)
+    expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('BDA_FALLBACK_OUTPUT')
+    expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('MULTIPLE_K1_PACKAGE')
+  })
+
+  it('treats masked identifiers and empty printed money cells as absent instead of invalid', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      { canonical_path: 'match.partner_tin', value_kind: 'STRING', value: '***-**-0233' },
+      { canonical_path: 'calculation.section_l_withdrawals_distributions', value_kind: 'MONEY', value: '$ ( )' },
+    ]))
+
+    expect(draft.values.map((value) => value.normalizedValue)).toEqual([null, null])
+    expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('INVALID_EXTRACTED_VALUE')
+  })
+
+  it('preserves accounting-parentheses signs when the dollar sign precedes Section L parentheses', () => {
+    const draft = mapBdaResult(result('MATCH', [{
+      canonical_path: 'calculation.section_l_withdrawals_distributions',
+      value_kind: 'MONEY',
+      value: '$ ( 190,773)',
+    }]))
+
+    expect(draft.values[0]?.normalizedValue).toBe('-190773.00')
+    expect(draft.validationIssues).toEqual([])
+  })
+
+  it('blocks a package containing more than one Schedule K-1 Form 1065 page', () => {
+    const segment = (pageIndex: number, ein: string) => ({
+      customOutputStatus: 'MATCH',
+      standardOutput: {
+        document: {
+          elements: [{
+            page_indices: [pageIndex],
+            representation: { text: 'SCHEDULE K1 FORM 1065' },
+          }],
+        },
+      },
+      customOutput: {
+        inference_result: {
+          extracted_fields: [{
+            canonical_path: 'official.part_i_a_partnership_ein',
+            value_kind: 'STRING',
+            value: ein,
+            page_number: pageIndex + 1,
+          }],
+        },
+      },
+    })
+    const draft = mapBdaResult({ revisionYear: 2021, outputSegments: [
+      segment(1, '12-3456789'),
+      segment(7, '98-7654321'),
+    ] })
+
+    expect(draft.values).toHaveLength(1)
+    expect(draft.values[0]?.normalizedValue).toBe('12-3456789')
+    expect(draft.validationIssues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'MULTIPLE_K1_PACKAGE',
+        severity: 'HIGH',
+        details: { matchingSegments: [0, 1], detectedPages: [2, 8] },
+      }),
+    ]))
   })
 })

@@ -12,6 +12,7 @@
   "fixtures": [
     { "id": "complete-digital-2025", "revisionYear": 2025, "mode": "digital", "features": ["final", "general", "domestic", "all-destinations", "all-coded-sections", "positive", "negative", "parenthesized", "trailing-minus"] },
     { "id": "complete-scanned-2024", "revisionYear": 2024, "mode": "scanned", "features": ["amended", "limited", "foreign", "continuation-pages"] },
+    { "id": "legacy-digital-2021", "revisionYear": 2021, "mode": "digital", "features": ["legacy-revision"] },
     { "id": "legacy-digital-2023", "revisionYear": 2023, "mode": "digital", "features": ["legacy-revision"] },
     { "id": "unknown-tax-form", "revisionYear": null, "mode": "digital", "features": ["unknown-form"], "expectedIssues": ["UNRELATED_TAX_FORM"] },
     { "id": "encrypted", "revisionYear": 2025, "mode": "encrypted", "features": [], "expectedIssues": ["PDF_ENCRYPTED"] },

@@ -1485,6 +1485,80 @@ export const plaidRepository = {
       .slice(0, input?.limit ?? 50)
   },
 
+  async listDashboardHoldingsSnapshots(input: {
+    accountIds: string[]
+    fromDate?: string
+    toDate?: string
+    limit?: number
+  }): Promise<HoldingsSnapshotMetadata[]> {
+    const accountIds = normalizeAccountIds(input.accountIds)
+    if (accountIds.length === 0) return []
+
+    const limit = Math.min(Math.max(input.limit ?? 5_000, 1), 5_000)
+    if (pool) {
+      const params: unknown[] = [JSON.stringify(accountIds)]
+      const conditions = [
+        `selected_account_ids @> $1::jsonb`,
+        `dashboard_eligible = true`,
+        `status = 'success'`,
+      ]
+      if (input.fromDate) {
+        params.push(input.fromDate)
+        conditions.push(
+          `coalesce(data_as_of_date, completed_at::date, started_at::date) >= $${params.length}`,
+        )
+      }
+      if (input.toDate) {
+        params.push(input.toDate)
+        conditions.push(
+          `coalesce(data_as_of_date, completed_at::date, started_at::date) <= $${params.length}`,
+        )
+      }
+      params.push(limit)
+
+      const result = await pool.query<SnapshotRow>(
+        `
+          select id, requested_by_user_id, status, started_at, completed_at,
+            selected_account_ids, error_message, refresh_attempt_id, data_as_of_date,
+            data_as_of_min_date, data_as_of_max_date, fetched_at,
+            dashboard_eligible, holdings_count
+          from holdings_sync_snapshots
+          where ${conditions.join(' and ')}
+          order by coalesce(data_as_of_date, completed_at::date, started_at::date) desc,
+            coalesce(completed_at, started_at) desc
+          limit $${params.length}
+        `,
+        params,
+      )
+      return result.rows.map(mapSnapshotMetadataRow)
+    }
+
+    return (snapshots as HoldingsSnapshotMetadata[])
+      .filter(
+        (snapshot) =>
+          snapshot.dashboardEligible === true &&
+          snapshot.status === 'success' &&
+          accountIds.every((accountId) => snapshot.selectedAccountIds?.includes(accountId)),
+      )
+      .filter((snapshot) => {
+        const date =
+          snapshot.dataAsOfDate ??
+          snapshot.completedAt?.slice(0, 10) ??
+          snapshot.startedAt.slice(0, 10)
+        if (input.fromDate && date < input.fromDate) return false
+        if (input.toDate && date > input.toDate) return false
+        return true
+      })
+      .sort((left, right) => {
+        const leftDate =
+          left.dataAsOfDate ?? left.completedAt?.slice(0, 10) ?? left.startedAt.slice(0, 10)
+        const rightDate =
+          right.dataAsOfDate ?? right.completedAt?.slice(0, 10) ?? right.startedAt.slice(0, 10)
+        return rightDate.localeCompare(leftDate) || right.startedAt.localeCompare(left.startedAt)
+      })
+      .slice(0, limit)
+  },
+
   async withSelectedAccountsRefreshLock<T>(
     selectedAccountIds: string[],
     task: () => Promise<T>,

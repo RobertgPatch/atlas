@@ -34,7 +34,7 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor,
           ? 'Data-entry view modeled on Schedule K-1. This screen is a workpaper, not an official filed tax document.'
           : 'Jackson data-entry view inspired by Schedule K-1. This screen is not an official filed tax document.'}</p>
       </div>
-      <div className={workspace ? 'flex flex-col justify-between bg-[#166534] px-3 py-3 text-white' : 'flex flex-col justify-between bg-gray-950 px-3 py-3 text-white'}>
+      <div className={workspace ? 'flex flex-col justify-between bg-primary px-3 py-3 text-white' : 'flex flex-col justify-between bg-gray-950 px-3 py-3 text-white'}>
         <span className={workspace ? 'text-[9px] font-bold uppercase tracking-[0.16em] text-emerald-100' : 'text-[9px] font-bold uppercase tracking-[0.16em] text-gray-300'}>Tax year</span>
         <strong className="font-mono text-2xl tabular-nums sm:text-3xl">{taxYear}</strong>
       </div>
@@ -44,12 +44,12 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor,
         <span>Tax period</span>
         <label data-k1-official-field="tax_period_beginning" className="min-w-0">
           <span className="sr-only">Tax period beginning</span>
-          <input aria-label="Tax period beginning" type="date" disabled={!periodBeginning.canEdit} value={typeof periodBeginning.value === 'string' ? periodBeginning.value : ''} onChange={(event) => periodBeginning.onChange(event.target.value)} className="w-[8.25rem] border-0 bg-transparent p-0 font-mono text-[11px] tabular-nums text-gray-800 focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:text-gray-500" />
+          <input aria-label="Tax period beginning" type="date" disabled={!periodBeginning.canEdit} value={typeof periodBeginning.value === 'string' ? periodBeginning.value : ''} onChange={(event) => periodBeginning.onChange(event.target.value)} className="w-[8.25rem] border-0 bg-transparent p-0 font-mono text-[11px] tabular-nums text-gray-800 focus:outline-none focus:ring-2 focus:ring-focus disabled:text-gray-500" />
         </label>
         <span aria-hidden="true">–</span>
         <label data-k1-official-field="tax_period_ending" className="min-w-0">
           <span className="sr-only">Tax period ending</span>
-          <input aria-label="Tax period ending" type="date" disabled={!periodEnding.canEdit} value={typeof periodEnding.value === 'string' ? periodEnding.value : ''} onChange={(event) => periodEnding.onChange(event.target.value)} className="w-[8.25rem] border-0 bg-transparent p-0 font-mono text-[11px] tabular-nums text-gray-800 focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:text-gray-500" />
+          <input aria-label="Tax period ending" type="date" disabled={!periodEnding.canEdit} value={typeof periodEnding.value === 'string' ? periodEnding.value : ''} onChange={(event) => periodEnding.onChange(event.target.value)} className="w-[8.25rem] border-0 bg-transparent p-0 font-mono text-[11px] tabular-nums text-gray-800 focus:outline-none focus:ring-2 focus:ring-focus disabled:text-gray-500" />
         </label>
       </div>
       <label data-k1-official-field="k1_status_final" className="cursor-pointer">
@@ -69,7 +69,7 @@ export function K1FormHeader({ taxYear, hasDatedActivity, officialFieldStateFor,
       {officialField('tax_period_ending')}
     </div>}
     {hasDatedActivity && !magicPattern && <p className={workspace ? 'border-t border-slate-200 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-slate-700' : 'border-t border-gray-400 bg-amber-50 px-4 py-2 text-xs leading-relaxed text-gray-800 sm:px-5'}>
-      <span className={workspace ? 'mr-2 inline-block rounded bg-[#166534] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white' : 'mr-2 inline-block bg-jackson-gold px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white'}>Cash activity</span>
+      <span className={workspace ? 'mr-2 inline-block rounded bg-primary px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white' : 'mr-2 inline-block bg-primary px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white'}>Cash activity</span>
       Annual contributions and distributions are read-only where dated activity is present. {datedActivityLocation === 'capital-activity-tab'
         ? 'Open Capital Activity to update dated rows and recalculate totals and XIRR.'
         : 'Update the dated rows above to recalculate totals and XIRR.'}

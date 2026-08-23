@@ -100,10 +100,10 @@ function LegacyNavItem({
       to={item.href}
       aria-label={item.name}
       title={collapsed && !showDetails ? item.name : undefined}
-      className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${isActive ? 'border-jackson-gold bg-white/5 text-jackson-gold' : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white'}`}
+      className={`group flex min-h-11 items-center rounded-md border-l-2 py-2 text-sm font-medium transition-colors ${showDetails ? 'px-3' : 'lg:justify-center lg:px-2'} ${isActive ? 'border-primary bg-white/5 text-primary' : 'border-transparent text-gray-300 hover:bg-white/5 hover:text-white'}`}
     >
       <item.icon
-        className={`h-5 w-5 flex-shrink-0 ${showDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${isActive ? 'text-jackson-gold' : 'text-gray-400 group-hover:text-gray-300'}`}
+        className={`h-5 w-5 flex-shrink-0 ${showDetails ? '-ml-1 mr-3' : 'lg:mx-0'} ${isActive ? 'text-primary' : 'text-gray-400 group-hover:text-gray-300'}`}
       />
       <span className={`truncate ${showDetails ? '' : 'lg:hidden'}`}>{item.name}</span>
     </Link>
@@ -130,7 +130,7 @@ function MagicPatternNavItem({
       aria-label={item.name}
       title={collapsed ? item.name : undefined}
       onClick={onNavigate}
-      className={`group relative flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 ${collapsed ? 'lg:justify-center lg:px-0' : ''} ${isActive ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+      className={`group relative flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${collapsed ? 'lg:justify-center lg:px-0' : ''} ${isActive ? 'bg-primary-subtle text-primary' : 'text-content-secondary hover:bg-primary-subtle hover:text-primary'}`}
     >
       <item.icon className="h-5 w-5 shrink-0" aria-hidden="true" />
       <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? 'lg:hidden' : ''}`}>
@@ -139,13 +139,13 @@ function MagicPatternNavItem({
       {item.badge !== undefined ? (
         <>
           <span
-            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? 'bg-white/15 text-white' : 'bg-gray-100 text-gray-600'} ${collapsed ? 'lg:hidden' : ''}`}
+            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${isActive ? 'bg-primary-subtle-hover text-primary' : 'bg-gray-100 text-gray-600'} ${collapsed ? 'lg:hidden' : ''}`}
           >
             {item.badge}
           </span>
           {collapsed ? (
             <span
-              className={`absolute right-1.5 top-1.5 hidden h-2 w-2 rounded-full ring-2 ring-white lg:block ${isActive ? 'bg-white' : 'bg-gray-900'}`}
+              className={`absolute right-1.5 top-1.5 hidden h-2 w-2 rounded-full ring-2 ring-white lg:block ${isActive ? 'bg-primary' : 'bg-gray-900'}`}
               aria-hidden="true"
             />
           ) : null}
@@ -322,7 +322,7 @@ export function AppShell({
                     isDesktopNavCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
                   }
                   onClick={() => setIsDesktopNavCollapsed((collapsed) => !collapsed)}
-                  className={`flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 ${isDesktopNavCollapsed ? 'justify-center px-0' : ''}`}
+                  className={`flex min-h-11 w-full items-center gap-3 rounded-md px-2.5 py-2 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${isDesktopNavCollapsed ? 'justify-center px-0' : ''}`}
                 >
                   {isDesktopNavCollapsed ? (
                     <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -341,7 +341,7 @@ export function AppShell({
                 <div
                   className={`items-center gap-2 ${showLegacyDesktopNavDetails ? 'flex' : 'flex lg:hidden'}`}
                 >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-jackson-gold">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-decorative-brand-accent">
                     <span className="font-serif text-lg font-bold text-black">J</span>
                   </div>
                   <span className="font-serif text-xl font-bold uppercase tracking-widest text-white">
@@ -367,7 +367,7 @@ export function AppShell({
                     setIsDesktopNavHovered(false)
                     setIsDesktopNavFocused(false)
                   }}
-                  className={`${showLegacyDesktopNavDetails ? 'ml-auto' : ''} hidden h-10 w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold lg:grid`}
+                  className={`${showLegacyDesktopNavDetails ? 'ml-auto' : ''} hidden h-10 w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus lg:grid`}
                 >
                   {isDesktopNavCollapsed ? (
                     <PanelLeftOpen className="h-5 w-5" />
@@ -415,7 +415,7 @@ export function AppShell({
                     aria-label="Sign out"
                     title={showLegacyDesktopNavDetails ? undefined : 'Sign out'}
                     onClick={onSignOut}
-                    className={`${showLegacyDesktopNavDetails ? 'ml-2' : 'lg:ml-0'} grid min-h-10 min-w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold`}
+                    className={`${showLegacyDesktopNavDetails ? 'ml-2' : 'lg:ml-0'} grid min-h-10 min-w-10 place-items-center rounded-md text-gray-400 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`}
                   >
                     <LogOut className="h-4 w-4" />
                   </button>
@@ -448,7 +448,7 @@ export function AppShell({
                           {crumb.href && !isLast ? (
                             <Link
                               to={crumb.href}
-                              className="rounded text-gray-500 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
+                              className="rounded text-gray-500 transition-colors hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
                             >
                               {crumb.label}
                             </Link>
@@ -489,7 +489,7 @@ export function AppShell({
                 type="button"
                 aria-label="Sign out"
                 onClick={onSignOut}
-                className="grid min-h-10 min-w-10 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2"
+                className="grid min-h-10 min-w-10 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
               >
                 <LogOut className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -497,7 +497,7 @@ export function AppShell({
           ) : null}
         </header>
 
-        <main className={`flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 ${mainClassName}`}>
+        <main className={`relative flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 ${mainClassName}`}>
           <motion.div
             data-testid="app-shell-content"
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}

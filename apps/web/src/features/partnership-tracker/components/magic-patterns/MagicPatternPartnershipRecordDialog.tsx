@@ -216,7 +216,7 @@ export function MagicPatternPartnershipRecordDialog({
               <label
                 className={`cursor-pointer rounded-md border p-3 transition-colors ${
                   creationMode === 'new'
-                    ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500'
+                    ? 'border-primary bg-primary-subtle ring-1 ring-focus'
                     : 'border-slate-300 hover:border-slate-400'
                 }`}
               >
@@ -227,7 +227,7 @@ export function MagicPatternPartnershipRecordDialog({
                     value="new"
                     checked={creationMode === 'new'}
                     onChange={() => chooseCreationMode('new')}
-                    className="mt-1 h-4 w-4 border-slate-300 text-amber-600 focus:ring-amber-500"
+                    className="mt-1 h-4 w-4 border-slate-300 accent-primary focus:ring-focus"
                   />
                   <span>
                     <span className="block text-sm font-semibold text-slate-950">New fund</span>
@@ -238,7 +238,7 @@ export function MagicPatternPartnershipRecordDialog({
               <label
                 className={`cursor-pointer rounded-md border p-3 transition-colors ${
                   creationMode === 'existing'
-                    ? 'border-amber-500 bg-amber-50 ring-1 ring-amber-500'
+                    ? 'border-primary bg-primary-subtle ring-1 ring-focus'
                     : 'border-slate-300 hover:border-slate-400'
                 }`}
               >
@@ -249,7 +249,7 @@ export function MagicPatternPartnershipRecordDialog({
                     value="existing"
                     checked={creationMode === 'existing'}
                     onChange={() => chooseCreationMode('existing')}
-                    className="mt-1 h-4 w-4 border-slate-300 text-amber-600 focus:ring-amber-500"
+                    className="mt-1 h-4 w-4 border-slate-300 accent-primary focus:ring-focus"
                   />
                   <span>
                     <span className="block text-sm font-semibold text-slate-950">Existing fund, new owner</span>

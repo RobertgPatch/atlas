@@ -80,6 +80,14 @@ const safeSignalValue = (fields: DurableK1FieldValueRecord[], key: string): unkn
   return field ? effectiveValue(field) : null
 }
 
+const safeCanonicalValue = (fields: DurableK1FieldValueRecord[], canonicalPath: string): unknown => {
+  const field = fields.find((candidate) => candidate.canonicalPath === canonicalPath)
+  return field ? effectiveValue(field) : null
+}
+
+const isTrue = (value: unknown): boolean => value === true
+  || (typeof value === 'string' && ['true', 'yes', 'x', 'checked', '1'].includes(value.trim().toLowerCase()))
+
 const parseTaxYear = (value: unknown): number | null => {
   const match = /(?:19|20)\d{2}/.exec(String(value ?? ''))
   if (!match) return null
@@ -101,7 +109,13 @@ export const buildK1MatchProposal = async (
 ): Promise<K1MatchProposal> => {
   const partnerTin = normalizeTaxIdentifier(safeSignalValue(fields, 'partner_tin'))
   const partnershipEin = normalizeTaxIdentifier(safeSignalValue(fields, 'partnership_ein'))
-  const partnerName = normalizeRecordName(safeSignalValue(fields, 'partner_name'))
+  const disregardedEntityName = isTrue(safeCanonicalValue(fields, 'official.part_ii_h2_disregarded_entity'))
+    ? normalizeRecordName(safeCanonicalValue(fields, 'official.part_ii_h2_disregarded_entity_name'))
+    : null
+  // Item H2 identifies the entity that actually receives the K-1. The Part II
+  // partner name can instead name the individual owner of that disregarded
+  // entity, so H2 must take precedence for the application destination.
+  const partnerName = disregardedEntityName ?? normalizeRecordName(safeSignalValue(fields, 'partner_name'))
   const partnershipName = normalizeRecordName(safeSignalValue(fields, 'partnership_name'))
   const taxYear = parseTaxYear(safeSignalValue(fields, 'tax_year'))
   const allowed = authorizedEntityIds?.length ? [...authorizedEntityIds] : null
@@ -155,7 +169,12 @@ export const buildK1MatchProposal = async (
         identifierMatch, nameContradiction: contradiction,
       }
     })
-  const partnershipCandidates = (partnerships.rows.length > 0
+  if (!partnerTin) {
+    const exactNameMatches = entityCandidates.filter((candidate) => candidate.score === 1)
+    if (exactNameMatches.length > 0) entityCandidates = exactNameMatches
+  }
+
+  let partnershipCandidates = (partnerships.rows.length > 0
     ? partnerships.rows.map((row) => ({ row, identifierMatch: true, score: 1 }))
     : partnershipNameRows.rows
       .map((row) => ({ row, identifierMatch: false, score: nameScore(partnershipName, row.name) }))
@@ -170,6 +189,16 @@ export const buildK1MatchProposal = async (
         identifierMatch, nameContradiction: contradiction,
       }
     })
+
+  // The same investment can legitimately exist once per receiving entity.
+  // After resolving the owner, use that ownership relationship to narrow an
+  // otherwise duplicated EIN/name match to the correct partnership record.
+  if (entityCandidates.length === 1) {
+    const ownedCandidates = partnershipCandidates.filter(
+      (candidate) => candidate.entityId === entityCandidates[0]!.recordId,
+    )
+    if (ownedCandidates.length > 0) partnershipCandidates = ownedCandidates
+  }
 
   // In Jackson, a partnership belongs to the entity that receives its K-1.
   // A unique exact EIN match therefore supplies both sides of the destination

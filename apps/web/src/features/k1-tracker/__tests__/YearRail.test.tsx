@@ -32,4 +32,16 @@ describe('YearRail', () => {
     expect(select).toHaveBeenNthCalledWith(1, 2024)
     expect(select).toHaveBeenNthCalledWith(2, 2024)
   })
+
+  it('uses labeled checkboxes when multiple years are being selected', () => {
+    const toggle = vi.fn()
+    const years = [2023, 2024].map((taxYear) => ({ taxYear, status: 'IMPORTED' as const, revision: 1, capitalContributed: '0.00', distributions: '0.00', endingOutsideBasis: '0.00', cumulativeSuspendedLoss: '0.00', taxableExcessDistribution: '0.00', sectionLDifference: '0.00', warningCount: 0, sourceConflictCount: 0 }))
+    render(<YearRail years={years} selectedYear={2024} onSelect={vi.fn()} selectionMode selectedYears={[2023]} onToggleSelection={toggle} appearance="magic-pattern" />)
+
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Select K-1 entry years' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Select 2023 K-1 year' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select 2024 K-1 year' }))
+    expect(toggle).toHaveBeenCalledWith(2024)
+  })
 })

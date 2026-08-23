@@ -144,7 +144,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                       value={entityId}
                       onChange={(event) => setEntityId(event.target.value)}
                       disabled={owners.isLoading}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:opacity-50"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-50"
                     >
                       {!owners.data?.items.some((owner) => owner.id === partnership.entity.id) && (
                         <option value={partnership.entity.id}>{partnership.entity.name}</option>
@@ -164,7 +164,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                       maxLength={120}
                       value={name}
                       onChange={(e) => { setName(e.target.value); setNameError(null) }}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${nameError ? 'border-red-500' : 'border-gray-300'}`}
+                      className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${nameError ? 'border-red-500' : 'border-gray-300'}`}
                     />
                     {nameError && <p className="mt-1 text-xs text-red-600">{nameError}</p>}
                   </div>
@@ -175,7 +175,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <select
                       value={assetClass}
                       onChange={(e) => setAssetClass(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     >
                       <option value="">— None —</option>
                       {ASSET_CLASSES.map((ac) => (
@@ -190,7 +190,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <select
                       value={status}
                       onChange={(e) => setStatus(e.target.value as PartnershipStatus)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     >
                       {STATUS_OPTIONS.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -206,7 +206,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                       maxLength={10000}
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
-                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                     />
                   </div>
 
@@ -221,7 +221,7 @@ export function EditPartnershipDialog({ open, onClose, partnership }: EditPartne
                     <button
                       type="submit"
                       disabled={isPending || trackerActions.updatePartnership.isPending || owners.isLoading}
-                      className="px-4 py-2 text-sm rounded-lg bg-jackson-gold text-white hover:bg-jackson-hover disabled:opacity-50"
+                      className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-hover disabled:opacity-50"
                     >
                       {isPending ? 'Saving…' : 'Save Changes'}
                     </button>

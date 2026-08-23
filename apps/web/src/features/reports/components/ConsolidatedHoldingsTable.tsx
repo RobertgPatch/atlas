@@ -311,9 +311,9 @@ export function ConsolidatedHoldingsTable({
   const sortIcon = (key: SortKey) => {
     if (sort !== key) return <ArrowUpDownIcon className="h-3 w-3 text-gray-300" />
     return direction === 'asc' ? (
-      <ArrowUpIcon className="h-3 w-3 text-blue-600" />
+      <ArrowUpIcon className="h-3 w-3 text-primary" />
     ) : (
-      <ArrowDownIcon className="h-3 w-3 text-blue-600" />
+      <ArrowDownIcon className="h-3 w-3 text-primary" />
     )
   }
 
@@ -376,7 +376,7 @@ export function ConsolidatedHoldingsTable({
               <button
                 type="button"
                 onClick={sectorFilter.onClear}
-                className="font-semibold text-blue-600 hover:text-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="font-semibold text-primary hover:text-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 Show all positions
               </button>
@@ -390,7 +390,7 @@ export function ConsolidatedHoldingsTable({
             placeholder="Search symbol, name, or custodian..."
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-72"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-focus sm:w-72"
           />
         </div>
       </div>

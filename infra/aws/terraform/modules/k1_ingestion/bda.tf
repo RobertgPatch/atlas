@@ -37,7 +37,7 @@ resource "awscc_bedrock_data_automation_project" "k1" {
   standard_output_configuration = {
     document = {
       extraction = {
-        granularity  = { types = ["DOCUMENT"] }
+        granularity  = { types = ["DOCUMENT", "PAGE", "ELEMENT"] }
         bounding_box = { state = "ENABLED" }
       }
       generative_field = { state = "DISABLED" }

@@ -91,8 +91,12 @@ describe('EntitiesPage owner rename', () => {
       'magic-patterns',
     )
     expect(screen.getByRole('heading', { name: 'Entities & Owners' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add entity' })).toHaveClass('bg-primary')
     expect(screen.getByText('Entities on file')).toBeTruthy()
     expect(screen.getByRole('searchbox', { name: /search entities/i })).toBeTruthy()
+    expect(screen.getByRole('searchbox', { name: /search entities/i })).toHaveClass(
+      'focus:border-focus',
+    )
     expect(screen.queryByText('Add a new entity')).toBeNull()
   })
 

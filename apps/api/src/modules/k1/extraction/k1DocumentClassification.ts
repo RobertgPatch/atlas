@@ -68,8 +68,9 @@ export const classifyK1Document = (
       .filter((value) => value.canonicalPath === 'official.part_i_a_partnership_ein' && typeof value.normalizedValue === 'string')
       .map((value) => value.normalizedValue as string),
   )
-  const multipleK1Package = identifiers.size > 1
-  if (multipleK1Package) {
+  const alreadyFlaggedAsMultiple = issues.some((candidate) => candidate.code === 'MULTIPLE_K1_PACKAGE')
+  const multipleK1Package = identifiers.size > 1 || alreadyFlaggedAsMultiple
+  if (identifiers.size > 1 && !alreadyFlaggedAsMultiple) {
     issues.push(issue(
       'MULTIPLE_K1_PACKAGE',
       'The PDF appears to contain Schedule K-1s for more than one partnership.',

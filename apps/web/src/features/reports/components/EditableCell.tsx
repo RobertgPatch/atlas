@@ -74,7 +74,7 @@ export function EditableCell({
           disabled={!editable || disabled}
           className={`rounded px-1.5 py-0.5 text-right tabular-nums transition-colors ${
             editable && !disabled
-              ? 'hover:bg-accent-light text-text-primary'
+              ? 'hover:bg-primary-subtle text-text-primary'
               : 'cursor-default text-text-secondary'
           }`}
           aria-label={editable ? 'Edit amount' : 'Amount is read only'}
@@ -87,7 +87,7 @@ export function EditableCell({
           <button
             type="button"
             onClick={onUndo}
-            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-accent hover:bg-accent-light"
+            className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-primary hover:bg-primary-subtle"
             aria-label="Undo latest edit"
           >
             <RotateCcwIcon className="h-3.5 w-3.5" />
@@ -107,7 +107,7 @@ export function EditableCell({
             setDraftValue(event.target.value)
             if (error) setError(null)
           }}
-          className="w-36 rounded border border-border px-2 py-1 text-right text-sm tabular-nums focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+          className="w-36 rounded border border-border px-2 py-1 text-right text-sm tabular-nums focus:border-focus focus:outline-none focus:ring-1 focus:ring-focus"
           aria-label="Commitment amount"
           data-testid="editable-cell-input"
         />
@@ -116,7 +116,7 @@ export function EditableCell({
           type="button"
           onClick={() => void submit()}
           disabled={isSaving}
-          className="inline-flex h-7 w-7 items-center justify-center rounded border border-border text-green-700 hover:bg-green-50 disabled:opacity-50"
+          className="inline-flex h-7 w-7 items-center justify-center rounded border border-border text-primary hover:bg-primary-subtle disabled:opacity-50"
           aria-label="Save amount"
         >
           <CheckIcon className="h-4 w-4" />

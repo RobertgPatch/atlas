@@ -32,8 +32,11 @@ const normalizeMoney = (value: unknown, fieldKey: K1TrackerFieldKey): string | n
   const parsed = moneyToCents(value == null ? null : String(value).replaceAll(',', '').replaceAll('$', '').trim())
   if (parsed == null) return null
   const definition = trackerFieldByKey.get(fieldKey)
-  const normalized = definition && (definition.role === 'deduction' || definition.role === 'distribution') && parsed < 0n
-    ? -parsed : parsed
+  const normalized = fieldKey === 'section_l_withdrawals_distributions' && parsed > 0n
+    ? -parsed
+    : definition && (definition.role === 'deduction' || definition.role === 'distribution') && !definition.signed && parsed < 0n
+      ? -parsed
+      : parsed
   return centsToMoney(normalized)
 }
 
@@ -46,6 +49,30 @@ const codeEntry = (value: unknown): { code: string; value: string } | null => {
   if (!code && !normalizedValue) return null
   return { code, value: normalizedValue }
 }
+
+interface ReviewedCodeRow {
+  field: DurableK1FieldValueRecord
+  code: string
+  amount: bigint
+}
+
+const reviewedCodeRow = (field: DurableK1FieldValueRecord): ReviewedCodeRow | null => {
+  const value = effective(field)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const row = value as Record<string, unknown>
+  const parsed = moneyToCents(row.amount == null && row.value == null
+    ? null
+    : String(row.amount ?? row.value))
+  if (parsed == null) return null
+  return {
+    field,
+    code: String(row.code ?? '').trim().toUpperCase().replace(/\*+$/, ''),
+    amount: parsed,
+  }
+}
+
+const absolute = (value: bigint): bigint => value < 0n ? -value : value
+const sum = (values: bigint[]): bigint => values.reduce((total, value) => total + value, 0n)
 
 const calculationPolicies = new Map(
   K1_CALCULATION_DESTINATIONS.map((destination) => [destination.key, destination.policy]),
@@ -94,8 +121,111 @@ export const mapReviewedK1ApplicationValues = (
     })
   }
 
+  const mappedCalculationKeys = new Set(mapped
+    .filter((value) => value.destinationKind === 'CALCULATION')
+    .map((value) => value.destinationKey))
+  const officialCodeRows = (destinationKey: K1TrackerOfficialFormFieldKey): ReviewedCodeRow[] =>
+    accepted
+      .filter((field) => field.destinationKind === 'OFFICIAL' && field.destinationKey === destinationKey)
+      .map(reviewedCodeRow)
+      .filter((row): row is ReviewedCodeRow => row !== null)
+  const addDerivedCalculation = (
+    destinationKey: K1TrackerFieldKey,
+    rows: ReviewedCodeRow[],
+    amount: bigint,
+    policy: K1CalculationMappingPolicy,
+  ): void => {
+    if (rows.length === 0 || mappedCalculationKeys.has(destinationKey)) return
+    mapped.push({
+      destinationKind: 'CALCULATION',
+      destinationKey,
+      value: centsToMoney(amount),
+      sourceFieldValueIds: rows.map((row) => row.field.id),
+      policy,
+      affectsDownstreamCalculations: true,
+    })
+    mappedCalculationKeys.add(destinationKey)
+  }
+
+  // BDA preserves coded K-1 rows as official-form evidence. Promote verified
+  // numeric rows into the corresponding calculator inputs so a correct scan
+  // does not require the user to re-enter the same amounts in a workpaper.
+  const box11Rows = officialCodeRows('box_11_entries')
+  addDerivedCalculation(
+    'box_11_other_income_loss',
+    box11Rows,
+    sum(box11Rows.map((row) => row.amount)),
+    'DIRECT_K1_FIELD',
+  )
+
+  if (!mappedCalculationKeys.has('box_13_other_portfolio_deductions')
+    && !mappedCalculationKeys.has('box_13_management_fees')) {
+    const box13Rows = officialCodeRows('box_13_entries')
+    addDerivedCalculation(
+      'box_13_other_deductions',
+      box13Rows,
+      sum(box13Rows.map((row) => absolute(row.amount))),
+      'REVIEWED_DERIVATION',
+    )
+  }
+
+  const box18Rows = officialCodeRows('box_18_entries')
+  const taxExemptRows = box18Rows.filter((row) => row.code === 'A' || row.code === 'B')
+  addDerivedCalculation(
+    'box_18b_tax_exempt_income',
+    taxExemptRows,
+    sum(taxExemptRows.map((row) => absolute(row.amount))),
+    'REVIEWED_DERIVATION',
+  )
+  const nondeductibleRows = box18Rows.filter((row) => row.code === 'C')
+  addDerivedCalculation(
+    'box_18c_nondeductible_expenses',
+    nondeductibleRows,
+    sum(nondeductibleRows.map((row) => absolute(row.amount))),
+    'REVIEWED_DERIVATION',
+  )
+
+  const box19Rows = officialCodeRows('box_19_entries')
+  addDerivedCalculation(
+    'box_19_distributions',
+    box19Rows,
+    sum(box19Rows.map((row) => absolute(row.amount))),
+    'DATED_ACTIVITY_AUTHORITATIVE',
+  )
+
+  const box21Rows = officialCodeRows('box_21_entries')
+  addDerivedCalculation(
+    'box_21_foreign_taxes',
+    box21Rows,
+    sum(box21Rows.map((row) => absolute(row.amount))),
+    'DIRECT_K1_FIELD',
+  )
+
+  const itemJDecreaseKeys = new Set(['part_ii_j_decrease_sale', 'part_ii_j_decrease_exchange'])
+  const itemJDecreaseFields = accepted.filter((field) =>
+    field.destinationKind === 'OFFICIAL' && field.destinationKey && itemJDecreaseKeys.has(field.destinationKey),
+  )
+  if (itemJDecreaseFields.length > 0) {
+    const explicitlyCorrected = itemJDecreaseFields.find((field) =>
+      field.destinationKey === 'part_ii_j_decrease_sale' && field.reviewerCorrectedValueJson !== null,
+    ) ?? itemJDecreaseFields.find((field) => field.reviewerCorrectedValueJson !== null)
+    const value = explicitlyCorrected
+      ? effective(explicitlyCorrected) === true
+      : itemJDecreaseFields.some((field) => effective(field) === true)
+    mapped.push({
+      destinationKind: 'OFFICIAL',
+      destinationKey: 'part_ii_j_decrease_sale',
+      value,
+      sourceFieldValueIds: itemJDecreaseFields.map((field) => field.id),
+      policy: 'OFFICIAL_FORM',
+      affectsDownstreamCalculations: false,
+    })
+  }
+
   const officialGroups = groupByDestination(
-    accepted.filter((field) => field.destinationKind === 'OFFICIAL' && field.destinationKey),
+    accepted.filter((field) => field.destinationKind === 'OFFICIAL'
+      && field.destinationKey
+      && !itemJDecreaseKeys.has(field.destinationKey)),
   )
   for (const [rawKey, destinationFields] of officialGroups) {
     const key = rawKey as K1TrackerOfficialFormFieldKey

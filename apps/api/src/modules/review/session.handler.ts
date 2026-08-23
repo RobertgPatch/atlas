@@ -4,7 +4,12 @@ import { k1Repository } from '../k1/k1.repository.js'
 import { durableK1Repository } from '../k1/k1.repository.js'
 import { getK1ObjectStore } from '../k1/storage/index.js'
 import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
-import { durableReviewRepository, reviewRepository, confidenceBandFor } from './review.repository.js'
+import {
+  durableReviewRepository,
+  reviewRepository,
+  confidenceBandFor,
+  type DurableK1FieldValueRecord,
+} from './review.repository.js'
 import { k1ExtractionAttemptRepository } from '../k1/extraction/k1ExtractionAttempt.repository.js'
 import { k1MatchRepository } from '../k1/matching/k1Match.repository.js'
 import { pool, query } from '../../infra/db/client.js'
@@ -36,6 +41,64 @@ const attemptSummary = (attempt: Awaited<ReturnType<typeof k1ExtractionAttemptRe
   error: attempt.errorCode ? { error: attempt.errorCode, message: attempt.errorSummary ?? undefined, retryable: attempt.status === 'FAILED' } : null,
 })
 
+const effectiveDurableFieldValue = (field: DurableK1FieldValueRecord): unknown =>
+  field.reviewerCorrectedValueJson
+  ?? field.normalizedValueJson
+  ?? field.normalizedValue
+  ?? field.rawValueJson
+  ?? field.rawValue
+
+const coalesceLegacyItemJDecreaseFields = (
+  records: DurableK1FieldValueRecord[],
+): { records: DurableK1FieldValueRecord[]; aliases: Map<string, string> } => {
+  const targetKey = 'part_ii_j_decrease_sale'
+  const legacyKey = 'part_ii_j_decrease_exchange'
+  const target = records.find((field) => field.destinationKind === 'OFFICIAL' && field.destinationKey === targetKey)
+  const legacy = records.find((field) => field.destinationKind === 'OFFICIAL' && field.destinationKey === legacyKey)
+  if (!legacy) return { records, aliases: new Map() }
+
+  const representative = target ?? legacy
+  const hasExplicitCombinedCorrection = representative.reviewerCorrectedValueJson !== null
+  const combinedValue = hasExplicitCombinedCorrection
+    ? effectiveDurableFieldValue(representative) === true
+    : [target, legacy].filter((field): field is DurableK1FieldValueRecord => Boolean(field))
+      .some((field) => effectiveDurableFieldValue(field) === true)
+  const statuses = [target, legacy]
+    .filter((field): field is DurableK1FieldValueRecord => Boolean(field))
+    .map((field) => field.reviewStatus)
+  const reviewStatus = hasExplicitCombinedCorrection
+    ? representative.reviewStatus
+    : statuses.includes('PENDING')
+      ? 'PENDING'
+      : statuses.includes('CORRECTED')
+        ? 'CORRECTED'
+        : representative.reviewStatus
+  const merged: DurableK1FieldValueRecord = {
+    ...representative,
+    canonicalPath: `official.${targetKey}`,
+    fieldName: `official.${targetKey}`,
+    label: 'Item J - Decrease due to sale or exchange of partnership interest',
+    normalizedValue: String(combinedValue),
+    normalizedValueJson: combinedValue,
+    destinationKey: targetKey,
+    reviewStatus,
+    confidenceScore: [target?.confidenceScore, legacy.confidenceScore]
+      .filter((value): value is number => value !== null && value !== undefined)
+      .reduce<number | null>((lowest, value) => lowest === null ? value : Math.min(lowest, value), null),
+    sourceLocations: [...(target?.sourceLocations ?? []), ...legacy.sourceLocations]
+      .filter((location, index, all) => all.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(location)) === index),
+  }
+  const aliases = new Map<string, string>([[legacy.id, representative.id]])
+  return {
+    records: records.flatMap((field) => {
+      if (field.id === representative.id) return [merged]
+      if (field.id === legacy.id) return []
+      return [field]
+    }),
+    aliases,
+  }
+}
+
 const sendDurableSession = async (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -51,7 +114,7 @@ const sendDurableSession = async (
     void reply.code(404).send({ error: 'NOT_FOUND' })
     return true
   }
-  const [fieldRecords, issueRecords, attempts, candidates, histories, refs, applicationActor] = await Promise.all([
+  const [storedFieldRecords, issueRecords, attempts, candidates, histories, refs, applicationActor] = await Promise.all([
     durableReviewRepository.listForActiveAttempt(document.id),
     durableReviewRepository.listIssuesForActiveAttempt(document.id),
     k1ExtractionAttemptRepository.listForDocument(document.id),
@@ -61,7 +124,9 @@ const sendDurableSession = async (
       `select p.name as partnership_name, e.name as entity_name
          from k1_documents kd
          left join partnerships p on p.id = kd.partnership_id
-         left join entities e on e.id = p.entity_id
+         left join k1_ingestion_items i on i.k1_document_id = kd.id
+         left join k1_ingestion_batches b on b.id = i.batch_id
+         left join entities e on e.id = coalesce(p.entity_id, b.entity_scope_id)
         where kd.id = $1`,
       [document.id],
     ),
@@ -75,12 +140,24 @@ const sendDurableSession = async (
       [document.id],
     ),
   ])
+  const itemJ = coalesceLegacyItemJDecreaseFields(storedFieldRecords)
+  const fieldRecords = itemJ.records
+  const fieldIdByOccurrenceId = new Map(
+    storedFieldRecords.flatMap((field) => field.occurrenceId
+      ? [[field.occurrenceId, itemJ.aliases.get(field.id) ?? field.id] as const]
+      : []),
+  )
+  const linkedFieldIdForIssue = (issue: typeof issueRecords[number]): string | null =>
+    issue.k1FieldValueId
+      ? itemJ.aliases.get(issue.k1FieldValueId) ?? issue.k1FieldValueId
+      : issue.occurrenceId ? fieldIdByOccurrenceId.get(issue.occurrenceId) ?? null : null
   const linkedByField = new Map<string, string[]>()
   for (const issue of issueRecords) {
-    if (!issue.k1FieldValueId || issue.status !== 'OPEN') continue
-    const linked = linkedByField.get(issue.k1FieldValueId) ?? []
+    const linkedFieldId = linkedFieldIdForIssue(issue)
+    if (!linkedFieldId || issue.status !== 'OPEN') continue
+    const linked = linkedByField.get(linkedFieldId) ?? []
     linked.push(issue.id)
-    linkedByField.set(issue.k1FieldValueId, linked)
+    linkedByField.set(linkedFieldId, linked)
   }
   const fields: K1ReviewSession['fields'] = { entityMapping: [], partnershipMapping: [], core: [] }
   for (const field of fieldRecords) {
@@ -109,7 +186,7 @@ const sendDurableSession = async (
     fields[field.section].push(wire)
   }
   const issues: K1Issue[] = issueRecords.map((issue) => ({
-    id: issue.id, k1FieldValueId: issue.k1FieldValueId, issueType: issue.issueType,
+    id: issue.id, k1FieldValueId: linkedFieldIdForIssue(issue), issueType: issue.issueType,
     severity: issue.severity, status: issue.status, message: issue.message,
     resolvedAt: issue.resolvedAt?.toISOString() ?? null, resolvedByUserId: issue.resolvedByUserId,
     createdAt: issue.createdAt.toISOString(), extractionAttemptId: issue.extractionAttemptId,

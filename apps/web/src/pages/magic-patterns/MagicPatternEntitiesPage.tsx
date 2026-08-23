@@ -37,7 +37,6 @@ import {
 import {
   useMemo,
   useState,
-  type ButtonHTMLAttributes,
   type ComponentType,
   type FormEvent,
   type InputHTMLAttributes,
@@ -46,6 +45,7 @@ import { useNavigate } from 'react-router-dom'
 import { authClient } from '../../auth/authClient'
 import { sessionStore, useSession } from '../../auth/sessionStore'
 import { AppShell } from '../../components/shared/AppShell'
+import { Button } from '../../components/shared/Button'
 import type {
   CreateEntityInput,
   EntityKind,
@@ -71,7 +71,6 @@ type EntitySortKey =
   | 'holdingsValue'
   | 'status'
 type SortDirection = 'asc' | 'desc'
-type ButtonVariant = 'primary' | 'secondary' | 'danger'
 
 const ENTITY_KIND_OPTIONS = (Object.keys(ENTITY_KIND_LABEL) as EntityKind[]).map((value) => ({
   value,
@@ -86,12 +85,6 @@ const EMPTY_FORM: CreateEntityInput = {
   formedOn: '',
 }
 
-const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'bg-[#1B4332] text-white shadow-sm hover:bg-[#143426] active:bg-[#0F2A1E]',
-  secondary:
-    'border border-[#CBD5CE] bg-white text-[#1B4332] hover:bg-[#F2F6F3] active:bg-[#E6EDE8]',
-  danger: 'bg-red-600 text-white shadow-sm hover:bg-red-700 active:bg-red-800',
-}
 
 const normalizeStatus = (value: string) => {
   const normalized = value.trim().toLowerCase()
@@ -121,21 +114,7 @@ const formatCompactCurrency = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value)
 
-function DesignButton({
-  variant = 'primary',
-  className = '',
-  children,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return (
-    <button
-      {...props}
-      className={`inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${buttonVariants[variant]} ${className}`}
-    >
-      {children}
-    </button>
-  )
-}
+const DesignButton = Button
 
 function StatTile({
   label,
@@ -235,7 +214,7 @@ function EntityKindSelect({
         <Listbox.Label className="mb-1.5 block text-sm font-medium text-gray-900">
           Entity type
         </Listbox.Label>
-        <ListboxButton className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 transition-colors hover:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-1">
+        <ListboxButton className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-gray-300 bg-white px-3 text-left text-sm text-gray-900 transition-colors hover:border-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1">
           <span>{ENTITY_KIND_LABEL[value]}</span>
           <ChevronDown className="h-4 w-4 text-gray-500 data-[open]:rotate-180" aria-hidden="true" />
         </ListboxButton>
@@ -505,7 +484,7 @@ function EntityActions({
       <Menu as="div" className="relative inline-block text-left">
         <MenuButton
           aria-label="Row actions"
-          className="grid h-7 w-7 place-items-center rounded p-1 text-[#5F7185] transition-colors hover:bg-[#E8EEF5] hover:text-[#17263A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] data-[open]:bg-[#E8EEF5]"
+          className="grid h-7 w-7 place-items-center rounded p-1 text-[#5F7185] transition-colors hover:bg-[#E8EEF5] hover:text-[#17263A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus data-[open]:bg-[#E8EEF5]"
         >
           <Ellipsis className="h-4 w-4" aria-hidden="true" />
         </MenuButton>
@@ -819,14 +798,14 @@ export function MagicPatternEntitiesPage() {
                     role="tab"
                     aria-selected={selected}
                     onClick={() => setKindFilter(item.value)}
-                    className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                    className={`inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
                       selected ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
                     {item.label}
                     <span
                       className={`ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
-                        selected ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
+                        selected ? 'bg-primary-subtle text-primary' : 'bg-gray-100 text-gray-600'
                       }`}
                     >
                       {list.isLoading || list.isError ? '—' : item.count}
@@ -850,7 +829,7 @@ export function MagicPatternEntitiesPage() {
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search entities, jurisdictions, EINs…"
                 aria-label="Search entities, jurisdictions, EINs…"
-                className="w-full rounded-md border border-[#BFCBD9] bg-white py-1.5 pl-8 pr-3 text-sm text-[#17263A] outline-none placeholder:text-[#5F7185] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]"
+                className="w-full rounded-md border border-border-control bg-surface py-1.5 pl-8 pr-3 text-sm text-content-primary outline-none placeholder:text-content-muted focus:border-focus focus:ring-2 focus:ring-focus"
               />
             </label>
           </div>
@@ -877,7 +856,7 @@ export function MagicPatternEntitiesPage() {
                       <button
                         type="button"
                         onClick={() => changeSort(header.key)}
-                        className={`inline-flex items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+                        className={`inline-flex items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                           header.align === 'right' ? 'ml-auto' : ''
                         }`}
                       >

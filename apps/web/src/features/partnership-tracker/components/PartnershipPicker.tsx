@@ -43,12 +43,12 @@ export function PartnershipPicker({
   return (
     <section
       aria-labelledby="partnership-selector-label"
-      className="rounded-xl border border-gray-300 border-t-4 border-t-jackson-gold bg-white px-4 py-4 shadow-sm sm:px-5"
+      className="rounded-xl border border-gray-300 border-t-4 border-t-primary bg-white px-4 py-4 shadow-sm sm:px-5"
       data-testid="partnership-selector"
     >
       <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-950 text-jackson-gold" aria-hidden="true">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-950 text-primary" aria-hidden="true">
               <Building2 className="h-4 w-4" />
             </span>
             <div className="min-w-0">
@@ -84,11 +84,11 @@ export function PartnershipPicker({
                 onChange={(event) => onSearch(event.target.value)}
                 onFocus={(event) => event.currentTarget.select()}
                 placeholder="Find a partnership…"
-                className="h-11 w-full rounded-lg border border-gray-400 bg-white py-2.5 pl-10 pr-12 text-base font-semibold text-gray-950 shadow-inner outline-none placeholder:font-normal placeholder:text-gray-400 focus:border-jackson-gold focus:ring-2 focus:ring-jackson-gold/25 sm:text-sm"
+                className="h-11 w-full rounded-lg border border-gray-400 bg-white py-2.5 pl-10 pr-12 text-base font-semibold text-gray-950 shadow-inner outline-none placeholder:font-normal placeholder:text-gray-400 focus:border-focus focus:ring-2 focus:ring-focus/25 sm:text-sm"
               />
               <ComboboxButton
                 aria-label="Open partnership options"
-                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-500 hover:bg-gray-100 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-jackson-gold"
+                className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-500 hover:bg-gray-100 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ChevronDown className="h-5 w-5" aria-hidden="true" />}
               </ComboboxButton>
@@ -114,7 +114,7 @@ export function PartnershipPicker({
                   <ComboboxOption
                     key={item.partnership.id}
                     value={item}
-                    className={({ focus, selected: active }) => `group grid cursor-default grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border px-3 py-2.5 outline-none transition ${focus ? 'border-jackson-gold bg-amber-50' : active ? 'border-gray-300 bg-gray-50' : 'border-transparent'}`}
+                    className={({ focus, selected: active }) => `group grid cursor-default grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-md border px-3 py-2.5 outline-none transition ${focus || active ? 'border-primary bg-primary-subtle' : 'border-transparent'}`}
                   >
                     {({ selected: active }) => (
                       <>
@@ -126,7 +126,7 @@ export function PartnershipPicker({
                             <span>{statusLabel(item)}</span>
                           </span>
                         </span>
-                        <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${active ? 'bg-gray-950 text-jackson-gold' : 'text-transparent group-data-[focus]:text-gray-300'}`} aria-hidden="true">
+                        <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${active ? 'bg-primary text-primary-foreground' : 'text-transparent group-data-[focus]:text-gray-300'}`} aria-hidden="true">
                           <Check className="h-3.5 w-3.5" />
                         </span>
                       </>
@@ -148,7 +148,7 @@ export function PartnershipPicker({
           <button
             type="button"
             onClick={onAdd}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-bold text-gray-800 shadow-sm hover:border-gray-400 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-bold text-gray-800 shadow-sm hover:border-gray-400 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Add

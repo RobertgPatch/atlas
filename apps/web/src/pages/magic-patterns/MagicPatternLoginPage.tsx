@@ -10,6 +10,7 @@ import {
   Mail,
   ShieldCheck,
 } from 'lucide-react'
+import { Button } from '../../components/shared/Button'
 
 interface MagicPatternLoginPageProps {
   email: string
@@ -51,7 +52,7 @@ function JacksonLogo({ inverse = false, large = false }: { inverse?: boolean; la
     <span className={`inline-flex items-center ${large ? 'gap-3' : 'gap-2.5'}`} role="img" aria-label="Jackson">
       <span
         aria-hidden="true"
-        className={`inline-flex shrink-0 items-center justify-center rounded-lg bg-jackson-gold font-serif font-bold text-gray-950 ${large ? 'h-10 w-10 text-xl' : 'h-8 w-8 text-lg'}`}
+        className={`inline-flex shrink-0 items-center justify-center rounded-lg bg-decorative-brand-accent font-serif font-bold text-gray-950 ${large ? 'h-10 w-10 text-xl' : 'h-8 w-8 text-lg'}`}
       >
         J
       </span>
@@ -79,7 +80,7 @@ export function MagicPatternLoginPage({
 }: MagicPatternLoginPageProps) {
   const errorDescriptionId = error ? 'magic-login-error' : undefined
   const inputClassName =
-    'block w-full rounded-md border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400'
+    'block w-full rounded-md border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/10 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400'
 
   return (
     <main className="flex min-h-screen w-full bg-gray-100" data-design-variant="magic-patterns">
@@ -181,7 +182,7 @@ export function MagicPatternLoginPage({
                 </label>
                 <button
                   type="button"
-                  className="rounded text-xs font-medium text-gray-600 underline-offset-2 transition-colors hover:text-gray-900 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20"
+                  className="rounded text-xs font-medium text-primary underline-offset-2 transition-colors hover:text-primary-hover hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                   onClick={() => undefined}
                 >
                   Forgot password?
@@ -211,7 +212,7 @@ export function MagicPatternLoginPage({
                   onClick={onTogglePassword}
                   disabled={isLoading}
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition-colors hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900/20 disabled:cursor-not-allowed"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-gray-400 transition-colors hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed"
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" aria-hidden="true" />
@@ -229,15 +230,15 @@ export function MagicPatternLoginPage({
                 checked={rememberMe}
                 disabled={isLoading}
                 onChange={(event) => onRememberMeChange(event.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900/20"
+                className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-focus"
               />
               Remember me for 30 days
             </label>
 
-            <button
+            <Button
               type="submit"
-              disabled={isLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              pending={isLoading}
+              className="w-full"
             >
               {isLoading ? (
                 <>
@@ -247,7 +248,7 @@ export function MagicPatternLoginPage({
               ) : (
                 'Sign in'
               )}
-            </button>
+            </Button>
           </form>
 
           <footer className="mt-6 text-center text-sm text-gray-500">

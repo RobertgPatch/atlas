@@ -1,34 +1,17 @@
 import { X } from 'lucide-react'
-import { type ButtonHTMLAttributes, type HTMLAttributes, type ReactNode, useEffect } from 'react'
+import { type HTMLAttributes, type ReactNode, useEffect } from 'react'
+import { Button, type ButtonProps, type ButtonVariant } from '../../../../components/shared/Button'
 
 export const mpInputClass =
-  'mt-1 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-[#166534] focus:ring-2 focus:ring-[#166534]/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500'
+  'mt-1 min-h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-focus focus:ring-2 focus:ring-focus/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500'
 
 export const mpLabelClass = 'block text-[0.78rem] font-medium text-slate-800'
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
-
-const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'border-[#14532d] bg-[#14532d] text-white shadow-sm hover:bg-[#0f3d22]',
-  secondary: 'border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50',
-  ghost: 'border-transparent bg-transparent text-slate-700 hover:bg-slate-100',
-  danger: 'border-red-700 bg-red-700 text-white shadow-sm hover:bg-red-800',
-}
-
 export function MagicButton({
   variant = 'primary',
-  className = '',
-  children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return (
-    <button
-      {...props}
-      className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${buttonVariants[variant]} ${className}`}
-    >
-      {children}
-    </button>
-  )
+}: ButtonProps & { variant?: Exclude<ButtonVariant, 'inverse'> }) {
+  return <Button {...props} variant={variant} size="sm" />
 }
 
 export function MagicStatusBadge({
@@ -127,7 +110,7 @@ export function MagicModal({
             type="button"
             aria-label="Close dialog"
             onClick={onClose}
-            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <X className="h-4 w-4" />
           </button>
@@ -180,7 +163,7 @@ export function MagicDrawer({
             type="button"
             aria-label="Close panel"
             onClick={onClose}
-            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+            className="grid min-h-9 min-w-9 place-items-center rounded-md text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <X className="h-4 w-4" />
           </button>

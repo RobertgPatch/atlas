@@ -1,4 +1,5 @@
 import type { K1Status } from '../../../../../../packages/types/src/k1-ingestion'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -9,7 +10,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     headers,
     ...init,

@@ -64,6 +64,10 @@ describe('K1PartnershipIntakeRail', () => {
     expect(screen.getByText('Review needed')).toBeInTheDocument()
     expect(screen.getByText(/For Redwood LP · Jackson Family Trust/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Review K-1 now' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'K-1 document workflow' })).not.toHaveClass(
+      '2xl:sticky',
+      '2xl:top-4',
+    )
 
     await userEvent.click(screen.getByRole('button', { name: 'Upload K-1 PDFs' }))
     expect(onUpload).toHaveBeenCalledOnce()
@@ -84,6 +88,22 @@ describe('K1PartnershipIntakeRail', () => {
     renderRail()
     await userEvent.click(screen.getAllByRole('button', { name: 'Open source review' })[0])
     expect(screen.getByText('Source review destination')).toBeInTheDocument()
+  })
+
+  it('does not present an applied document as still requiring review', () => {
+    const appliedResult = {
+      ...JSON.parse(JSON.stringify(queryResult)) as typeof queryResult,
+      refetch: mocks.refetch,
+    }
+    ;(appliedResult.data.pages[0].items[0].items[0] as { status: string }).status = 'APPLIED'
+    mocks.batches.mockReturnValue(appliedResult)
+
+    renderRail()
+
+    expect(screen.getByText('Applied')).toBeInTheDocument()
+    expect(screen.queryByText('K-1 review required')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review K-1 now' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review K-1 redwood-2024.pdf' })).toBeInTheDocument()
   })
 
   it('separates required inputs from calculated warnings and gives direct field actions', () => {

@@ -55,7 +55,7 @@ export function K1BatchQueue({ entityId }: { entityId?: string }) {
 
     <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
       <label className="flex min-h-9 items-center gap-2 text-xs font-semibold text-slate-700">
-        <input type="checkbox" checked={attentionOnly} onChange={(event) => setAttentionOnly(event.target.checked)} className="h-4 w-4 accent-amber-600" />Needs attention only
+        <input type="checkbox" checked={attentionOnly} onChange={(event) => setAttentionOnly(event.target.checked)} className="h-4 w-4 accent-primary focus-visible:ring-focus" />Needs attention only
       </label>
       <label className="text-xs font-semibold text-slate-700">Status <select aria-label="Batch status" value={status} onChange={(event) => setStatus(event.target.value as K1IngestionBatchStatus | '')} className="ml-2 min-h-9 rounded border border-slate-300 bg-white px-2">
         <option value="">All statuses</option>{Object.entries(STATUS_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -83,7 +83,7 @@ export function K1BatchQueue({ entityId }: { entityId?: string }) {
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0"><div className="flex items-center gap-2"><FileCheck2 size={14} className="shrink-0 text-slate-500" /><span className="truncate text-sm font-medium text-slate-900">{item.fileName}</span></div><div className="mt-1 pl-5 text-[11px] capitalize text-slate-500">{itemLabel(item.status)} · updated {new Date(item.updatedAt).toLocaleString()}</div></div>
               <div className="flex shrink-0 flex-wrap gap-2">
-                {reviewable(item) && <button type="button" onClick={() => navigate(`/k1/${item.k1DocumentId}/review`)} className="min-h-8 rounded bg-indigo-700 px-2.5 text-xs font-semibold text-white hover:bg-indigo-800">Open review</button>}
+                {reviewable(item) && <button type="button" onClick={() => navigate(`/k1/${item.k1DocumentId}/review`)} className="min-h-8 rounded bg-primary px-2.5 text-xs font-semibold text-white hover:bg-primary-hover">Open review</button>}
                 {item.canRetry && <button type="button" onClick={() => void retryItem(item)} disabled={retry.isPending} className="inline-flex min-h-8 items-center gap-1 rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"><RotateCcw size={12} />{item.status === 'FAILED' ? 'Retry' : 'Re-run extraction'}</button>}
                 {item.canCancel && <button type="button" onClick={() => void cancelItem(item)} disabled={cancel.isPending} className="inline-flex min-h-8 items-center gap-1 rounded border border-red-200 bg-white px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"><Ban size={12} />Cancel</button>}
                 {item.canDelete && <button type="button" onClick={() => void deleteItem(item)} disabled={remove.isPending} className="inline-flex min-h-8 items-center gap-1 rounded border border-red-300 bg-red-50 px-2.5 text-xs font-semibold text-red-800 hover:bg-red-100 disabled:opacity-50"><Trash2 size={12} />Delete</button>}

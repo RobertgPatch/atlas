@@ -42,7 +42,8 @@ export const usePartnershipTrackerYear = (id?: string, year?: number) => useQuer
 
 export function usePartnershipTrackerActions() {
   const queryClient = useQueryClient()
-  const refreshPartnership = async (id: string, year?: number) => {
+  const refreshPartnership = async (id: string, year?: number | number[]) => {
+    const years = year == null ? [] : Array.isArray(year) ? year : [year]
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.lists() }),
       queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.aggregations() }),
@@ -57,7 +58,7 @@ export function usePartnershipTrackerActions() {
       queryClient.invalidateQueries({ queryKey: ['partnership'] }),
       queryClient.invalidateQueries({ queryKey: ['dashboard'] }),
       queryClient.invalidateQueries({ queryKey: ['reports'] }),
-      ...(year == null ? [] : [queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.year(id, year) })]),
+      ...years.map((taxYear) => queryClient.invalidateQueries({ queryKey: partnershipTrackerKeys.year(id, taxYear) })),
     ])
   }
   const refreshCapital = async (id: string) => Promise.all([
@@ -103,6 +104,13 @@ export function usePartnershipTrackerActions() {
     createYear: useMutation({ mutationFn: ({ id, year }: { id: string; year: number }) => partnershipTrackerClient.createYear(id, year), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     updateYear: useMutation({ mutationFn: ({ id, year, expectedRevision, changes, officialFormData }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[]; officialFormData?: K1TrackerOfficialFormData }) => partnershipTrackerClient.updateYear(id, year, { expectedRevision, changes, officialFormData }), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
     deleteYear: useMutation({ mutationFn: ({ id, year, expectedRevision }: { id: string; year: number; expectedRevision: number }) => partnershipTrackerClient.deleteYear(id, year, expectedRevision), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year), onError: (_, variables) => refreshPartnership(variables.id, variables.year) }),
+    deleteYears: useMutation({
+      mutationFn: async ({ id, years }: { id: string; years: Array<{ year: number; expectedRevision: number }> }) => {
+        const orderedYears = [...years].sort((a, b) => b.year - a.year)
+        for (const item of orderedYears) await partnershipTrackerClient.deleteYear(id, item.year, item.expectedRevision)
+      },
+      onSettled: (_, __, variables) => refreshPartnership(variables.id, variables.years.map((item) => item.year)),
+    }),
     calculate: useMutation({ mutationFn: ({ id, year, expectedRevision, changes }: { id: string; year: number; expectedRevision: number; changes: K1TrackerFieldChange[] }) => partnershipTrackerClient.calculate(id, year, expectedRevision, { changes }) }),
     createCashFlow: useMutation({ mutationFn: ({ id, body }: { id: string; year?: number; body: CreatePartnershipCashFlowRequest }) => partnershipTrackerClient.createCashFlow(id, body), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year ?? Number(variables.body.activityDate.slice(0, 4))) }),
     createCashFlows: useMutation({ mutationFn: ({ id, body }: { id: string; year?: number; body: CreatePartnershipCashFlowsRequest }) => partnershipTrackerClient.createCashFlows(id, body), onSuccess: (_, variables) => refreshPartnership(variables.id, variables.year) }),

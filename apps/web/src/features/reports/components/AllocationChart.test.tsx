@@ -177,7 +177,10 @@ describe('AllocationChart', () => {
 
     const sectorCheckboxes = screen.getAllByRole('checkbox')
     expect(sectorCheckboxes).toHaveLength(EQUITY_SECTORS.length)
-    sectorCheckboxes.forEach((checkbox) => expect(checkbox).toBeChecked())
+    sectorCheckboxes.forEach((checkbox) => {
+      expect(checkbox).toBeChecked()
+      expect(checkbox).toHaveClass('accent-primary', 'focus:ring-focus')
+    })
 
     await user.click(screen.getByRole('button', { name: 'Uncheck all' }))
     expect(screen.getByText('Selected total: $0 · 0.0%')).toBeInTheDocument()

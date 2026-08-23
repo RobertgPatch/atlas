@@ -25,6 +25,15 @@ const field = (key: string, value: unknown): DurableK1FieldValueRecord => ({
   createdAt: new Date(), updatedAt: new Date(),
 })
 
+const officialField = (key: string, value: unknown): DurableK1FieldValueRecord => ({
+  ...field(key, value),
+  canonicalPath: `official.${key}`,
+  fieldName: `official.${key}`,
+  destinationKind: 'OFFICIAL',
+  destinationKey: key,
+  section: 'core',
+})
+
 durable('K-1 identifier-first matching', () => {
   const entityIds: string[] = []
   const partnershipIds: string[] = []
@@ -107,6 +116,32 @@ durable('K-1 identifier-first matching', () => {
       expect.objectContaining({ type: 'ENTITY', recordId: entityId, score: 1 }),
       expect.objectContaining({ type: 'PARTNERSHIP', recordId: partnershipId, score: 1 }),
     ]))
+  })
+
+  it('uses the Item H2 disregarded entity name and narrows duplicate partnerships by owner', async () => {
+    const gardnerTrust = await insertEntity('Gardner Family Trust', '111-22-0233')
+    const descendantTrust = await insertEntity('Gardner Family 2016 Descendants Trust', '222-33-4444')
+    const expectedPartnership = await insertPartnership(gardnerTrust, 'AC Bell Investors, LLC', '87-2893106')
+    await insertPartnership(descendantTrust, 'AC Bell Investors, LLC', '87-2893106')
+
+    const proposal = await propose([
+      field('partner_name', 'Curtis S Gardner'),
+      field('partnership_ein', '87-2893106'),
+      field('partnership_name', 'AC Bell Investors, LLC'),
+      field('tax_year', 2021),
+      officialField('part_ii_h2_disregarded_entity', true),
+      officialField('part_ii_h2_disregarded_entity_name', 'Gardner Family Trust'),
+    ], [gardnerTrust, descendantTrust])
+
+    expect(proposal).toMatchObject({
+      safeToMatch: true,
+      entityId: gardnerTrust,
+      partnershipId: expectedPartnership,
+      taxYear: 2021,
+      issueCodes: [],
+    })
+    expect(proposal.candidates.filter((candidate) => candidate.type === 'ENTITY')).toHaveLength(1)
+    expect(proposal.candidates.filter((candidate) => candidate.type === 'PARTNERSHIP')).toHaveLength(1)
   })
 
   it('requires review for duplicate identifiers and never creates background records', async () => {

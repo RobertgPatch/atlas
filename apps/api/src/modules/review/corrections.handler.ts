@@ -44,6 +44,21 @@ const validateTypedValue = (kind: string | null, value: unknown): string | null 
   return typeof value === 'string' && value.length <= 1000 ? null : 'INVALID_STRING_VALUE'
 }
 
+const normalizeCorrectionForField = (
+  field: { canonicalPath: string | null; valueKind: string | null },
+  value: unknown,
+): unknown => {
+  if (field.canonicalPath !== 'calculation.section_l_withdrawals_distributions'
+    || field.valueKind !== 'MONEY'
+    || value === null
+    || value === undefined) return value
+  if (typeof value === 'number') return Number.isFinite(value) && value > 0 ? -value : value
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  const parsed = trimmed ? Number(trimmed) : Number.NaN
+  return Number.isFinite(parsed) && parsed > 0 ? `-${trimmed}` : value
+}
+
 export const correctionsHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -67,9 +82,14 @@ export const correctionsHandler = async (
       }
       const activeFields = await durableReviewRepository.listForActiveAttempt(durable.id)
       const byId = new Map(activeFields.map((field) => [field.id, field]))
-      const corrections = body.data.corrections.map((correction) => ({
-        fieldId: correction.fieldId ?? correction.fieldValueId!, correctedValue: correction.value,
-      }))
+      const corrections = body.data.corrections.map((correction) => {
+        const fieldId = correction.fieldId ?? correction.fieldValueId!
+        const field = byId.get(fieldId)
+        return {
+          fieldId,
+          correctedValue: field ? normalizeCorrectionForField(field, correction.value) : correction.value,
+        }
+      })
       const validationErrors = corrections.flatMap((correction) => {
         const field = byId.get(correction.fieldId)
         if (!field) return [{ fieldId: correction.fieldId, error: 'INACTIVE_OR_UNKNOWN_FIELD' }]

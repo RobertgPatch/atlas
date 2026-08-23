@@ -197,8 +197,13 @@ const insertDraft = async (
     await client.query(
       `insert into k1_issues
          (id, k1_document_id, issue_type, severity, status, message,
-          extraction_attempt_id, occurrence_id, issue_code, details_json)
-       values ($1, $2, $3, $4, 'OPEN', $5, $6, $7, $8, $9::jsonb)`,
+          k1_field_value_id, extraction_attempt_id, occurrence_id, issue_code, details_json)
+       values ($1, $2, $3, $4, 'OPEN', $5,
+          (select id
+             from k1_field_values
+            where extraction_attempt_id = $6
+              and occurrence_id = $7),
+          $6, $7, $8, $9::jsonb)`,
       [
         randomUUID(), k1DocumentId, draftIssue.code, draftIssue.severity,
         draftIssue.message, attemptId, draftIssue.occurrenceId ?? null,

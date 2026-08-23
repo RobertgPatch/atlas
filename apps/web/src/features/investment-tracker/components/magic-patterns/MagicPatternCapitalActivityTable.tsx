@@ -407,7 +407,7 @@ export function MagicPatternCapitalActivityTable({
             <button
               type="button"
               onClick={() => setExpandedGroupIds(allExpanded ? [] : groupIds)}
-              className="rounded px-2 py-1 text-xs font-semibold text-[#3e5169] hover:bg-[#e8eef5] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+              className="rounded px-2 py-1 text-xs font-semibold text-[#3e5169] hover:bg-[#e8eef5] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             >
               {allExpanded ? 'Collapse all' : 'Expand all'}
             </button>
@@ -416,7 +416,7 @@ export function MagicPatternCapitalActivityTable({
             type="button"
             disabled={isDefault}
             onClick={resetWidths}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-[#3e5169] hover:bg-[#e8eef5] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-[#3e5169] hover:bg-[#e8eef5] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-not-allowed disabled:opacity-40"
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             Reset column widths
@@ -448,7 +448,7 @@ export function MagicPatternCapitalActivityTable({
                       <button
                         type="button"
                         onClick={() => toggleSort(column.key)}
-                        className={`inline-flex min-w-0 items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] ${column.align === 'right' ? 'ml-auto' : ''} ${isSorted ? 'text-[#17263a]' : 'hover:text-[#17263a]'}`}
+                        className={`inline-flex min-w-0 items-center gap-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${column.align === 'right' ? 'ml-auto' : ''} ${isSorted ? 'text-[#17263a]' : 'hover:text-[#17263a]'}`}
                       >
                         <span className="truncate">{label}</span>
                         {isSorted ? (
@@ -514,7 +514,7 @@ export function MagicPatternCapitalActivityTable({
                             aria-expanded={expanded}
                             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${entry.label}`}
                             onClick={() => setExpandedGroupIds((current) => current.includes(entry.id) ? current.filter((id) => id !== entry.id) : [...current, entry.id])}
-                            className="mt-0.5 shrink-0 rounded p-0.5 text-[#5f7185] hover:bg-[#dce4ee] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                            className="mt-0.5 shrink-0 rounded p-0.5 text-[#5f7185] hover:bg-[#dce4ee] hover:text-[#17263a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                           >
                             {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </button>

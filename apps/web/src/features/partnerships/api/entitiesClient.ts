@@ -1,4 +1,5 @@
 import type { EntityDetail } from '../../../../../../packages/types/src/partnership-management'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -46,7 +47,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const res = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers, ...init })
+  const res = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', headers, ...init })
   if (!res.ok) {
     let payload: unknown
     try { payload = await res.json() } catch { /* ignore */ }

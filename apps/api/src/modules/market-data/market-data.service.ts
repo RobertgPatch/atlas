@@ -4,6 +4,11 @@ import {
   type SourceHoldingRecord,
 } from '../plaid/plaid.repository.js'
 import { marketPriceRepository } from './market-data.repository.js'
+import {
+  liquidityValuationRepository,
+  type LiquidityValuationPositionInput,
+  type LiquidityValuationStore,
+} from './liquidity-valuation.repository.js'
 import { resolveMarketDataProvider } from './market-data.provider.js'
 import type {
   HoldingsPricingMetadata,
@@ -19,6 +24,8 @@ interface MarketDataServiceOptions {
   refreshOnRead: boolean
   maxAgeSeconds: number
   now?: () => Date
+  valuationStore?: LiquidityValuationStore
+  getSelectedHoldings?: () => SourceHoldingRecord[]
 }
 
 export interface PricedHoldingsResult {
@@ -32,6 +39,9 @@ export interface ClosingPriceRefreshResult {
   tradingDate: string
   requestedSymbolCount: number
   refreshedSymbolCount: number
+  valuationSnapshotId: string | null
+  valuedHoldingCount: number
+  fallbackHoldingCount: number
   warnings: string[]
 }
 
@@ -250,14 +260,19 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
         tradingDate,
         requestedSymbolCount: 0,
         refreshedSymbolCount: 0,
+        valuationSnapshotId: null,
+        valuedHoldingCount: 0,
+        fallbackHoldingCount: 0,
         warnings: options.providerWarning ? [options.providerWarning] : [],
       }
     }
 
+    const holdings =
+      options.getSelectedHoldings?.() ??
+      plaidRepository.listSourceHoldingsForSelectedAccounts()
     const symbols = [
       ...new Set(
-        plaidRepository
-          .listSourceHoldingsForSelectedAccounts()
+        holdings
           .map(normalizedSymbolFor)
           .filter((symbol): symbol is string => Boolean(symbol)),
       ),
@@ -269,22 +284,113 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
         tradingDate,
         requestedSymbolCount: 0,
         refreshedSymbolCount: 0,
+        valuationSnapshotId: null,
+        valuedHoldingCount: 0,
+        fallbackHoldingCount: 0,
         warnings: ['No selected public-market holdings were available to price.'],
       }
     }
 
     const prices = await options.provider.getClosingPrices(symbols, tradingDate)
     await options.store.savePrices(prices)
+    const closingPrices = latestPricesBySymbol(
+      prices.filter(
+        (price) =>
+          price.priceType === 'official_close' && price.tradingDate === tradingDate,
+      ),
+    )
+    if (closingPrices.size === 0) {
+      return {
+        status: 'skipped',
+        provider: options.provider.id,
+        tradingDate,
+        requestedSymbolCount: symbols.length,
+        refreshedSymbolCount: 0,
+        valuationSnapshotId: null,
+        valuedHoldingCount: 0,
+        fallbackHoldingCount: 0,
+        warnings: ['No official closing prices were returned for this trading date.'],
+      }
+    }
+
+    const positions: LiquidityValuationPositionInput[] = holdings.map((holding) => {
+      const symbol = normalizedSymbolFor(holding)
+      const price = symbol ? closingPrices.get(symbol) : undefined
+      const marketValue =
+        price && holding.quantity != null
+          ? roundCurrency(holding.quantity * price.price)
+          : holding.marketValue
+      return {
+        sourceHoldingId: holding.id,
+        accountId: holding.accountId,
+        symbol: holding.symbol,
+        description: holding.description,
+        securityType: holding.type,
+        currencyCode: holding.currencyCode,
+        quantity: holding.quantity,
+        costBasis: holding.costBasis,
+        closingPrice: price?.price ?? holding.institutionPrice,
+        marketValue,
+        unrealizedGainLoss:
+          holding.costBasis != null && marketValue != null
+            ? roundCurrency(marketValue - holding.costBasis)
+            : holding.unrealizedGainLoss,
+        valuationSource: price ? 'official_close' : 'custodian_fallback',
+        provider: price?.provider ?? null,
+        feed: price?.feed ?? null,
+        priceAsOf: price?.providerTimestamp ?? holding.asOfDate,
+      }
+    })
+    const fallbackHoldingCount = positions.filter(
+      (position) => position.valuationSource === 'custodian_fallback',
+    ).length
+    const missingSymbolCount = symbols.length - closingPrices.size
+    const warnings = options.providerWarning ? [options.providerWarning] : []
+    if (missingSymbolCount > 0) {
+      warnings.push(
+        `${missingSymbolCount} symbol${missingSymbolCount === 1 ? '' : 's'} did not return a closing price.`,
+      )
+    }
+    if (fallbackHoldingCount > 0) {
+      warnings.push(
+        `${fallbackHoldingCount} holding${fallbackHoldingCount === 1 ? '' : 's'} retained its custodian value in the market-close snapshot.`,
+      )
+    }
+
+    const usedPrices = [...closingPrices.values()]
+    const usedFeeds = [
+      ...new Set(
+        usedPrices
+          .map((price) => price.feed)
+          .filter((feed): feed is string => Boolean(feed)),
+      ),
+    ]
+    const savedSnapshot = options.valuationStore
+      ? await options.valuationStore.saveSnapshot({
+          tradingDate,
+          selectedAccountIds: [
+            ...new Set(holdings.map((holding) => holding.accountId)),
+          ],
+          provider: options.provider.id,
+          feed: usedFeeds.length === 1 ? usedFeeds[0]! : options.provider.feed,
+          priceAsOf: latestIso(
+            usedPrices.map((price) => price.providerTimestamp),
+          ),
+          capturedAt: now().toISOString(),
+          positions,
+          warnings,
+        })
+      : null
     return {
-      status: prices.length > 0 ? 'success' : 'skipped',
+      status: 'success',
       provider: options.provider.id,
       tradingDate,
       requestedSymbolCount: symbols.length,
-      refreshedSymbolCount: prices.length,
-      warnings:
-        prices.length === symbols.length
-          ? []
-          : [`${symbols.length - prices.length} symbol${symbols.length - prices.length === 1 ? '' : 's'} did not return a closing price.`],
+      refreshedSymbolCount: closingPrices.size,
+      valuationSnapshotId: savedSnapshot?.id ?? null,
+      valuedHoldingCount: positions.length,
+      fallbackHoldingCount,
+      warnings,
     }
   }
 
@@ -299,4 +405,5 @@ export const marketDataService = createMarketDataService({
   store: marketPriceRepository,
   refreshOnRead: config.marketData.refreshOnRead,
   maxAgeSeconds: config.marketData.maxAgeSeconds,
+  valuationStore: liquidityValuationRepository,
 })

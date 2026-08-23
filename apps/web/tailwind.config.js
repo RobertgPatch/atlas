@@ -1,3 +1,7 @@
+import { colorTokens } from './design-tokens.js'
+
+const { interaction, neutral, semantic, visualization, decorative } = colorTokens
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -12,22 +16,50 @@ export default {
         mono: ['"IBM Plex Mono"', 'monospace'],
       },
       colors: {
-        jackson: {
-          gold: '#C9A96E',
-          hover: '#B39359',
-          light: '#FDFBF7',
+        primary: {
+          DEFAULT: interaction.primary,
+          hover: interaction.primaryHover,
+          active: interaction.primaryActive,
+          foreground: interaction.primaryForeground,
+          subtle: interaction.subtle,
+          'subtle-hover': interaction.subtleHover,
+        },
+        focus: interaction.focus,
+        inverse: {
+          background: interaction.inverseBackground,
+          foreground: interaction.inverseForeground,
+        },
+        disabled: {
+          background: interaction.disabledBackground,
+          foreground: interaction.disabledForeground,
+        },
+        canvas: neutral.canvas,
+        surface: {
+          DEFAULT: neutral.surface,
+          subtle: neutral.surfaceSubtle,
+        },
+        content: {
+          primary: neutral.textPrimary,
+          secondary: neutral.textSecondary,
+          muted: neutral.textMuted,
         },
         success: {
-          DEFAULT: '#059669',
-          light: '#D1FAE5',
+          DEFAULT: semantic.success.foreground,
+          light: semantic.success.background,
         },
         warning: {
-          DEFAULT: '#D97706',
-          light: '#FEF3C7',
+          DEFAULT: semantic.warning.foreground,
+          light: semantic.warning.background,
         },
         error: {
-          DEFAULT: '#DC2626',
-          light: '#FEE2E2',
+          DEFAULT: semantic.danger.foreground,
+          light: semantic.danger.background,
+          hover: semantic.danger.hover,
+          active: semantic.danger.active,
+        },
+        info: {
+          DEFAULT: semantic.info.foreground,
+          light: semantic.info.background,
         },
         gray: {
           50: '#F9FAFB',
@@ -42,22 +74,16 @@ export default {
           900: '#111827',
           950: '#0a0a0a',
         },
-        // Keep old tokens so K1Dashboard still compiles
-        accent: {
-          DEFAULT: '#1E3A5F',
-          light: '#E8EDF3',
-          hover: '#162D4A',
-        },
-        surface: '#FFFFFF',
-        background: '#F8F9FA',
+        background: neutral.canvas,
         border: {
-          DEFAULT: '#E5E7EB',
-          subtle: '#F0F1F3',
+          DEFAULT: neutral.border,
+          subtle: neutral.surfaceSubtle,
+          control: neutral.controlBorder,
         },
         text: {
-          primary: '#1A1D21',
-          secondary: '#5F6368',
-          tertiary: '#8C9196',
+          primary: neutral.textPrimary,
+          secondary: neutral.textSecondary,
+          tertiary: neutral.textMuted,
         },
         status: {
           uploaded: { bg: '#EEF0F4', text: '#4A5568' },
@@ -66,6 +92,11 @@ export default {
           approval: { bg: '#E8F4F0', text: '#1B6B4D' },
           finalized: { bg: '#E6F0E8', text: '#2D6A3F' },
           error: { bg: '#FEE9E7', text: '#9B2C2C' },
+        },
+        visualization,
+        decorative: {
+          'brand-accent': decorative.brandAccent,
+          'brand-accent-soft': decorative.brandAccentSoft,
         },
       },
       fontSize: {

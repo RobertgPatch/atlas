@@ -66,7 +66,7 @@ export function K1ApplyPanel({
             Applied {new Date(applied.at).toLocaleString()}{applied.byEmail ? ` by ${applied.byEmail}` : ''}. The source document and reviewed evidence remain attached to every imported value.
           </p>
         </div>
-        <button type="button" onClick={onOpenTracker} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-emerald-800 px-3 text-sm font-semibold text-white hover:bg-emerald-900">
+        <button type="button" onClick={onOpenTracker} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary-hover">
           Open tracker <ArrowRight size={15} />
         </button>
       </div>
@@ -81,7 +81,7 @@ export function K1ApplyPanel({
           <p className="mt-1 max-w-2xl text-xs leading-relaxed text-indigo-800">Build a revision-bound preview before anything enters the tracker. Existing values are preserved until you explicitly resolve each conflict.</p>
         </div>
         <button type="button" onClick={onPreview} disabled={!canApply || previewPending}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-indigo-700 px-3 text-sm font-semibold text-white hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-600" data-testid="build-apply-preview">
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:bg-disabled-background disabled:text-disabled-foreground" data-testid="build-apply-preview">
           {previewPending && <Loader2 size={15} className="animate-spin" />}{previewPending ? 'Building…' : 'Build apply preview'}
         </button>
       </div>
@@ -136,7 +136,7 @@ export function K1ApplyPanel({
               <label className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Decision
                 <select aria-label={`${destinationLabel(decision)} decision`} value={choices[decision.id] ?? ''} disabled={authoritative}
                   onChange={(event) => onChoice(decision.id, event.target.value as K1ApplicationDecision)}
-                  className="mt-1 min-h-9 w-full rounded border border-slate-400 bg-white px-2 text-xs font-semibold text-slate-900 focus:border-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                  className="mt-1 min-h-9 w-full rounded border border-slate-400 bg-white px-2 text-xs font-semibold text-slate-900 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus">
                   {decision.conflict && <option value="">Choose…</option>}
                   {!authoritative && <option value="USE_EXTRACTED">Use extracted</option>}
                   <option value="KEEP_EXISTING">Keep existing</option>
@@ -155,7 +155,7 @@ export function K1ApplyPanel({
           : 'All decisions are ready. Apply writes values, provenance, recalculation, and signoff invalidation in one transaction.'}
       </div>
       <button type="button" onClick={onApply} disabled={unresolvedConflicts.length > 0 || applyPending || previewPending}
-        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-sm font-semibold text-white hover:bg-indigo-800 disabled:bg-slate-300 disabled:text-slate-600" data-testid="apply-k1-button">
+        className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:bg-disabled-background disabled:text-disabled-foreground" data-testid="apply-k1-button">
         {applyPending && <Loader2 size={15} className="animate-spin" />}{applyPending ? 'Applying…' : 'Apply to tracker'}
       </button>
     </div>

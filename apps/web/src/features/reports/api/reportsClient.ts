@@ -4,6 +4,8 @@ import type {
   AssetClassSummaryResponse,
   ConsolidatedHoldingsQuery,
   ConsolidatedHoldingsResponse,
+  LiquidityPerformanceQuery,
+  LiquidityPerformanceResponse,
   PortfolioSummaryResponse,
   ReportExportRequest,
   ReportsQueryBase,
@@ -23,6 +25,7 @@ import type {
   UpdatePlaidInvestmentAccountsRequest,
 } from '../../../../../../packages/types/src/plaid'
 import type { PartnershipCommitment } from '../../../../../../packages/types/src/partnership-management'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ??
@@ -44,7 +47,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
     credentials: 'include',
     headers,
     ...init,
@@ -75,7 +78,7 @@ const requestBlob = async (
   init?: RequestInit,
 ): Promise<{ blob: Blob; fileName: string | null; contentType: string | null }> => {
   const headers = new Headers(init?.headers ?? {})
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await authenticatedFetch(`${API_BASE}${path}`, {
     credentials: 'include',
     headers,
     ...init,
@@ -173,6 +176,19 @@ export const reportsClient = {
       ? `/reports/consolidated-holdings?${queryString}`
       : '/reports/consolidated-holdings'
     return request<ConsolidatedHoldingsResponse>(path)
+  },
+
+  getLiquidityPerformance(
+    query: LiquidityPerformanceQuery = {},
+  ): Promise<LiquidityPerformanceResponse> {
+    const params = new URLSearchParams()
+    if (query.from) params.set('from', query.from)
+    if (query.to) params.set('to', query.to)
+    const queryString = params.toString()
+    const path = queryString
+      ? `/reports/consolidated-holdings/performance?${queryString}`
+      : '/reports/consolidated-holdings/performance'
+    return request<LiquidityPerformanceResponse>(path)
   },
 
   refreshConsolidatedHoldings(payload: { force?: boolean } = {}) {

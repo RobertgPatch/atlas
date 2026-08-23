@@ -185,7 +185,6 @@ const PART_TWO_FIELD_ORDER: Record<string, number> = {
   part_ii_j_capital_beginning_pct: 20,
   part_ii_j_capital_ending_pct: 21,
   part_ii_j_decrease_sale: 30,
-  part_ii_j_decrease_exchange: 31,
   part_ii_h2_disregarded_entity: 0,
   part_ii_h2_disregarded_entity_tin: 1,
   part_ii_h2_disregarded_entity_name: 2,
@@ -261,8 +260,23 @@ export const groupK1ReviewFields = (fields: K1FieldValue[]): K1ReviewFormGroup[]
   // match.* values are routing evidence, not additional printed K-1 fields.
   // They remain visible in the destination-linking console and must not create
   // duplicates such as a second Part I Item A EIN row.
-  const positioned = fields
-    .filter((field) => !(field.canonicalPath || field.fieldName).startsWith('match.'))
+  const visibleFields = fields.filter((field) => field.reviewStatus !== 'REJECTED')
+  const hasCodedLine19 = visibleFields.some((field) => {
+    if ((field.canonicalPath || field.fieldName) !== 'official.box_19_entries') return false
+    const row = valueRecord(field)
+    const code = typeof row?.code === 'string' ? row.code.trim() : ''
+    const amount = typeof row?.amount === 'string' ? row.amount.trim() : ''
+    return Boolean(code || amount)
+  })
+  const positioned = visibleFields
+    .filter((field) => {
+      const sourceKey = field.canonicalPath || field.fieldName
+      if (sourceKey.startsWith('match.')) return false
+      // A coded row (for example 19A) is the printed value. The legacy
+      // calculation field is only a fallback for genuinely uncoded forms.
+      if (hasCodedLine19 && sourceKey === 'calculation.box_19_distributions') return false
+      return true
+    })
     .map((field, sourceIndex) => ({ field, sourceIndex, ...formPosition(field) }))
   return FORM_GROUPS.flatMap((group) => {
     const groupedFields = positioned

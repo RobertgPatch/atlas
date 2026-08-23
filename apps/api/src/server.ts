@@ -67,6 +67,7 @@ const start = async () => {
       if (config.requireDurablePersistence) {
         throw new Error('REQUIRE_DURABLE_PERSISTENCE=true but DATABASE_URL is not configured')
       }
+      await authRepository.bootstrapFromDatabase()
     }
 
     logStartupDiagnostics(app)

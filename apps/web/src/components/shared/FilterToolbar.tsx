@@ -1,5 +1,6 @@
 import React from 'react'
 import { Search, Filter, Download, Plus } from 'lucide-react'
+import { Button } from './Button'
 
 export interface FilterToolbarProps {
   onSearch?: (query: string) => void
@@ -22,36 +23,35 @@ export function FilterToolbar({ onSearch, actions, showExport, primaryAction }: 
           </div>
           <input
             type="text"
-            className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold sm:text-sm transition-colors"
+            className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus sm:text-sm transition-colors"
             placeholder="Search..."
             onChange={(e) => onSearch?.(e.target.value)}
           />
         </div>
 
-        <button className="inline-flex items-center px-3 py-2 border border-gray-200 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold transition-colors">
+        <Button variant="secondary" size="sm">
           <Filter className="h-4 w-4 mr-2 text-gray-400" />
           Filters
-        </button>
+        </Button>
       </div>
 
       <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
         {actions}
 
         {showExport && (
-          <button className="inline-flex items-center px-3 py-2 border border-gray-200 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold transition-colors">
+          <Button variant="secondary" size="sm">
             <Download className="h-4 w-4 mr-2 text-gray-400" />
             Export
-          </button>
+          </Button>
         )}
 
         {primaryAction && (
-          <button
+          <Button
             onClick={primaryAction.onClick}
-            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-jackson-gold hover:bg-jackson-hover focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold transition-colors"
           >
             {primaryAction.icon || <Plus className="h-4 w-4 mr-2" />}
             {primaryAction.label}
-          </button>
+          </Button>
         )}
       </div>
     </div>

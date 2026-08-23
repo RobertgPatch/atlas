@@ -1,6 +1,6 @@
 # Feature Specification: Normalize Application Color System
 
-**Feature Branch**: `023-normalize-app-colors`  
+**Feature Branch**: `codex/023-normalize-app-colors`
 **Created**: 2026-08-19  
 **Status**: Draft  
 **Input**: User description: "Normalize the coloring scheme across the entire application. I still see some gold buttons and some green buttons. Normalize the entire app."

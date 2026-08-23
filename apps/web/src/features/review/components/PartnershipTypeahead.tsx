@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Loader2 } from 'lucide-react'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 interface PartnershipOption {
   id: string
@@ -10,6 +11,7 @@ interface PartnershipOption {
 interface Props {
   entityId: string | null
   value: string | null
+  displayName?: string | null
   onChange: (partnershipId: string | null, partnershipName: string | null) => void
   placeholder?: string
   disabled?: boolean
@@ -20,6 +22,7 @@ const DEBOUNCE_MS = 300
 export const PartnershipTypeahead = ({
   entityId,
   value,
+  displayName,
   onChange,
   placeholder = 'Search partnerships…',
   disabled = false,
@@ -28,7 +31,6 @@ export const PartnershipTypeahead = ({
   const [options, setOptions] = useState<PartnershipOption[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  const [selectedName, setSelectedName] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -40,7 +42,7 @@ export const PartnershipTypeahead = ({
     try {
       const params = new URLSearchParams({ q, limit: '20' })
       if (entityId) params.set('entity_id', entityId)
-      const res = await fetch(`${apiBase}/review/partnerships?${params.toString()}`, {
+      const res = await authenticatedFetch(`${apiBase}/review/partnerships?${params.toString()}`, {
         credentials: 'include',
       })
       if (res.ok) {
@@ -75,20 +77,18 @@ export const PartnershipTypeahead = ({
   }, [])
 
   const handleSelect = (option: PartnershipOption) => {
-    setSelectedName(option.name)
     setQuery(option.name)
     onChange(option.id, option.name)
     setOpen(false)
   }
 
   const handleClear = () => {
-    setSelectedName(null)
     setQuery('')
     onChange(null, null)
     setOpen(false)
   }
 
-  const displayValue = selectedName ?? value ?? ''
+  const displayValue = value ? (displayName ?? 'Selected partnership') : ''
 
   return (
     <div ref={containerRef} className="relative" data-testid="partnership-typeahead">
@@ -104,7 +104,7 @@ export const PartnershipTypeahead = ({
             setOpen(true)
           }}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
+          className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-focus focus:ring-2 focus:ring-focus disabled:bg-gray-50 disabled:text-gray-500"
           aria-autocomplete="list"
           aria-expanded={open}
           aria-label="Partnership that issued the K-1"
@@ -136,8 +136,8 @@ export const PartnershipTypeahead = ({
               <button
                 type="button"
                 onClick={() => handleSelect(opt)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700 ${
-                  opt.id === value ? 'font-medium text-blue-700' : 'text-gray-700'
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-primary-subtle hover:text-primary ${
+                  opt.id === value ? 'bg-primary-subtle font-medium text-primary' : 'text-gray-700'
                 }`}
               >
                 {opt.name}

@@ -69,7 +69,7 @@ function FilterSelect({
           aria-label={label}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="min-h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 py-2 pl-10 pr-10 text-sm font-normal normal-case tracking-normal text-slate-700 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-600/15"
+          className="min-h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 py-2 pl-10 pr-10 text-sm font-normal normal-case tracking-normal text-slate-700 outline-none transition focus:border-focus focus:bg-white focus:ring-2 focus:ring-focus/15"
         >
           {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
@@ -245,7 +245,7 @@ export function MagicPatternCapitalActivityPortfolio({
                         if (fund.records.length === 1) onOpen(fund.records[0]!.id)
                         else toggleFund(fund.id)
                       }}
-                      className={`group cursor-pointer border-b border-slate-300 outline-none ${rowBackground} hover:bg-amber-50/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-500`}
+                      className={`group cursor-pointer border-b border-slate-300 outline-none ${rowBackground} hover:bg-amber-50/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus`}
                     >
                       <th scope="row" className={`sticky left-0 z-10 border-l-4 border-l-amber-500 px-3 py-2 text-left ${rowBackground} group-hover:bg-amber-50`}>
                         <div className="flex min-h-11 items-center gap-2">
@@ -260,7 +260,7 @@ export function MagicPatternCapitalActivityPortfolio({
                                 event.stopPropagation()
                                 toggleFund(fund.id)
                               }}
-                              className={`grid h-7 w-7 shrink-0 place-items-center rounded border-0 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${expanded ? 'bg-amber-100 text-amber-800' : 'bg-transparent text-slate-400 hover:bg-slate-100 hover:text-slate-800'}`}
+                              className={`grid h-7 w-7 shrink-0 place-items-center rounded border-0 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${expanded ? 'bg-amber-100 text-amber-800' : 'bg-transparent text-slate-400 hover:bg-slate-100 hover:text-slate-800'}`}
                             >
                               {expanded ? <Minus className="h-3.5 w-3.5" aria-hidden="true" /> : <Plus className="h-3.5 w-3.5" aria-hidden="true" />}
                             </button>
@@ -297,7 +297,7 @@ export function MagicPatternCapitalActivityPortfolio({
                           event.preventDefault()
                           onOpen(record.id)
                         }}
-                        className="cursor-pointer border-b border-slate-200 bg-slate-50/80 outline-none hover:bg-amber-50/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-500"
+                        className="cursor-pointer border-b border-slate-200 bg-slate-50/80 outline-none hover:bg-amber-50/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                       >
                         <th scope="row" className="sticky left-0 z-10 border-l-4 border-l-amber-300 bg-slate-50 px-3 py-2 text-left">
                           <div className="flex min-h-11 items-center gap-2 pl-9 text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-slate-500">

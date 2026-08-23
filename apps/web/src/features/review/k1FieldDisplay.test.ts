@@ -71,6 +71,28 @@ describe('getK1FieldDisplay', () => {
     expect(groups.flatMap((group) => group.fields).map((candidate) => candidate.id)).toEqual(['printed-ein'])
   })
 
+  it('shows coded Line 19 once and omits rejected extraction artifacts', () => {
+    const groups = groupK1ReviewFields([
+      field({
+        id: 'generic-19',
+        canonicalPath: 'calculation.box_19_distributions',
+        fieldName: 'calculation.box_19_distributions',
+        valueKind: 'MONEY',
+        normalizedValueJson: '245063.00',
+      }),
+      field({ id: 'coded-19a' }),
+      field({
+        id: 'borrowed-20',
+        canonicalPath: 'official.box_20_entries',
+        fieldName: 'official.box_20_entries',
+        normalizedValueJson: { code: 'A', description: 'Distributions', amount: '245063.00' },
+        reviewStatus: 'REJECTED',
+      }),
+    ])
+
+    expect(groups.flatMap((group) => group.fields).map((candidate) => candidate.id)).toEqual(['coded-19a'])
+  })
+
   it('sorts Item J as Profit, Loss, Capital with beginning before ending', () => {
     const itemJ = [
       'capital_ending', 'loss_beginning', 'profit_ending',

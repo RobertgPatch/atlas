@@ -18,7 +18,7 @@ export interface K1OfficialFormFieldState {
 
 export type K1OfficialFormFieldStateGetter = (fieldKey: K1OfficialFormFieldDefinition['key']) => K1OfficialFormFieldState
 
-const inputClass = (compact = false) => `${compact ? 'min-h-9 py-1.5' : 'min-h-10 py-2'} mt-1 w-full min-w-0 rounded-none border border-gray-400 bg-white px-2.5 text-xs text-gray-950 focus:border-gray-950 focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:bg-gray-100 disabled:text-gray-600`
+const inputClass = (compact = false) => `${compact ? 'min-h-9 py-1.5' : 'min-h-10 py-2'} mt-1 w-full min-w-0 rounded-none border border-gray-400 bg-white px-2.5 text-xs text-gray-950 focus:border-gray-950 focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-gray-100 disabled:text-gray-600`
 
 function CodedEntries({ field, value, onChange, canEdit, compact = false }: K1OfficialFormFieldState & { compact?: boolean }) {
   const entries = Array.isArray(value) ? value : []
@@ -63,7 +63,7 @@ function CodedEntries({ field, value, onChange, canEdit, compact = false }: K1Of
           disabled={!canEdit}
           onClick={() => onChange(entries.filter((_, entryIndex) => entryIndex !== index))}
           aria-label={`Remove ${field.label} entry ${index + 1}`}
-          className={`flex ${compact ? 'min-h-9' : 'min-h-11'} items-center justify-center border border-gray-400 text-gray-600 hover:bg-gray-950 hover:text-white focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:opacity-40`}
+          className={`flex ${compact ? 'min-h-9' : 'min-h-11'} items-center justify-center border border-gray-400 text-gray-600 hover:bg-gray-950 hover:text-white focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-40`}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -72,7 +72,7 @@ function CodedEntries({ field, value, onChange, canEdit, compact = false }: K1Of
     {canEdit && <button
       type="button"
       onClick={() => onChange([...entries, { code: '', value: '' }])}
-      className={`group mt-1.5 inline-flex ${compact ? 'min-h-9' : 'min-h-11'} items-center gap-2 rounded-none px-2 py-1.5 text-xs font-semibold text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-1`}
+      className={`group mt-1.5 inline-flex ${compact ? 'min-h-9' : 'min-h-11'} items-center gap-2 rounded-none px-2 py-1.5 text-xs font-semibold text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1`}
     >
       <span
         aria-hidden="true"
@@ -108,7 +108,7 @@ export function K1OfficialFormField({ field, value, onChange, canEdit, source, c
         disabled={!canEdit}
         checked={value === true}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-jackson-gold focus:outline-none focus:ring-2 focus:ring-jackson-gold focus:ring-offset-1 disabled:opacity-60"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-primary focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-1 disabled:opacity-60"
       />
       <span>{field.label}</span>
     </label><SourceEvidence source={source} /></div>

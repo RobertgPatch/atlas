@@ -1,9 +1,12 @@
 import type { ReactNode } from 'react'
 import type {
+  K1TrackerOfficialFormData,
   K1TrackerOfficialFormFieldKey,
   K1TrackerWritableFieldKey,
 } from '../../../../../../packages/types/src/k1-tracker'
 import {
+  isOfficialPartThreePlacementVisible,
+  isTrackedPartThreePlacementVisible,
   officialPlacementsForRegion,
   placementsForRegion,
   type K1FormOfficialPlacement,
@@ -52,18 +55,23 @@ type PartThreeEntry =
   | { kind: 'tracked'; order: number; placement: K1FormPlacement }
   | { kind: 'official'; order: number; placement: K1FormOfficialPlacement }
 
-const partThreeEntries = (): PartThreeEntry[] => [
+const partThreeEntries = (officialFormData: K1TrackerOfficialFormData): PartThreeEntry[] => [
   ...placementsForRegion('part-iii-left').map((placement) => ({ kind: 'tracked' as const, order: placement.order, placement })),
   ...officialPlacementsForRegion('part-iii-left').map((placement) => ({ kind: 'official' as const, order: placement.order, placement })),
   ...placementsForRegion('part-iii-right').map((placement) => ({ kind: 'tracked' as const, order: placement.order, placement })),
   ...officialPlacementsForRegion('part-iii-right').map((placement) => ({ kind: 'official' as const, order: placement.order, placement })),
-].sort((left, right) => left.order - right.order)
+]
+  .filter((entry) => entry.kind === 'tracked'
+    ? isTrackedPartThreePlacementVisible(entry.placement, officialFormData)
+    : isOfficialPartThreePlacementVisible(entry.placement, officialFormData))
+  .sort((left, right) => left.order - right.order)
 
 const visibleLineLabel = (label: string): string => label.replace(/^Line\s+[^-]+\s+-\s+/, '')
 
-export function K1MagicPatternFormBody({ fieldStateFor, officialFieldStateFor, endingOutsideBasis }: {
+export function K1MagicPatternFormBody({ fieldStateFor, officialFieldStateFor, officialFormData, endingOutsideBasis }: {
   fieldStateFor: K1FormFieldStateGetter
   officialFieldStateFor: K1OfficialFormFieldStateGetter
+  officialFormData: K1TrackerOfficialFormData
   endingOutsideBasis: string | null
 }) {
   const officialField = (key: K1TrackerOfficialFormFieldKey, label?: string) => {
@@ -120,9 +128,8 @@ export function K1MagicPatternFormBody({ fieldStateFor, officialFieldStateFor, e
         <div className="min-w-0 border-r border-gray-400 p-1.5">{officialField(row.beginning, `${row.label} beginning`)}</div>
         <div className="min-w-0 p-1.5">{officialField(row.ending, `${row.label} ending`)}</div>
       </div>)}
-      <div className="grid gap-2 px-3 py-2 sm:grid-cols-2">
-        {officialField('part_ii_j_decrease_sale', 'Decrease due to sale')}
-        {officialField('part_ii_j_decrease_exchange', 'Decrease due to exchange')}
+      <div className="px-3 py-2">
+        {officialField('part_ii_j_decrease_sale', 'Decrease due to sale or exchange of partnership interest')}
       </div>
     </section>
 
@@ -147,7 +154,7 @@ export function K1MagicPatternFormBody({ fieldStateFor, officialFieldStateFor, e
     <div className="grid min-w-0 grid-cols-1 lg:grid-cols-2">
       <section aria-labelledby="k1-part-iii-heading" className="min-w-0 border-b border-gray-950 lg:border-b-0 lg:border-r">
         <PartHeading badge="Part III" title="Partner's share of current year income and deductions" id="k1-part-iii-heading" />
-        {partThreeEntries().map((entry) => {
+        {partThreeEntries(officialFormData).map((entry) => {
           if (entry.kind === 'official') {
             return <OfficialRow key={entry.placement.fieldKey} item={entry.placement.itemOrLine}>
               {officialField(entry.placement.fieldKey, entry.placement.label)}
@@ -157,7 +164,7 @@ export function K1MagicPatternFormBody({ fieldStateFor, officialFieldStateFor, e
           const label = entry.placement.sublabel ?? visibleLineLabel(state.field.label)
           return <div key={entry.placement.fieldKey} className="grid min-w-0 grid-cols-[2.75rem_minmax(0,1fr)] border-b border-gray-400">
             <span className="flex items-start justify-center border-r border-gray-400 bg-white px-1 py-2 font-mono text-[10px] font-bold text-gray-800">{entry.placement.itemOrLine}</span>
-            <div className="min-w-0 p-2.5"><K1FormFieldCell {...state} visibleLabel={entry.placement.code ? `${entry.placement.code} - ${label}` : label} compact /></div>
+            <div className="min-w-0 p-2.5"><K1FormFieldCell {...state} officialFieldKey={entry.placement.officialFieldKey} visibleLabel={entry.placement.code ? `${entry.placement.code} - ${label}` : label} compact /></div>
           </div>
         })}
       </section>

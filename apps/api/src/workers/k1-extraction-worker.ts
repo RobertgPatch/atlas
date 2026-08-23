@@ -16,8 +16,9 @@ import type {
 import { getK1WorkQueue } from '../modules/k1/queue/index.js'
 import type { K1ObjectStore } from '../modules/k1/storage/K1ObjectStore.js'
 import { getK1ObjectStore } from '../modules/k1/storage/index.js'
-import { createK1StartWorkHandler } from '../modules/k1/worker/k1StartWork.handler.js'
 import { createK1CompletionHandler } from '../modules/k1/worker/k1Completion.handler.js'
+import { K1ExtractionReconciler } from '../modules/k1/worker/k1ExtractionReconciler.js'
+import { createK1StartWorkHandler } from '../modules/k1/worker/k1StartWork.handler.js'
 
 const log = pino({
   name: 'k1-extraction-worker',
@@ -38,6 +39,8 @@ export interface K1WorkerDependencies {
     received: K1ReceivedMessage<K1CompletionMessage>,
     signal: AbortSignal,
   ) => Promise<void>
+  reconcile?: () => Promise<{ checked: number; completionsQueued: number; failed: number }>
+  reconciliationIntervalMs?: number
 }
 
 export const processK1ReceivedMessages = async <T extends K1StartWorkMessage | K1CompletionMessage>(
@@ -77,6 +80,13 @@ export const runK1ExtractionWorker = async (
     concurrency,
   }, 'K-1 extraction worker started')
 
+  const reconciliationIntervalMs = Math.max(
+    1_000,
+    dependencies.reconciliationIntervalMs
+      ?? config.k1Ingestion.reconciliationIntervalSeconds * 1_000,
+  )
+  let nextReconciliationAt = 0
+
   while (!signal.aborted) {
     const [starts, completions] = await Promise.all([
       dependencies.queue.receiveStart({
@@ -92,6 +102,21 @@ export const runK1ExtractionWorker = async (
       processK1ReceivedMessages(starts, dependencies.handleStart, dependencies.queue, signal),
       processK1ReceivedMessages(completions, dependencies.handleCompletion, dependencies.queue, signal),
     ])
+    if (dependencies.reconcile && Date.now() >= nextReconciliationAt) {
+      nextReconciliationAt = Date.now() + reconciliationIntervalMs
+      try {
+        const result = await dependencies.reconcile()
+        if (result.checked > 0 || result.completionsQueued > 0 || result.failed > 0) {
+          log.info(result, 'K-1 extraction reconciliation completed')
+        }
+      } catch (error) {
+        if (!signal.aborted) {
+          log.error({
+            errorCode: (error as { code?: string }).code ?? 'K1_RECONCILIATION_FAILED',
+          }, 'K-1 extraction reconciliation failed')
+        }
+      }
+    }
     if (dependencies.queue.kind === 'local' && starts.length === 0 && completions.length === 0) {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, 500)
@@ -119,6 +144,9 @@ const main = async (): Promise<void> => {
   if (!isAsyncK1Extractor(extractor)) {
     throw Object.assign(new Error('K1_ASYNC_EXTRACTOR_REQUIRED'), { code: 'K1_ASYNC_EXTRACTOR_REQUIRED' })
   }
+  const localReconciler = queue.kind === 'local' && extractor.backend === 'aws_bda'
+    ? new K1ExtractionReconciler({ extractor, queue })
+    : null
   await runK1ExtractionWorker({
     queue,
     objectStore,
@@ -128,6 +156,7 @@ const main = async (): Promise<void> => {
       queue,
     }),
     handleCompletion: createK1CompletionHandler({ objectStore }),
+    reconcile: localReconciler ? () => localReconciler.runOnce() : undefined,
   }, abortController.signal)
 }
 

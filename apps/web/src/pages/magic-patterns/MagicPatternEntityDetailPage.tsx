@@ -17,11 +17,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { authClient } from '../../auth/authClient'
 import { sessionStore, useSession } from '../../auth/sessionStore'
 import { AppShell } from '../../components/shared/AppShell'
+import { Button } from '../../components/shared/Button'
 import {
   useDeleteEntity,
   useEntityDetail,
@@ -31,14 +32,6 @@ import { entityTypeLabel } from '../../features/partnerships/entityTypeLabels'
 import { errorMessage } from '../entitiesPageUtils'
 
 type DetailTab = 'overview' | 'owners' | 'partnerships' | 'investments'
-type ButtonVariant = 'primary' | 'secondary' | 'danger'
-
-const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'bg-[#1B4332] text-white shadow-sm hover:bg-[#143426] active:bg-[#0F2A1E]',
-  secondary:
-    'border border-[#CBD5CE] bg-white text-[#1B4332] hover:bg-[#F2F6F3] active:bg-[#E6EDE8]',
-  danger: 'bg-[#9B1C1C] text-white shadow-sm hover:bg-[#821717] active:bg-[#6B1212]',
-}
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', {
@@ -58,21 +51,7 @@ const normalizeStatus = (value: string) => {
   return 'draft' as const
 }
 
-function DesignButton({
-  variant = 'primary',
-  className = '',
-  children,
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return (
-    <button
-      {...props}
-      className={`inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 ${buttonVariants[variant]} ${className}`}
-    >
-      {children}
-    </button>
-  )
-}
+const DesignButton = Button
 
 function StatusChip({ status, compact = false }: { status: string; compact?: boolean }) {
   const normalized = normalizeStatus(status)
@@ -157,7 +136,7 @@ function FinancialMetric({
             role="note"
             aria-label={`${label} calculation: ${explanation}`}
             title={explanation}
-            className="rounded text-[#5F7185] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+            className="rounded text-[#5F7185] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
             <Info className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
@@ -452,9 +431,9 @@ export function MagicPatternEntityDetailPage() {
                   role="tab"
                   aria-selected={selected}
                   onClick={() => setTab(item.value)}
-                  className={`-mb-px inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                  className={`-mb-px inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${
                     selected
-                      ? 'border-blue-600 text-blue-700'
+                      ? 'border-primary text-primary'
                       : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'
                   }`}
                 >
@@ -462,7 +441,7 @@ export function MagicPatternEntityDetailPage() {
                   {typeof item.count === 'number' ? (
                     <span
                       className={`ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
-                        selected ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
+                        selected ? 'bg-primary-subtle text-primary' : 'bg-gray-100 text-gray-600'
                       }`}
                     >
                       {item.count}

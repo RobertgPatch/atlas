@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
+import { Button } from '../components/shared/Button'
 
 const getMfaErrorMessage = (error: unknown) => {
   if (
@@ -115,7 +116,7 @@ export function MFAPage() {
       >
         <div className="flex items-center gap-2 mb-8 justify-center">
           <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
-            <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
+            <span className="text-decorative-brand-accent font-serif font-bold text-lg">J</span>
           </div>
           <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
             Jackson
@@ -146,17 +147,17 @@ export function MFAPage() {
                   value={digit}
                   onChange={(e) => handleChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-11 h-13 p-0 text-center text-xl font-semibold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-colors"
+                  className="w-11 h-13 p-0 text-center text-xl font-semibold border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus transition-colors"
                   style={{ height: '3.25rem' }}
                   autoFocus={index === 0}
                 />
               ))}
             </div>
 
-            <button
+            <Button
               type="submit"
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              pending={isLoading}
+              className="w-full"
             >
               {isLoading ? (
                 <>
@@ -166,7 +167,7 @@ export function MFAPage() {
               ) : (
                 'Verify code'
               )}
-            </button>
+            </Button>
           </form>
 
           <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-3 text-left text-sm text-gray-600">

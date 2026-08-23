@@ -77,7 +77,7 @@ export function InvestmentSelect({
         aria-controls={listboxId}
         aria-labelledby={labelId}
         onClick={() => setOpen((current) => !current)}
-        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-[#bfcbd9] bg-white px-3 text-left text-sm text-[#17263a] transition-colors hover:border-[#8c9cb0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+        className="flex h-10 w-full items-center justify-between gap-3 rounded-md border border-[#bfcbd9] bg-white px-3 text-left text-sm text-[#17263a] transition-colors hover:border-[#8c9cb0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         <span className="truncate">{selected?.label}</span>
         {open ? (
@@ -106,7 +106,7 @@ export function InvestmentSelect({
                   onChange(option.value)
                   setOpen(false)
                 }}
-                className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] ${isSelected ? 'bg-[#f4f7fa]' : 'hover:bg-[#e4ecf6]'}`}
+                className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${isSelected ? 'bg-[#f4f7fa]' : 'hover:bg-[#e4ecf6]'}`}
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-[#17263a]">{option.label}</span>
@@ -151,7 +151,7 @@ function InvestmentCheckbox({
       checked={checked}
       onChange={onChange}
       aria-label={label}
-      className="h-4 w-4 shrink-0 rounded border-[#bfcbd9] accent-[#166534] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb] focus-visible:ring-offset-1"
+      className="h-4 w-4 shrink-0 rounded border-[#bfcbd9] accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
     />
   )
 }
@@ -233,7 +233,7 @@ export function FundOwnerFilter({
         aria-expanded={open}
         aria-labelledby={labelId}
         onClick={() => setOpen((current) => !current)}
-        className="flex h-10 w-full items-center gap-2 rounded-md border border-[#bfcbd9] bg-white px-3 text-left text-sm text-[#17263a] transition-colors hover:border-[#8c9cb0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+        className="flex h-10 w-full items-center gap-2 rounded-md border border-[#bfcbd9] bg-white px-3 text-left text-sm text-[#17263a] transition-colors hover:border-[#8c9cb0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
       >
         <Search className="h-4 w-4 shrink-0 text-[#5f7185]" aria-hidden="true" />
         <span className={`min-w-0 flex-1 truncate ${selectedRecordIds.length ? '' : 'text-[#5f7185]'}`}>
@@ -262,7 +262,7 @@ export function FundOwnerFilter({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search funds or owners"
-                className="h-9 w-full rounded-md border border-[#bfcbd9] bg-white py-2 pl-9 pr-9 text-sm text-[#17263a] outline-none placeholder:text-[#8c9cb0] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20"
+                className="h-9 w-full rounded-md border border-[#bfcbd9] bg-white py-2 pl-9 pr-9 text-sm text-[#17263a] outline-none placeholder:text-[#8c9cb0] focus:border-focus focus:ring-2 focus:ring-focus/20"
               />
               {query ? (
                 <button
@@ -291,7 +291,7 @@ export function FundOwnerFilter({
               return (
                 <li key={fund.id} className="border-b border-[#dae2ec] last:border-b-0">
                   <div
-                    className={`flex items-stretch gap-2 border-l-2 pr-3 transition-colors ${allSelected ? 'border-l-[#166534] bg-[#d3f5dd]/40' : 'border-l-[#f5ce72] bg-white hover:bg-[#e4ecf6]'}`}
+                    className={`flex items-stretch gap-2 border-l-2 pr-3 transition-colors ${allSelected ? 'border-l-primary bg-[#d3f5dd]/40' : 'border-l-[#f5ce72] bg-white hover:bg-[#e4ecf6]'}`}
                   >
                     <button
                       type="button"
@@ -304,7 +304,7 @@ export function FundOwnerFilter({
                             : [...current, fund.id],
                         )
                       }
-                      className={`flex w-11 shrink-0 items-center justify-center border-r transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#2563eb] ${expanded ? 'border-[#f5ce72] bg-[#fff6e3] text-[#92400e]' : 'border-transparent text-[#5f7185] hover:text-[#17263a]'}`}
+                      className={`flex w-11 shrink-0 items-center justify-center border-r transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${expanded ? 'border-[#f5ce72] bg-[#fff6e3] text-[#92400e]' : 'border-transparent text-[#5f7185] hover:text-[#17263a]'}`}
                     >
                       {expanded ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                     </button>
@@ -373,7 +373,7 @@ export function FundOwnerFilter({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md bg-[#166534] px-3 py-1 text-xs font-semibold text-white hover:bg-[#14532d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563eb]"
+                className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-white hover:bg-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 Done
               </button>
@@ -406,7 +406,7 @@ export function InvestmentSearch({
           value={value}
           onChange={handleChange}
           placeholder="Fund, sponsor, entity or status"
-          className="h-10 w-full rounded-md border border-[#bfcbd9] bg-white py-2 pl-9 pr-9 text-sm text-[#17263a] outline-none placeholder:text-[#8c9cb0] focus:border-[#2563eb] focus:ring-2 focus:ring-[#2563eb]/20"
+          className="h-10 w-full rounded-md border border-[#bfcbd9] bg-white py-2 pl-9 pr-9 text-sm text-[#17263a] outline-none placeholder:text-[#8c9cb0] focus:border-focus focus:ring-2 focus:ring-focus/20"
         />
         {value ? (
           <button

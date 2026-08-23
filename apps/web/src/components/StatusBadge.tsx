@@ -23,7 +23,7 @@ const statusConfig: Record<StatusType, { label: string; bg: string; text: string
     label: 'Processing',
     bg: 'bg-status-processing-bg',
     text: 'text-status-processing-text',
-    dot: 'bg-accent',
+    dot: 'bg-primary',
   },
   needs_review: {
     label: 'Needs Review',

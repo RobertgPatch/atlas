@@ -92,7 +92,7 @@ function RadioLine({
         checked={checked}
         disabled={disabled}
         onChange={onChange}
-        className="mt-0.5 h-4 w-4 border-slate-300 text-blue-600 focus:ring-blue-600"
+        className="mt-0.5 h-4 w-4 border-slate-300 text-blue-600 focus:ring-focus"
       />
       <span>
         <span className="block text-sm font-medium text-slate-900">{label}</span>
@@ -254,7 +254,7 @@ export function MagicPatternCashActivityDrawer({
                     type="button"
                     aria-label={`Remove activity ${index + 1}`}
                     onClick={() => setDrafts((current) => current.filter((item) => item.id !== draft.id))}
-                    className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2"
+                    className="rounded-md p-1.5 text-slate-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"
                   >
                     <Trash2 aria-hidden="true" className="h-4 w-4" />
                   </button>

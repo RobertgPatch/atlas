@@ -157,6 +157,31 @@ export interface ConsolidatedHoldingsResponse {
   sync: ConsolidatedHoldingsSyncMetadata
 }
 
+export interface LiquidityPerformanceQuery {
+  from?: string
+  to?: string
+}
+
+export interface LiquidityPerformancePoint {
+  date: string
+  totalMarketValue: number | null
+  totalCostBasis: number | null
+  totalUnrealizedGainLoss: number | null
+  accountCount: number
+  source: 'market_close' | 'custodian_snapshot' | 'current'
+  capturedAt: string | null
+  priceAsOf: string | null
+  pricedHoldingCount: number
+  fallbackHoldingCount: number
+}
+
+export interface LiquidityPerformanceResponse {
+  points: LiquidityPerformancePoint[]
+  availableFrom: string | null
+  availableTo: string | null
+  marketCloseAvailableFrom: string | null
+}
+
 export interface ReportTotals {
   originalCommitmentUsd: number
   calledPct: number | null

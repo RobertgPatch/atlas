@@ -1,4 +1,9 @@
-import type { K1TrackerOfficialFormFieldKey, K1TrackerWritableFieldKey } from '../../../../../packages/types/src/k1-tracker'
+import type {
+  K1TrackerOfficialFormData,
+  K1TrackerOfficialFormFieldKey,
+  K1TrackerOfficialFormValue,
+  K1TrackerWritableFieldKey,
+} from '../../../../../packages/types/src/k1-tracker'
 
 export type K1FormRegion =
   | 'item-k'
@@ -10,6 +15,7 @@ export type K1FormRegion =
 
 export interface K1FormPlacement {
   fieldKey: K1TrackerWritableFieldKey
+  officialFieldKey?: K1TrackerOfficialFormFieldKey
   region: K1FormRegion
   itemOrLine: string
   order: number
@@ -32,12 +38,45 @@ export interface K1FormIdentityContext {
   partnerName: string
 }
 
+const CODED_OFFICIAL_FIELD_BY_TRACKED_FIELD = new Map<K1TrackerWritableFieldKey, K1TrackerOfficialFormFieldKey>([
+  ['box_13_other_portfolio_deductions', 'box_13_entries'],
+  ['box_13_management_fees', 'box_13_entries'],
+  ['box_18a_nondeductible_expenses', 'box_18_entries'],
+  ['box_18b_tax_exempt_income', 'box_18_entries'],
+  ['box_18c_nondeductible_expenses', 'box_18_entries'],
+  ['box_19_distributions', 'box_19_entries'],
+  ['box_21_foreign_taxes', 'box_21_entries'],
+])
+
+export const K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS = [...new Set<K1TrackerOfficialFormFieldKey>(
+  CODED_OFFICIAL_FIELD_BY_TRACKED_FIELD.values(),
+)]
+
+const OVERLAPPING_CODED_OFFICIAL_FIELDS = new Set(K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS)
+
+export const hasMeaningfulK1CodeEntry = (value: K1TrackerOfficialFormValue | undefined): boolean =>
+  Array.isArray(value) && value.some((entry) => Boolean(entry.code.trim() || entry.value.trim()))
+
+export const isTrackedPartThreePlacementVisible = (
+  placement: K1FormPlacement,
+  officialFormData: K1TrackerOfficialFormData,
+): boolean => {
+  const officialFieldKey = CODED_OFFICIAL_FIELD_BY_TRACKED_FIELD.get(placement.fieldKey)
+  return !officialFieldKey || !hasMeaningfulK1CodeEntry(officialFormData[officialFieldKey])
+}
+
+export const isOfficialPartThreePlacementVisible = (
+  placement: K1FormOfficialPlacement,
+  officialFormData: K1TrackerOfficialFormData,
+): boolean => !OVERLAPPING_CODED_OFFICIAL_FIELDS.has(placement.fieldKey)
+  || hasMeaningfulK1CodeEntry(officialFormData[placement.fieldKey])
+
 const placement = (
   fieldKey: K1TrackerWritableFieldKey,
   region: K1FormRegion,
   itemOrLine: string,
   order: number,
-  options: Pick<K1FormPlacement, 'code' | 'sublabel'> = {},
+  options: Pick<K1FormPlacement, 'code' | 'sublabel' | 'officialFieldKey'> = {},
 ): K1FormPlacement => ({ fieldKey, region, itemOrLine, order, ...options })
 
 export const K1_FORM_PLACEMENTS: K1FormPlacement[] = [
@@ -65,7 +104,7 @@ export const K1_FORM_PLACEMENTS: K1FormPlacement[] = [
   placement('box_8_net_short_term_capital_gain_loss', 'part-iii-left', '8', 800),
   placement('box_9a_net_long_term_capital_gain_loss', 'part-iii-left', '9a', 901),
   placement('box_10_net_section_1231_gain_loss', 'part-iii-left', '10', 1000),
-  placement('box_11_other_income_loss', 'part-iii-left', '11', 1100),
+  placement('box_11_other_income_loss', 'part-iii-left', '11', 1100, { code: 'ZZ', sublabel: 'Other income (loss)', officialFieldKey: 'box_11_entries' }),
   placement('box_12_section_179_deduction', 'part-iii-left', '12', 1200),
   placement('box_13_other_portfolio_deductions', 'part-iii-left', '13', 1301, { code: 'W', sublabel: 'Other portfolio deductions' }),
   placement('box_13_management_fees', 'part-iii-left', '13', 1302, { code: 'W', sublabel: 'Management fees' }),
@@ -105,7 +144,6 @@ export const K1_FORM_OFFICIAL_PLACEMENTS: K1FormOfficialPlacement[] = [
   officialPlacement('box_6c_dividend_equivalents', 'part-iii-left', '6c', 'Dividend equivalents', 603),
   officialPlacement('box_9b_collectibles_gain_loss', 'part-iii-left', '9b', 'Collectibles (28%) gain or loss', 902),
   officialPlacement('box_9c_unrecaptured_section_1250_gain', 'part-iii-left', '9c', 'Unrecaptured Section 1250 gain', 903),
-  officialPlacement('box_11_entries', 'part-iii-left', '11', 'Other income code and statement details', 1190),
   officialPlacement('box_13_entries', 'part-iii-left', '13', 'Other deduction code and statement details', 1390),
   officialPlacement('box_14_entries', 'part-iii-right', '14', 'Self-employment earnings (loss)', 1400),
   officialPlacement('box_15_entries', 'part-iii-right', '15', 'Credits', 1500),
@@ -129,7 +167,7 @@ export const K1_FORM_IDENTITY_FIELD_KEYS: K1TrackerOfficialFormFieldKey[] = [
   'part_ii_h2_disregarded_entity', 'part_ii_h2_disregarded_entity_tin', 'part_ii_h2_disregarded_entity_name',
   'part_ii_i1_partner_entity_type', 'part_ii_i2_retirement_plan',
   'part_ii_j_profit_beginning_pct', 'part_ii_j_profit_ending_pct', 'part_ii_j_loss_beginning_pct', 'part_ii_j_loss_ending_pct',
-  'part_ii_j_capital_beginning_pct', 'part_ii_j_capital_ending_pct', 'part_ii_j_decrease_sale', 'part_ii_j_decrease_exchange',
+  'part_ii_j_capital_beginning_pct', 'part_ii_j_capital_ending_pct', 'part_ii_j_decrease_sale',
   'part_ii_k2_lower_tier_liabilities', 'part_ii_k3_guaranteed_liabilities',
   'part_ii_m_built_in_gain_loss', 'part_ii_n_704c_gain_loss_beginning', 'part_ii_n_704c_gain_loss_ending',
 ]

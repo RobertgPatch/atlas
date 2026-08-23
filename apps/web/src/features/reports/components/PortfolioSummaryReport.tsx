@@ -77,22 +77,22 @@ export function PortfolioSummaryReport({
         <KpiCard
           label="Total Commitment"
           value={formatCurrency(payload?.kpis.totalCommitmentUsd ?? 0)}
-          icon={<CircleDollarSignIcon className="h-4 w-4 text-accent" />}
+          icon={<CircleDollarSignIcon className="h-4 w-4 text-primary" />}
         />
         <KpiCard
           label="Total Distributions"
           value={formatCurrency(payload?.kpis.totalDistributionsUsd ?? 0)}
-          icon={<LandmarkIcon className="h-4 w-4 text-accent" />}
+          icon={<LandmarkIcon className="h-4 w-4 text-primary" />}
         />
         <KpiCard
           label="Weighted IRR"
           value={formatPercent(payload?.kpis.weightedIrr ?? null, 1)}
-          icon={<TrendingUpIcon className="h-4 w-4 text-accent" />}
+          icon={<TrendingUpIcon className="h-4 w-4 text-primary" />}
         />
         <KpiCard
           label="Weighted TVPI"
           value={formatMultiple(payload?.kpis.weightedTvpi ?? null)}
-          icon={<BarChart3Icon className="h-4 w-4 text-accent" />}
+          icon={<BarChart3Icon className="h-4 w-4 text-primary" />}
         />
       </div>
 

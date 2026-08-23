@@ -120,7 +120,7 @@ export function AddCommitmentDrawer({
                   </div>
 
                   <div className="px-6 py-5 overflow-y-auto flex-1">
-                    <div className="mb-5 rounded-lg border border-jackson-gold/30 bg-jackson-gold/10 px-4 py-3 text-sm text-text-secondary">
+                    <div className="mb-5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text-secondary">
                       Original commitment drives paid-in, unfunded, percent-called, and return multiple calculations.
                     </div>
 
@@ -137,7 +137,7 @@ export function AddCommitmentDrawer({
                             step="0.01"
                             value={commitmentAmountUsd}
                             onChange={(e) => setCommitmentAmountUsd(e.target.value)}
-                            className={`w-full rounded-lg border px-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${amountError ? 'border-red-500' : 'border-gray-300'}`}
+                            className={`w-full rounded-lg border px-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${amountError ? 'border-red-500' : 'border-gray-300'}`}
                             placeholder="0.00"
                             disabled={isSubmitting}
                           />
@@ -156,7 +156,7 @@ export function AddCommitmentDrawer({
                           type="date"
                           value={commitmentDate}
                           onChange={(e) => setCommitmentDate(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                           disabled={isSubmitting}
                         />
                       </div>
@@ -168,7 +168,7 @@ export function AddCommitmentDrawer({
                             type="date"
                             value={commitmentStartDate}
                             onChange={(e) => setCommitmentStartDate(e.target.value)}
-                            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${dateError ? 'border-red-500' : 'border-gray-300'}`}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${dateError ? 'border-red-500' : 'border-gray-300'}`}
                             disabled={isSubmitting}
                           />
                         </div>
@@ -178,7 +178,7 @@ export function AddCommitmentDrawer({
                             type="date"
                             value={commitmentEndDate}
                             onChange={(e) => setCommitmentEndDate(e.target.value)}
-                            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${dateError ? 'border-red-500' : 'border-gray-300'}`}
+                            className={`w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus ${dateError ? 'border-red-500' : 'border-gray-300'}`}
                             disabled={isSubmitting}
                           />
                         </div>
@@ -197,7 +197,7 @@ export function AddCommitmentDrawer({
                           rows={3}
                           value={notes}
                           onChange={(e) => setNotes(e.target.value)}
-                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold"
+                          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-focus"
                           placeholder="Optional context"
                           disabled={isSubmitting}
                         />
@@ -219,7 +219,7 @@ export function AddCommitmentDrawer({
                     <button
                       type="submit"
                       form="add-commitment-drawer-form"
-                      className="px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm font-medium hover:bg-jackson-hover disabled:opacity-50 inline-flex items-center gap-2"
+                      className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-hover disabled:opacity-50 inline-flex items-center gap-2"
                       disabled={isSubmitting}
                     >
                       <DollarSignIcon className="w-4 h-4" />

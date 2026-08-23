@@ -174,7 +174,7 @@ resource "aws_scheduler_schedule" "plaid_refresh" {
 
 resource "aws_scheduler_schedule" "market_price_refresh" {
   name                         = "${var.name_prefix}-market-price-refresh"
-  description                  = "Daily Atlas end-of-day public-market price refresh."
+  description                  = "Weekday Atlas closing-price refresh and Liquidity valuation snapshot."
   schedule_expression          = var.market_price_schedule_expression
   schedule_expression_timezone = var.market_price_schedule_timezone
   state                        = var.market_price_scheduler_enabled ? "ENABLED" : "DISABLED"

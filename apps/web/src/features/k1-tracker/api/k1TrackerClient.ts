@@ -2,6 +2,7 @@ import type {
   K1TrackerCalculation, K1TrackerFieldChange, K1TrackerImportDecision, K1TrackerImportPreview,
   K1TrackerPartnershipDetail, K1TrackerPartnershipSummary, K1TrackerSignoffState, K1TrackerYearDetail,
 } from '../../../../../packages/types/src/k1-tracker'
+import { authenticatedFetch, reportAuthenticationResponse } from '../../../auth/authenticatedFetch'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
 export class K1TrackerApiError extends Error {
@@ -12,7 +13,7 @@ export class K1TrackerApiError extends Error {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
+  const response = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
   if (!response.ok) { let payload: unknown; try { payload = await response.json() } catch { payload = undefined }; const code = payload && typeof payload === 'object' && 'error' in payload ? String((payload as { error: unknown }).error) : `HTTP_${response.status}`; throw new K1TrackerApiError(code, response.status, payload) }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -30,6 +31,7 @@ async function uploadWorkbook<T>(file: File, targetPartnershipId: string, onProg
     xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)) }
     xhr.onerror = () => reject(new K1TrackerApiError('NETWORK_ERROR', 0))
     xhr.onload = () => {
+      reportAuthenticationResponse(xhr.status)
       let payload: unknown
       try { payload = xhr.responseText ? JSON.parse(xhr.responseText) : undefined } catch { payload = undefined }
       if (xhr.status < 200 || xhr.status >= 300) { reject(new K1TrackerApiError(payload && typeof payload === 'object' && 'error' in payload ? String((payload as { error: unknown }).error) : `HTTP_${xhr.status}`, xhr.status, payload)); return }

@@ -62,27 +62,53 @@ export const reconciliationGuidanceFor = (check: K1TrackerCheckResult): K1Reconc
         fieldKey: 'opening_outside_basis',
       }
     case 'section-l-net-income':
+      if (check.status !== 'INCOMPLETE') {
+        return {
+          title: 'Section L net income does not tie',
+          description: `The K-1 reports ${actual ?? 'a Section L amount'}, while Jackson totals ${expected ?? 'a different amount'} from the verified income, deduction, and nondeductible-expense rows. Do not replace the reported Section L value when it agrees with the PDF. Review the coded Box 13, Box 18C, and statement rows for a missing calculator mapping${check.difference ? `; the current difference is ${money(check.difference)}` : ''}.`,
+        }
+      }
       return {
-        title: check.status === 'INCOMPLETE' ? 'Section L net income is missing' : 'Section L net income does not tie',
-        description: `Enter Part II, Item L current-year net income (loss) as shown on the K-1. Jackson expects ${expected ?? 'the calculated K-1 activity total'}.`,
-        actionLabel: 'Review Section L net income',
+        title: 'Section L net income is missing',
+        description: 'Enter Part II, Item L current-year net income (loss) exactly as shown on the K-1.',
+        actionLabel: 'Enter Section L net income',
         fieldKey: 'section_l_current_year_net_income_loss',
       }
-    case 'section-l-ending':
+    case 'section-l-ending': {
+      const endingWasImportedButBeginningIsMissing = check.status === 'INCOMPLETE'
+        && check.actual !== null
+        && check.expected === null
+      if (endingWasImportedButBeginningIsMissing) {
+        return {
+          title: 'Section L beginning capital is missing',
+          description: `${actual ?? 'The reported ending capital'} was imported from the K-1. Jackson needs Part II, Item L beginning capital to calculate the rollforward and verify that ending amount. Enter zero if the K-1 beginning-capital box is blank and this is the partnership's first tracked year.`,
+          actionLabel: 'Enter beginning capital',
+          fieldKey: 'section_l_beginning_capital',
+        }
+      }
+      if (check.status !== 'INCOMPLETE') {
+        return {
+          title: 'Section L ending capital does not tie',
+          description: `The K-1 reports ${actual ?? 'an ending capital amount'}, while the rollforward of the verified beginning capital, contributions, net income, other changes, and withdrawals produces ${expected ?? 'a different amount'}. Keep the reported ending amount when it agrees with the PDF; review the rollforward inputs or any missing coded-row mapping${check.difference ? ` for the ${money(check.difference)} difference` : ''}.`,
+          actionLabel: 'Review Section L rollforward',
+          fieldKey: 'section_l_beginning_capital',
+        }
+      }
       return {
-        title: check.status === 'INCOMPLETE' ? 'Section L ending capital is missing' : 'Section L ending capital does not tie',
-        description: `Enter Part II, Item L ending capital account from the K-1. Jackson's rollforward currently expects ${expected ?? 'the calculated ending amount'}.`,
+        title: 'Section L ending capital is missing',
+        description: 'Enter Part II, Item L ending capital account exactly as shown on the K-1.',
         actionLabel: 'Enter ending capital',
         fieldKey: 'section_l_ending_capital',
       }
+    }
     case 'book-tax-unexplained':
       return {
         title: check.status === 'INCOMPLETE' ? 'Ending book capital is missing' : 'Book-to-tax difference is not fully explained',
         description: check.status === 'INCOMPLETE'
           ? 'Enter ending book capital from the supporting capital statement. If book capital differs from outside tax basis, add the supported Section 704(c), Section 754, timing, or permanent differences below.'
-          : `The remaining unexplained difference is ${money(check.difference) ?? 'greater than the $1 tolerance'}. Update the supported reconciling items until the difference is zero.`,
-        actionLabel: 'Complete book-tax workpaper',
-        fieldKey: 'book_capital_account',
+          : `This does not mean the K-1 capital value is wrong. Ending book capital minus calculated outside tax basis is ${actual ?? 'different'}, while supported reconciling items currently explain ${expected ?? '$0'}. The remaining ${money(check.difference) ?? 'difference'} usually points to a missing basis input such as a coded deduction, nondeductible expense, distribution, or opening-basis adjustment. Add a reconciling item only when you have independent support for it.`,
+        actionLabel: check.status === 'INCOMPLETE' ? 'Enter book capital' : 'Review basis inputs',
+        fieldKey: check.status === 'INCOMPLETE' ? 'book_capital_account' : 'opening_outside_basis',
       }
     case 'journal-balance':
       return {

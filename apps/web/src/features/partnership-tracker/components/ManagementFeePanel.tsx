@@ -51,7 +51,7 @@ export function ManagementFeePanel({ summary, canEdit }: { summary: PartnershipT
     <form onSubmit={save} className="grid gap-4 border-b border-gray-200 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
       <label className="text-sm font-medium text-gray-800">Partnership inception<input type="date" value={inceptionDate} max={new Date().toISOString().slice(0, 10)} disabled={!canEdit} onChange={(event) => setInceptionDate(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" /></label>
       <label className="text-sm font-medium text-gray-800">Annual fee rate (%)<input type="number" min="0" max="100" step="0.0001" value={ratePercent} disabled={!canEdit} onChange={(event) => setRatePercent(event.target.value)} className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 disabled:bg-gray-50" /></label>
-      {canEdit && <button type="submit" disabled={actions.updatePartnership.isPending} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-jackson-gold px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />Save</button>}
+      {canEdit && <button type="submit" disabled={actions.updatePartnership.isPending} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-white disabled:opacity-50"><Save className="h-4 w-4" />Save</button>}
       {error && <p role="alert" className="text-sm text-red-700 sm:col-span-3">{error}</p>}
     </form>
     <div className="px-5 py-4">

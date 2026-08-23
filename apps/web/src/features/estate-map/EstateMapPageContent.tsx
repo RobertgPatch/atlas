@@ -197,7 +197,7 @@ export function EstateMapPageContent() {
                 type="button"
                 aria-current={active ? 'page' : undefined}
                 onClick={() => setActiveMapId(map.id)}
-                className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${active ? 'border-slate-900 bg-slate-900 text-white shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
+                className={`flex min-h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${active ? 'border-primary bg-primary-subtle text-primary shadow-sm' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}`}
               >
                 <Network className="h-4 w-4" aria-hidden="true" />
                 <span className="max-w-56 truncate font-semibold">{map.name}</span>

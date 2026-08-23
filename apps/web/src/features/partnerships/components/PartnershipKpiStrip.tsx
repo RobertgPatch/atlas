@@ -33,40 +33,34 @@ export function PartnershipKpiStrip({
       <KpiCard
         label="Total Partnerships"
         value={loading ? '—' : partnershipCount.toLocaleString()}
-        icon={<Building2Icon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<Building2Icon className="w-4 h-4 text-primary" />}
       />
       <KpiCard
         label="Total Distributions"
         value={loading ? '—' : formatUsd(totalDistributionsUsd)}
         subtext="Across all filtered partnerships"
-        icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<DollarSignIcon className="w-4 h-4 text-primary" />}
       />
       <KpiCard
         label="Total FMV"
         value={loading ? '—' : formatUsd(totalFmvUsd)}
         subtext="Latest FMV per partnership"
-        icon={<TrendingUpIcon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<TrendingUpIcon className="w-4 h-4 text-primary" />}
       />
       <KpiCard
         label="Total Commitment"
         value={loading ? '—' : formatUsd(totalCommitmentUsd)}
-        icon={<TrendingUpIcon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<TrendingUpIcon className="w-4 h-4 text-primary" />}
       />
       <KpiCard
         label="Total Paid-In"
         value={loading ? '—' : formatUsd(totalPaidInUsd)}
-        icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<DollarSignIcon className="w-4 h-4 text-primary" />}
       />
       <KpiCard
         label="Total Unfunded"
         value={loading ? '—' : formatUsd(totalUnfundedUsd)}
-        icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
-        accentColor="#C9A96E"
+        icon={<DollarSignIcon className="w-4 h-4 text-primary" />}
       />
     </div>
   )

@@ -9,6 +9,7 @@ import {
   K1_FORM_IDENTITY_FIELD_KEYS,
   K1_FORM_OFFICIAL_PLACEMENTS,
   K1_FORM_PLACEMENTS,
+  K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS,
 } from '../k1FormLayout'
 import { k1EntryDetailFixture, missingK1IdentitySummaryFixture, summaryFixture } from '../../partnership-tracker/__tests__/fixtures'
 
@@ -37,10 +38,15 @@ describe('K-1 form layout contract', () => {
     const officialKeys = [
       ...K1_FORM_HEADER_FIELD_KEYS,
       ...K1_FORM_IDENTITY_FIELD_KEYS,
+      ...K1_FORM_PLACEMENTS.flatMap((placement) => placement.officialFieldKey ? [placement.officialFieldKey] : []),
       ...K1_FORM_OFFICIAL_PLACEMENTS.map((placement) => placement.fieldKey),
     ]
     expect(new Set(officialKeys)).toHaveLength(officialKeys.length)
-    expect([...officialKeys].sort()).toEqual([...K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS].sort())
+    expect([...officialKeys].sort()).toEqual(
+      K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS
+        .filter((fieldKey) => fieldKey !== 'part_ii_j_decrease_exchange')
+        .sort(),
+    )
   })
 
   it('renders every calculation and official-form entry exactly once as an available control', () => {
@@ -57,8 +63,12 @@ describe('K-1 form layout contract', () => {
       expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(1)
     }
     for (const field of K1_OFFICIAL_FORM_FIELDS) {
-      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(1)
+      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(
+        K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS.includes(field.key) ? 0 : 1,
+      )
     }
+    expect(screen.getAllByLabelText('Line 11 ZZ - Other income (loss)')).toHaveLength(1)
+    expect(screen.queryByLabelText('Line 11 - Other income code and detail entries code 1')).not.toBeInTheDocument()
   })
 
   it('keeps the complete field inventory in the Magic Patterns form composition', () => {
@@ -77,7 +87,9 @@ describe('K-1 form layout contract', () => {
       expect(container.querySelectorAll(`[data-k1-field="${field.key}"]`)).toHaveLength(1)
     }
     for (const field of K1_OFFICIAL_FORM_FIELDS) {
-      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(1)
+      expect(container.querySelectorAll(`[data-k1-official-field="${field.key}"]`)).toHaveLength(
+        K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS.includes(field.key) ? 0 : 1,
+      )
     }
 
     const headings = Array.from(container.querySelectorAll('h4, h5')).map((heading) => heading.textContent?.trim())

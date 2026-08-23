@@ -6,6 +6,7 @@ import { LoadingState } from '../../../components/LoadingState'
 import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts'
 import { usePlaidLink } from '../hooks/usePlaidLink'
+import { useLiquidityPerformance } from '../hooks/useLiquidityPerformance'
 import {
   EQUITY_SECTORS,
   filterHoldingsBySectors,
@@ -13,7 +14,7 @@ import {
   getCostBasisQuality,
   getCustodianBreakdown,
   getSectorAllocation,
-  getTopHoldings,
+  getRankableHoldings,
   type EquitySector,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { AllocationChart } from './AllocationChart'
@@ -23,6 +24,7 @@ import { CustodianBreakdown } from './CustodianBreakdown'
 import { DataQualityBanner } from './DataQualityBanner'
 import { PlaidAccountSelector } from './PlaidAccountSelector'
 import { PortfolioHero } from './PortfolioHero'
+import { LiquidityPerformanceTracker } from './LiquidityPerformanceTracker'
 import { TopHoldings } from './TopHoldings'
 
 export function ConsolidatedHoldingsReport() {
@@ -32,6 +34,7 @@ export function ConsolidatedHoldingsReport() {
     ...EQUITY_SECTORS,
   ])
   const holdings = useConsolidatedHoldings()
+  const performance = useLiquidityPerformance()
   const plaidAccounts = usePlaidAccounts()
   const plaidLink = usePlaidLink()
   const preparePlaidLink = plaidLink.prepare
@@ -68,9 +71,26 @@ export function ConsolidatedHoldingsReport() {
     [visibleRows],
   )
   const topHoldings = useMemo(
-    () => getTopHoldings(visibleRows, visibleMarketValue),
+    () => getRankableHoldings(visibleRows, visibleMarketValue),
     [visibleMarketValue, visibleRows],
   )
+  const currentPerformancePoint = useMemo(() => {
+    const date = data?.pricing.priceAsOf?.slice(0, 10) ?? data?.sync.dataAsOfDate
+    if (!date || data?.kpis.totalMarketValue == null) return null
+
+    return {
+      date,
+      totalMarketValue: data.kpis.totalMarketValue,
+      totalCostBasis: data.kpis.totalCostBasis,
+      totalUnrealizedGainLoss: data.kpis.totalUnrealizedGainLoss,
+      accountCount: data.kpis.selectedAccountCount,
+      source: 'current' as const,
+      capturedAt: data.pricing.refreshedAt ?? data.sync.lastSuccessfulSyncAt,
+      priceAsOf: data.pricing.priceAsOf,
+      pricedHoldingCount: data.pricing.pricedHoldingCount,
+      fallbackHoldingCount: data.pricing.fallbackHoldingCount,
+    }
+  }, [data])
   const lastUpdatedAt = data?.pricing.priceAsOf ?? data?.sync.lastSuccessfulSyncAt
   const lastUpdated = lastUpdatedAt
     ? new Intl.DateTimeFormat('en-US', {
@@ -133,7 +153,7 @@ export function ConsolidatedHoldingsReport() {
           ) : null}
           <button
             type="button"
-            onClick={() => holdings.refresh.mutate()}
+            onClick={() => holdings.refresh.mutate(undefined)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
           >
             <RefreshCwIcon className="h-4 w-4" />
@@ -148,7 +168,7 @@ export function ConsolidatedHoldingsReport() {
                 void plaidLink.open()
               }
             }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
           >
             <LinkIcon className="h-4 w-4" />
             Connect Accounts
@@ -172,6 +192,14 @@ export function ConsolidatedHoldingsReport() {
         totalGainLossPercent={data?.kpis.gainLossPercent ?? null}
         totalPositions={rows.length}
         connectedAccounts={data?.kpis.selectedAccountCount ?? 0}
+      />
+
+      <LiquidityPerformanceTracker
+        points={performance.data?.points ?? []}
+        currentPoint={currentPerformancePoint}
+        isLoading={performance.isLoading}
+        isError={performance.isError}
+        onRetry={() => void performance.refetch()}
       />
 
       <ConsolidatedHoldingsSyncStatus sync={data?.sync} pricing={data?.pricing} />
@@ -244,7 +272,7 @@ export function ConsolidatedHoldingsReport() {
           plaidAccounts.updateSelection.mutate(selectedAccountIds, {
             onSuccess: () => {
               setIsAccountSelectorOpen(false)
-              void holdings.refresh.mutate()
+              void holdings.refresh.mutate(undefined)
             },
             onError: () => {
               setAccountSelectorError(

@@ -3,6 +3,7 @@ import { Database, Loader2, Plus, ShieldAlert, Trash2, UserCog } from 'lucide-re
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/shared/AppShell'
 import { ConfirmationDialog } from '../components/shared/ConfirmationDialog'
+import { Button } from '../components/shared/Button'
 import { DataTable, type Column } from '../components/shared/DataTable'
 import { FilterToolbar } from '../components/shared/FilterToolbar'
 import { LoadingState } from '../components/LoadingState'
@@ -178,7 +179,7 @@ export function UserManagementPage() {
         </select>
         <button
           onClick={() => void handleInvite()}
-          className="inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white hover:bg-jackson-hover"
+          className="inline-flex items-center px-4 py-2 rounded-lg bg-primary text-white hover:bg-primary-hover"
         >
           <Plus className="w-4 h-4 mr-2" />
           Invite
@@ -200,14 +201,15 @@ export function UserManagementPage() {
                 full demo set including asset classes, commitments, capital activity, and FMVs.
               </p>
               {devMessage && (
-                <p className="text-xs text-jackson-gold mt-2">{devMessage}</p>
+                <p className="text-xs text-primary mt-2">{devMessage}</p>
               )}
             </div>
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => setConfirmDevAction('clear')}
                 disabled={devAction !== null}
-                className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-200 text-sm hover:bg-gray-50 disabled:opacity-60 disabled:cursor-wait"
+                variant="danger"
+                size="sm"
               >
                 {devAction === 'clear' ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -215,11 +217,12 @@ export function UserManagementPage() {
                   <Trash2 className="w-4 h-4 mr-2" />
                 )}
                 Clear all data
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setConfirmDevAction('seed')}
-                disabled={devAction !== null}
-                className="inline-flex items-center px-3 py-2 rounded-lg bg-text-primary text-white text-sm hover:opacity-90 disabled:opacity-60 disabled:cursor-wait"
+                pending={devAction === 'seed'}
+                disabled={devAction !== null && devAction !== 'seed'}
+                size="sm"
               >
                 {devAction === 'seed' ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -227,7 +230,7 @@ export function UserManagementPage() {
                   <Database className="w-4 h-4 mr-2" />
                 )}
                 Populate demo data
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -18,6 +18,7 @@ import { authClient } from '../../auth/authClient'
 import { sessionStore, useSession } from '../../auth/sessionStore'
 import { ErrorState } from '../../components/ErrorState'
 import { AppShell } from '../../components/shared/AppShell'
+import { buttonClassName } from '../../components/shared/Button'
 import type { DashboardSummaryResponse } from '../../features/dashboard/api/dashboardClient'
 import { useDashboardSummary } from '../../features/dashboard/hooks/useDashboardSummary'
 import { useLiquiditySummary } from '../../features/dashboard/hooks/useLiquiditySummary'
@@ -155,7 +156,7 @@ function ModuleCard({
     <Link
       to={href}
       data-module-tone={tone}
-      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] motion-reduce:transform-none ${theme.card}`}
+      className={`group relative flex h-full flex-col overflow-hidden rounded-xl border p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transform-none ${theme.card}`}
     >
       <span className={`absolute inset-x-0 top-0 h-1 ${theme.accent}`} aria-hidden="true" />
       <div className="flex items-start justify-between gap-2">
@@ -195,7 +196,7 @@ function ModuleCard({
         </dl>
       ) : null}
 
-      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-medium text-[#1B4332]">
+      <span className="mt-auto inline-flex items-center gap-1.5 pt-4 text-sm font-medium text-primary">
         Open {title}
         <ArrowRight
           className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
@@ -219,10 +220,10 @@ function QuickActionCard({ title, description, href, icon: Icon, badge }: QuickA
     <li>
       <Link
         to={href}
-        className="group flex h-full flex-col rounded-xl border border-[#d6e3da] bg-white/85 p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-[#f4f9f6] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] motion-reduce:transform-none"
+        className="group flex h-full flex-col rounded-xl border border-[#d6e3da] bg-white/85 p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-[#f4f9f6] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transform-none"
       >
         <span className="flex items-start justify-between gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-[#E1EFE6] text-[#1B4332]">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-[#E1EFE6] text-primary">
             <Icon className="h-4 w-4" aria-hidden="true" />
           </span>
           {badge ? (
@@ -303,7 +304,7 @@ function PortfolioSummary({
       ? 'Connected holdings could not be loaded and are not included in this total.'
       : null
   const segmentColors = [
-    'bg-[#1B4332]',
+    'bg-primary',
     'bg-emerald-600',
     'bg-emerald-400',
     'bg-teal-500',
@@ -318,7 +319,7 @@ function PortfolioSummary({
       className="relative overflow-hidden rounded-2xl border border-amber-200/80 bg-[#fffdf7] p-5 shadow-[0_12px_30px_rgba(61,48,22,0.08)]"
     >
       <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full bg-amber-200/35 blur-3xl" aria-hidden="true" />
-      <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-[#1B4332] via-emerald-500 to-amber-400" aria-hidden="true" />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-1 w-full bg-gradient-to-r from-primary via-emerald-500 to-amber-400" aria-hidden="true" />
       <div className="relative flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2
@@ -355,7 +356,7 @@ function PortfolioSummary({
           type="button"
           onClick={onRefresh}
           disabled={refreshing}
-          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-emerald-200 bg-white/85 px-3 text-sm font-medium text-[#1B4332] shadow-sm transition-colors hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332] disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-2 rounded-md border border-emerald-200 bg-white/85 px-3 text-sm font-medium text-primary shadow-sm transition-colors hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-wait disabled:opacity-60"
         >
           <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
           Refresh
@@ -449,7 +450,7 @@ function ActionItems({
               <button
                 type="button"
                 onClick={() => onSelectReview(item)}
-                className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+                className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                 aria-label={`Review ${item.partnership} K-1`}
               >
                 <FileText className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
@@ -478,7 +479,7 @@ function ActionItems({
                 <button
                   type="button"
                   onClick={() => onSelect(item)}
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+                  className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-amber-50/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                 >
                   <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.iconClass}`} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
@@ -501,7 +502,7 @@ function ActionItems({
       )}
       <Link
         to="/k1"
-        className="block border-t border-amber-200/70 bg-amber-50/40 px-4 py-2.5 text-sm font-medium text-[#1B4332] transition-colors hover:bg-amber-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1B4332]"
+        className="block border-t border-amber-200/70 bg-amber-50/40 px-4 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-amber-100/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
       >
         Open K-1 workspace
       </Link>
@@ -533,13 +534,13 @@ function RecentActivity({ entries, onSelect }: { entries: RecentK1[]; onSelect: 
           />
           {entries.map((entry) => (
             <li key={entry.id} className="relative pl-9">
-              <span className="absolute left-0 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#EAF3EE] text-[#1B4332]">
+              <span className="absolute left-0 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-[#EAF3EE] text-primary">
                 <FileText className="h-3.5 w-3.5" aria-hidden="true" />
               </span>
               <button
                 type="button"
                 onClick={() => onSelect(entry)}
-                className="w-full rounded-md py-3 pl-2 pr-2 text-left transition-colors hover:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B4332]"
+                className="w-full rounded-md py-3 pl-2 pr-2 text-left transition-colors hover:bg-emerald-50/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
               >
                 <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <span className="min-w-0 text-sm font-medium text-gray-900">
@@ -632,10 +633,7 @@ export function MagicPatternDashboardPage() {
                 : 'Nothing needs your attention'}
             </button>
           </div>
-          <Link
-            to="/reports"
-            className="relative inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-amber-100/60 bg-[#f3dfaa] px-4 text-sm font-semibold text-[#173b2b] shadow-sm transition-colors hover:bg-[#ffeabd] focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#183f2e]"
-          >
+          <Link to="/reports" className={buttonClassName({ variant: 'inverse', size: 'sm', className: 'relative shrink-0' })}>
             <FileBarChart className="h-4 w-4" aria-hidden="true" />
             Run report
           </Link>

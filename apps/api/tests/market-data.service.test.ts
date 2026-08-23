@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AlpacaMarketDataProvider } from '../src/modules/market-data/alpaca-market-data.provider.js'
 import { FallbackMarketDataProvider } from '../src/modules/market-data/fallback-market-data.provider.js'
 import { createInMemoryMarketPriceStore } from '../src/modules/market-data/market-data.repository.js'
+import { createInMemoryLiquidityValuationStore } from '../src/modules/market-data/liquidity-valuation.repository.js'
 import { createMarketDataService } from '../src/modules/market-data/market-data.service.js'
 import { MassiveMarketDataProvider } from '../src/modules/market-data/massive-market-data.provider.js'
 import type {
@@ -53,6 +54,95 @@ const quote = (
 })
 
 describe('market data pricing service', () => {
+  it('saves one retry-safe portfolio valuation per market close with fallback detail', async () => {
+    const valuationStore = createInMemoryLiquidityValuationStore()
+    let closingPrice = 200
+    const provider: MarketDataProvider = {
+      id: 'alpaca',
+      feed: 'sip',
+      isDelayed: false,
+      getLatestPrices: vi.fn(async () => []),
+      getClosingPrices: vi.fn(async () => [
+        quote({
+          price: closingPrice,
+          priceType: 'official_close',
+          marketSession: 'closed',
+          tradingDate: '2026-08-14',
+        }),
+      ]),
+    }
+    const accountId = randomUUID()
+    const holdings = [
+      holding({ accountId }),
+      holding({
+        accountId,
+        symbol: null,
+        description: 'Private fund',
+        quantity: null,
+        institutionPrice: null,
+        marketValue: 500,
+        costBasis: 400,
+        unrealizedGainLoss: 100,
+      }),
+    ]
+    const service = createMarketDataService({
+      provider,
+      store: createInMemoryMarketPriceStore(),
+      valuationStore,
+      getSelectedHoldings: () => holdings,
+      refreshOnRead: false,
+      maxAgeSeconds: 60,
+      now: () => new Date('2026-08-14T20:20:00.000Z'),
+    })
+
+    const first = await service.refreshClosingPrices('2026-08-14')
+    closingPrice = 210
+    const retry = await service.refreshClosingPrices('2026-08-14')
+    const points = await valuationStore.listPerformancePoints({ accountIds: [accountId] })
+
+    expect(first).toMatchObject({
+      status: 'success',
+      valuedHoldingCount: 2,
+      fallbackHoldingCount: 1,
+    })
+    expect(retry.valuationSnapshotId).toBe(first.valuationSnapshotId)
+    expect(points).toHaveLength(1)
+    expect(points[0]).toMatchObject({
+      date: '2026-08-14',
+      totalMarketValue: 2_600,
+      totalCostBasis: 1_400,
+      totalUnrealizedGainLoss: 1_200,
+      pricedHoldingCount: 1,
+      fallbackHoldingCount: 1,
+    })
+  })
+
+  it('does not create a market-close point when no official close is returned', async () => {
+    const valuationStore = createInMemoryLiquidityValuationStore()
+    const accountId = randomUUID()
+    const service = createMarketDataService({
+      provider: {
+        id: 'alpaca',
+        feed: 'sip',
+        isDelayed: false,
+        getLatestPrices: vi.fn(async () => []),
+        getClosingPrices: vi.fn(async () => []),
+      },
+      store: createInMemoryMarketPriceStore(),
+      valuationStore,
+      getSelectedHoldings: () => [holding({ accountId })],
+      refreshOnRead: false,
+      maxAgeSeconds: 60,
+    })
+
+    const result = await service.refreshClosingPrices('2026-08-15')
+
+    expect(result).toMatchObject({ status: 'skipped', valuationSnapshotId: null })
+    await expect(
+      valuationStore.listPerformancePoints({ accountIds: [accountId] }),
+    ).resolves.toEqual([])
+  })
+
   it('returns the saved database price immediately and persists a later live update', async () => {
     const store = createInMemoryMarketPriceStore()
     await store.savePrices([quote({ price: 180, receivedAt: '2026-08-15T17:00:00.000Z' })])

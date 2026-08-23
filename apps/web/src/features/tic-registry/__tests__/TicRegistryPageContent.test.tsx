@@ -54,6 +54,9 @@ describe('TicRegistryPageContent', () => {
     expect(totalUnitsLabel.nextElementSibling).toHaveTextContent('24')
     expect(screen.getAllByText('Harbor View TIC A')).toHaveLength(2)
     expect(screen.getByText('Jackson Family Trust')).toBeInTheDocument()
+    expect(screen.getAllByText('Held')).toHaveLength(2)
+    expect(screen.getByText(/TIC 40(?:\.00)?%/)).toBeInTheDocument()
+    expect(screen.getByText(/TIC shares: 40% allocated; 60% unassigned/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /add property/i })).toBeInTheDocument()
   })
 

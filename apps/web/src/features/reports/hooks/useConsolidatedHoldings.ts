@@ -64,6 +64,7 @@ export const useConsolidatedHoldings = () => {
       reportsClient.refreshConsolidatedHoldings(input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['reports', 'consolidated-holdings'] })
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'liquidity-performance'] })
       void queryClient.invalidateQueries({ queryKey: ['plaid', 'investment-accounts'] })
     },
   })

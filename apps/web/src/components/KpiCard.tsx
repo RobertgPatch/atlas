@@ -1,4 +1,5 @@
 import React from 'react'
+import { colorTokens } from '../../design-tokens.js'
 
 interface KpiCardProps {
   label: string
@@ -20,8 +21,8 @@ export function KpiCard({
   accentColor,
 }: KpiCardProps) {
   const deltaColors = {
-    positive: 'text-green-600',
-    negative: 'text-red-600',
+    positive: 'text-success',
+    negative: 'text-error',
     neutral: 'text-text-tertiary',
   }
 
@@ -43,7 +44,7 @@ export function KpiCard({
         {icon && (
           <div
             className="flex items-center justify-center w-9 h-9 rounded-md flex-shrink-0"
-            style={{ backgroundColor: accentColor ? `${accentColor}12` : '#E8EDF3' }}
+            style={{ backgroundColor: accentColor ? `${accentColor}12` : colorTokens.interaction.subtle }}
           >
             {icon}
           </div>

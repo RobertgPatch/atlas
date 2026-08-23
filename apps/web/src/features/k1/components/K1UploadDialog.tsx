@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom'
 import { AlertCircle, Building2, CheckCircle2, FileText, RefreshCw, Upload, X } from 'lucide-react'
 
 import type { K1IngestionBatch, K1IngestionItem } from '../../../../../../packages/types/src/k1-ingestion'
+import { Button } from '../../../components/shared/Button'
+import {
+  fieldClassName,
+  fileDropClassName,
+  iconActionClassName,
+  interactiveLinkClassName,
+} from '../../../components/shared/colorRecipes'
 import { K1ApiError } from '../api/k1Client'
 import { useK1BatchUpload, useK1Lookups } from '../hooks/useK1Queries'
 
@@ -202,7 +209,7 @@ export function K1UploadDialog({
             <h2 id="k1-upload-title" className="text-lg font-semibold text-gray-900">Upload K-1 documents</h2>
             <p className="mt-0.5 text-sm text-gray-500">Select up to 25 partnership K-1 PDFs. Each document is read separately.</p>
           </div>
-          <button aria-label="Close upload dialog" onClick={handleClose} className="rounded p-1 hover:bg-gray-100">
+          <button aria-label="Close upload dialog" onClick={handleClose} className={iconActionClassName}>
             <X className="h-5 w-5 text-gray-500" />
           </button>
         </div>
@@ -223,7 +230,7 @@ export function K1UploadDialog({
               <div className="flex-1">
                 <p className="font-semibold">You have no entities yet</p>
                 <p className="mt-1">Create an entity before uploading K-1s.</p>
-                <Link to="/entities" onClick={handleClose} className="mt-2 inline-flex font-medium text-jackson-gold hover:text-jackson-hover">
+                <Link to="/entities" onClick={handleClose} className={`mt-2 inline-flex font-medium ${interactiveLinkClassName}`}>
                   Go to Entities →
                 </Link>
               </div>
@@ -235,7 +242,7 @@ export function K1UploadDialog({
                 aria-label="Entity"
                 value={entityId}
                 onChange={(event) => setEntityId(event.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-jackson-gold focus:outline-none focus:ring-1 focus:ring-jackson-gold"
+                className={`mt-1 block w-full px-3 py-2 text-sm ${fieldClassName}`}
                 disabled={lookups.isLoading || upload.isPending}
               >
                 <option value="">Select entity…</option>
@@ -257,7 +264,7 @@ export function K1UploadDialog({
               event.preventDefault()
               addFiles(Array.from(event.dataTransfer.files))
             }}
-            className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center transition hover:border-jackson-gold"
+            className={`rounded-xl border-2 border-dashed p-6 text-center transition ${fileDropClassName}`}
           >
             <Upload className="mx-auto h-7 w-7 text-gray-400" />
             <label className="mt-2 block cursor-pointer text-sm font-medium text-gray-800">
@@ -298,27 +305,29 @@ export function K1UploadDialog({
                       </div>
                       {entry.status === 'UPLOADING' && (
                         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-200">
-                          <div className="h-full bg-jackson-gold transition-all" style={{ width: `${entry.progress}%` }} />
+                          <div className="h-full bg-primary transition-all" style={{ width: `${entry.progress}%` }} />
                         </div>
                       )}
                       {entry.error && <p className="mt-1 text-xs text-error">{entry.error.message}</p>}
                     </div>
                     {entry.status === 'READY' ? (
-                      <button
+                      <Button
                         aria-label={`Remove ${entry.file.name}`}
                         onClick={() => setFiles((current) => current.filter((value) => value.key !== entry.key))}
-                        className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        variant="ghost"
+                        size="icon"
                       >
                         <X className="h-4 w-4" />
-                      </button>
+                      </Button>
                     ) : entry.status === 'FAILED' && entry.error?.retryable ? (
-                      <button
+                      <Button
                         aria-label={`Retry ${entry.file.name}`}
                         onClick={() => void uploadFiles([entry.file])}
-                        className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        variant="secondary"
+                        size="sm"
                       >
                         <RefreshCw className="h-3 w-3" /> Retry
-                      </button>
+                      </Button>
                     ) : entry.status === 'QUEUED' || entry.status === 'PROCESSING' ? (
                       <CheckCircle2 className="h-5 w-5 text-success" />
                     ) : entry.status === 'FAILED' ? (
@@ -338,18 +347,18 @@ export function K1UploadDialog({
         </div>
 
         <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-4">
-          <button onClick={handleClose} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          <Button onClick={handleClose} variant="secondary">
             {files.some((entry) => entry.status !== 'READY') ? 'Done' : 'Cancel'}
-          </button>
+          </Button>
           {readyFiles.length > 0 && (
-            <button
+            <Button
               onClick={() => void uploadFiles(readyFiles)}
               disabled={upload.isPending || !entityId}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-jackson-gold px-4 py-2 text-sm font-medium text-white hover:bg-jackson-hover disabled:cursor-not-allowed disabled:opacity-50"
+              pending={upload.isPending}
             >
               <Upload className="h-4 w-4" />
               {upload.isPending ? 'Uploading…' : `Upload ${readyFiles.length} ${readyFiles.length === 1 ? 'file' : 'files'}`}
-            </button>
+            </Button>
           )}
         </div>
       </div>

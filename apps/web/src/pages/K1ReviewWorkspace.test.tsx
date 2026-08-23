@@ -265,7 +265,12 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     expect(screen.getByRole('heading', { name: 'Part II - Information about the partner' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: "Part III - Partner's share of current-year items" })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Double-check 1 extracted value' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Check Part III · Line 13 · Code W' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save verified K-1 to tax basis' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Save verified K-1 to tax basis' })).toHaveClass(
+      'bg-primary',
+      'hover:bg-primary-hover',
+    )
     expect(screen.queryByRole('button', { name: /finalize/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /build.*preview/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /flag an issue/i })).not.toBeInTheDocument()

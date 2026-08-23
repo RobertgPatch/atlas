@@ -55,6 +55,7 @@ describe('LoginPage design flag', () => {
     renderLogin(false)
 
     expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('bg-primary')
     expect(screen.queryByText('The record of truth for your family office.')).toBeNull()
   })
 
@@ -62,6 +63,12 @@ describe('LoginPage design flag', () => {
     renderLogin(true)
 
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass(
+      'bg-primary',
+      'hover:bg-primary-hover',
+      'focus-visible:ring-focus',
+    )
+    expect(screen.getByLabelText('Email')).toHaveClass('focus:border-focus', 'focus:ring-focus/10')
     expect(screen.getByText('The record of truth for your family office.')).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Welcome back' })).toBeNull()
   })

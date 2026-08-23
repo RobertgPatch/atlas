@@ -14,6 +14,7 @@ import type {
   K1ReviewErrorBody,
   K1ReviewSession,
 } from '../../../../../../packages/types/src/review-finalization'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -53,7 +54,7 @@ const request = async <T>(
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
   if (opts.version != null) headers['If-Match'] = String(opts.version)
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await authenticatedFetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     method: opts.method ?? 'GET',
     headers,

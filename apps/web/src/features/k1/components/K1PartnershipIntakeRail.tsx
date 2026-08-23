@@ -24,6 +24,7 @@ const ITEM_LABELS: Record<K1IngestionItem['status'], string> = {
 const attentionStatuses = new Set<K1IngestionItem['status']>(['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY', 'FAILED'])
 const activeStatuses = new Set<K1IngestionItem['status']>(['PENDING_UPLOAD', 'UPLOADED', 'VALIDATING', 'QUEUED', 'PROCESSING'])
 const reviewableStatuses = new Set<K1IngestionItem['status']>(['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY', 'APPLIED'])
+const requiresReviewStatuses = new Set<K1IngestionItem['status']>(['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY'])
 
 const sourceDocumentIdsFor = (detail: K1TrackerYearDetail): string[] => {
   const documentIds = new Set<string>()
@@ -76,7 +77,7 @@ export function K1PartnershipIntakeRail({
     attentionRequired: recentItems.filter((item) => attentionStatuses.has(item.status)).length,
     completed: recentItems.filter((item) => item.status === 'APPLIED').length,
   }), [recentItems])
-  const reviewItem = recentItems.find((item) => item.k1DocumentId && reviewableStatuses.has(item.status))
+  const reviewItem = recentItems.find((item) => item.k1DocumentId && requiresReviewStatuses.has(item.status))
   const openChecks = detail?.calculation.checks.filter((check) => check.status !== 'PASS') ?? []
   const blockingChecks = openChecks.filter(isReconciliationBlocker)
   const warningChecks = openChecks.filter((check) => check.status === 'WARNING')
@@ -85,7 +86,7 @@ export function K1PartnershipIntakeRail({
   const requiredCount = blockingChecks.length + extraSourceConflicts.length
   const checksNeedingAttention = openChecks.length + extraSourceConflicts.length
 
-  return <aside aria-label="K-1 document workflow" className="space-y-3 2xl:sticky 2xl:top-4">
+  return <aside aria-label="K-1 document workflow" className="space-y-3">
     <section className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm">
       <div className="border-b border-slate-200 bg-slate-950 px-4 py-3 text-white">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">{detail ? `Tax year ${detail.taxYear}` : 'K-1 document workflow'}</p>
@@ -101,7 +102,7 @@ export function K1PartnershipIntakeRail({
             <p className="text-xs font-semibold text-slate-950">Source document</p>
             {sourceDocumentIds.length ? <>
               <p className="mt-1 text-xs leading-5 text-slate-600">{sourceDocumentIds.length} reviewed PDF{sourceDocumentIds.length === 1 ? ' is' : 's are'} linked to this workpaper.</p>
-              <button type="button" onClick={() => navigate(`/k1/${sourceDocumentIds[0]}/review`)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-[#166534] hover:text-[#14532d]">
+              <button type="button" onClick={() => navigate(`/k1/${sourceDocumentIds[0]}/review`)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary">
                 Open source review <ArrowUpRight className="h-3.5 w-3.5" />
               </button>
             </> : <p className="mt-1 text-xs leading-5 text-slate-600">No reviewed PDF has been applied{detail ? ` to ${detail.taxYear}` : ''}. Extracted documents waiting below can be reviewed before a tax year is created.</p>}
@@ -109,9 +110,9 @@ export function K1PartnershipIntakeRail({
         </div>
         {reviewItem?.k1DocumentId && <div className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3">
           <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" /><div className="min-w-0"><p className="text-xs font-semibold text-amber-950">K-1 review required</p><p className="mt-1 break-words text-xs text-amber-900">{reviewItem.fileName}{reviewItem.taxYear ? ` · ${reviewItem.taxYear}` : ''} is waiting for review for {partnershipName}.</p></div></div>
-          <button type="button" onClick={() => navigate(`/k1/${reviewItem.k1DocumentId}/review`)} className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-amber-900 px-3 text-xs font-semibold text-white hover:bg-amber-950"><FileSearch className="h-3.5 w-3.5" />Review K-1 now</button>
+          <button type="button" onClick={() => navigate(`/k1/${reviewItem.k1DocumentId}/review`)} className="mt-3 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary-hover"><FileSearch className="h-3.5 w-3.5" />Review K-1 now</button>
         </div>}
-        {canUpload && <button type="button" onClick={onUpload} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-[#14532d] bg-[#14532d] px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#0f3d22] focus:outline-none focus:ring-2 focus:ring-[#166534] focus:ring-offset-2">
+        {canUpload && <button type="button" onClick={onUpload} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border border-primary bg-primary px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2">
           <UploadCloud className="h-4 w-4" />Upload K-1 PDFs
         </button>}
       </div>
@@ -145,7 +146,7 @@ export function K1PartnershipIntakeRail({
                   <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${blocking ? 'bg-amber-100 text-amber-900' : 'bg-sky-100 text-sky-900'}`}>{blocking ? 'Required' : 'Review'}</span>
                 </div>
                 <p className="mt-1 text-[11px] leading-[1.15rem] text-slate-600">{guidance.description}</p>
-                {guidance.fieldKey && guidance.actionLabel && <button type="button" onClick={() => focusK1TrackerField(guidance.fieldKey!)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-[#14532d] hover:border-emerald-500 hover:bg-emerald-50">
+                {guidance.fieldKey && guidance.actionLabel && <button type="button" onClick={() => focusK1TrackerField(guidance.fieldKey!)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-primary hover:border-primary hover:bg-primary-subtle">
                   {guidance.actionLabel} <ArrowUpRight className="h-3 w-3" />
                 </button>}
               </div>
@@ -153,7 +154,7 @@ export function K1PartnershipIntakeRail({
           </li>
         })}
         {extraSourceConflicts.map((conflict) => <li key={conflict.fieldKey} className="px-4 py-3">
-          <div className="flex items-start gap-2.5"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-700" /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold text-slate-950">Source values disagree</p><span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-900">Required</span></div><p className="mt-1 text-[11px] leading-[1.15rem] text-slate-600">{conflict.message}</p>{sourceDocumentIds[0] && <button type="button" onClick={() => navigate(`/k1/${sourceDocumentIds[0]}/review`)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-[#14532d]">Open source review <ArrowUpRight className="h-3 w-3" /></button>}</div></div>
+          <div className="flex items-start gap-2.5"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-700" /><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-xs font-semibold text-slate-950">Source values disagree</p><span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-900">Required</span></div><p className="mt-1 text-[11px] leading-[1.15rem] text-slate-600">{conflict.message}</p>{sourceDocumentIds[0] && <button type="button" onClick={() => navigate(`/k1/${sourceDocumentIds[0]}/review`)} className="mt-2 inline-flex min-h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[10px] font-semibold text-primary">Open source review <ArrowUpRight className="h-3 w-3" /></button>}</div></div>
         </li>)}
       </ol>}
     </section>}

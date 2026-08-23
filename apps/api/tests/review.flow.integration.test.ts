@@ -303,6 +303,27 @@ durable('Feature 022 durable review session and typed corrections', () => {
   beforeEach(async () => { f = await createDurableK1ReviewFixture() })
   afterEach(async () => { await f.cleanup() })
 
+  it('searches durable entity and partnership names for the destination controls', async () => {
+    const entities = await f.app.inject({
+      method: 'GET', url: '/v1/review/entities?q=Review&limit=20',
+      headers: { cookie: f.cookie },
+    })
+    expect(entities.statusCode).toBe(200)
+    expect(entities.json().items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: f.entityId, name: 'Review Trust' }),
+    ]))
+
+    const partnerships = await f.app.inject({
+      method: 'GET',
+      url: `/v1/review/partnerships?entity_id=${f.entityId}&q=Review%20Fund&limit=20`,
+      headers: { cookie: f.cookie },
+    })
+    expect(partnerships.statusCode).toBe(200)
+    expect(partnerships.json().items).toEqual([
+      expect.objectContaining({ id: f.partnershipId, entityId: f.entityId, name: 'Review Fund LP' }),
+    ])
+  })
+
   it('returns only active-attempt typed occurrences, attempt history, evidence, issues, and blockers', async () => {
     const res = await f.app.inject({
       method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
@@ -320,6 +341,73 @@ durable('Feature 022 durable review session and typed corrections', () => {
       sourceLocations: [{ page: 2, bbox: [0.2, 0.3, 0.5, 0.4] }],
     })
     expect(body.applyBlockingReasons).toContain('OPEN_ISSUES')
+  })
+
+  it('links legacy occurrence-only issues to the exact review field', async () => {
+    const occurrenceIssueId = randomUUID()
+    await pool!.query(
+      `insert into k1_issues
+         (id, k1_document_id, issue_type, severity, status, message,
+          extraction_attempt_id, occurrence_id, issue_code, details_json)
+       select $1, $2, 'INVALID_EXTRACTED_VALUE', 'HIGH', 'OPEN',
+              'Part III, Line 13, code W: the extracted amount is not valid money.',
+              $3, occurrence_id, 'INVALID_EXTRACTED_VALUE', '{}'::jsonb
+         from k1_field_values
+        where id = $4`,
+      [occurrenceIssueId, f.k1DocumentId, f.activeAttemptId, f.codeRowFieldId],
+    )
+
+    const response = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
+      headers: { cookie: f.cookie },
+    })
+
+    expect(response.statusCode).toBe(200)
+    const body = response.json()
+    expect(body.issues.find((issue: { id: string }) => issue.id === occurrenceIssueId))
+      .toMatchObject({ k1FieldValueId: f.codeRowFieldId })
+    expect(body.fields.core.find((field: { id: string }) => field.id === f.codeRowFieldId).linkedIssueIds)
+      .toContain(occurrenceIssueId)
+  })
+
+  it('shows legacy Item J sale/exchange extraction fields as one combined checkbox', async () => {
+    const saleFieldId = randomUUID()
+    const exchangeFieldId = randomUUID()
+    await pool!.query(
+      `insert into k1_field_values
+         (id, k1_document_id, extraction_attempt_id, canonical_path, occurrence_id,
+          occurrence_index, field_name, label, review_section, is_required, value_kind,
+          raw_value, raw_value_json, normalized_value, normalized_value_json,
+          confidence_score, extraction_method, review_status, source_locations,
+          destination_kind, destination_key, mapping_rule_version)
+       values
+         ($1, $3, $4, 'official.part_ii_j_decrease_sale', $5, 2,
+          'official.part_ii_j_decrease_sale', 'Decrease due to sale', 'core', false, 'BOOLEAN',
+          'false', 'false'::jsonb, 'false', 'false'::jsonb, 0.95, 'STUB', 'PENDING', '[]'::jsonb,
+          'OFFICIAL', 'part_ii_j_decrease_sale', 'test-v1'),
+         ($2, $3, $4, 'official.part_ii_j_decrease_exchange', $6, 3,
+          'official.part_ii_j_decrease_exchange', 'Decrease due to exchange', 'core', false, 'BOOLEAN',
+          'true', 'true'::jsonb, 'true', 'true'::jsonb, 0.90, 'STUB', 'PENDING', '[]'::jsonb,
+          'OFFICIAL', 'part_ii_j_decrease_exchange', 'test-v1')`,
+      [saleFieldId, exchangeFieldId, f.k1DocumentId, f.activeAttemptId, randomUUID(), randomUUID()],
+    )
+
+    const response = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
+      headers: { cookie: f.cookie },
+    })
+
+    expect(response.statusCode).toBe(200)
+    const itemJFields = response.json().fields.core.filter((field: { destination?: { key?: string } }) =>
+      field.destination?.key === 'part_ii_j_decrease_sale'
+        || field.destination?.key === 'part_ii_j_decrease_exchange')
+    expect(itemJFields).toHaveLength(1)
+    expect(itemJFields[0]).toMatchObject({
+      id: saleFieldId,
+      label: 'Item J - Decrease due to sale or exchange of partnership interest',
+      effectiveValueJson: true,
+      destination: { kind: 'OFFICIAL', key: 'part_ii_j_decrease_sale' },
+    })
   })
 
   it('persists a typed correction/history in PostgreSQL and survives process-local resets', async () => {

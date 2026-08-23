@@ -84,7 +84,7 @@ export const IssueQueueDialog = ({
               id="issue-field"
               value={fieldId ?? ''}
               onChange={(e) => setFieldId(e.target.value || null)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-400"
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-focus focus:ring-2 focus:ring-focus"
             >
               <option value="">— None —</option>
               {fields.map((f) => (
@@ -134,7 +134,7 @@ export const IssueQueueDialog = ({
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Describe the issue…"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-400 resize-none"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-focus focus:ring-2 focus:ring-focus resize-none"
               data-testid="issue-message-input"
             />
           </div>
@@ -151,7 +151,7 @@ export const IssueQueueDialog = ({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="rounded-md bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:bg-gray-300"
+              className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary-hover disabled:bg-disabled-background disabled:text-disabled-foreground"
               data-testid="issue-submit-button"
             >
               {isPending ? 'Saving…' : 'Open Issue'}

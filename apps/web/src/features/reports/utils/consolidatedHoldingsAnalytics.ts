@@ -29,6 +29,7 @@ export interface TopHoldingDatum {
   symbol: string
   description: string
   marketValue: number
+  unrealizedGainLoss: number | null
   gainLossPercent: number | null
   costBasisStatus: CostBasisStatus
   weight: number
@@ -621,14 +622,21 @@ export function getTopHoldings(
   rows: ConsolidatedHoldingRow[],
   totalValue: number,
 ): TopHoldingDatum[] {
-  return [...rows]
-    .sort((a, b) => (b.marketValue ?? 0) - (a.marketValue ?? 0))
+  return getRankableHoldings(rows, totalValue)
+    .sort((a, b) => b.marketValue - a.marketValue)
     .slice(0, 5)
-    .map((row) => ({
+}
+
+export function getRankableHoldings(
+  rows: ConsolidatedHoldingRow[],
+  totalValue: number,
+): TopHoldingDatum[] {
+  return rows.map((row) => ({
       id: row.id,
       symbol: row.symbol ?? 'N/A',
       description: row.description,
       marketValue: row.marketValue ?? 0,
+      unrealizedGainLoss: row.unrealizedGainLoss,
       gainLossPercent: row.gainLossPercent,
       costBasisStatus: getCostBasisStatus(row),
       weight: totalValue > 0 ? ((row.marketValue ?? 0) / totalValue) * 100 : 0,

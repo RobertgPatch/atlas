@@ -15,6 +15,7 @@ describe('sanitized BDA fixture set', () => {
     expect(manifest.fixtures.some((fixture) =>
       fixture.revisionYear !== null && fixture.revisionYear < 2024,
     )).toBe(true)
+    expect(manifest.fixtures.some((fixture) => fixture.revisionYear === 2021)).toBe(true)
     expect(supportedFixtureCanonicalPaths()).toHaveLength(79)
     expect(new Set(supportedFixtureCanonicalPaths()).size).toBe(79)
   })

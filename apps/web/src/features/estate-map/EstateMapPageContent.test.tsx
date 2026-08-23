@@ -128,6 +128,13 @@ describe('EstateMapPageContent', () => {
     expect(screen.getByText('Jackson Real Estate Partners')).toBeTruthy()
     expect(screen.getByText('Park Avenue Residence')).toBeTruthy()
     expect(screen.getByText('Ownership 100.00%')).toBeTruthy()
+
+    const rootNode = screen
+      .getAllByRole('button', { name: /Jackson Main Trust/ })
+      .find((button) => button.hasAttribute('aria-pressed'))!
+    fireEvent.click(rootNode)
+    expect(rootNode).toHaveAttribute('aria-pressed', 'true')
+    expect(rootNode).toHaveClass('border-primary', 'bg-primary-subtle')
   })
 
   it('creates an additional focused map for another trust', async () => {

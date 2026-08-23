@@ -31,6 +31,7 @@ import type {
 } from '../../../../../../packages/types/src/partnership-tracker'
 import type { K1TrackerCashFlowEvent } from '../../../../../../packages/types/src/k1-tracker'
 import { normalizeCurrencyInput } from '../../../components/shared/currencyInput'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
 
@@ -57,7 +58,7 @@ export function serializeTrackerMoney(value: string): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
+  const response = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
   if (!response.ok) {
     let payload: unknown
     try { payload = await response.json() } catch { payload = undefined }

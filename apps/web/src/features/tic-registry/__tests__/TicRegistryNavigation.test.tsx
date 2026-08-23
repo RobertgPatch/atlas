@@ -21,6 +21,6 @@ describe('TIC Registry navigation', () => {
 
     const link = screen.getByRole('link', { name: /tic registry/i })
     expect(link).toHaveAttribute('href', '/tic-registry')
-    expect(link).toHaveClass('text-jackson-gold')
+    expect(link).toHaveClass('text-primary')
   })
 })

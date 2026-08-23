@@ -9,6 +9,7 @@ describe('MagicPattern partnership workspace navigation', () => {
 
     const navigation = screen.getByRole('navigation', { name: 'Partnership sections' })
     expect(navigation).toHaveClass('overflow-hidden')
+    expect(navigation).toHaveClass('-top-4', 'sm:-top-6', 'lg:-top-8')
     expect(navigation).not.toHaveClass('overflow-x-auto')
     expect(navigation.firstElementChild).toHaveClass('flex-wrap')
   })

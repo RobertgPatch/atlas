@@ -16,6 +16,7 @@ import {
 import { authClient } from '../auth/authClient'
 import { sessionStore, useSession } from '../auth/sessionStore'
 import { AppShell } from '../components/shared/AppShell'
+import { Button } from '../components/shared/Button'
 import { PageHeader } from '../components/shared/PageHeader'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { EntityTypeahead } from '../features/review/components/EntityTypeahead'
@@ -95,7 +96,9 @@ export const K1ReviewWorkspace = () => {
   const [staleError, setStaleError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null)
+  const [selectedEntityName, setSelectedEntityName] = useState<string | null>(null)
   const [selectedPartnershipId, setSelectedPartnershipId] = useState<string | null>(null)
+  const [selectedPartnershipName, setSelectedPartnershipName] = useState<string | null>(null)
   const [selectedTaxYear, setSelectedTaxYear] = useState('')
   const [destinationEditorOpen, setDestinationEditorOpen] = useState(false)
   const [completionStage, setCompletionStage] = useState<CompletionStage>('idle')
@@ -136,12 +139,18 @@ export const K1ReviewWorkspace = () => {
 
   useEffect(() => {
     if (!sessionData) return
-    const exactEntity = sessionData.matchCandidates?.find((candidate) => candidate.type === 'ENTITY' && candidate.score >= 0.99)
-    const exactPartnership = sessionData.matchCandidates?.find((candidate) => candidate.type === 'PARTNERSHIP' && candidate.score >= 0.99)
+    const exactEntities = sessionData.matchCandidates?.filter((candidate) => candidate.type === 'ENTITY' && candidate.score >= 0.99) ?? []
+    const exactPartnerships = sessionData.matchCandidates?.filter((candidate) => candidate.type === 'PARTNERSHIP' && candidate.score >= 0.99) ?? []
+    const exactEntity = exactEntities.length === 1 ? exactEntities[0] : undefined
+    const exactPartnership = exactPartnerships.length === 1 ? exactPartnerships[0] : undefined
+    const entityId = sessionData.entity.id ?? exactEntity?.recordId ?? null
+    const partnershipId = sessionData.partnership.id ?? exactPartnership?.recordId ?? null
     // The durable review session is the source of truth for the destination after each mutation/refetch.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedEntityId(sessionData.entity.id ?? exactEntity?.recordId ?? null)
-    setSelectedPartnershipId(sessionData.partnership.id ?? exactPartnership?.recordId ?? null)
+    setSelectedEntityId(entityId)
+    setSelectedEntityName(sessionData.entity.name ?? (entityId === exactEntity?.recordId ? exactEntity.maskedLabel.split(' · ')[0]! : null))
+    setSelectedPartnershipId(partnershipId)
+    setSelectedPartnershipName(sessionData.partnership.name ?? (partnershipId === exactPartnership?.recordId ? exactPartnership.maskedLabel.split(' · ')[0]! : null))
     setSelectedTaxYear(sessionData.taxYear == null ? '' : String(sessionData.taxYear))
     setDestinationEditorOpen(!sessionData.entity.id || !sessionData.partnership.id || !sessionData.taxYear)
   }, [sessionData])
@@ -342,13 +351,13 @@ export const K1ReviewWorkspace = () => {
                 <div className="flex items-start gap-3">
                   <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${applied ? 'bg-emerald-700 text-white' : 'bg-slate-950 text-cyan-300'}`}>{applied ? <CheckCircle2 className="h-5 w-5" /> : <FileCheck2 className="h-5 w-5" />}</div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#166534]">{applied ? 'Complete' : 'One review, one save'}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">{applied ? 'Complete' : 'One review, one save'}</p>
                     <h2 id="verify-k1-heading" className="mt-1 text-lg font-semibold text-slate-950">{applied ? 'K-1 saved to tax basis' : 'Check the extracted values against the PDF'}</h2>
                     <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{applied
                       ? 'The verified values and source evidence are attached to this partnership year. No additional reconciliation step is required for the scan.'
                       : 'Correct anything that AWS read incorrectly. When the values look right, use the single save button below. Matching, review flags, finalization, and tax-basis application happen automatically.'}</p>
                   </div>
-                  {applied && <button type="button" onClick={openTaxBasisHistory} className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md bg-emerald-800 px-3 text-sm font-semibold text-white hover:bg-emerald-900">Open K-1 history <ArrowRight className="h-4 w-4" /></button>}
+                  {applied && <Button type="button" onClick={openTaxBasisHistory} size="sm" className="shrink-0">Open K-1 history <ArrowRight className="h-4 w-4" /></Button>}
                 </div>
               </div>
               {!applied && <div className="grid grid-cols-3 border-t border-slate-200 bg-white text-center text-xs">
@@ -362,13 +371,13 @@ export const K1ReviewWorkspace = () => {
               <div className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="flex min-w-0 items-center gap-3">
                   <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${destinationReady ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}><Link2 className="h-4 w-4" /></div>
-                  <div className="min-w-0"><h2 id="tax-basis-destination-heading" className="text-sm font-semibold text-slate-950">Tax-basis destination</h2><p className="truncate text-xs text-slate-600">{sessionData.partnership.name ?? sessionData.partnership.rawName ?? 'Choose partnership'} · {sessionData.entity.name ?? 'Choose owner'} · {selectedTaxYear || 'Choose year'}</p></div>
+                  <div className="min-w-0"><h2 id="tax-basis-destination-heading" className="text-sm font-semibold text-slate-950">Tax-basis destination</h2><p className="truncate text-xs text-slate-600">{selectedPartnershipName ?? sessionData.partnership.rawName ?? 'Choose partnership'} · {selectedEntityName ?? 'Choose owner'} · {selectedTaxYear || 'Choose year'}</p></div>
                 </div>
                 <button type="button" onClick={() => setDestinationEditorOpen((open) => !open)} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50" aria-expanded={destinationEditorOpen}>{destinationEditorOpen ? 'Hide' : 'Change'} <ChevronDown className={`h-3.5 w-3.5 transition-transform ${destinationEditorOpen ? 'rotate-180' : ''}`} /></button>
               </div>
               {destinationEditorOpen && <div className="grid gap-3 border-t border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
-                <div><label className="mb-1 block text-xs font-medium text-slate-700">Entity receiving the K-1</label><EntityTypeahead value={selectedEntityId} onChange={(entityId) => { setSelectedEntityId(entityId); setSelectedPartnershipId(null) }} disabled={!sessionData.canEdit} /></div>
-                <div><label className="mb-1 block text-xs font-medium text-slate-700">Partnership that issued the K-1</label><PartnershipTypeahead entityId={selectedEntityId} value={selectedPartnershipId} onChange={setSelectedPartnershipId} disabled={!sessionData.canEdit} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-700">Entity receiving the K-1</label><EntityTypeahead value={selectedEntityId} displayName={selectedEntityName} onChange={(entityId, entityName) => { setSelectedEntityId(entityId); setSelectedEntityName(entityName); setSelectedPartnershipId(null); setSelectedPartnershipName(null) }} disabled={!sessionData.canEdit} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-slate-700">Partnership that issued the K-1</label><PartnershipTypeahead entityId={selectedEntityId} value={selectedPartnershipId} displayName={selectedPartnershipName} onChange={(partnershipId, partnershipName) => { setSelectedPartnershipId(partnershipId); setSelectedPartnershipName(partnershipName) }} disabled={!sessionData.canEdit} /></div>
                 <div><label htmlFor="review-tax-year" className="mb-1 block text-xs font-medium text-slate-700">Tax year</label><input id="review-tax-year" inputMode="numeric" value={selectedTaxYear} disabled={!sessionData.canEdit} onChange={(event) => setSelectedTaxYear(event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm focus:border-cyan-600 focus:outline-none focus:ring-2 focus:ring-cyan-200" /></div>
                 <p className="self-end text-xs leading-5 text-slate-600">There is no separate linking step. This destination is confirmed when you save the verified K-1.</p>
               </div>}
@@ -401,9 +410,9 @@ export const K1ReviewWorkspace = () => {
           {!applied && <div id="k1-review-actions" className="sticky bottom-0 z-20 -mt-20 flex flex-col gap-3 border-t border-slate-300 bg-white/95 px-4 py-3 shadow-[0_-8px_22px_rgba(15,23,42,0.12)] backdrop-blur sm:flex-row sm:items-center">
             <p className="min-w-0 flex-1 text-xs leading-5 text-slate-600">By saving, you confirm the values match the PDF. Existing K-1 values for this year are updated; dated cash activity remains authoritative.</p>
             {edits.hasEdits && <button type="button" onClick={() => edits.reset()} disabled={completing} className="min-h-10 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Discard corrections</button>}
-            <button type="button" onClick={() => void handleComplete()} disabled={completionBlocked || completing} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#14532d] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#0f3d22] focus:outline-none focus:ring-2 focus:ring-[#166534] focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600" data-testid="save-verified-k1">
+            <Button type="button" onClick={() => void handleComplete()} disabled={completionBlocked} pending={completing} className="px-5" data-testid="save-verified-k1">
               {completing ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <CheckCircle2 className="h-4 w-4" />}{completionBlocked && missingRequiredFields.length ? `Complete ${missingRequiredFields.length} required field${missingRequiredFields.length === 1 ? '' : 's'}` : completionLabel[completionStage]}
-            </button>
+            </Button>
           </div>}
         </div>
 

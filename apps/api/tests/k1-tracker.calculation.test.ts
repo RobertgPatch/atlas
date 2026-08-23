@@ -112,7 +112,7 @@ describe('K1 tracker calculation', () => {
         box_19_distributions: '190773.00',
         section_l_beginning_capital: '1932344.00',
         section_l_current_year_net_income_loss: '-56844.00',
-        section_l_withdrawals_distributions: '190773.00',
+        section_l_withdrawals_distributions: '-190773.00',
         section_l_ending_capital: '1684727.00',
         book_capital_account: '1684727.00',
       }),
@@ -122,9 +122,37 @@ describe('K1 tracker calculation', () => {
     expect(result.basis.inferredNondeductibleExpenses).toBe('0.00')
     expect(result.basis.endingOutsideBasis).toBe('1684727.00')
     expect(result.sectionL.calculatedNetIncome).toBe('-56844.00')
+    expect(result.sectionL.reportedWithdrawals).toBe('-190773.00')
     expect(result.sectionL.calculatedEnding).toBe('1684727.00')
     expect(result.bookTax.unexplainedVariance).toBe('0.00')
     expect(result.lossLimitation.cumulativeSuspendedLoss).toBe('0.00')
+    expect(result.checks.every((check) => check.status === 'PASS')).toBe(true)
+    expect(result.summary.status).toBe('RECONCILED')
+  })
+
+  it('reconciles the 2025 AC Bell Section L after attached Line 13 deductions are included', () => {
+    const result = calculateTrackerYear({
+      id: 'ac-bell-2025', taxYear: 2025, revision: 1, status: 'IMPORTED',
+      values: values({
+        opening_outside_basis: '1144214.00',
+        box_1_ordinary_income_loss: '-173653.00',
+        box_5_interest_income: '7469.00',
+        box_10_net_section_1231_gain_loss: '-22899.00',
+        box_13_other_deductions: '3226.00',
+        box_18c_nondeductible_expenses: '296.00',
+        box_19_distributions: '255786.00',
+        section_l_beginning_capital: '1144214.00',
+        section_l_current_year_net_income_loss: '-192605.00',
+        section_l_withdrawals_distributions: '-255786.00',
+        section_l_ending_capital: '695823.00',
+        book_capital_account: '695823.00',
+      }),
+    })
+
+    expect(result.sectionL.calculatedNetIncome).toBe('-192605.00')
+    expect(result.sectionL.calculatedEnding).toBe('695823.00')
+    expect(result.basis.endingOutsideBasis).toBe('695823.00')
+    expect(result.bookTax.unexplainedVariance).toBe('0.00')
     expect(result.checks.every((check) => check.status === 'PASS')).toBe(true)
     expect(result.summary.status).toBe('RECONCILED')
   })
@@ -140,7 +168,7 @@ describe('K1 tracker calculation', () => {
         box_19_distributions: '190773.00',
         section_l_beginning_capital: '1932344.00',
         section_l_current_year_net_income_loss: '-56844.00',
-        section_l_withdrawals_distributions: '190773.00',
+        section_l_withdrawals_distributions: '-190773.00',
         section_l_ending_capital: '1684727.00',
         book_capital_account: '1684727.00',
       }),
@@ -170,6 +198,28 @@ describe('K1 tracker calculation', () => {
     expect(moreThanDollar.summary.status).toBe('NEEDS_REVIEW')
   })
 
+  it('identifies missing beginning capital when a reported Section L ending was imported', () => {
+    const result = calculateTrackerYear({
+      id: 'ac-bell-2021', taxYear: 2021, revision: 1, status: 'IMPORTED',
+      values: values({
+        opening_outside_basis: '0.00',
+        capital_contributions: '3000000.00',
+        box_1_ordinary_income_loss: '-1067656.00',
+        section_l_current_year_net_income_loss: '-1067656.00',
+        section_l_withdrawals_distributions: '0.00',
+        section_l_ending_capital: '1932344.00',
+      }),
+    })
+
+    expect(result.checks.find((check) => check.key === 'section-l-ending')).toMatchObject({
+      status: 'INCOMPLETE',
+      actual: '1932344.00',
+      expected: null,
+      difference: null,
+      message: 'Section L ending capital was imported, but beginning capital is missing.',
+    })
+  })
+
   it('distinguishes an explicitly reviewed zero from a missing opening basis', () => {
     const missing = calculateTrackerYear({ id: 'missing', taxYear: 2024, revision: 1, status: 'NOT_STARTED', values: {} })
     expect(missing.checks.find((check) => check.key === 'required-source-data')?.status).toBe('INCOMPLETE')
@@ -190,7 +240,7 @@ describe('K1 tracker calculation', () => {
       const result = calculateTrackerYear({ id: `workbook-${importedYear.taxYear}`, taxYear: importedYear.taxYear, revision: 1, status: 'IMPORTED', values: importedValues }, previous)
 
       expect(result.basis.endingOutsideBasis).toBe(expectedEndingBasis[index])
-      expect(result.calculationVersion).toBe('irs-k1-basis-v7-split-line-13')
+      expect(result.calculationVersion).toBe('irs-k1-basis-v8-split-line-13-signed-section-l-withdrawals')
       if (importedYear.taxYear === 2021) {
         expect(result.sectionL.calculatedNetIncome).toBe('-1067656.00')
         expect(result.checks.find((check) => check.key === 'section-l-net-income')?.status).toBe('PASS')

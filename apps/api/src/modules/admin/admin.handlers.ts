@@ -114,7 +114,7 @@ export const inviteUserHandler = async (
   }
 
   const invite = invitationRepository.create(payload.data.email, payload.data.role)
-  const invitedUser = authRepository.upsertInvitedUser(payload.data.email, payload.data.role)
+  const invitedUser = await authRepository.upsertInvitedUser(payload.data.email, payload.data.role)
 
   await auditRepository.record({
     actorUserId: request.authUser?.userId,

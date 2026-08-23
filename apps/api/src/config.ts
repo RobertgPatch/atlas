@@ -56,12 +56,20 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD ?? 'password123',
   userEmail: process.env.USER_EMAIL ?? 'user@jackson.com',
   userPassword: process.env.USER_PASSWORD ?? 'password123',
+  passwordHash: {
+    memoryCostKiB: Math.max(
+      19 * 1024,
+      asNumber(process.env.PASSWORD_HASH_MEMORY_KIB, 64 * 1024),
+    ),
+    timeCost: Math.max(2, asNumber(process.env.PASSWORD_HASH_TIME_COST, 3)),
+    parallelism: Math.max(1, asNumber(process.env.PASSWORD_HASH_PARALLELISM, 1)),
+  },
   webOrigin: process.env.WEB_ORIGIN ?? '',
   sessionSecret: process.env.SESSION_SECRET ?? '',
   sessionCookieName: process.env.SESSION_COOKIE_NAME ?? 'atlas_session',
   sessionCookieSecure: asBoolean(process.env.SESSION_COOKIE_SECURE),
   sessionCookieSameSite: (process.env.SESSION_COOKIE_SAMESITE ?? 'lax') as 'lax' | 'strict' | 'none',
-  sessionIdleTimeoutSeconds: asNumber(process.env.SESSION_IDLE_TIMEOUT_SECONDS, 900),
+  sessionIdleTimeoutSeconds: asNumber(process.env.SESSION_IDLE_TIMEOUT_SECONDS, 1800),
   sessionAbsoluteTimeoutSeconds: asNumber(
     process.env.SESSION_ABSOLUTE_TIMEOUT_SECONDS,
     28800,
@@ -86,6 +94,10 @@ export const config = {
     reconciliationStaleSeconds: asNumber(
       process.env.K1_RECONCILIATION_STALE_SECONDS,
       300,
+    ),
+    reconciliationIntervalSeconds: asNumber(
+      process.env.K1_RECONCILIATION_INTERVAL_SECONDS,
+      15,
     ),
     s3: {
       bucket: process.env.K1_S3_BUCKET ?? '',

@@ -1,5 +1,6 @@
 import { forwardRef, useId, useState } from 'react'
 import { formatCurrency, normalizeCurrencyInput } from './currencyInput'
+import { fieldClassName } from './colorRecipes'
 
 type CurrencyInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onBlur' | 'inputMode'> & {
   value: string
@@ -41,7 +42,7 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(fu
       aria-describedby={[describedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined}
       onChange={(event) => { setError(undefined); onChange(event.target.value) }}
       onBlur={handleBlur}
-      className={`mt-1 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-jackson-gold ${error ? 'border-red-500' : 'border-gray-300'} ${className}`}
+      className={`${fieldClassName} mt-1 w-full px-3 py-2 text-sm ${error ? 'border-error' : ''} ${className}`}
     />
     {error && <p id={errorId} role="alert" className="mt-1 text-xs text-red-700">{error}</p>}
   </>

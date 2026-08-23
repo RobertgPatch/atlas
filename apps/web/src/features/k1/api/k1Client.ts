@@ -15,6 +15,7 @@ import type {
   K1Status,
   K1UploadResponse,
 } from '../../../../../../packages/types/src/k1-ingestion'
+import { authenticatedFetch, reportAuthenticationResponse } from '../../../auth/authenticatedFetch'
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -66,7 +67,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers.set('Content-Type', 'application/json')
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await authenticatedFetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     headers,
     ...init,
@@ -111,6 +112,7 @@ const putFileWithProgress = async (args: {
   }
   xhr.onerror = () => reject(new K1ApiError('UPLOAD_NETWORK_ERROR', 0))
   xhr.onload = () => {
+    if (args.url.startsWith('/')) reportAuthenticationResponse(xhr.status)
     if (xhr.status >= 200 && xhr.status < 300) {
       args.onProgress?.(100)
       resolve(xhr.getResponseHeader('x-amz-version-id'))
@@ -191,7 +193,7 @@ export const k1Client = {
     if (args.replaceDocumentId) form.append('replaceDocumentId', args.replaceDocumentId)
     form.append('file', args.file)
 
-    const res = await fetch(`${API_BASE_URL}/k1-documents`, {
+    const res = await authenticatedFetch(`${API_BASE_URL}/k1-documents`, {
       method: 'POST',
       credentials: 'include',
       body: form,

@@ -97,6 +97,7 @@ describe('K1 Tracker durable ledger', () => {
       { fieldKey: 'book_capital_account', amount: '0.00', sourceType: 'MANUAL_ENTRY' },
     ], fixture.adminUserId, scope())
 
+    expect(warningYear.values.find((value) => value.fieldKey === 'section_l_withdrawals_distributions')?.amount).toBe('-200.00')
     expect(warningYear.calculation.checks.some((check) => check.status === 'WARNING')).toBe(true)
     expect(warningYear.calculation.checks.some((check) => check.status === 'FAIL' || check.status === 'INCOMPLETE')).toBe(false)
 

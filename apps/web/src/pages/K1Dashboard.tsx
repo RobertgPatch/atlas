@@ -21,6 +21,7 @@ import {
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { useSession, sessionStore } from '../auth/sessionStore'
 import { authClient } from '../auth/authClient'
+import { authenticatedFetch } from '../auth/authenticatedFetch'
 import {
   useK1Kpis,
   useK1Batch,
@@ -214,7 +215,7 @@ export function K1Dashboard() {
             type={STATUS_BADGE_TYPE[row.status]}
           />
           {row.status === 'PROCESSING' && (
-            <span className="inline-flex items-center gap-1 text-xs text-jackson-gold font-medium">
+            <span className="inline-flex items-center gap-1 text-xs text-primary font-medium">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               Parsing…
             </span>
@@ -274,7 +275,7 @@ export function K1Dashboard() {
 
   const handleExport = () => {
     const url = k1Client.exportCsvUrl(filters)
-    void fetch(url, { credentials: 'include' })
+    void authenticatedFetch(url, { credentials: 'include' })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
@@ -319,7 +320,7 @@ export function K1Dashboard() {
                 setPendingDropFile(null)
                 setUploadOpen(true)
               }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-jackson-gold hover:bg-jackson-hover"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary-hover"
             >
               <Upload className="w-4 h-4" />
               Upload K-1
@@ -399,7 +400,7 @@ export function K1Dashboard() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search document or partnership…"
-          className="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
+          className="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
         />
         <select
           value={taxYear}
@@ -448,7 +449,7 @@ export function K1Dashboard() {
           </button>
         )}
         {processingCount > 0 && (
-          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-jackson-gold font-medium">
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-primary font-medium">
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
             {processingCount} processing — auto-refreshing
           </span>
@@ -492,9 +493,9 @@ export function K1Dashboard() {
       />
 
       {isPageDragActive && (
-        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-jackson-gold/10 backdrop-blur-[1px]">
-          <div className="rounded-xl border-2 border-dashed border-jackson-gold bg-white px-8 py-6 text-center shadow-lg">
-            <UploadCloud className="mx-auto mb-2 h-10 w-10 text-jackson-gold" />
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-primary/10 backdrop-blur-[1px]">
+          <div className="rounded-xl border-2 border-dashed border-primary bg-white px-8 py-6 text-center shadow-lg">
+            <UploadCloud className="mx-auto mb-2 h-10 w-10 text-primary" />
             <p className="text-base font-semibold text-gray-900">Drop K-1 PDF to upload</p>
             <p className="text-sm text-gray-500">We'll open the upload dialog with your file ready.</p>
           </div>

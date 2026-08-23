@@ -14,6 +14,8 @@ npm run --workspace=web test -- src/theme/colorSystem.test.ts src/components/sha
 npm run --workspace=web check:colors
 ```
 
+`check:colors` scans production UI source, reports deterministic file/line/token diagnostics, validates every exact entry in `apps/web/color-exceptions.json`, and exits nonzero on drift. Test files, generated output, declarations, dependencies, and production bundles are excluded.
+
 Expected:
 
 - Canonical token shape and documented contrast pairs pass.
@@ -101,3 +103,10 @@ Redirect-only routes (`/partnerships`, `/partnerships/:id`, `/k1-tracker`, fallb
 
 Token tests are authoritative; manual spot checks confirm contextual surfaces, transparency, gradients, and overlays do not reduce effective contrast.
 
+## Implementation verification status (2026-08-19)
+
+- Token, MUI, Button, non-button recipe, semantic-cue, representative route, governance, and production-build checks pass.
+- The live development stylesheet and unauthenticated route render successfully after the Vite/Tailwind dependency fix; `/dashboard` correctly redirects to the sign-in screen without a CSS error overlay.
+- Final CSS is 16.32 kB gzip, 0.61 kB below baseline.
+- Full-suite lint, typecheck, and Vitest were executed; remaining failures are recorded in `color-baseline.md` and do not involve migrated color assertions or governance.
+- The authenticated desktop/390 px two-flag route matrix remains pending because the running API does not accept the retired repository mock credentials. Complete that final visual pass with a valid local account before closing T040.
