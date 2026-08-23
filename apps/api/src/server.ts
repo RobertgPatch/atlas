@@ -27,6 +27,16 @@ const productionGuardrailWarnings = () => {
     config.plaid.clientId && config.plaid.secret
       ? null
       : 'Plaid credentials are not fully configured.',
+    config.marketData.provider !== 'none'
+      ? null
+      : 'MARKET_DATA_PROVIDER is not configured; Liquidity uses custodian prices.',
+    config.marketData.provider !== 'alpaca' ||
+    (config.marketData.alpaca.keyId && config.marketData.alpaca.secret)
+      ? null
+      : 'Alpaca market-data credentials are not fully configured.',
+    !config.marketData.massive.enabled || config.marketData.massive.apiKey
+      ? null
+      : 'Massive OTC fallback is enabled but MASSIVE_MARKET_DATA_API_KEY is missing.',
   ].filter((warning): warning is string => Boolean(warning))
 }
 
@@ -57,6 +67,7 @@ const start = async () => {
       if (config.requireDurablePersistence) {
         throw new Error('REQUIRE_DURABLE_PERSISTENCE=true but DATABASE_URL is not configured')
       }
+      await authRepository.bootstrapFromDatabase()
     }
 
     logStartupDiagnostics(app)

@@ -1,0 +1,31 @@
+{
+  "class": "UnknownTaxDocument",
+  "description": "Fallback classifier for documents that do not match the supported partnership Schedule K-1 blueprint. Every result requires human review.",
+  "properties": {
+    "document_classification": {
+      "type": "string",
+      "inferenceType": "inferred",
+      "instruction": "Classify as POSSIBLE_SCHEDULE_K1_FORM_1065, OTHER_SCHEDULE_K1, OTHER_TAX_FORM, UNRELATED, or UNKNOWN."
+    },
+    "detected_form_label": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible form title or number, or blank when absent."
+    },
+    "detected_revision_year": {
+      "type": "number",
+      "inferenceType": "explicit",
+      "instruction": "Visible form revision or tax year, or null when absent."
+    },
+    "classification_confidence": {
+      "type": "number",
+      "inferenceType": "inferred",
+      "instruction": "Classification confidence from 0 through 1."
+    },
+    "reason": {
+      "type": "string",
+      "inferenceType": "inferred",
+      "instruction": "Short non-sensitive explanation for routing this document to review."
+    }
+  }
+}

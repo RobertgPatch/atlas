@@ -57,8 +57,7 @@ export const K1_OFFICIAL_FORM_FIELDS: K1OfficialFormFieldDefinition[] = [
   field('part_ii_j_loss_ending_pct', 'Item J - Loss percentage, ending', 'percentage'),
   field('part_ii_j_capital_beginning_pct', 'Item J - Capital percentage, beginning', 'percentage'),
   field('part_ii_j_capital_ending_pct', 'Item J - Capital percentage, ending', 'percentage'),
-  field('part_ii_j_decrease_sale', 'Item J - Decrease due to sale', 'boolean'),
-  field('part_ii_j_decrease_exchange', 'Item J - Decrease due to exchange', 'boolean'),
+  field('part_ii_j_decrease_sale', 'Item J - Decrease due to sale or exchange of partnership interest', 'boolean'),
   field('part_ii_k2_lower_tier_liabilities', 'Item K2 - Includes liabilities from lower-tier partnerships', 'boolean'),
   field('part_ii_k3_guaranteed_liabilities', 'Item K3 - Liability subject to guarantees or partner payment obligations', 'boolean'),
   field('part_ii_m_built_in_gain_loss', 'Item M - Contributed property with built-in gain or loss', 'choice', {

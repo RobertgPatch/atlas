@@ -13,7 +13,7 @@ export interface TrackerFieldDefinition {
 
 const field = (definition: TrackerFieldDefinition) => definition
 
-export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v7-split-line-13'
+export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v8-split-line-13-signed-section-l-withdrawals'
 
 export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'opening_outside_basis', label: 'Opening outside basis', role: 'opening', workbookLabels: ['beginning tax basis'] }),
@@ -37,7 +37,7 @@ export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'box_18a_nondeductible_expenses', label: 'Line 18A · Nondeductible expenses', role: 'deduction', workbookLabels: ['line 18a - nondeductible'] }),
   field({ key: 'box_18b_tax_exempt_income', label: 'Line 18B · Tax-exempt income (basis only)', role: 'income', signed: true, workbookLabels: ['line 18b - tax-exempt'] }),
   field({ key: 'box_18c_nondeductible_expenses', label: 'Line 18C · Nondeductible expenses (basis decrease)', role: 'deduction', workbookLabels: ['line 18c - nondeductible'], k1Aliases: ['box_18c_nondeductible_expenses'] }),
-  field({ key: 'box_19_distributions', label: 'Line 19 · Distributions', role: 'distribution', workbookLabels: ['line 19 - distributions'], k1Aliases: ['box_19_distributions', 'box_19a_distribution'] }),
+  field({ key: 'box_19_distributions', label: 'Line 19 · Distributions', role: 'distribution', signed: true, workbookLabels: ['line 19 - distributions'], k1Aliases: ['box_19_distributions', 'box_19a_distribution'] }),
   field({ key: 'box_21_foreign_taxes', label: 'Line 21 · Foreign taxes paid', role: 'deduction', workbookLabels: ['line 21 - foreign'], k1Aliases: ['box_21_foreign_taxes'] }),
   field({ key: 'liability_nonrecourse_beginning', label: 'Nonrecourse liabilities · beginning', role: 'liability', workbookLabels: ['nonrecourse - beginning'], k1Aliases: ['liab_nonrecourse_beginning'] }),
   field({ key: 'liability_nonrecourse_ending', label: 'Nonrecourse liabilities · ending', role: 'liability', workbookLabels: ['nonrecourse - ending'], k1Aliases: ['liab_nonrecourse_ending'] }),
@@ -49,7 +49,7 @@ export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'section_l_capital_contributed', label: 'Section L contributions', role: 'sectionL', workbookLabels: ['capital contributed during year'], k1Aliases: ['capital_contributed'] }),
   field({ key: 'section_l_current_year_net_income_loss', label: 'Section L current year net income (loss)', role: 'sectionL', workbookLabels: ['current year net income'], k1Aliases: ['capital_current_year_net_income'] }),
   field({ key: 'section_l_other_increase_decrease', label: 'Section L other increase (decrease)', role: 'sectionL', workbookLabels: ['other increase'], k1Aliases: ['capital_other_increase_decrease'] }),
-  field({ key: 'section_l_withdrawals_distributions', label: 'Section L withdrawals and distributions', role: 'sectionL', workbookLabels: ['withdrawals & distributions'], k1Aliases: ['capital_withdrawals_distributions'] }),
+  field({ key: 'section_l_withdrawals_distributions', label: 'Section L withdrawals and distributions', role: 'sectionL', signed: true, workbookLabels: ['withdrawals & distributions'], k1Aliases: ['capital_withdrawals_distributions'] }),
   field({ key: 'section_l_ending_capital', label: 'Section L ending capital', role: 'sectionL', workbookLabels: ['ending capital account'], k1Aliases: ['capital_ending'] }),
   field({ key: 'book_capital_account', label: 'Book capital account', role: 'book', workbookLabels: ['book capital account'] }),
   field({ key: 'book_interest_income', label: 'Book interest income', role: 'book', workbookLabels: ['book interest income'] }),

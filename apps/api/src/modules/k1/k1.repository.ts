@@ -1,18 +1,34 @@
 import { randomUUID } from 'node:crypto'
+import type pg from 'pg'
+
+import { query, withTransaction } from '../../infra/db/client.js'
 import { authRepository } from '../auth/auth.repository.js'
 import type {
+  K1IngestionBatchCounts,
+  K1IngestionBatchStatus,
+  K1IngestionErrorCode,
+  K1IngestionItemStatus,
   K1DocumentSummary,
   K1Kpis,
   K1Status,
 } from './k1.types.js'
 
 // ---------------------------------------------------------------------------
-// Domain records (in-memory; mirrors the Postgres shape in 002_k1_ingestion.sql)
+// Legacy directory/demo records. The 022 ingestion path below is PostgreSQL
+// authoritative; these maps remain temporarily for older entity/report routes.
 // ---------------------------------------------------------------------------
 
 export interface EntityRecord {
   id: string
   name: string
+  entityType: string
+  jurisdiction: string | null
+  taxId: string | null
+  formedOn: string | null
+  status: string
+  notes: string | null
+  registeredAgent: string | null
+  primaryContact: string | null
 }
 
 export interface PartnershipRecord {
@@ -63,6 +79,10 @@ export interface K1IssueRecord {
   resolvedAt: Date | null
   resolvedByUserId: string | null
   createdAt: Date
+  extractionAttemptId?: string | null
+  occurrenceId?: string | null
+  issueCode?: string | null
+  details?: Record<string, unknown> | null
 }
 
 export interface EntityMembershipRecord {
@@ -79,6 +99,654 @@ export interface DocumentVersionRecord {
   taxYear: number
   supersededAt: Date
   supersededByUserId: string
+}
+
+export interface DurableK1DocumentRecord {
+  id: string
+  documentId: string
+  entityId: string | null
+  partnershipId: string | null
+  taxYear: number | null
+  partnershipNameRaw: string | null
+  processingStatus: K1Status
+  matchStatus: 'UNRESOLVED' | 'MATCHED' | 'REQUIRES_REVIEW'
+  version: number
+  activeExtractionAttemptId: string | null
+  extractionSchemaVersion: string | null
+  appliedTrackerYearId: string | null
+  appliedAt: Date | null
+  storagePath: string
+  storageBucket: string | null
+  storageVersionId: string | null
+  fileName: string | null
+  mimeType: string | null
+  sizeBytes: number | null
+  sha256: string | null
+  pageCount: number | null
+  uploadedBy: string | null
+  uploadedAt: Date
+  approvedByUserId: string | null
+  finalizedByUserId: string | null
+}
+
+interface DurableK1Row {
+  id: string
+  document_id: string
+  entity_id: string | null
+  partnership_id: string | null
+  tax_year: number | null
+  partnership_name_raw: string | null
+  processing_status: K1Status
+  match_status: DurableK1DocumentRecord['matchStatus']
+  version: number
+  active_extraction_attempt_id: string | null
+  extraction_schema_version: string | null
+  applied_tracker_year_id: string | null
+  applied_at: Date | null
+  storage_path: string
+  storage_bucket: string | null
+  storage_version_id: string | null
+  file_name: string | null
+  mime_type: string | null
+  size_bytes: string | null
+  sha256: string | null
+  page_count: number | null
+  uploaded_by: string | null
+  uploaded_at: Date
+  approved_by_user_id: string | null
+  finalized_by_user_id: string | null
+}
+
+const durableSelect = `
+  select kd.id,
+         kd.document_id,
+         coalesce(p.entity_id, b.entity_scope_id) as entity_id,
+         kd.partnership_id,
+         kd.tax_year,
+         kd.partnership_name_raw,
+         kd.processing_status,
+         kd.match_status,
+         kd.version,
+         kd.active_extraction_attempt_id,
+         kd.extraction_schema_version,
+         kd.applied_tracker_year_id,
+         kd.applied_at,
+         d.storage_path,
+         d.storage_bucket,
+         d.storage_version_id,
+         d.file_name,
+         d.mime_type,
+         d.size_bytes,
+         d.sha256,
+         d.page_count,
+         d.uploaded_by,
+         d.uploaded_at,
+         kd.approved_by_user_id,
+         kd.finalized_by_user_id
+    from k1_documents kd
+    join documents d on d.id = kd.document_id
+    left join partnerships p on p.id = kd.partnership_id
+    left join k1_ingestion_items i on i.k1_document_id = kd.id
+    left join k1_ingestion_batches b on b.id = i.batch_id`
+
+const toDurableK1 = (row: DurableK1Row): DurableK1DocumentRecord => ({
+  id: row.id,
+  documentId: row.document_id,
+  entityId: row.entity_id,
+  partnershipId: row.partnership_id,
+  taxYear: row.tax_year,
+  partnershipNameRaw: row.partnership_name_raw,
+  processingStatus: row.processing_status,
+  matchStatus: row.match_status,
+  version: row.version,
+  activeExtractionAttemptId: row.active_extraction_attempt_id,
+  extractionSchemaVersion: row.extraction_schema_version,
+  appliedTrackerYearId: row.applied_tracker_year_id,
+  appliedAt: row.applied_at,
+  storagePath: row.storage_path,
+  storageBucket: row.storage_bucket,
+  storageVersionId: row.storage_version_id,
+  fileName: row.file_name,
+  mimeType: row.mime_type,
+  sizeBytes: row.size_bytes == null ? null : Number(row.size_bytes),
+  sha256: row.sha256,
+  pageCount: row.page_count,
+  uploadedBy: row.uploaded_by,
+  uploadedAt: row.uploaded_at,
+  approvedByUserId: row.approved_by_user_id,
+  finalizedByUserId: row.finalized_by_user_id,
+})
+
+export interface CreateDurableK1Input {
+  documentId: string
+  k1DocumentId: string
+  ingestionItemId?: string
+  partnershipId?: string | null
+  taxYear?: number | null
+  partnershipNameRaw?: string | null
+  fileName: string
+  storagePath: string
+  storageBucket?: string | null
+  storageVersionId?: string | null
+  mimeType: string
+  sizeBytes: number
+  sha256: string
+  pageCount: number
+  uploadedBy: string
+}
+
+/**
+ * PostgreSQL source of truth for Feature 022 documents. All state-changing
+ * helpers accept a transaction client or create their own transaction; worker,
+ * review, and apply services use the row-lock forms to compose atomic updates.
+ */
+export const durableK1Repository = {
+  async getById(id: string, client?: pg.PoolClient): Promise<DurableK1DocumentRecord | null> {
+    const result = client
+      ? await client.query<DurableK1Row>(`${durableSelect} where kd.id = $1`, [id])
+      : await query<DurableK1Row>(`${durableSelect} where kd.id = $1`, [id])
+    return result.rows[0] ? toDurableK1(result.rows[0]) : null
+  },
+
+  async lockById(client: pg.PoolClient, id: string): Promise<DurableK1DocumentRecord | null> {
+    const result = await client.query<DurableK1Row>(
+      `${durableSelect} where kd.id = $1 for update of kd, d`,
+      [id],
+    )
+    return result.rows[0] ? toDurableK1(result.rows[0]) : null
+  },
+
+  async createAccepted(input: CreateDurableK1Input, client?: pg.PoolClient): Promise<DurableK1DocumentRecord> {
+    const create = async (tx: pg.PoolClient): Promise<DurableK1DocumentRecord> => {
+      await tx.query(
+        `insert into documents
+           (id, document_type, file_name, storage_path, storage_bucket,
+            storage_version_id, mime_type, size_bytes, sha256, page_count,
+            uploaded_by, uploaded_at)
+         values ($1, 'K1', $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+         on conflict (id) do nothing`,
+        [
+          input.documentId,
+          input.fileName,
+          input.storagePath,
+          input.storageBucket ?? null,
+          input.storageVersionId ?? null,
+          input.mimeType,
+          input.sizeBytes,
+          input.sha256,
+          input.pageCount,
+          input.uploadedBy,
+        ],
+      )
+      await tx.query(
+        `insert into k1_documents
+           (id, document_id, partnership_id, tax_year, partnership_name_raw,
+            processing_status, uploader_user_id)
+         values ($1, $2, $3, $4, $5, 'UPLOADED', $6)
+         on conflict (id) do nothing`,
+        [
+          input.k1DocumentId,
+          input.documentId,
+          input.partnershipId ?? null,
+          input.taxYear ?? null,
+          input.partnershipNameRaw ?? null,
+          input.uploadedBy,
+        ],
+      )
+      if (input.ingestionItemId) {
+        await tx.query(
+          `update k1_ingestion_items
+              set document_id = $2,
+                  k1_document_id = $3,
+                  object_version_id = $4,
+                  updated_at = now()
+            where id = $1`,
+          [
+            input.ingestionItemId,
+            input.documentId,
+            input.k1DocumentId,
+            input.storageVersionId ?? null,
+          ],
+        )
+      }
+      const created = await this.getById(input.k1DocumentId, tx)
+      if (!created) throw new Error('K1_DOCUMENT_CREATE_FAILED')
+      return created
+    }
+    return client ? create(client) : withTransaction(create)
+  },
+
+  async compareAndSet(
+    client: pg.PoolClient,
+    id: string,
+    expectedVersion: number,
+    patch: {
+      processingStatus?: K1Status
+      matchStatus?: DurableK1DocumentRecord['matchStatus']
+      partnershipId?: string | null
+      taxYear?: number | null
+      partnershipNameRaw?: string | null
+      extractionSchemaVersion?: string | null
+      activeExtractionAttemptId?: string | null
+      appliedTrackerYearId?: string | null
+      appliedAt?: Date | null
+      parseErrorCode?: string | null
+      parseErrorMessage?: string | null
+    },
+  ): Promise<DurableK1DocumentRecord | null> {
+    const assignments: string[] = []
+    const values: unknown[] = [id, expectedVersion]
+    const columns: Array<[keyof typeof patch, string]> = [
+      ['processingStatus', 'processing_status'],
+      ['matchStatus', 'match_status'],
+      ['partnershipId', 'partnership_id'],
+      ['taxYear', 'tax_year'],
+      ['partnershipNameRaw', 'partnership_name_raw'],
+      ['extractionSchemaVersion', 'extraction_schema_version'],
+      ['activeExtractionAttemptId', 'active_extraction_attempt_id'],
+      ['appliedTrackerYearId', 'applied_tracker_year_id'],
+      ['appliedAt', 'applied_at'],
+      ['parseErrorCode', 'parse_error_code'],
+      ['parseErrorMessage', 'parse_error_message'],
+    ]
+    for (const [key, column] of columns) {
+      if (!(key in patch)) continue
+      values.push(patch[key])
+      assignments.push(`${column} = $${values.length}`)
+    }
+    if (assignments.length === 0) assignments.push('updated_at = now()')
+    else assignments.push('updated_at = now()')
+    const updated = await client.query<{ id: string }>(
+      `update k1_documents
+          set ${assignments.join(', ')}, version = version + 1
+        where id = $1 and version = $2
+        returning id`,
+      values,
+    )
+    if (!updated.rows[0]) return null
+    return this.getById(id, client)
+  },
+
+  async withLockedDocument<T>(
+    id: string,
+    fn: (client: pg.PoolClient, document: DurableK1DocumentRecord) => Promise<T>,
+  ): Promise<T | null> {
+    return withTransaction(async (client) => {
+      const document = await this.lockById(client, id)
+      return document ? fn(client, document) : null
+    })
+  },
+
+  async findActiveDuplicateByHash(
+    entityId: string,
+    sha256: string,
+    client?: pg.PoolClient,
+  ): Promise<DurableK1DocumentRecord | null> {
+    const sql = `${durableSelect}
+      where d.sha256 = $2
+        and coalesce(p.entity_id, b.entity_scope_id) = $1
+        and kd.superseded_by_document_id is null
+        and not exists (
+          select 1 from k1_document_applications a
+           where a.k1_document_id = kd.id and a.status = 'CANCELLED'
+        )
+      order by d.uploaded_at desc
+      limit 1`
+    const result = client
+      ? await client.query<DurableK1Row>(sql, [entityId, sha256])
+      : await query<DurableK1Row>(sql, [entityId, sha256])
+    return result.rows[0] ? toDurableK1(result.rows[0]) : null
+  },
+}
+
+export interface DurableK1IngestionItemRecord {
+  id: string
+  batchId: string
+  documentId: string | null
+  k1DocumentId: string | null
+  fileName: string
+  sizeBytes: number
+  sha256: string
+  objectKey: string
+  objectVersionId: string | null
+  status: K1IngestionItemStatus
+  errorCode: K1IngestionErrorCode | null
+  errorSummary: string | null
+  queuedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface DurableK1IngestionBatchRecord {
+  id: string
+  createdByUserId: string
+  entityScopeId: string | null
+  status: K1IngestionBatchStatus
+  fileCount: number
+  createdAt: Date
+  closedAt: Date | null
+  counts: K1IngestionBatchCounts
+  items: DurableK1IngestionItemRecord[]
+}
+
+export interface DurableK1BatchCollectionCounts {
+  total: number
+  active: number
+  attentionRequired: number
+  completed: number
+  cancelled: number
+}
+
+interface BatchRow {
+  id: string
+  created_by_user_id: string
+  entity_scope_id: string | null
+  status: K1IngestionBatchStatus
+  file_count: number
+  created_at: Date
+  closed_at: Date | null
+}
+
+interface BatchItemRow {
+  id: string
+  batch_id: string
+  sequence_number: number
+  document_id: string | null
+  k1_document_id: string | null
+  client_file_name: string
+  declared_size_bytes: string
+  declared_sha256: string
+  object_key: string
+  object_version_id: string | null
+  status: K1IngestionItemStatus
+  error_code: K1IngestionErrorCode | null
+  error_summary: string | null
+  queued_at: Date | null
+  created_at: Date
+  updated_at: Date
+}
+
+const ACTIVE_ITEM_STATUSES: K1IngestionItemStatus[] = [
+  'PENDING_UPLOAD', 'UPLOADED', 'VALIDATING', 'QUEUED', 'PROCESSING',
+]
+const ACTION_ITEM_STATUSES: K1IngestionItemStatus[] = [
+  'NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY',
+]
+
+const toBatchItem = (row: BatchItemRow): DurableK1IngestionItemRecord => ({
+  id: row.id,
+  batchId: row.batch_id,
+  documentId: row.document_id,
+  k1DocumentId: row.k1_document_id,
+  fileName: row.client_file_name,
+  sizeBytes: Number(row.declared_size_bytes),
+  sha256: row.declared_sha256,
+  objectKey: row.object_key,
+  objectVersionId: row.object_version_id,
+  status: row.status,
+  errorCode: row.error_code,
+  errorSummary: row.error_summary,
+  queuedAt: row.queued_at,
+  createdAt: row.created_at,
+  updatedAt: row.updated_at,
+})
+
+const summarizeItems = (items: DurableK1IngestionItemRecord[]): K1IngestionBatchCounts => ({
+  total: items.length,
+  active: items.filter((item) => ACTIVE_ITEM_STATUSES.includes(item.status)).length,
+  actionRequired: items.filter((item) => ACTION_ITEM_STATUSES.includes(item.status)).length,
+  applied: items.filter((item) => item.status === 'APPLIED').length,
+  failed: items.filter((item) => item.status === 'FAILED').length,
+})
+
+const deriveBatchStatus = (
+  items: DurableK1IngestionItemRecord[],
+): { status: K1IngestionBatchStatus; close: boolean } => {
+  const counts = summarizeItems(items)
+  if (items.every((item) => item.status === 'CANCELLED')) return { status: 'CANCELLED', close: true }
+  if (items.every((item) => ['APPLIED', 'CANCELLED'].includes(item.status))) return { status: 'COMPLETED', close: true }
+  if (counts.applied === counts.total) return { status: 'COMPLETED', close: true }
+  if (counts.active > 0) {
+    return {
+      status: items.every((item) => item.status === 'PENDING_UPLOAD') ? 'OPEN' : 'PROCESSING',
+      close: false,
+    }
+  }
+  if (counts.actionRequired > 0) return { status: 'ACTION_REQUIRED', close: false }
+  if (counts.failed > 0) return { status: 'PARTIAL_FAILURE', close: true }
+  return { status: 'PROCESSING', close: false }
+}
+
+const loadBatch = async (
+  client: pg.PoolClient,
+  batchId: string,
+  lock = false,
+): Promise<DurableK1IngestionBatchRecord | null> => {
+  const batchResult = await client.query<BatchRow>(
+    `select * from k1_ingestion_batches where id = $1${lock ? ' for update' : ''}`,
+    [batchId],
+  )
+  const batch = batchResult.rows[0]
+  if (!batch) return null
+  const itemResult = await client.query<BatchItemRow>(
+    `select * from k1_ingestion_items where batch_id = $1 order by sequence_number, id${lock ? ' for update' : ''}`,
+    [batchId],
+  )
+  const items = itemResult.rows.map(toBatchItem)
+  return {
+    id: batch.id,
+    createdByUserId: batch.created_by_user_id,
+    entityScopeId: batch.entity_scope_id,
+    status: batch.status,
+    fileCount: batch.file_count,
+    createdAt: batch.created_at,
+    closedAt: batch.closed_at,
+    counts: summarizeItems(items),
+    items,
+  }
+}
+
+/** Durable batch/item state machine used by upload, worker, retry, and apply. */
+export const durableK1BatchRepository = {
+  async create(args: {
+    id: string
+    createdByUserId: string
+    entityScopeId: string | null
+    items: Array<{
+      id: string
+      fileName: string
+      sizeBytes: number
+      sha256: string
+      objectKey: string
+    }>
+  }): Promise<DurableK1IngestionBatchRecord> {
+    return withTransaction(async (client) => {
+      await client.query(
+        `insert into k1_ingestion_batches
+           (id, created_by_user_id, entity_scope_id, status, file_count)
+         values ($1, $2, $3, 'OPEN', $4)`,
+        [args.id, args.createdByUserId, args.entityScopeId, args.items.length],
+      )
+      for (const [sequenceNumber, item] of args.items.entries()) {
+        await client.query(
+          `insert into k1_ingestion_items
+             (id, batch_id, sequence_number, client_file_name, declared_size_bytes,
+              declared_sha256, object_key, status)
+           values ($1, $2, $3, $4, $5, $6, $7, 'PENDING_UPLOAD')`,
+          [item.id, args.id, sequenceNumber, item.fileName, item.sizeBytes, item.sha256, item.objectKey],
+        )
+      }
+      const created = await loadBatch(client, args.id)
+      if (!created) throw new Error('K1_BATCH_CREATE_FAILED')
+      return created
+    })
+  },
+
+  async getById(batchId: string, client?: pg.PoolClient): Promise<DurableK1IngestionBatchRecord | null> {
+    if (client) return loadBatch(client, batchId)
+    return withTransaction((tx) => loadBatch(tx, batchId))
+  },
+
+  async list(args: {
+    actorUserId: string
+    isAdmin: boolean
+    authorizedEntityIds: readonly string[]
+    entityId?: string
+    status?: K1IngestionBatchStatus
+    attentionOnly?: boolean
+    limit: number
+    cursor?: { createdAt: Date; id: string }
+  }): Promise<{
+    items: DurableK1IngestionBatchRecord[]
+    counts: DurableK1BatchCollectionCounts
+    nextCursor: { createdAt: Date; id: string } | null
+  }> {
+    return withTransaction(async (client) => {
+      const params: unknown[] = [args.isAdmin, args.actorUserId, args.authorizedEntityIds]
+      const where = [`($1::boolean or b.created_by_user_id = $2 or b.entity_scope_id = any($3::uuid[]))`]
+      if (args.entityId) {
+        params.push(args.entityId)
+        where.push(`b.entity_scope_id = $${params.length}`)
+      }
+      if (args.status) {
+        params.push(args.status)
+        where.push(`b.status = $${params.length}`)
+      }
+      if (args.attentionOnly) where.push(`b.status in ('ACTION_REQUIRED', 'PARTIAL_FAILURE')`)
+      const countResult = await client.query<{
+        total: number; active: number; attention_required: number; completed: number; cancelled: number
+      }>(`
+        select count(*)::int as total,
+          count(*) filter (where b.status in ('OPEN', 'PROCESSING'))::int as active,
+          count(*) filter (where b.status in ('ACTION_REQUIRED', 'PARTIAL_FAILURE'))::int as attention_required,
+          count(*) filter (where b.status = 'COMPLETED')::int as completed,
+          count(*) filter (where b.status = 'CANCELLED')::int as cancelled
+        from k1_ingestion_batches b where ${where.join(' and ')}`,
+        params,
+      )
+      const pagedWhere = [...where]
+      if (args.cursor) {
+        params.push(args.cursor.createdAt, args.cursor.id)
+        pagedWhere.push(`(b.created_at, b.id) < ($${params.length - 1}, $${params.length}::uuid)`)
+      }
+      params.push(args.limit + 1)
+      const page = await client.query<{ id: string; created_at: Date }>(`
+        select b.id, b.created_at from k1_ingestion_batches b
+        where ${pagedWhere.join(' and ')}
+        order by b.created_at desc, b.id desc
+        limit $${params.length}`,
+        params,
+      )
+      const visibleRows = page.rows.slice(0, args.limit)
+      const items = (await Promise.all(visibleRows.map((row) => loadBatch(client, row.id))))
+        .filter((batch): batch is DurableK1IngestionBatchRecord => batch != null)
+      const last = page.rows.length > args.limit ? visibleRows.at(-1) : null
+      const counts = countResult.rows[0] ?? { total: 0, active: 0, attention_required: 0, completed: 0, cancelled: 0 }
+      return {
+        items,
+        counts: {
+          total: counts.total, active: counts.active, attentionRequired: counts.attention_required,
+          completed: counts.completed, cancelled: counts.cancelled,
+        },
+        nextCursor: last ? { createdAt: last.created_at, id: last.id } : null,
+      }
+    })
+  },
+
+  async getItemById(itemId: string, client?: pg.PoolClient, lock = false): Promise<DurableK1IngestionItemRecord | null> {
+    const execute = async (tx: pg.PoolClient) => {
+      const result = await tx.query<BatchItemRow>(
+        `select * from k1_ingestion_items where id = $1${lock ? ' for update' : ''}`,
+        [itemId],
+      )
+      return result.rows[0] ? toBatchItem(result.rows[0]) : null
+    }
+    return client ? execute(client) : withTransaction(execute)
+  },
+
+  async transitionItem(
+    client: pg.PoolClient,
+    itemId: string,
+    args: {
+      from?: K1IngestionItemStatus[]
+      to: K1IngestionItemStatus
+      errorCode?: K1IngestionErrorCode | null
+      errorSummary?: string | null
+      objectVersionId?: string | null
+      documentId?: string | null
+      k1DocumentId?: string | null
+      queuedAt?: Date | null
+    },
+  ): Promise<DurableK1IngestionItemRecord | null> {
+    // Always acquire the parent-batch lock before the item lock. Parallel
+    // upload completions otherwise deadlock by locking different items and
+    // then trying to lock the whole batch in recomputeBatch().
+    const reference = await client.query<{ batch_id: string }>(
+      'select batch_id from k1_ingestion_items where id = $1', [itemId],
+    )
+    if (!reference.rows[0]) return null
+    await client.query('select id from k1_ingestion_batches where id = $1 for update', [reference.rows[0].batch_id])
+    const current = await this.getItemById(itemId, client, true)
+    if (!current) return null
+    if (args.from && !args.from.includes(current.status)) {
+      throw Object.assign(new Error('INVALID_ITEM_STATE'), {
+        code: 'INVALID_ITEM_STATE',
+        currentStatus: current.status,
+      })
+    }
+    const result = await client.query<BatchItemRow>(
+      `update k1_ingestion_items
+          set status = $2,
+              error_code = $3,
+              error_summary = $4,
+              object_version_id = coalesce($5, object_version_id),
+              document_id = coalesce($6, document_id),
+              k1_document_id = coalesce($7, k1_document_id),
+              queued_at = coalesce($8, queued_at),
+              updated_at = now()
+        where id = $1
+        returning *`,
+      [
+        itemId,
+        args.to,
+        args.errorCode ?? null,
+        args.errorSummary ?? null,
+        args.objectVersionId ?? null,
+        args.documentId ?? null,
+        args.k1DocumentId ?? null,
+        args.queuedAt ?? null,
+      ],
+    )
+    await this.recomputeBatch(client, current.batchId)
+    return result.rows[0] ? toBatchItem(result.rows[0]) : null
+  },
+
+  async recomputeBatch(
+    client: pg.PoolClient,
+    batchId: string,
+  ): Promise<DurableK1IngestionBatchRecord | null> {
+    const locked = await loadBatch(client, batchId, true)
+    if (!locked) return null
+    const derived = deriveBatchStatus(locked.items)
+    await client.query(
+      `update k1_ingestion_batches
+          set status = $2,
+              closed_at = case when $3 then coalesce(closed_at, now()) else null end
+        where id = $1`,
+      [batchId, derived.status, derived.close],
+    )
+    return loadBatch(client, batchId)
+  },
+
+  async withLockedBatch<T>(
+    batchId: string,
+    fn: (client: pg.PoolClient, batch: DurableK1IngestionBatchRecord) => Promise<T>,
+  ): Promise<T | null> {
+    return withTransaction(async (client) => {
+      const batch = await loadBatch(client, batchId, true)
+      return batch ? fn(client, batch) : null
+    })
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +773,18 @@ const seed = () => {
   seeded = true
 
   const makeEntity = (name: string): EntityRecord => {
-    const e: EntityRecord = { id: randomUUID(), name }
+    const e: EntityRecord = {
+      id: randomUUID(),
+      name,
+      entityType: 'UNKNOWN',
+      jurisdiction: null,
+      taxId: null,
+      formedOn: null,
+      status: 'ACTIVE',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(e.id, e)
     return e
   }
@@ -209,7 +888,18 @@ const seed = () => {
 const seedMinimal = () => {
   if (entities.size > 0) return
   const makeEntity = (name: string): EntityRecord => {
-    const e: EntityRecord = { id: randomUUID(), name }
+    const e: EntityRecord = {
+      id: randomUUID(),
+      name,
+      entityType: 'UNKNOWN',
+      jurisdiction: null,
+      taxId: null,
+      formedOn: null,
+      status: 'ACTIVE',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(e.id, e)
     return e
   }
@@ -375,9 +1065,51 @@ export const k1Repository = {
     return partnership
   },
 
+  /** Reconcile the process-local mirror after the durable partnership is deleted. */
+  deletePartnership(id: string): boolean {
+    const partnershipExisted = partnerships.has(id)
+    const deletedK1Ids = new Set(
+      [...k1Documents.values()]
+        .filter((document) => document.partnershipId === id)
+        .map((document) => document.id),
+    )
+    const deletedDocumentIds = new Set(
+      [...k1Documents.values()]
+        .filter((document) => deletedK1Ids.has(document.id))
+        .map((document) => document.documentId),
+    )
+    for (const [issueId, issue] of k1Issues) {
+      if (deletedK1Ids.has(issue.k1DocumentId)) k1Issues.delete(issueId)
+    }
+    for (const k1Id of deletedK1Ids) k1Documents.delete(k1Id)
+    for (const documentId of deletedDocumentIds) documents.delete(documentId)
+    for (const [versionId, version] of documentVersions) {
+      if (version.partnershipId === id) documentVersions.delete(versionId)
+    }
+    partnerships.delete(id)
+    return partnershipExisted || deletedK1Ids.size > 0
+  },
+
   /** Create a new entity. Grants membership to every existing user so the entity is visible. */
-  createEntity(args: { name: string }): EntityRecord {
-    const entity: EntityRecord = { id: randomUUID(), name: args.name.trim() }
+  createEntity(args: {
+    name: string
+    entityType?: string
+    jurisdiction?: string | null
+    taxId?: string | null
+    formedOn?: string | null
+  }): EntityRecord {
+    const entity: EntityRecord = {
+      id: randomUUID(),
+      name: args.name.trim(),
+      entityType: args.entityType ?? 'UNKNOWN',
+      jurisdiction: args.jurisdiction?.trim() || null,
+      taxId: args.taxId?.trim() || null,
+      formedOn: args.formedOn?.trim() || null,
+      status: 'DRAFT',
+      notes: null,
+      registeredAgent: null,
+      primaryContact: null,
+    }
     entities.set(entity.id, entity)
     for (const user of authRepository.listUsers()) {
       if (!memberships.some((m) => m.userId === user.id && m.entityId === entity.id)) {

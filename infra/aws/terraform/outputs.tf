@@ -86,11 +86,15 @@ output "edge" {
 output "scheduler" {
   description = "Non-secret scheduler identifiers."
   value = {
-    environment_name            = var.environment_name
-    schedule_name               = module.scheduler.schedule_name
-    schedule_arn                = module.scheduler.schedule_arn
-    refresh_task_definition_arn = module.scheduler.refresh_task_definition_arn
-    refresh_log_group_name      = module.scheduler.refresh_log_group_name
+    environment_name                 = var.environment_name
+    schedule_name                    = module.scheduler.schedule_name
+    schedule_arn                     = module.scheduler.schedule_arn
+    refresh_task_definition_arn      = module.scheduler.refresh_task_definition_arn
+    refresh_log_group_name           = module.scheduler.refresh_log_group_name
+    market_price_schedule_name       = module.scheduler.market_price_schedule_name
+    market_price_schedule_arn        = module.scheduler.market_price_schedule_arn
+    market_price_task_definition_arn = module.scheduler.market_price_task_definition_arn
+    market_price_log_group_name      = module.scheduler.market_price_log_group_name
   }
 }
 
@@ -102,5 +106,27 @@ output "observability" {
     alarm_names        = module.observability.alarm_names
     waf_log_group_name = module.security.waf_log_group_name
     budget_name        = module.budgets.budget_name
+  }
+}
+
+output "k1_ingestion" {
+  description = "Non-secret AWS K-1 ingestion resources and pinned BDA identities."
+  value = {
+    enabled                    = var.k1_aws_ingestion_enabled
+    document_bucket_name       = module.k1_ingestion.document_bucket_name
+    kms_key_arn                = module.k1_ingestion.kms_key_arn
+    start_queue_arn            = module.k1_ingestion.start_queue_arn
+    completion_queue_arn       = module.k1_ingestion.completion_queue_arn
+    start_dlq_arn              = module.k1_ingestion.start_dlq_arn
+    completion_dlq_arn         = module.k1_ingestion.completion_dlq_arn
+    worker_service_name        = module.k1_ingestion.worker_service_name
+    worker_log_group_name      = module.k1_ingestion.worker_log_group_name
+    reconciler_rule_name       = module.k1_ingestion.reconciler_rule_name
+    bda_blueprint_arn          = module.k1_ingestion.bda_blueprint_arn
+    bda_fallback_blueprint_arn = module.k1_ingestion.bda_fallback_blueprint_arn
+    bda_project_arn            = module.k1_ingestion.bda_project_arn
+    bda_stage                  = module.k1_ingestion.bda_project_stage
+    bda_blueprint_stage        = module.k1_ingestion.bda_blueprint_stage
+    mapping_schema_version     = var.k1_mapping_schema_version
   }
 }

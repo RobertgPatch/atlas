@@ -1,6 +1,7 @@
 // Mirror of packages/types/src/partnership-tracker.ts. Kept local because the API
 // compiler deliberately limits rootDir to apps/api/src.
 import type {
+  K1TrackerCashFlowEvent,
   K1TrackerCalculation,
   K1TrackerFieldChange,
   K1TrackerSignoffState,
@@ -57,6 +58,7 @@ export interface PartnershipTrackerSummary {
   latestSectionLCapital: PartnershipTrackerMoney | null
   totalCapitalContributions: PartnershipTrackerMoney | null
   totalDistributions: PartnershipTrackerMoney | null
+  unsettledActivityAmount: PartnershipTrackerMoney
   dpi: string | null
   tvpi: string | null
   irr: string | null
@@ -82,6 +84,7 @@ export interface PartnershipNavEntry {
 export interface PartnershipTrackerDetail {
   summary: PartnershipTrackerSummary
   years: K1TrackerYearSummary[]
+  cashFlowEvents: K1TrackerCashFlowEvent[]
   commitments: PartnershipCommitmentEntry[]
   navEntries: PartnershipNavEntry[]
   permissions: { canEditPartnership: boolean; canEditK1: boolean; canEditCommitment: boolean; canEditNav: boolean; canSignoff: boolean }
@@ -123,6 +126,7 @@ export interface PartnershipPortfolioRollup {
   distributions: PartnershipAggregationCoveredMoney
   latestNav: PartnershipAggregationCoveredMoney
   unfundedCommitment: PartnershipAggregationCoveredMoney
+  unsettledActivity: PartnershipAggregationCoveredMoney
   dpi: PartnershipAggregationCoveredRatio
   tvpi: PartnershipAggregationCoveredRatio
   annualizedCashOnCashYield: PartnershipAggregationCoveredRatio
@@ -158,7 +162,8 @@ export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMEN
 export interface PartnershipManagementFeeAnnualRow { calendarYear: number; periodStart: string; periodEnd: string; activeDays: number; daysInYear: 365 | 366; weightedCommittedCapital: string | null; annualRate: string; estimatedFee: string | null }
 export interface PartnershipManagementFeeEstimate { partnershipId: string; inceptionDate: string | null; annualRate: string | null; asOfDate: string; status: PartnershipManagementFeeAvailability; annualRows: PartnershipManagementFeeAnnualRow[]; cumulativeEstimatedFee: string | null }
 
-export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; note?: string | null }
+export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
 export interface CreatePartnershipCashFlowsRequest { entries: CreatePartnershipCashFlowRequest[] }
+export interface SettlePartnershipCashFlowRequest { settlementDate: string; expectedUpdatedAt: string }
 
 export type { K1TrackerCalculation, K1TrackerFieldChange, K1TrackerSignoffState, K1TrackerYearDetail }

@@ -9,14 +9,14 @@ import type {
  * Exposed as a hook-like function returning an object of edit state and helpers.
  */
 export interface PendingEdits {
-  values: Record<string, string | null>
+  values: Record<string, unknown>
   touchedIds: string[]
 }
 
 export const useFieldEdits = () => {
   const [edits, setEdits] = useState<PendingEdits>({ values: {}, touchedIds: [] })
 
-  const setFieldValue = (fieldId: string, value: string | null) => {
+  const setFieldValue = (fieldId: string, value: unknown) => {
     setEdits((prev) => {
       const next = { ...prev.values, [fieldId]: value }
       const touched = Array.from(new Set([...prev.touchedIds, fieldId]))
@@ -26,16 +26,21 @@ export const useFieldEdits = () => {
 
   const reset = () => setEdits({ values: {}, touchedIds: [] })
 
-  const currentValueFor = (field: K1FieldValue): string | null => {
+  const currentValueFor = (field: K1FieldValue): unknown => {
     if (field.id in edits.values) return edits.values[field.id] ?? null
-    return field.reviewerCorrectedValue ?? field.normalizedValue ?? field.rawValue
+    return field.reviewerCorrectedValueJson
+      ?? field.reviewerCorrectedValue
+      ?? field.normalizedValueJson
+      ?? field.normalizedValue
+      ?? field.rawValueJson
+      ?? field.rawValue
   }
 
   const hasEdits = edits.touchedIds.length > 0
 
   const toCorrectionsPayload = () =>
     edits.touchedIds.map((fieldId) => ({
-      fieldId,
+      fieldValueId: fieldId,
       value: edits.values[fieldId] ?? null,
     }))
 

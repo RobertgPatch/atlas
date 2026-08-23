@@ -84,6 +84,24 @@ export interface ConsolidatedHoldingsKpis {
   selectedAccountCount: number
 }
 
+export type HoldingsPricingStatus =
+  | 'live'
+  | 'delayed'
+  | 'eod'
+  | 'fallback'
+  | 'unavailable'
+
+export interface ConsolidatedHoldingsPricingMetadata {
+  status: HoldingsPricingStatus
+  provider: string | null
+  feed: string | null
+  priceAsOf: string | null
+  refreshedAt: string | null
+  pricedHoldingCount: number
+  fallbackHoldingCount: number
+  warnings: string[]
+}
+
 export interface CustodianHoldingDetailRow {
   id: string
   symbol: string | null
@@ -135,7 +153,33 @@ export interface ConsolidatedHoldingsResponse {
     total: number
   }
   selectedAccounts: PlaidInvestmentAccount[]
+  pricing: ConsolidatedHoldingsPricingMetadata
   sync: ConsolidatedHoldingsSyncMetadata
+}
+
+export interface LiquidityPerformanceQuery {
+  from?: string
+  to?: string
+}
+
+export interface LiquidityPerformancePoint {
+  date: string
+  totalMarketValue: number | null
+  totalCostBasis: number | null
+  totalUnrealizedGainLoss: number | null
+  accountCount: number
+  source: 'market_close' | 'custodian_snapshot' | 'current'
+  capturedAt: string | null
+  priceAsOf: string | null
+  pricedHoldingCount: number
+  fallbackHoldingCount: number
+}
+
+export interface LiquidityPerformanceResponse {
+  points: LiquidityPerformancePoint[]
+  availableFrom: string | null
+  availableTo: string | null
+  marketCloseAvailableFrom: string | null
 }
 
 export interface ReportTotals {

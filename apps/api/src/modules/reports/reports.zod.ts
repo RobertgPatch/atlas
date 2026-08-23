@@ -110,7 +110,20 @@ export const consolidatedHoldingsQuerySchema = z.object({
   direction: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(5000).optional().default(50),
+  pricingMode: z.enum(['saved', 'refresh']).optional(),
 })
+
+const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
+export const liquidityPerformanceQuerySchema = z
+  .object({
+    from: isoDateSchema.optional(),
+    to: isoDateSchema.optional(),
+  })
+  .refine((value) => !value.from || !value.to || value.from <= value.to, {
+    message: 'The performance start date must be on or before the end date.',
+    path: ['from'],
+  })
 
 export const consolidatedHoldingsRefreshBodySchema = z
   .object({
@@ -178,6 +191,9 @@ export type AssetClassSummaryQuery = z.output<typeof assetClassSummaryQuerySchem
 export type ActivityDetailQuery = z.output<typeof activityDetailQuerySchema>
 export type ConsolidatedHoldingsQuery = z.output<
   typeof consolidatedHoldingsQuerySchema
+>
+export type LiquidityPerformanceQuery = z.output<
+  typeof liquidityPerformanceQuerySchema
 >
 export type ConsolidatedHoldingsRefreshBody = z.output<
   typeof consolidatedHoldingsRefreshBodySchema

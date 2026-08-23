@@ -40,6 +40,15 @@ plaid_refresh_time_local = "05:00"
 plaid_refresh_timezone   = "America/Los_Angeles"
 scheduler_enabled        = true
 
+# Populate the generated Alpaca Secrets Manager entries before deployment.
+market_data_provider               = "alpaca"
+alpaca_market_data_feed            = "sip"
+market_data_refresh_on_read        = true
+market_data_max_age_seconds        = 60
+market_price_refresh_time_local    = "16:20"
+market_price_refresh_timezone      = "America/New_York"
+market_price_scheduler_enabled     = true
+
 log_retention_days     = 30
 waf_log_retention_days = 30
 

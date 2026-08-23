@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createReviewFixture, type ReviewFixture } from './helpers/reviewFixture.js'
+import { pool } from '../src/infra/db/client.js'
+import { createDurableK1ReviewFixture, type DurableK1ReviewFixture } from './helpers/durableK1ReviewFixture.js'
 
 // T019, T020, T035-T039 — contract + integration for the review session + corrections flow.
 describe('Review session + corrections (US1/US2)', () => {
@@ -290,5 +293,225 @@ describe('Issues (US4)', () => {
     expect(correct.statusCode).toBe(200)
     const body = correct.json()
     expect(body.resolvedIssueIds.length).toBe(1)
+  })
+})
+
+const durable = pool ? describe : describe.skip
+
+durable('Feature 022 durable review session and typed corrections', () => {
+  let f: DurableK1ReviewFixture
+  beforeEach(async () => { f = await createDurableK1ReviewFixture() })
+  afterEach(async () => { await f.cleanup() })
+
+  it('searches durable entity and partnership names for the destination controls', async () => {
+    const entities = await f.app.inject({
+      method: 'GET', url: '/v1/review/entities?q=Review&limit=20',
+      headers: { cookie: f.cookie },
+    })
+    expect(entities.statusCode).toBe(200)
+    expect(entities.json().items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: f.entityId, name: 'Review Trust' }),
+    ]))
+
+    const partnerships = await f.app.inject({
+      method: 'GET',
+      url: `/v1/review/partnerships?entity_id=${f.entityId}&q=Review%20Fund&limit=20`,
+      headers: { cookie: f.cookie },
+    })
+    expect(partnerships.statusCode).toBe(200)
+    expect(partnerships.json().items).toEqual([
+      expect.objectContaining({ id: f.partnershipId, entityId: f.entityId, name: 'Review Fund LP' }),
+    ])
+  })
+
+  it('returns only active-attempt typed occurrences, attempt history, evidence, issues, and blockers', async () => {
+    const res = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
+      headers: { cookie: f.cookie },
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(res.headers.etag).toBe('3')
+    expect(body.activeAttempt).toMatchObject({ id: f.activeAttemptId, attemptNumber: 2, status: 'SUCCEEDED' })
+    expect(body.attemptHistory).toHaveLength(2)
+    expect(body.fields.core).toHaveLength(2)
+    expect(body.fields.core.some((field: { fieldName: string }) => field.fieldName === 'inactive_field')).toBe(false)
+    expect(body.fields.core.find((field: { id: string }) => field.id === f.codeRowFieldId)).toMatchObject({
+      valueKind: 'CODE_ROW', effectiveValueJson: { code: 'W', value: 45 },
+      sourceLocations: [{ page: 2, bbox: [0.2, 0.3, 0.5, 0.4] }],
+    })
+    expect(body.applyBlockingReasons).toContain('OPEN_ISSUES')
+  })
+
+  it('links legacy occurrence-only issues to the exact review field', async () => {
+    const occurrenceIssueId = randomUUID()
+    await pool!.query(
+      `insert into k1_issues
+         (id, k1_document_id, issue_type, severity, status, message,
+          extraction_attempt_id, occurrence_id, issue_code, details_json)
+       select $1, $2, 'INVALID_EXTRACTED_VALUE', 'HIGH', 'OPEN',
+              'Part III, Line 13, code W: the extracted amount is not valid money.',
+              $3, occurrence_id, 'INVALID_EXTRACTED_VALUE', '{}'::jsonb
+         from k1_field_values
+        where id = $4`,
+      [occurrenceIssueId, f.k1DocumentId, f.activeAttemptId, f.codeRowFieldId],
+    )
+
+    const response = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
+      headers: { cookie: f.cookie },
+    })
+
+    expect(response.statusCode).toBe(200)
+    const body = response.json()
+    expect(body.issues.find((issue: { id: string }) => issue.id === occurrenceIssueId))
+      .toMatchObject({ k1FieldValueId: f.codeRowFieldId })
+    expect(body.fields.core.find((field: { id: string }) => field.id === f.codeRowFieldId).linkedIssueIds)
+      .toContain(occurrenceIssueId)
+  })
+
+  it('shows legacy Item J sale/exchange extraction fields as one combined checkbox', async () => {
+    const saleFieldId = randomUUID()
+    const exchangeFieldId = randomUUID()
+    await pool!.query(
+      `insert into k1_field_values
+         (id, k1_document_id, extraction_attempt_id, canonical_path, occurrence_id,
+          occurrence_index, field_name, label, review_section, is_required, value_kind,
+          raw_value, raw_value_json, normalized_value, normalized_value_json,
+          confidence_score, extraction_method, review_status, source_locations,
+          destination_kind, destination_key, mapping_rule_version)
+       values
+         ($1, $3, $4, 'official.part_ii_j_decrease_sale', $5, 2,
+          'official.part_ii_j_decrease_sale', 'Decrease due to sale', 'core', false, 'BOOLEAN',
+          'false', 'false'::jsonb, 'false', 'false'::jsonb, 0.95, 'STUB', 'PENDING', '[]'::jsonb,
+          'OFFICIAL', 'part_ii_j_decrease_sale', 'test-v1'),
+         ($2, $3, $4, 'official.part_ii_j_decrease_exchange', $6, 3,
+          'official.part_ii_j_decrease_exchange', 'Decrease due to exchange', 'core', false, 'BOOLEAN',
+          'true', 'true'::jsonb, 'true', 'true'::jsonb, 0.90, 'STUB', 'PENDING', '[]'::jsonb,
+          'OFFICIAL', 'part_ii_j_decrease_exchange', 'test-v1')`,
+      [saleFieldId, exchangeFieldId, f.k1DocumentId, f.activeAttemptId, randomUUID(), randomUUID()],
+    )
+
+    const response = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`,
+      headers: { cookie: f.cookie },
+    })
+
+    expect(response.statusCode).toBe(200)
+    const itemJFields = response.json().fields.core.filter((field: { destination?: { key?: string } }) =>
+      field.destination?.key === 'part_ii_j_decrease_sale'
+        || field.destination?.key === 'part_ii_j_decrease_exchange')
+    expect(itemJFields).toHaveLength(1)
+    expect(itemJFields[0]).toMatchObject({
+      id: saleFieldId,
+      label: 'Item J - Decrease due to sale or exchange of partnership interest',
+      effectiveValueJson: true,
+      destination: { kind: 'OFFICIAL', key: 'part_ii_j_decrease_sale' },
+    })
+  })
+
+  it('persists a typed correction/history in PostgreSQL and survives process-local resets', async () => {
+    const corrected = await f.app.inject({
+      method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/corrections`,
+      headers: { cookie: f.cookie, 'if-match': '3' },
+      payload: { corrections: [{ fieldValueId: f.moneyFieldId, value: 2000.25, reason: 'Verified against page 1' }] },
+    })
+    expect(corrected.statusCode).toBe(200)
+    expect(corrected.json()).toMatchObject({ version: 4, resolvedIssueIds: [f.issueId] })
+    const { reviewRepository } = await import('../src/modules/review/review.repository.js')
+    reviewRepository._debugReset()
+    const session = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`, headers: { cookie: f.cookie },
+    })
+    const target = session.json().fields.core.find((candidate: { id: string }) => candidate.id === f.moneyFieldId)
+    expect(target).toMatchObject({ rawValueJson: 1250.5, effectiveValueJson: 2000.25, reviewStatus: 'CORRECTED' })
+    expect(target.correctionHistory).toHaveLength(1)
+    expect(session.json().issues.find((issue: { id: string }) => issue.id === f.issueId).status).toBe('RESOLVED')
+  })
+
+  it('makes review finalization an explicit, reachable step before apply preview', async () => {
+    const corrected = await f.app.inject({
+      method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/corrections`,
+      headers: { cookie: f.cookie, 'if-match': '3' },
+      payload: { corrections: [{ fieldValueId: f.moneyFieldId, value: 1250.5 }] },
+    })
+    expect(corrected.statusCode).toBe(200)
+
+    const readyToFinalize = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`, headers: { cookie: f.cookie },
+    })
+    expect(readyToFinalize.json()).toMatchObject({ canFinalize: true, canApply: false })
+    expect(readyToFinalize.json().applyBlockingReasons).toEqual(['REVIEW_NOT_FINALIZED'])
+
+    const finalized = await f.app.inject({
+      method: 'POST', url: `/v1/k1-documents/${f.k1DocumentId}/finalize`,
+      headers: { cookie: f.cookie, 'if-match': String(corrected.json().version) },
+    })
+    expect(finalized.statusCode).toBe(200)
+    expect(finalized.json()).toMatchObject({ status: 'READY_FOR_APPROVAL', readyToApply: true })
+
+    const readyToApply = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/review-session`, headers: { cookie: f.cookie },
+    })
+    expect(readyToApply.json()).toMatchObject({ canFinalize: false, canApply: true, applyBlockingReasons: [] })
+  })
+
+  it('streams authorized PDF byte ranges and rechecks access on every request', async () => {
+    const range = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/pdf`,
+      headers: { cookie: f.userCookie, range: 'bytes=0-7' },
+    })
+    expect(range.statusCode).toBe(206)
+    expect(range.headers['accept-ranges']).toBe('bytes')
+    expect(range.headers['content-range']).toMatch(/^bytes 0-7\//)
+    expect(range.headers['x-frame-options']).toBeUndefined()
+    expect(range.headers['content-security-policy']).toContain("frame-ancestors 'self'")
+    expect(range.headers['cross-origin-resource-policy']).toBe('cross-origin')
+    expect(range.body).toBe('%PDF-1.4')
+    await pool!.query('delete from entity_memberships where user_id = $1 and entity_id = $2', [f.user.id, f.entityId])
+    const denied = await f.app.inject({
+      method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/pdf`, headers: { cookie: f.userCookie },
+    })
+    expect(denied.statusCode).toBe(404)
+  })
+
+  it('resolves every matching issue when the reviewer confirms the destination', async () => {
+    const matchingIssueId = randomUUID()
+    await pool!.query(
+      `insert into k1_issues
+         (id, k1_document_id, issue_type, severity, status, message,
+          extraction_attempt_id, issue_code, details_json)
+       values ($1, $2, 'MATCHING', 'HIGH', 'OPEN', 'Confirm the destination.',
+          $3, 'ENTITY_MATCH_NOT_FOUND', '{}'::jsonb)`,
+      [matchingIssueId, f.k1DocumentId, f.activeAttemptId],
+    )
+    await pool!.query(
+      `update k1_documents set partnership_id = null, match_status = 'REQUIRES_REVIEW' where id = $1`,
+      [f.k1DocumentId],
+    )
+    await pool!.query(
+      `update k1_ingestion_items set status = 'NEEDS_MATCH' where id = $1`,
+      [f.itemId],
+    )
+
+    const response = await f.app.inject({
+      method: 'PUT',
+      url: `/v1/k1-documents/${f.k1DocumentId}/match`,
+      headers: { cookie: f.cookie },
+      payload: {
+        expectedDocumentVersion: 3,
+        entityId: f.entityId,
+        partnershipId: f.partnershipId,
+        taxYear: 2025,
+        reviewedEvidence: true,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({ matchStatus: 'MATCHED', partnershipId: f.partnershipId, taxYear: 2025 })
+    const issue = await pool!.query<{ status: string }>('select status from k1_issues where id = $1', [matchingIssueId])
+    const item = await pool!.query<{ status: string }>('select status from k1_ingestion_items where id = $1', [f.itemId])
+    expect(issue.rows[0]?.status).toBe('RESOLVED')
+    expect(item.rows[0]?.status).toBe('NEEDS_REVIEW')
   })
 })

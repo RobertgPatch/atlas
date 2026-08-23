@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "k1-form-1065-v1",
+  "mappingRuleVersion": "k1-form-1065-v1",
+  "formFamily": "SCHEDULE_K1_FORM_1065",
+  "provider": "AWS_BDA",
+  "blueprints": [
+    { "name": "atlas-schedule-k1-form-1065", "source": "blueprints/k1-form-1065.json", "supportedRevisionYearRange": { "minimum": 2000, "maximum": 2025 } },
+    { "name": "atlas-k1-fallback", "source": "blueprints/fallback.json", "reviewRequired": true }
+  ]
+}

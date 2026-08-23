@@ -5,6 +5,13 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat('en-US', {
   minimumFractionDigits: 0,
 })
 
+const CURRENCY_CENTS_FORMATTER = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+})
+
 const PERCENT_FORMATTER = (decimals = 1) =>
   new Intl.NumberFormat('en-US', {
     style: 'percent',
@@ -18,6 +25,13 @@ export const formatNa = (value: unknown, fallback = 'N/A'): string =>
 export const formatCurrency = (value: number | null | undefined): string => {
   if (value == null || !Number.isFinite(value)) return 'N/A'
   return CURRENCY_FORMATTER.format(value)
+}
+
+export const formatCurrencyWithCents = (
+  value: number | null | undefined,
+): string => {
+  if (value == null || !Number.isFinite(value)) return 'N/A'
+  return CURRENCY_CENTS_FORMATTER.format(value)
 }
 
 export const formatPercent = (

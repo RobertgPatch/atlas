@@ -1,4 +1,5 @@
 import React from 'react'
+import { colorTokens } from '../../design-tokens.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeftIcon, Building2Icon, DollarSignIcon, TrendingUpIcon, CalendarIcon } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
@@ -9,8 +10,11 @@ import { ErrorState } from '../components/ErrorState'
 import { PartnershipDirectoryTable } from '../features/partnerships/components/PartnershipDirectoryTable'
 import { EntityReportsPreviewSection } from '../features/partnerships/components/EntityReportsPreviewSection'
 import { useEntityDetail } from '../features/partnerships/hooks/useEntityQueries'
+import { entityTypeLabel } from '../features/partnerships/entityTypeLabels'
 import { useSession, sessionStore } from '../auth/sessionStore'
 import { authClient } from '../auth/authClient'
+import { featureFlags } from '../config/featureFlags'
+import { MagicPatternEntityDetailPage } from './magic-patterns/MagicPatternEntityDetailPage'
 
 function formatUsd(value: number | null | undefined): string {
   if (value == null) return '—'
@@ -19,7 +23,15 @@ function formatUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-export function EntityDetail() {
+export function EntityDetail({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: {
+  magicPatternDesigns?: boolean
+} = {}) {
+  return magicPatternDesigns ? <MagicPatternEntityDetailPage /> : <LegacyEntityDetail />
+}
+
+function LegacyEntityDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { session } = useSession()
@@ -49,7 +61,7 @@ export function EntityDetail() {
           <>
             <PageHeader
               title={data.entity.name}
-              subtitle={data.entity.entityType ?? undefined}
+              subtitle={entityTypeLabel(data.entity.entityType)}
               secondaryActions={[
                 {
                   label: 'Back to Directory',
@@ -63,44 +75,44 @@ export function EntityDetail() {
               <KpiCard
                 label="Partnerships"
                 value={data.rollup.partnershipCount}
-                icon={<Building2Icon className="w-4 h-4 text-accent" />}
-                accentColor="#2563EB"
+                icon={<Building2Icon className="w-4 h-4 text-primary" />}
+                accentColor={colorTokens.visualization.seriesOne}
               />
               <KpiCard
                 label="Commitment"
                 value={formatUsd(data.rollup.totalCommitmentUsd)}
-                icon={<TrendingUpIcon className="w-4 h-4 text-jackson-gold" />}
-                accentColor="#C9A96E"
+                icon={<TrendingUpIcon className="w-4 h-4 text-primary" />}
+                accentColor={colorTokens.visualization.seriesTwo}
               />
               <KpiCard
                 label="Paid-In"
                 value={formatUsd(data.rollup.totalPaidInUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
-                accentColor="#C9A96E"
+                icon={<DollarSignIcon className="w-4 h-4 text-primary" />}
+                accentColor={colorTokens.visualization.seriesThree}
               />
               <KpiCard
                 label="Unfunded"
                 value={formatUsd(data.rollup.totalUnfundedUsd)}
-                icon={<DollarSignIcon className="w-4 h-4 text-jackson-gold" />}
-                accentColor="#C9A96E"
+                icon={<DollarSignIcon className="w-4 h-4 text-primary" />}
+                accentColor={colorTokens.visualization.seriesFour}
               />
               <KpiCard
                 label="Total Distributions"
                 value={formatUsd(data.rollup.totalDistributionsUsd)}
                 icon={<DollarSignIcon className="w-4 h-4 text-emerald-600" />}
-                accentColor="#059669"
+                accentColor={colorTokens.semantic.success.foreground}
               />
               <KpiCard
                 label="Total FMV"
                 value={formatUsd(data.rollup.totalFmvUsd)}
                 icon={<TrendingUpIcon className="w-4 h-4 text-violet-600" />}
-                accentColor="#7C3AED"
+                accentColor={colorTokens.visualization.seriesFive}
               />
               <KpiCard
                 label="Latest K-1 Year"
                 value={data.rollup.latestK1Year ?? '—'}
                 icon={<CalendarIcon className="w-4 h-4 text-amber-600" />}
-                accentColor="#D97706"
+                accentColor={colorTokens.semantic.warning.foreground}
               />
             </div>
 

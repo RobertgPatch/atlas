@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "k1-form-1065-v1",
+  "containsProductionData": false,
+  "tolerances": {
+    "MONEY": "exact after two-decimal normalization",
+    "PERCENTAGE": "exact after removal of trailing zeroes",
+    "DATE": "exact ISO calendar date",
+    "STRING": "trimmed exact match",
+    "BOOLEAN": "exact",
+    "CODE_ROW": "exact code, description, amount, order, and evidence"
+  },
+  "fixtures": [
+    { "id": "complete-digital-2025", "revisionYear": 2025, "mode": "digital", "features": ["final", "general", "domestic", "all-destinations", "all-coded-sections", "positive", "negative", "parenthesized", "trailing-minus"] },
+    { "id": "complete-scanned-2024", "revisionYear": 2024, "mode": "scanned", "features": ["amended", "limited", "foreign", "continuation-pages"] },
+    { "id": "legacy-digital-2021", "revisionYear": 2021, "mode": "digital", "features": ["legacy-revision"] },
+    { "id": "legacy-digital-2023", "revisionYear": 2023, "mode": "digital", "features": ["legacy-revision"] },
+    { "id": "unknown-tax-form", "revisionYear": null, "mode": "digital", "features": ["unknown-form"], "expectedIssues": ["UNRELATED_TAX_FORM"] },
+    { "id": "encrypted", "revisionYear": 2025, "mode": "encrypted", "features": [], "expectedIssues": ["PDF_ENCRYPTED"] },
+    { "id": "corrupt", "revisionYear": 2025, "mode": "corrupt", "features": [], "expectedIssues": ["PDF_INVALID"] },
+    { "id": "duplicate", "revisionYear": 2025, "mode": "duplicate", "features": ["exact-content-duplicate"], "expectedIssues": ["DUPLICATE_K1_CONTENT"] },
+    { "id": "ambiguous-match", "revisionYear": 2025, "mode": "digital", "features": ["ambiguous-entity", "ambiguous-partnership"], "expectedIssues": ["AMBIGUOUS_TARGET"] },
+    { "id": "existing-manual-values", "revisionYear": 2025, "mode": "digital", "features": ["apply-conflicts"] },
+    { "id": "dated-capital-activity", "revisionYear": 2025, "mode": "digital", "features": ["dated-contribution-authoritative", "dated-distribution-authoritative"] }
+  ]
+}

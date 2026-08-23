@@ -105,6 +105,16 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
       lastSyncedAt: '2026-05-11T08:00:00.000Z',
     },
   ],
+  pricing: {
+    status: 'live',
+    provider: 'alpaca',
+    feed: 'sip',
+    priceAsOf: '2026-05-11T19:59:58.000Z',
+    refreshedAt: '2026-05-11T20:00:00.000Z',
+    pricedHoldingCount: 2,
+    fallbackHoldingCount: 0,
+    warnings: [],
+  },
   sync: {
     status: 'success',
     freshnessStatus: 'fresh',

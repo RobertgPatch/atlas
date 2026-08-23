@@ -11,6 +11,7 @@ import {
   consolidatedHoldingsQuerySchema,
   consolidatedHoldingsRefreshBodySchema,
   exportReportQuerySchema,
+  liquidityPerformanceQuerySchema,
   portfolioSummaryQuerySchema,
   updateActivityDetailBodySchema,
 } from './reports.zod.js'
@@ -179,6 +180,39 @@ export const getConsolidatedHoldingsHandler = async (
   }
 
   const result = await reportsRepository.getConsolidatedHoldings(query, {
+    actorUserId: request.authUser.userId,
+    scope,
+  })
+  reply.send(result)
+}
+
+export const getLiquidityPerformanceHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  const scope = request.partnershipScope
+  if (!scope) {
+    reply.status(401).send({ error: 'UNAUTHORIZED' })
+    return
+  }
+
+  let query: ReturnType<typeof liquidityPerformanceQuerySchema.parse>
+  try {
+    query = liquidityPerformanceQuerySchema.parse(request.query)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      sendValidationError(reply, error)
+      return
+    }
+    throw error
+  }
+
+  const result = await reportsRepository.getLiquidityPerformance(query, {
     actorUserId: request.authUser.userId,
     scope,
   })

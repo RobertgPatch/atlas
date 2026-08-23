@@ -16,6 +16,7 @@ export const withSession = async (
   const user = authRepository.getUserById(session.userId)
   if (!user) return
 
+  request.authSession = session
   request.authUser = {
     userId: user.id,
     role: user.role,

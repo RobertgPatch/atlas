@@ -15,11 +15,13 @@ describe('K1 Tracker workbook parser', () => {
       sheet.getCell('B1').value = 2024
       sheet.getCell('A2').value = 'line 1 - ordinary income'; sheet.getCell('B2').value = '125.50'
       sheet.getCell('A3').value = 'line 19 - distributions'; sheet.getCell('B3').value = '(10.00)'
+      sheet.getCell('A4').value = 'withdrawals & distributions'; sheet.getCell('B4').value = '15.00'
     })
     const year = result.preview.sheets[0]!.years[0]!
     expect(year.state).toBe('POPULATED')
     expect(year.values).toContainEqual({ fieldKey: 'box_1_ordinary_income_loss', amount: '125.50', sourceCell: 'B2' })
-    expect(year.values).toContainEqual({ fieldKey: 'box_19_distributions', amount: '10.00', sourceCell: 'B3' })
+    expect(year.values).toContainEqual({ fieldKey: 'box_19_distributions', amount: '-10.00', sourceCell: 'B3' })
+    expect(year.values).toContainEqual({ fieldKey: 'section_l_withdrawals_distributions', amount: '-15.00', sourceCell: 'B4' })
   })
 
   it('treats formula-only future columns as incomplete rather than populated', async () => {

@@ -76,7 +76,7 @@ export function ConsolidatedHoldingsFilters({
       <button
         type="button"
         onClick={onClear}
-        className="text-sm font-medium text-blue-600 hover:text-blue-700"
+        className="text-sm font-medium text-primary hover:text-primary-hover"
       >
         Clear
       </button>

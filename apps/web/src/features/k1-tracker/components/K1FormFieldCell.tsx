@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import type { K1TrackerValue } from '../../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerOfficialFormFieldKey, K1TrackerValue } from '../../../../../../packages/types/src/k1-tracker'
 import type { K1TrackerWritableFieldKey } from '../../../../../../packages/types/src/k1-tracker'
 import { CurrencyInput } from '../../../components/shared/CurrencyField'
 import type { K1FieldDefinition } from '../k1FieldGroups'
@@ -33,9 +33,10 @@ export interface K1FormFieldCellProps {
   conflictMessage?: string
   visibleLabel?: string | false
   compact?: boolean
+  officialFieldKey?: K1TrackerOfficialFormFieldKey
 }
 
-export type K1FormFieldState = Omit<K1FormFieldCellProps, 'visibleLabel' | 'compact'>
+export type K1FormFieldState = Omit<K1FormFieldCellProps, 'visibleLabel' | 'compact' | 'officialFieldKey'>
 export type K1FormFieldStateGetter = (fieldKey: K1TrackerWritableFieldKey) => K1FormFieldState
 
 export function K1FormFieldCell({
@@ -49,6 +50,7 @@ export function K1FormFieldCell({
   conflictMessage,
   visibleLabel,
   compact = false,
+  officialFieldKey,
 }: K1FormFieldCellProps) {
   const id = useId()
   const annotationId = `${id}-annotation`
@@ -56,7 +58,7 @@ export function K1FormFieldCell({
   const label = visibleLabel === undefined ? field.label : visibleLabel
   const hasAnnotation = derivedFromCashActivity || Boolean(source) || Boolean(carryforward)
 
-  return <label className="block min-w-0">
+  return <label className="block min-w-0" data-k1-field={field.key} data-k1-official-field={officialFieldKey}>
     <span className={label === false ? 'sr-only' : 'block text-[11px] font-semibold leading-tight text-gray-800'}>
       {label === false ? field.label : label}
     </span>

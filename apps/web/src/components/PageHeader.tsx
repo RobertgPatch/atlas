@@ -1,4 +1,5 @@
 import React from 'react'
+import { Button } from './shared/Button'
 
 interface PageHeaderProps {
   title: string
@@ -24,23 +25,23 @@ export function PageHeader({ title, subtitle, primaryAction, secondaryActions }:
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         {secondaryActions?.map((action, i) => (
-          <button
+          <Button
             key={i}
             onClick={action.onClick}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-text-secondary bg-surface border border-border rounded-card hover:bg-gray-50 transition-colors"
+            variant="secondary"
+            size="sm"
           >
             {action.icon}
             {action.label}
-          </button>
+          </Button>
         ))}
         {primaryAction && (
-          <button
+          <Button
             onClick={primaryAction.onClick}
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-jackson-gold rounded-card hover:bg-jackson-hover transition-colors"
           >
             {primaryAction.icon}
             {primaryAction.label}
-          </button>
+          </Button>
         )}
       </div>
     </div>

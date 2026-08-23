@@ -4,6 +4,8 @@ import {
   type SourceHoldingRecord,
 } from '../plaid/plaid.repository.js'
 import { evaluateSnapshotFreshness } from '../plaid/plaid.refresh-policy.js'
+import { marketDataService } from '../market-data/market-data.service.js'
+import type { HoldingsPricingMetadata } from '../market-data/market-data.types.js'
 import type { ConsolidatedHoldingsQuery } from './reports.zod.js'
 import type { ReportsScope } from './reports.repository.js'
 
@@ -82,6 +84,7 @@ interface ConsolidatedHoldingsResponse {
     total: number
   }
   selectedAccounts: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>
+  pricing: HoldingsPricingMetadata
   sync: {
     status: HoldingsSyncStatus
     freshnessStatus: HoldingsFreshnessStatus
@@ -261,7 +264,7 @@ export const buildConsolidatedHoldingsResponse = async (
     : []
   const accountById = new Map(accounts.map((account) => [account.id, account]))
   const selectedAccountIds = accounts.map((account) => account.id)
-  const filteredSource = plaidRepository
+  const filteredHoldings = plaidRepository
     .listSourceHoldingsForSelectedAccounts(visibility)
     .filter((holding) => {
       const account = accountById.get(holding.accountId)
@@ -277,6 +280,10 @@ export const buildConsolidatedHoldingsResponse = async (
         if (!haystack.includes(q)) return false
       }
       return true
+    })
+  const { holdings: filteredSource, pricing } =
+    await marketDataService.priceHoldingsForRead(filteredHoldings, {
+      refreshStale: query.pricingMode !== 'saved',
     })
 
   const groups = new Map<
@@ -456,6 +463,7 @@ export const buildConsolidatedHoldingsResponse = async (
       total: gainFiltered.length,
     },
     selectedAccounts: accounts,
+    pricing,
     sync: {
       status,
       freshnessStatus: freshness.status,

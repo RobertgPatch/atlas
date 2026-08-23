@@ -79,9 +79,11 @@ export const parseTrackerWorkbook = async (buffer: Buffer): Promise<ParsedTracke
         }
         const normalizedCents = cents == null
           ? null
-          : field.signed && label.includes('loss') && cents > 0n
+          : field.key === 'section_l_withdrawals_distributions' && cents > 0n
             ? -cents
-            : (field.role === 'deduction' || field.role === 'distribution') && cents < 0n
+            : field.signed && label.includes('loss') && cents > 0n
+            ? -cents
+            : (field.role === 'deduction' || field.role === 'distribution') && !field.signed && cents < 0n
               ? -cents
               : cents
         values.push({ fieldKey: field.key, amount: centsToMoney(normalizedCents), sourceCell: cell.address })

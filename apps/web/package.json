@@ -9,6 +9,7 @@
     "typecheck": "tsc -b",
     "lint": "eslint .",
     "preview": "vite preview",
+    "check:colors": "node scripts/check-color-system.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -6,11 +6,16 @@ import { LoadingState } from '../../../components/LoadingState'
 import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
 import { usePlaidAccounts } from '../hooks/usePlaidAccounts'
 import { usePlaidLink } from '../hooks/usePlaidLink'
+import { useLiquidityPerformance } from '../hooks/useLiquidityPerformance'
 import {
+  EQUITY_SECTORS,
+  filterHoldingsBySectors,
+  getAssetAllocation,
   getCostBasisQuality,
   getCustodianBreakdown,
   getSectorAllocation,
-  getTopHoldings,
+  getRankableHoldings,
+  type EquitySector,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { AllocationChart } from './AllocationChart'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
@@ -19,42 +24,79 @@ import { CustodianBreakdown } from './CustodianBreakdown'
 import { DataQualityBanner } from './DataQualityBanner'
 import { PlaidAccountSelector } from './PlaidAccountSelector'
 import { PortfolioHero } from './PortfolioHero'
+import { LiquidityPerformanceTracker } from './LiquidityPerformanceTracker'
 import { TopHoldings } from './TopHoldings'
 
 export function ConsolidatedHoldingsReport() {
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false)
   const [accountSelectorError, setAccountSelectorError] = useState<string | null>(null)
+  const [selectedSectors, setSelectedSectors] = useState<EquitySector[]>(() => [
+    ...EQUITY_SECTORS,
+  ])
   const holdings = useConsolidatedHoldings()
+  const performance = useLiquidityPerformance()
   const plaidAccounts = usePlaidAccounts()
   const plaidLink = usePlaidLink()
+  const preparePlaidLink = plaidLink.prepare
 
   useEffect(() => {
-    void plaidLink.prepare().catch(() => {
+    void preparePlaidLink().catch(() => {
       // Surface token creation errors only when the user actively opens Link.
     })
-  }, [plaidLink.prepare])
+  }, [preparePlaidLink])
 
   const data = holdings.query.data
-  const rows = data?.rows ?? []
+  const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalMarketValue = data?.kpis.totalMarketValue ?? 0
   const quality = useMemo(() => getCostBasisQuality(rows), [rows])
-  const sectorData = useMemo(
-    () => getSectorAllocation(rows, totalMarketValue),
+  const assetData = useMemo(
+    () => getAssetAllocation(rows, totalMarketValue),
     [rows, totalMarketValue],
+  )
+  const sectorData = useMemo(() => getSectorAllocation(rows), [rows])
+  const sectorFilterIsActive = selectedSectors.length !== EQUITY_SECTORS.length
+  const visibleRows = useMemo(
+    () =>
+      sectorFilterIsActive
+        ? filterHoldingsBySectors(rows, selectedSectors)
+        : rows,
+    [rows, sectorFilterIsActive, selectedSectors],
   )
   const custodianData = useMemo(
     () => (data ? getCustodianBreakdown(data, totalMarketValue) : []),
     [data, totalMarketValue],
   )
-  const topHoldings = useMemo(
-    () => getTopHoldings(rows, totalMarketValue),
-    [rows, totalMarketValue],
+  const visibleMarketValue = useMemo(
+    () => visibleRows.reduce((total, row) => total + (row.marketValue ?? 0), 0),
+    [visibleRows],
   )
-  const lastUpdated = data?.sync.lastSuccessfulSyncAt
+  const topHoldings = useMemo(
+    () => getRankableHoldings(visibleRows, visibleMarketValue),
+    [visibleMarketValue, visibleRows],
+  )
+  const currentPerformancePoint = useMemo(() => {
+    const date = data?.pricing.priceAsOf?.slice(0, 10) ?? data?.sync.dataAsOfDate
+    if (!date || data?.kpis.totalMarketValue == null) return null
+
+    return {
+      date,
+      totalMarketValue: data.kpis.totalMarketValue,
+      totalCostBasis: data.kpis.totalCostBasis,
+      totalUnrealizedGainLoss: data.kpis.totalUnrealizedGainLoss,
+      accountCount: data.kpis.selectedAccountCount,
+      source: 'current' as const,
+      capturedAt: data.pricing.refreshedAt ?? data.sync.lastSuccessfulSyncAt,
+      priceAsOf: data.pricing.priceAsOf,
+      pricedHoldingCount: data.pricing.pricedHoldingCount,
+      fallbackHoldingCount: data.pricing.fallbackHoldingCount,
+    }
+  }, [data])
+  const lastUpdatedAt = data?.pricing.priceAsOf ?? data?.sync.lastSuccessfulSyncAt
+  const lastUpdated = lastUpdatedAt
     ? new Intl.DateTimeFormat('en-US', {
         dateStyle: 'full',
         timeStyle: 'short',
-      }).format(new Date(data.sync.lastSuccessfulSyncAt))
+      }).format(new Date(lastUpdatedAt))
     : 'Not synced yet'
 
   const handleClearAccounts = () => {
@@ -111,7 +153,7 @@ export function ConsolidatedHoldingsReport() {
           ) : null}
           <button
             type="button"
-            onClick={() => holdings.refresh.mutate()}
+            onClick={() => holdings.refresh.mutate(undefined)}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
           >
             <RefreshCwIcon className="h-4 w-4" />
@@ -126,7 +168,7 @@ export function ConsolidatedHoldingsReport() {
                 void plaidLink.open()
               }
             }}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
           >
             <LinkIcon className="h-4 w-4" />
             Connect Accounts
@@ -152,16 +194,29 @@ export function ConsolidatedHoldingsReport() {
         connectedAccounts={data?.kpis.selectedAccountCount ?? 0}
       />
 
-      <ConsolidatedHoldingsSyncStatus sync={data?.sync} />
+      <LiquidityPerformanceTracker
+        points={performance.data?.points ?? []}
+        currentPoint={currentPerformancePoint}
+        isLoading={performance.isLoading}
+        isError={performance.isError}
+        onRetry={() => void performance.refetch()}
+      />
+
+      <ConsolidatedHoldingsSyncStatus sync={data?.sync} pricing={data?.pricing} />
 
       {rows.length > 0 ? (
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <AllocationChart sectorData={sectorData} />
+            <AllocationChart
+              assetData={assetData}
+              sectorData={sectorData}
+              selectedSectors={selectedSectors}
+              onSelectedSectorsChange={setSelectedSectors}
+            />
             <CustodianBreakdown custodians={custodianData} />
           </div>
 
-          <TopHoldings holdings={topHoldings} />
+          {visibleRows.length > 0 ? <TopHoldings holdings={topHoldings} /> : null}
         </>
       ) : null}
 
@@ -172,7 +227,7 @@ export function ConsolidatedHoldingsReport() {
         />
       ) : (
         <ConsolidatedHoldingsTable
-          rows={rows}
+          rows={visibleRows}
           selectedAccountCount={data?.kpis.selectedAccountCount ?? 0}
           search={holdings.filters.search}
           sort={holdings.filters.sort}
@@ -182,13 +237,21 @@ export function ConsolidatedHoldingsReport() {
             holdings.updateFilter('sort', sort)
             holdings.updateFilter('direction', direction)
           }}
+          sectorFilter={
+            sectorFilterIsActive
+              ? {
+                  sectors: selectedSectors,
+                  onClear: () => setSelectedSectors([...EQUITY_SECTORS]),
+                }
+              : undefined
+          }
         />
       )}
 
       <div className="space-y-0.5 text-center text-xs text-gray-400">
         <p>
-          Holdings data refreshed overnight via Plaid - Cost basis subject to
-          custodian availability
+          Positions and cost basis are sourced from Plaid; public-market prices
+          refresh on view and after market close
         </p>
         <p>Not investment advice - For informational purposes only</p>
       </div>
@@ -209,7 +272,7 @@ export function ConsolidatedHoldingsReport() {
           plaidAccounts.updateSelection.mutate(selectedAccountIds, {
             onSuccess: () => {
               setIsAccountSelectorOpen(false)
-              void holdings.refresh.mutate()
+              void holdings.refresh.mutate(undefined)
             },
             onError: () => {
               setAccountSelectorError(

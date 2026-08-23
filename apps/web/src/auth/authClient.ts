@@ -1,3 +1,5 @@
+import { authenticatedFetch } from './authenticatedFetch'
+
 export type JacksonRole = 'Admin' | 'User'
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
 
@@ -72,7 +74,7 @@ const request = async <T>(
   }
 
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
+    response = await authenticatedFetch(`${API_BASE_URL}${path}`, {
       credentials: 'include',
       headers,
       ...init,
@@ -119,6 +121,10 @@ export const authClient = {
 
   getSession() {
     return request<SessionResponse>('/auth/session', { method: 'GET' })
+  },
+
+  extendSession() {
+    return request<SessionResponse>('/auth/session/extend', { method: 'POST' })
   },
 
   logout() {

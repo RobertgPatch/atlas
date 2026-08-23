@@ -1,5 +1,6 @@
 import React from 'react'
 import { AlertCircleIcon } from 'lucide-react'
+import { Button } from './shared/Button'
 
 interface ErrorStateProps {
   title?: string
@@ -20,12 +21,9 @@ export function ErrorState({
       <h3 className="text-sm font-medium text-text-primary mb-1">{title}</h3>
       <p className="text-sm text-text-tertiary text-center max-w-sm mb-4">{message}</p>
       {onRetry && (
-        <button
-          onClick={onRetry}
-          className="inline-flex items-center px-3.5 py-2 text-sm font-medium text-accent bg-accent-light rounded-card hover:bg-blue-100 transition-colors"
-        >
+        <Button onClick={onRetry} size="sm">
           Try again
-        </button>
+        </Button>
       )}
     </div>
   )

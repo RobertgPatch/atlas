@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Building2, Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
 import { AppShell } from '../components/shared/AppShell'
 import { ConfirmationDialog } from '../components/shared/ConfirmationDialog'
+import { Button } from '../components/shared/Button'
 import { PageHeader } from '../components/shared/PageHeader'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorState } from '../components/ErrorState'
@@ -15,7 +16,9 @@ import {
   useEntityList,
   useUpdateEntity,
 } from '../features/partnerships/hooks/useEntityQueries'
-import { EntitiesApiError } from '../features/partnerships/api/entitiesClient'
+import { featureFlags } from '../config/featureFlags'
+import { MagicPatternEntitiesPage } from './magic-patterns/MagicPatternEntitiesPage'
+import { errorMessage } from './entitiesPageUtils'
 
 function formatUsd(value: number | null | undefined): string {
   if (value == null || value === 0) return '—'
@@ -24,19 +27,15 @@ function formatUsd(value: number | null | undefined): string {
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
 }
 
-export function errorMessage(err: unknown, fallback = 'Action failed. Please try again.'): string {
-  if (err instanceof EntitiesApiError) {
-    if (err.code === 'DUPLICATE_ENTITY_NAME') return 'An entity with that name already exists.'
-    if (err.code === 'ENTITY_HAS_PARTNERSHIPS')
-      return 'This entity has partnerships attached. Move or delete them before removing the entity.'
-    if (err.code === 'FORBIDDEN_ROLE') return 'Only Admins can manage entities.'
-    if (err.code === 'VALIDATION_ERROR') return 'Please enter a valid entity name.'
-    return err.code
-  }
-  return fallback
+export function EntitiesPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: {
+  magicPatternDesigns?: boolean
+} = {}) {
+  return magicPatternDesigns ? <MagicPatternEntitiesPage /> : <LegacyEntitiesPage />
 }
 
-export function EntitiesPage() {
+function LegacyEntitiesPage() {
   const { session } = useSession()
   const isAdmin = session?.role === 'Admin'
   const navigate = useNavigate()
@@ -119,6 +118,7 @@ export function EntitiesPage() {
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())
       }}
+      magicPatternDesigns={false}
     >
       <PageHeader
         title="Entities"
@@ -140,16 +140,14 @@ export function EntitiesPage() {
                   if (e.key === 'Enter') void handleCreate()
                 }}
                 placeholder="e.g. Whitfield Family Trust"
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
               />
               {createError && <p className="mt-1 text-xs text-error">{createError}</p>}
             </div>
-            <button
+            <Button
               onClick={() => void handleCreate()}
-              disabled={create.isPending}
-              className={`inline-flex items-center px-4 py-2 rounded-lg bg-jackson-gold text-white text-sm hover:bg-jackson-hover sm:mt-[22px] ${
-                create.isPending ? 'opacity-60 cursor-wait' : ''
-              }`}
+              pending={create.isPending}
+              className="sm:mt-[22px]"
             >
               {create.isPending ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -157,7 +155,7 @@ export function EntitiesPage() {
                 <Plus className="w-4 h-4 mr-2" />
               )}
               Add entity
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -217,7 +215,7 @@ export function EntitiesPage() {
                               if (e.key === 'Escape') cancelEdit()
                             }}
                             autoFocus
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-jackson-gold focus:border-jackson-gold"
+                            className="w-full px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
                           />
                           {rowErr && <p className="mt-1 text-xs text-error">{rowErr}</p>}
                         </div>
@@ -225,7 +223,7 @@ export function EntitiesPage() {
                         <button
                           type="button"
                           onClick={() => navigate(`/entities/${row.id}`)}
-                          className="text-jackson-gold hover:underline font-medium"
+                          className="text-primary hover:underline font-medium"
                         >
                           {row.name}
                         </button>

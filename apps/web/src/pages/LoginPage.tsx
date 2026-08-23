@@ -4,6 +4,9 @@ import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { sessionStore } from '../auth/sessionStore'
+import { featureFlags } from '../config/featureFlags'
+import { Button } from '../components/shared/Button'
+import { MagicPatternLoginPage } from './magic-patterns/MagicPatternLoginPage'
 
 const getLoginErrorMessage = (error: unknown) => {
   if (
@@ -27,7 +30,13 @@ const getLoginErrorMessage = (error: unknown) => {
   return 'Invalid email or password. Please try again.'
 }
 
-export function LoginPage() {
+interface LoginPageProps {
+  magicPatternDesigns?: boolean
+}
+
+export function LoginPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: LoginPageProps = {}) {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -49,7 +58,7 @@ export function LoginPage() {
     try {
       const session = await authClient.login(email, password)
       sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
     } catch (err) {
       setError(getLoginErrorMessage(err))
     } finally {
@@ -57,12 +66,30 @@ export function LoginPage() {
     }
   }
 
+  if (magicPatternDesigns) {
+    return (
+      <MagicPatternLoginPage
+        email={email}
+        password={password}
+        rememberMe={rememberMe}
+        showPassword={showPassword}
+        isLoading={isLoading}
+        error={error}
+        onEmailChange={setEmail}
+        onPasswordChange={setPassword}
+        onRememberMeChange={setRememberMe}
+        onTogglePassword={() => setShowPassword((visible) => !visible)}
+        onSubmit={handleSubmit}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen flex">
       {/* Left Branding Panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-black flex-col justify-between p-12">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-jackson-gold rounded-lg flex items-center justify-center">
+          <div className="w-10 h-10 bg-decorative-brand-accent rounded-lg flex items-center justify-center">
             <span className="text-black font-serif font-bold text-xl">J</span>
           </div>
           <span className="text-2xl font-serif font-bold text-white tracking-widest uppercase">
@@ -80,7 +107,7 @@ export function LoginPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-jackson-gold" />
+          <div className="w-1.5 h-1.5 rounded-full bg-decorative-brand-accent" />
           <span className="text-gray-400 text-sm">SOC 2 Type II Certified</span>
           <div className="w-1.5 h-1.5 rounded-full bg-gray-600 ml-4" />
           <span className="text-gray-400 text-sm">256-bit AES Encryption</span>
@@ -98,7 +125,7 @@ export function LoginPage() {
           {/* Mobile logo */}
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
+              <span className="text-decorative-brand-accent font-serif font-bold text-lg">J</span>
             </div>
             <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
               Jackson
@@ -124,7 +151,7 @@ export function LoginPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-colors"
+                  className="block w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus transition-colors"
                   placeholder="you@example.com"
                   autoComplete="email"
                 />
@@ -142,7 +169,7 @@ export function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition-colors"
+                    className="block w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus transition-colors"
                     placeholder="••••••••"
                     autoComplete="current-password"
                   />
@@ -162,17 +189,17 @@ export function LoginPage() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                  className="h-4 w-4 accent-primary border-gray-300 rounded focus:ring-focus"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                   Remember me for 30 days
                 </label>
               </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={isLoading}
-                className="w-full flex items-center justify-center px-4 py-2.5 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                pending={isLoading}
+                className="w-full"
               >
                 {isLoading ? (
                   <>
@@ -182,7 +209,7 @@ export function LoginPage() {
                 ) : (
                   'Sign in'
                 )}
-              </button>
+              </Button>
             </form>
           </div>
 

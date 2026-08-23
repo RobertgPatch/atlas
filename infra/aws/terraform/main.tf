@@ -1,8 +1,16 @@
 locals {
-  name_prefix           = "${var.project_name}-${var.environment_name}"
-  configured_app_domain = var.app_domain == null ? null : trimspace(var.app_domain)
-  custom_domain_enabled = local.configured_app_domain == null ? false : local.configured_app_domain != ""
-  web_origin            = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
+  name_prefix              = "${var.project_name}-${var.environment_name}"
+  configured_app_domain    = var.app_domain == null ? null : trimspace(var.app_domain)
+  custom_domain_enabled    = local.configured_app_domain == null ? false : local.configured_app_domain != ""
+  web_origin               = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
+  k1_document_bucket_name  = "${local.name_prefix}-k1-documents-${data.aws_caller_identity.current.account_id}"
+  k1_kms_alias_name        = "alias/${local.name_prefix}-k1-documents"
+  k1_kms_alias_arn         = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.k1_kms_alias_name}"
+  k1_start_queue_name      = "${local.name_prefix}-k1-start"
+  k1_completion_queue_name = "${local.name_prefix}-k1-completion"
+  k1_start_queue_url       = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_start_queue_name}"
+  k1_completion_queue_url  = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_completion_queue_name}"
+  k1_bda_profile_arn       = var.k1_bda_profile_arn == null ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:data-automation-profile/us.data-automation-v1" : var.k1_bda_profile_arn
 
   common_tags = merge(
     {
@@ -17,15 +25,17 @@ locals {
   )
 
   runtime_secret_names = {
-    DATABASE_URL           = "${local.name_prefix}/DATABASE_URL"
-    PERSISTENCE_SECRET_KEY = "${local.name_prefix}/PERSISTENCE_SECRET_KEY"
-    SESSION_SECRET         = "${local.name_prefix}/SESSION_SECRET"
-    PLAID_CLIENT_ID        = "${local.name_prefix}/PLAID_CLIENT_ID"
-    PLAID_SECRET           = "${local.name_prefix}/PLAID_SECRET"
-    PLAID_ENV              = "${local.name_prefix}/PLAID_ENV"
-    ATLAS_SCHEDULER_TOKEN  = "${local.name_prefix}/ATLAS_SCHEDULER_TOKEN"
-    ADMIN_PASSWORD         = "${local.name_prefix}/ADMIN_PASSWORD"
-    USER_PASSWORD          = "${local.name_prefix}/USER_PASSWORD"
+    DATABASE_URL              = "${local.name_prefix}/DATABASE_URL"
+    PERSISTENCE_SECRET_KEY    = "${local.name_prefix}/PERSISTENCE_SECRET_KEY"
+    SESSION_SECRET            = "${local.name_prefix}/SESSION_SECRET"
+    PLAID_CLIENT_ID           = "${local.name_prefix}/PLAID_CLIENT_ID"
+    PLAID_SECRET              = "${local.name_prefix}/PLAID_SECRET"
+    PLAID_ENV                 = "${local.name_prefix}/PLAID_ENV"
+    ATLAS_SCHEDULER_TOKEN     = "${local.name_prefix}/ATLAS_SCHEDULER_TOKEN"
+    ALPACA_MARKET_DATA_KEY_ID = "${local.name_prefix}/ALPACA_MARKET_DATA_KEY_ID"
+    ALPACA_MARKET_DATA_SECRET = "${local.name_prefix}/ALPACA_MARKET_DATA_SECRET"
+    ADMIN_PASSWORD            = "${local.name_prefix}/ADMIN_PASSWORD"
+    USER_PASSWORD             = "${local.name_prefix}/USER_PASSWORD"
   }
 
   api_environment_variables = {
@@ -39,17 +49,36 @@ locals {
     PLAID_REFRESH_TIMEZONE          = var.plaid_refresh_timezone
     PLAID_REFRESH_SCHEDULER_ENABLED = "true"
     PLAID_REFRESH_SCHEDULER_MODE    = "eventbridge"
+    MARKET_DATA_PROVIDER            = var.market_data_provider
+    MARKET_DATA_REFRESH_ON_READ     = tostring(var.market_data_refresh_on_read)
+    MARKET_DATA_MAX_AGE_SECONDS     = tostring(var.market_data_max_age_seconds)
+    MARKET_DATA_REQUEST_TIMEOUT_MS  = tostring(var.market_data_request_timeout_ms)
+    ALPACA_MARKET_DATA_BASE_URL     = var.alpaca_market_data_base_url
+    ALPACA_MARKET_DATA_FEED         = var.alpaca_market_data_feed
     RATE_LIMIT_ENABLED              = "true"
     API_SHARED_CACHE_POLICY         = "no_shared_cache"
     AWS_REGION                      = var.aws_region
     AWS_APP_DOMAIN                  = local.configured_app_domain == null ? "" : local.configured_app_domain
     AWS_ENVIRONMENT_NAME            = var.environment_name
     AWS_ENVIRONMENT_PROFILE         = var.environment_cost_profile
+    K1_AWS_INGESTION_ENABLED        = tostring(var.k1_aws_ingestion_enabled)
+    K1_EXTRACTOR                    = "aws_bda"
+    K1_OBJECT_STORE                 = "s3"
+    K1_QUEUE                        = "sqs"
+    K1_S3_BUCKET                    = local.k1_document_bucket_name
+    K1_KMS_KEY_ARN                  = local.k1_kms_alias_arn
+    K1_S3_INPUT_PREFIX              = var.k1_input_prefix
+    K1_S3_OUTPUT_PREFIX             = var.k1_output_prefix
+    K1_WORK_QUEUE_URL               = local.k1_start_queue_url
+    K1_COMPLETION_QUEUE_URL         = local.k1_completion_queue_url
+    K1_MAPPING_SCHEMA_VERSION       = var.k1_mapping_schema_version
   }
 
-  refresh_time_parts     = split(":", var.plaid_refresh_time_local)
-  refresh_schedule_cron  = "cron(${tonumber(local.refresh_time_parts[1])} ${tonumber(local.refresh_time_parts[0])} * * ? *)"
-  web_assets_bucket_name = "${local.name_prefix}-web-assets"
+  refresh_time_parts         = split(":", var.plaid_refresh_time_local)
+  refresh_schedule_cron      = "cron(${tonumber(local.refresh_time_parts[1])} ${tonumber(local.refresh_time_parts[0])} * * ? *)"
+  market_price_time_parts    = split(":", var.market_price_refresh_time_local)
+  market_price_schedule_cron = "cron(${tonumber(local.market_price_time_parts[1])} ${tonumber(local.market_price_time_parts[0])} ? * MON-FRI *)"
+  web_assets_bucket_name     = "${local.name_prefix}-web-assets"
   deployment_plan = {
     environment_name              = var.environment_name
     environment_cost_profile      = var.environment_cost_profile
@@ -74,8 +103,14 @@ locals {
     plaid_refresh_time_local      = var.plaid_refresh_time_local
     plaid_refresh_timezone        = var.plaid_refresh_timezone
     scheduler_expression          = local.refresh_schedule_cron
+    market_data_provider          = var.market_data_provider
+    market_price_refresh_time     = var.market_price_refresh_time_local
+    market_price_refresh_timezone = var.market_price_refresh_timezone
+    market_price_schedule         = local.market_price_schedule_cron
   }
 }
+
+data "aws_caller_identity" "current" {}
 
 module "network" {
   source = "./modules/network"
@@ -120,26 +155,74 @@ module "secrets" {
 module "api" {
   source = "./modules/api"
 
-  name_prefix              = local.name_prefix
-  aws_region               = var.aws_region
-  vpc_id                   = module.network.vpc_id
-  public_subnet_ids        = module.network.public_subnet_ids
-  private_subnet_ids       = module.network.private_subnet_ids
-  alb_security_group_id    = module.network.alb_security_group_id
-  api_security_group_id    = module.network.api_security_group_id
-  container_name           = var.api_container_name
-  container_port           = var.api_container_port
-  health_check_path        = var.api_health_check_path
-  api_image_tag            = var.api_image_tag
-  task_cpu                 = var.api_task_cpu
-  task_memory              = var.api_task_memory
-  desired_count            = var.api_desired_count
-  environment_variables    = local.api_environment_variables
-  secret_arns              = module.secrets.secret_arns
+  name_prefix           = local.name_prefix
+  aws_region            = var.aws_region
+  vpc_id                = module.network.vpc_id
+  public_subnet_ids     = module.network.public_subnet_ids
+  private_subnet_ids    = module.network.private_subnet_ids
+  alb_security_group_id = module.network.alb_security_group_id
+  api_security_group_id = module.network.api_security_group_id
+  container_name        = var.api_container_name
+  container_port        = var.api_container_port
+  health_check_path     = var.api_health_check_path
+  api_image_tag         = var.api_image_tag
+  task_cpu              = var.api_task_cpu
+  task_memory           = var.api_task_memory
+  desired_count         = var.api_desired_count
+  environment_variables = local.api_environment_variables
+  secret_arns = {
+    for key, arn in module.secrets.secret_arns : key => arn
+    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+  }
   additional_secret_arns   = [module.database.master_user_secret_arn]
   log_retention_days       = var.log_retention_days
   ecr_image_tag_mutability = var.ecr_image_tag_mutability
   ecr_force_delete         = var.ecr_force_delete
+}
+
+module "k1_ingestion" {
+  source = "./modules/k1_ingestion"
+
+  providers = {
+    aws   = aws
+    awscc = awscc
+  }
+
+  name_prefix               = local.name_prefix
+  aws_region                = var.aws_region
+  aws_account_id            = data.aws_caller_identity.current.account_id
+  enabled                   = var.k1_aws_ingestion_enabled
+  document_bucket_name      = local.k1_document_bucket_name
+  kms_alias_name            = local.k1_kms_alias_name
+  input_prefix              = var.k1_input_prefix
+  output_prefix             = var.k1_output_prefix
+  retention_days            = var.k1_document_retention_days
+  noncurrent_retention_days = var.k1_noncurrent_retention_days
+  force_destroy             = var.k1_force_destroy
+  start_queue_name          = local.k1_start_queue_name
+  completion_queue_name     = local.k1_completion_queue_name
+  ecs_cluster_arn           = module.api.ecs_cluster_arn
+  container_image           = module.api.api_container_image
+  task_execution_role_arn   = module.api.api_task_execution_role_arn
+  api_task_role_arn         = module.api.api_task_role_arn
+  private_subnet_ids        = module.network.private_subnet_ids
+  security_group_ids        = [module.network.api_security_group_id]
+  environment_variables     = local.api_environment_variables
+  secret_arns = var.k1_aws_ingestion_enabled ? {
+    for key, arn in module.secrets.secret_arns : key => arn
+    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+  } : {}
+  worker_cpu                         = var.k1_worker_cpu
+  worker_memory                      = var.k1_worker_memory
+  worker_desired_count               = var.k1_worker_desired_count
+  worker_concurrency                 = var.k1_worker_concurrency
+  log_retention_days                 = var.log_retention_days
+  reconciliation_schedule_expression = var.k1_reconciliation_schedule_expression
+  bda_profile_arn                    = local.k1_bda_profile_arn
+  bda_stage                          = var.k1_bda_stage
+  bda_blueprint_version              = var.k1_bda_blueprint_version
+  mapping_schema_version             = var.k1_mapping_schema_version
+  upload_allowed_origins             = var.k1_upload_allowed_origins
 }
 
 module "security" {
@@ -192,28 +275,37 @@ module "scheduler" {
   private_subnet_ids      = module.network.private_subnet_ids
   security_group_ids      = [module.network.api_security_group_id]
   environment_variables   = local.api_environment_variables
-  secret_arns             = module.secrets.secret_arns
-  schedule_expression     = local.refresh_schedule_cron
-  schedule_timezone       = var.plaid_refresh_timezone
-  scheduler_enabled       = var.scheduler_enabled
-  log_retention_days      = var.log_retention_days
+  secret_arns = {
+    for key, arn in module.secrets.secret_arns : key => arn
+    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+  }
+  schedule_expression              = local.refresh_schedule_cron
+  schedule_timezone                = var.plaid_refresh_timezone
+  scheduler_enabled                = var.scheduler_enabled
+  market_price_schedule_expression = local.market_price_schedule_cron
+  market_price_schedule_timezone   = var.market_price_refresh_timezone
+  market_price_scheduler_enabled   = var.market_price_scheduler_enabled
+  log_retention_days               = var.log_retention_days
 }
 
 module "observability" {
   source = "./modules/observability"
 
-  name_prefix                      = local.name_prefix
-  alarm_email                      = var.alarm_email
-  api_load_balancer_arn_suffix     = module.api.api_load_balancer_arn_suffix
-  api_target_group_arn_suffix      = module.api.api_target_group_arn_suffix
-  api_5xx_threshold                = var.api_5xx_threshold
-  db_instance_identifier           = module.database.db_instance_identifier
-  rds_cpu_threshold_percent        = var.rds_cpu_threshold_percent
-  rds_free_storage_threshold_bytes = var.rds_free_storage_threshold_bytes
-  rds_connections_threshold        = var.rds_connections_threshold
-  scheduler_schedule_name          = module.scheduler.schedule_name
-  waf_web_acl_name                 = module.security.web_acl_name
-  waf_blocked_requests_threshold   = var.waf_blocked_requests_threshold
+  name_prefix                          = local.name_prefix
+  alarm_email                          = var.alarm_email
+  api_load_balancer_arn_suffix         = module.api.api_load_balancer_arn_suffix
+  api_target_group_arn_suffix          = module.api.api_target_group_arn_suffix
+  api_5xx_threshold                    = var.api_5xx_threshold
+  db_instance_identifier               = module.database.db_instance_identifier
+  rds_cpu_threshold_percent            = var.rds_cpu_threshold_percent
+  rds_free_storage_threshold_bytes     = var.rds_free_storage_threshold_bytes
+  rds_connections_threshold            = var.rds_connections_threshold
+  scheduler_schedule_name              = module.scheduler.schedule_name
+  market_price_scheduler_schedule_name = module.scheduler.market_price_schedule_name
+  waf_web_acl_name                     = module.security.web_acl_name
+  waf_blocked_requests_threshold       = var.waf_blocked_requests_threshold
+  k1_start_queue_name                  = local.k1_start_queue_name
+  k1_completion_queue_name             = local.k1_completion_queue_name
 }
 
 module "budgets" {

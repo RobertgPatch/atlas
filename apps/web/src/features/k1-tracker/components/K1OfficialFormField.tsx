@@ -2,6 +2,7 @@ import { Plus, X } from 'lucide-react'
 import { useId } from 'react'
 import type {
   K1TrackerCodeEntry,
+  K1TrackerOfficialFormSource,
   K1TrackerOfficialFormValue,
 } from '../../../../../../packages/types/src/k1-tracker'
 import { CurrencyInput } from '../../../components/shared/CurrencyField'
@@ -12,13 +13,14 @@ export interface K1OfficialFormFieldState {
   value: K1TrackerOfficialFormValue
   onChange: (value: K1TrackerOfficialFormValue) => void
   canEdit: boolean
+  source?: K1TrackerOfficialFormSource
 }
 
 export type K1OfficialFormFieldStateGetter = (fieldKey: K1OfficialFormFieldDefinition['key']) => K1OfficialFormFieldState
 
-const inputClass = 'mt-1 min-h-10 w-full min-w-0 rounded-none border border-gray-400 bg-white px-2.5 py-2 text-xs text-gray-950 focus:border-gray-950 focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:bg-gray-100 disabled:text-gray-600'
+const inputClass = (compact = false) => `${compact ? 'min-h-9 py-1.5' : 'min-h-10 py-2'} mt-1 w-full min-w-0 rounded-none border border-gray-400 bg-white px-2.5 text-xs text-gray-950 focus:border-gray-950 focus:outline-none focus:ring-2 focus:ring-focus disabled:bg-gray-100 disabled:text-gray-600`
 
-function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldState) {
+function CodedEntries({ field, value, onChange, canEdit, compact = false }: K1OfficialFormFieldState & { compact?: boolean }) {
   const entries = Array.isArray(value) ? value : []
   const visibleEntries: K1TrackerCodeEntry[] = entries
   const update = (index: number, patch: Partial<K1TrackerCodeEntry>) => {
@@ -41,7 +43,7 @@ function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldSt
             value={entry.code}
             onChange={(event) => update(index, { code: event.target.value.toUpperCase() })}
             placeholder="Code"
-            className={`${inputClass} mt-0 font-mono uppercase`}
+            className={`${inputClass(compact)} mt-0 font-mono uppercase`}
           />
         </label>
         <label className="min-w-0">
@@ -53,7 +55,7 @@ function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldSt
             value={entry.value}
             onChange={(event) => update(index, { value: event.target.value })}
             placeholder="Amount, description, or SEE STMT"
-            className={`${inputClass} mt-0 font-mono`}
+            className={`${inputClass(compact)} mt-0 font-mono`}
           />
         </label>
         <button
@@ -61,7 +63,7 @@ function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldSt
           disabled={!canEdit}
           onClick={() => onChange(entries.filter((_, entryIndex) => entryIndex !== index))}
           aria-label={`Remove ${field.label} entry ${index + 1}`}
-          className="flex min-h-11 items-center justify-center border border-gray-400 text-gray-600 hover:bg-gray-950 hover:text-white focus:outline-none focus:ring-2 focus:ring-jackson-gold disabled:opacity-40"
+          className={`flex ${compact ? 'min-h-9' : 'min-h-11'} items-center justify-center border border-gray-400 text-gray-600 hover:bg-gray-950 hover:text-white focus:outline-none focus:ring-2 focus:ring-focus disabled:opacity-40`}
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -70,7 +72,7 @@ function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldSt
     {canEdit && <button
       type="button"
       onClick={() => onChange([...entries, { code: '', value: '' }])}
-      className="group mt-1.5 inline-flex min-h-11 items-center gap-2 rounded-none px-2 py-1.5 text-xs font-semibold text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-1"
+      className={`group mt-1.5 inline-flex ${compact ? 'min-h-9' : 'min-h-11'} items-center gap-2 rounded-none px-2 py-1.5 text-xs font-semibold text-gray-500 transition-colors duration-150 hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1`}
     >
       <span
         aria-hidden="true"
@@ -83,27 +85,38 @@ function CodedEntries({ field, value, onChange, canEdit }: K1OfficialFormFieldSt
   </fieldset>
 }
 
-export function K1OfficialFormField({ field, value, onChange, canEdit }: K1OfficialFormFieldState) {
+function SourceEvidence({ source }: { source?: K1TrackerOfficialFormSource }) {
+  if (!source) return null
+  const label = source.sourceType === 'FINALIZED_K1' ? 'Imported from reviewed K-1' : source.sourceType.replaceAll('_', ' ').toLowerCase()
+  return <div className="mt-1 flex flex-wrap items-center gap-x-2 text-[9px] font-semibold uppercase tracking-[0.06em] text-indigo-700" data-testid="official-field-source">
+    {source.sourceK1DocumentId
+      ? <a href={`/k1/${source.sourceK1DocumentId}/review`} className="underline decoration-indigo-300 underline-offset-2 hover:text-indigo-950">{label}</a>
+      : <span>{label}</span>}
+    {source.createdByEmail && <span className="normal-case font-medium tracking-normal text-slate-500">by {source.createdByEmail}</span>}
+  </div>
+}
+
+export function K1OfficialFormField({ field, value, onChange, canEdit, source, compact = false }: K1OfficialFormFieldState & { compact?: boolean }) {
   const id = useId()
-  if (field.kind === 'coded') return <div data-k1-official-field={field.key}><CodedEntries field={field} value={value} onChange={onChange} canEdit={canEdit} /></div>
+  if (field.kind === 'coded') return <div data-k1-official-field={field.key}><CodedEntries field={field} value={value} onChange={onChange} canEdit={canEdit} source={source} compact={compact} /><SourceEvidence source={source} /></div>
 
   if (field.kind === 'boolean') {
-    return <label data-k1-official-field={field.key} className="flex min-h-11 items-start gap-2.5 text-[11px] font-semibold leading-snug text-gray-800">
+    return <div data-k1-official-field={field.key}><label className={`flex ${compact ? 'min-h-8' : 'min-h-11'} items-start gap-2.5 text-[11px] font-semibold leading-snug text-gray-800`}>
       <input
         id={id}
         type="checkbox"
         disabled={!canEdit}
         checked={value === true}
         onChange={(event) => onChange(event.target.checked)}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-jackson-gold focus:outline-none focus:ring-2 focus:ring-jackson-gold focus:ring-offset-1 disabled:opacity-60"
+        className="mt-0.5 h-4 w-4 shrink-0 accent-primary focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-1 disabled:opacity-60"
       />
       <span>{field.label}</span>
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   const stringValue = typeof value === 'string' ? value : ''
   if (field.kind === 'money') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
       <CurrencyInput
         id={id}
@@ -115,27 +128,27 @@ export function K1OfficialFormField({ field, value, onChange, canEdit }: K1Offic
         placeholder="$0.00"
         className="min-w-0 rounded-none border-gray-400 bg-white py-1.5 text-right font-mono text-xs tabular-nums text-gray-950 disabled:bg-gray-100 disabled:text-gray-600"
       />
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   if (field.kind === 'choice') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
-      <select id={id} aria-label={field.label} disabled={!canEdit} value={stringValue} onChange={(event) => onChange(event.target.value)} className={inputClass}>
+      <select id={id} aria-label={field.label} disabled={!canEdit} value={stringValue} onChange={(event) => onChange(event.target.value)} className={inputClass(compact)}>
         <option value="">Select</option>
         {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
-    </label>
+    </label><SourceEvidence source={source} /></div>
   }
 
   if (field.kind === 'multiline') {
-    return <label data-k1-official-field={field.key} className="block min-w-0">
+    return <div data-k1-official-field={field.key}><label className="block min-w-0">
       <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
-      <textarea id={id} aria-label={field.label} disabled={!canEdit} rows={3} maxLength={4_000} value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} className={`${inputClass} resize-y`} />
-    </label>
+      <textarea id={id} aria-label={field.label} disabled={!canEdit} rows={compact ? 1 : 3} maxLength={4_000} value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder} className={`${inputClass(compact)} resize-y`} />
+    </label><SourceEvidence source={source} /></div>
   }
 
-  return <label data-k1-official-field={field.key} className="block min-w-0">
+  return <div data-k1-official-field={field.key}><label className="block min-w-0">
     <span className="block text-[10px] font-semibold leading-tight text-gray-800">{field.label}</span>
     <div className="relative">
       <input
@@ -148,9 +161,9 @@ export function K1OfficialFormField({ field, value, onChange, canEdit }: K1Offic
         value={stringValue}
         onChange={(event) => onChange(event.target.value)}
         placeholder={field.placeholder}
-        className={`${inputClass} ${field.kind === 'percentage' ? 'pr-8 text-right font-mono tabular-nums' : ''}`}
+        className={`${inputClass(compact)} ${field.kind === 'percentage' ? 'pr-8 text-right font-mono tabular-nums' : ''}`}
       />
       {field.kind === 'percentage' && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 font-mono text-xs text-gray-500">%</span>}
     </div>
-  </label>
+  </label><SourceEvidence source={source} /></div>
 }

@@ -55,7 +55,7 @@ export async function verifyMfa(
     role: 'Admin',
     session: {
       issuedAt: now,
-      idleTimeoutSeconds: 900,
+      idleTimeoutSeconds: 1800,
       absoluteTimeoutSeconds: 28800,
     },
   }

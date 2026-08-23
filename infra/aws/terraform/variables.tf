@@ -241,6 +241,75 @@ variable "scheduler_enabled" {
   default     = true
 }
 
+variable "market_data_provider" {
+  description = "Server-side public-market data provider. Set to alpaca after populating its Secrets Manager credentials."
+  type        = string
+  default     = "none"
+
+  validation {
+    condition     = contains(["none", "alpaca"], var.market_data_provider)
+    error_message = "market_data_provider must be none or alpaca."
+  }
+}
+
+variable "market_data_refresh_on_read" {
+  description = "Refresh stale market prices when a user reads the Liquidity report."
+  type        = bool
+  default     = true
+}
+
+variable "market_data_max_age_seconds" {
+  description = "Maximum age of a cached quote before a user read requests a fresh price."
+  type        = number
+  default     = 60
+}
+
+variable "market_data_request_timeout_ms" {
+  description = "Timeout for a market data provider request."
+  type        = number
+  default     = 4000
+}
+
+variable "alpaca_market_data_base_url" {
+  description = "Alpaca Market Data API base URL."
+  type        = string
+  default     = "https://data.alpaca.markets"
+}
+
+variable "alpaca_market_data_feed" {
+  description = "Alpaca stock feed: sip for consolidated coverage, iex for IEX-only, or delayed_sip."
+  type        = string
+  default     = "sip"
+
+  validation {
+    condition     = contains(["sip", "iex", "delayed_sip"], var.alpaca_market_data_feed)
+    error_message = "alpaca_market_data_feed must be sip, iex, or delayed_sip."
+  }
+}
+
+variable "market_price_refresh_time_local" {
+  description = "Weekday closing-price refresh and Liquidity valuation snapshot time."
+  type        = string
+  default     = "16:20"
+
+  validation {
+    condition     = can(regex("^[0-2][0-9]:[0-5][0-9]$", var.market_price_refresh_time_local))
+    error_message = "market_price_refresh_time_local must be HH:MM."
+  }
+}
+
+variable "market_price_refresh_timezone" {
+  description = "IANA timezone for the end-of-day market price refresh."
+  type        = string
+  default     = "America/New_York"
+}
+
+variable "market_price_scheduler_enabled" {
+  description = "Whether the weekday closing-price and Liquidity snapshot schedule is enabled."
+  type        = bool
+  default     = false
+}
+
 variable "log_retention_days" {
   description = "CloudWatch log retention for API and refresh task logs. Staging can use shorter retention."
   type        = number
@@ -349,4 +418,101 @@ variable "additional_tags" {
   description = "Additional tags applied to supported AWS resources. Use non-secret ownership or cost allocation tags only."
   type        = map(string)
   default     = {}
+}
+
+variable "k1_aws_ingestion_enabled" {
+  description = "Run the AWS K-1 worker and enable the staged AWS ingestion cohort; resources remain provisioned when false."
+  type        = bool
+  default     = false
+}
+
+variable "k1_input_prefix" {
+  description = "Opaque prefix for original K-1 PDF objects."
+  type        = string
+  default     = "originals"
+}
+
+variable "k1_output_prefix" {
+  description = "Opaque prefix for BDA raw results and evidence."
+  type        = string
+  default     = "extraction-results"
+}
+
+variable "k1_document_retention_days" {
+  description = "Retention for K-1 originals and evidence; align with the approved tax-document policy."
+  type        = number
+  default     = 2555
+}
+
+variable "k1_noncurrent_retention_days" {
+  description = "Retention for noncurrent versions of K-1 objects."
+  type        = number
+  default     = 365
+}
+
+variable "k1_force_destroy" {
+  description = "Allow deletion of a non-empty K-1 bucket only in a disposable environment."
+  type        = bool
+  default     = false
+}
+
+variable "k1_worker_cpu" {
+  type    = string
+  default = "512"
+}
+
+variable "k1_worker_memory" {
+  type    = string
+  default = "1024"
+}
+
+variable "k1_worker_desired_count" {
+  type    = number
+  default = 1
+}
+
+variable "k1_worker_concurrency" {
+  type    = number
+  default = 10
+}
+
+variable "k1_reconciliation_schedule_expression" {
+  type    = string
+  default = "rate(5 minutes)"
+}
+
+variable "k1_bda_profile_arn" {
+  description = "Optional approved BDA cross-Region inference profile ARN."
+  type        = string
+  default     = null
+}
+
+variable "k1_bda_stage" {
+  type    = string
+  default = "DEVELOPMENT"
+  validation {
+    condition     = contains(["DEVELOPMENT", "LIVE"], var.k1_bda_stage)
+    error_message = "k1_bda_stage must be DEVELOPMENT or LIVE."
+  }
+}
+
+variable "k1_bda_blueprint_version" {
+  description = "Immutable evaluated version required when the BDA stage is LIVE."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.k1_bda_stage != "LIVE" || can(regex("^[0-9]+$", var.k1_bda_blueprint_version))
+    error_message = "A numeric immutable K-1 blueprint version is required for LIVE."
+  }
+}
+
+variable "k1_mapping_schema_version" {
+  type    = string
+  default = "k1-form-1065-v1"
+}
+
+variable "k1_upload_allowed_origins" {
+  description = "Browser origins allowed to upload K-1 PDFs directly to S3."
+  type        = list(string)
+  default     = []
 }

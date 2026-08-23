@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Loader2 } from 'lucide-react'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 interface EntityOption {
   id: string
@@ -8,6 +9,7 @@ interface EntityOption {
 
 interface Props {
   value: string | null
+  displayName?: string | null
   onChange: (entityId: string | null, entityName: string | null) => void
   placeholder?: string
   disabled?: boolean
@@ -15,12 +17,11 @@ interface Props {
 
 const DEBOUNCE_MS = 300
 
-export const EntityTypeahead = ({ value, onChange, placeholder = 'Search entities…', disabled = false }: Props) => {
+export const EntityTypeahead = ({ value, displayName, onChange, placeholder = 'Search entities…', disabled = false }: Props) => {
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<EntityOption[]>([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
-  const [selectedName, setSelectedName] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -31,7 +32,7 @@ export const EntityTypeahead = ({ value, onChange, placeholder = 'Search entitie
     setLoading(true)
     try {
       const params = new URLSearchParams({ q, limit: '20' })
-      const res = await fetch(`${apiBase}/review/entities?${params.toString()}`, {
+      const res = await authenticatedFetch(`${apiBase}/review/entities?${params.toString()}`, {
         credentials: 'include',
       })
       if (res.ok) {
@@ -66,20 +67,18 @@ export const EntityTypeahead = ({ value, onChange, placeholder = 'Search entitie
   }, [])
 
   const handleSelect = (option: EntityOption) => {
-    setSelectedName(option.name)
     setQuery(option.name)
     onChange(option.id, option.name)
     setOpen(false)
   }
 
   const handleClear = () => {
-    setSelectedName(null)
     setQuery('')
     onChange(null, null)
     setOpen(false)
   }
 
-  const displayValue = selectedName ?? value ?? ''
+  const displayValue = value ? (displayName ?? 'Selected entity') : ''
 
   return (
     <div ref={containerRef} className="relative" data-testid="entity-typeahead">
@@ -95,9 +94,10 @@ export const EntityTypeahead = ({ value, onChange, placeholder = 'Search entitie
             setOpen(true)
           }}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50 disabled:text-gray-500"
+          className="w-full rounded-md border border-gray-300 bg-white py-1.5 pl-8 pr-3 text-sm focus:border-focus focus:ring-2 focus:ring-focus disabled:bg-gray-50 disabled:text-gray-500"
           aria-autocomplete="list"
           aria-expanded={open}
+          aria-label="Entity receiving the K-1"
           role="combobox"
         />
         {loading && (
@@ -126,8 +126,8 @@ export const EntityTypeahead = ({ value, onChange, placeholder = 'Search entitie
               <button
                 type="button"
                 onClick={() => handleSelect(opt)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 hover:text-blue-700 ${
-                  opt.id === value ? 'font-medium text-blue-700' : 'text-gray-700'
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-primary-subtle hover:text-primary ${
+                  opt.id === value ? 'bg-primary-subtle font-medium text-primary' : 'text-gray-700'
                 }`}
               >
                 {opt.name}

@@ -1,5 +1,6 @@
 import React from 'react'
 import { SearchIcon, XIcon } from 'lucide-react'
+import { Button } from './shared/Button'
 
 interface FilterOption {
   label: string
@@ -40,15 +41,19 @@ export function FilterToolbar({
           value={searchValue}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={searchPlaceholder}
-          className="w-full pl-9 pr-3 py-2 text-sm bg-surface border border-border rounded-card text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-colors"
+          className="w-full pl-9 pr-3 py-2 text-sm bg-surface border border-border rounded-card text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus transition-colors"
         />
         {searchValue && (
-          <button
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Clear search"
             onClick={() => onSearchChange('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-gray-100"
+            className="absolute right-1 top-1/2 min-h-8 min-w-8 -translate-y-1/2 p-1"
           >
             <XIcon className="w-3.5 h-3.5 text-text-tertiary" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -57,7 +62,7 @@ export function FilterToolbar({
           key={filter.key}
           value={filter.value}
           onChange={(e) => filter.onChange(e.target.value)}
-          className="px-3 py-2 text-sm bg-surface border border-border rounded-card text-text-primary focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent transition-colors appearance-none cursor-pointer pr-8"
+          className="px-3 py-2 text-sm bg-surface border border-border rounded-card text-text-primary focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus transition-colors appearance-none cursor-pointer pr-8"
           style={filter.value ? { borderColor: '#1E3A5F', backgroundColor: '#FAFBFC' } : {}}
         >
           <option value="">{filter.label}</option>
@@ -70,15 +75,17 @@ export function FilterToolbar({
       ))}
 
       {hasActiveFilters && (
-        <button
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => {
             onSearchChange('')
             filters.forEach((f) => f.onChange(''))
           }}
-          className="text-xs font-medium text-accent hover:text-accent-hover transition-colors px-2 py-1"
         >
           Clear all
-        </button>
+        </Button>
       )}
 
       {resultCount !== undefined && (

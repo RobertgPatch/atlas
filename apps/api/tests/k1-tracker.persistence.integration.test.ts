@@ -3,6 +3,7 @@ import { pool } from '../src/infra/db/client.js'
 import { K1TrackerError } from '../src/modules/k1-tracker/k1-tracker.types.js'
 import { k1TrackerRepository } from '../src/modules/k1-tracker/k1-tracker.repository.js'
 import { createK1TrackerFixture, type K1TrackerFixture } from './helpers/k1TrackerFixture.js'
+import { authRepository } from '../src/modules/auth/auth.repository.js'
 
 const durable = pool ? it : it.skip
 describe('K1 Tracker durable ledger', () => {
@@ -82,6 +83,47 @@ describe('K1 Tracker durable ledger', () => {
     expect(signed.reviewedAt).not.toBeNull()
     expect(signed.history?.map((item) => item.action)).toEqual(['INVALIDATED', 'REVIEWED'])
     expect((await k1TrackerRepository.getYear(fixture.partnershipId, 2024, scope())).status).toBe('RECONCILED')
+  })
+
+  durable('allows reviewed calculated warnings but still blocks missing required reconciliation inputs', async () => {
+    const warningYear = await k1TrackerRepository.createYear(fixture.partnershipId, 2024, [
+      { fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_1_ordinary_income_loss', amount: '-100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'box_19_distributions', amount: '200.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_beginning_capital', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_current_year_net_income_loss', amount: '-100.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_withdrawals_distributions', amount: '200.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'section_l_ending_capital', amount: '-200.00', sourceType: 'MANUAL_ENTRY' },
+      { fieldKey: 'book_capital_account', amount: '0.00', sourceType: 'MANUAL_ENTRY' },
+    ], fixture.adminUserId, scope())
+
+    expect(warningYear.values.find((value) => value.fieldKey === 'section_l_withdrawals_distributions')?.amount).toBe('-200.00')
+    expect(warningYear.calculation.checks.some((check) => check.status === 'WARNING')).toBe(true)
+    expect(warningYear.calculation.checks.some((check) => check.status === 'FAIL' || check.status === 'INCOMPLETE')).toBe(false)
+
+    await k1TrackerRepository.signoff(
+      fixture.partnershipId,
+      2024,
+      warningYear.revision,
+      'REVIEWED',
+      'Reviewed calculated warnings',
+      fixture.adminUserId,
+      scope(),
+    )
+    expect((await k1TrackerRepository.getYear(fixture.partnershipId, 2024, scope())).status).toBe('RECONCILED')
+
+    const incompleteYear = await k1TrackerRepository.createYear(fixture.partnershipId, 2025, [
+      { fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'MANUAL_ENTRY' },
+    ], fixture.adminUserId, scope())
+    await expect(k1TrackerRepository.signoff(
+      fixture.partnershipId,
+      2025,
+      incompleteYear.revision,
+      'REVIEWED',
+      null,
+      fixture.adminUserId,
+      scope(),
+    )).rejects.toMatchObject<K1TrackerError>({ code: 'SIGNOFF_GATE_FAILED' })
   })
 
   durable('deletes annual projections and invalidates downstream years', async () => {

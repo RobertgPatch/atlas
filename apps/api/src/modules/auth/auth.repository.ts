@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { config } from '../../config.js'
 import { pool } from '../../infra/db/client.js'
 import { decryptSecret, encryptSecret } from '../../infra/crypto/secretCodec.js'
+import { passwordService } from './password.service.js'
 
 export type Role = 'Admin' | 'User'
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
@@ -69,7 +70,7 @@ interface SessionRow {
   revoke_reason: string | null
 }
 
-const hash = (value: string) =>
+const sha256 = (value: string) =>
   createHash('sha256').update(value).digest('hex')
 
 const now = () => new Date()
@@ -78,6 +79,13 @@ const users = new Map<string, UserRecord>()
 const sessions = new Map<string, SessionRecord>()
 const challenges = new Map<string, MfaChallengeRecord>()
 const enrollments = new Map<string, MfaEnrollmentRecord>()
+
+let dummyPasswordHashPromise: Promise<string> | undefined
+
+const getDummyPasswordHash = () => {
+  dummyPasswordHashPromise ??= passwordService.hash(randomUUID())
+  return dummyPasswordHashPromise
+}
 
 let dbWriteQueue = Promise.resolve()
 
@@ -132,7 +140,9 @@ const seedInMemoryUsers = () => {
   users.set(adminId, {
     id: adminId,
     email: config.adminEmail,
-    passwordHash: hash(config.adminPassword),
+    // Kept only for synchronous module seeding. bootstrapFromDatabase replaces
+    // these legacy values with Argon2id before the server accepts requests.
+    passwordHash: sha256(config.adminPassword),
     role: 'Admin',
     status: 'Active',
     mfaSecret: null,
@@ -146,7 +156,7 @@ const seedInMemoryUsers = () => {
   users.set(userId, {
     id: userId,
     email: config.userEmail,
-    passwordHash: hash(config.userPassword),
+    passwordHash: sha256(config.userPassword),
     role: 'User',
     status: 'Active',
     mfaSecret: null,
@@ -155,6 +165,22 @@ const seedInMemoryUsers = () => {
     lastLoginAt: null,
     loginCount: 0,
   })
+}
+
+const upgradeInMemorySeedPasswords = async () => {
+  const credentials = [
+    [config.adminEmail, config.adminPassword],
+    [config.userEmail, config.userPassword],
+  ] as const
+
+  for (const [email, password] of credentials) {
+    const user = [...users.values()].find(
+      (candidate) => candidate.email.toLowerCase() === email.toLowerCase(),
+    )
+    if (!user || !passwordService.isLegacyHash(user.passwordHash)) continue
+    user.passwordHash = await passwordService.hash(password)
+    users.set(user.id, user)
+  }
 }
 
 const userSelectSql = `
@@ -187,6 +213,8 @@ const userSelectSql = `
 const upsertSeedUser = async (email: string, password: string, role: Role) => {
   if (!pool) return
 
+  const passwordHash = await passwordService.hash(password)
+
   const userResult = await pool.query<{ id: string }>(
     `
       insert into users (id, email, password_hash, mfa_enabled, is_active, status)
@@ -195,7 +223,7 @@ const upsertSeedUser = async (email: string, password: string, role: Role) => {
       set updated_at = now()
       returning id
     `,
-    [randomUUID(), email, hash(password)],
+    [randomUUID(), email, passwordHash],
   )
   const userId = userResult.rows[0]?.id
   if (!userId) return
@@ -317,6 +345,17 @@ const persistUser = (user: UserRecord) => {
   })
 }
 
+const persistPasswordHash = async (user: UserRecord) => {
+  if (!pool) return
+  await pool.query(
+    `update users
+     set password_hash = $2,
+         updated_at = now()
+     where id = $1`,
+    [user.id, user.passwordHash],
+  )
+}
+
 const persistMfaEnrollment = (user: UserRecord) => {
   enqueueDbWrite(async () => {
     await pool!.query(
@@ -351,6 +390,8 @@ export const authRepository = {
   async bootstrapFromDatabase(): Promise<void> {
     if (!pool) {
       seedInMemoryUsers()
+      await upgradeInMemorySeedPasswords()
+      await getDummyPasswordHash()
       return
     }
 
@@ -359,10 +400,11 @@ export const authRepository = {
       values (gen_random_uuid(), 'Admin'), (gen_random_uuid(), 'User')
       on conflict (name) do nothing
     `)
-  await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
-  await upsertSeedUser(config.userEmail, config.userPassword, 'User')
+    await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
+    await upsertSeedUser(config.userEmail, config.userPassword, 'User')
     await loadUsersFromDatabase()
     await loadSessionsFromDatabase()
+    await getDummyPasswordHash()
   },
 
   findUserByEmail(email: string): UserRecord | undefined {
@@ -370,8 +412,27 @@ export const authRepository = {
     return [...users.values()].find((user) => user.email.toLowerCase() === lower)
   },
 
-  verifyPassword(user: UserRecord, password: string): boolean {
-    return user.passwordHash === hash(password)
+  async verifyPassword(user: UserRecord | undefined, password: string): Promise<boolean> {
+    const passwordHash = user?.passwordHash ?? await getDummyPasswordHash()
+    const legacyOrUnsupported =
+      passwordService.isLegacyHash(passwordHash) || !passwordHash.startsWith('$argon2id$')
+    const verification = await passwordService.verify(passwordHash, password)
+
+    // Keep missing, malformed, and legacy records on roughly the same expensive
+    // path as Argon2id records to reduce timing-based account enumeration.
+    if (legacyOrUnsupported) {
+      await passwordService.verify(await getDummyPasswordHash(), password)
+    }
+
+    if (!user || !verification.valid) return false
+
+    if (verification.needsUpgrade && user.status !== 'Inactive') {
+      user.passwordHash = await passwordService.hash(password)
+      users.set(user.id, user)
+      await persistPasswordHash(user)
+    }
+
+    return true
   },
 
   createMfaChallenge(userId: string): MfaChallengeRecord {
@@ -428,7 +489,7 @@ export const authRepository = {
     const issuedAt = now()
     const session: SessionRecord = {
       id: randomUUID(),
-      tokenHash: hash(token),
+      tokenHash: sha256(token),
       userId,
       issuedAt,
       lastActivityAt: issuedAt,
@@ -451,7 +512,7 @@ export const authRepository = {
   },
 
   getSessionByToken(token: string): SessionRecord | undefined {
-    const tokenHash = hash(token)
+    const tokenHash = sha256(token)
     return [...sessions.values()].find((session) => session.tokenHash === tokenHash)
   },
 
@@ -544,7 +605,7 @@ export const authRepository = {
     return user
   },
 
-  upsertInvitedUser(email: string, role: Role): UserRecord {
+  async upsertInvitedUser(email: string, role: Role): Promise<UserRecord> {
     const existing = this.findUserByEmail(email)
     if (existing) {
       existing.role = role
@@ -557,7 +618,7 @@ export const authRepository = {
     const user: UserRecord = {
       id: randomUUID(),
       email,
-      passwordHash: hash(config.userPassword),
+      passwordHash: await passwordService.hash(config.userPassword),
       role,
       status: 'Invited',
       mfaSecret: null,

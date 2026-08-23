@@ -20,7 +20,7 @@ describe('Review two-person rule — full round-trip', () => {
 
   it('Admin A approves; Admin A is blocked from finalizing; Admin B finalizes successfully', async () => {
     // Create a second Admin user (Admin B) for the two-person rule.
-    const adminB = authRepository.upsertInvitedUser('admin-b@jackson.com', 'Admin')
+    const adminB = await authRepository.upsertInvitedUser('admin-b@jackson.com', 'Admin')
     k1Repository._debugSetMemberships(adminB.id, f.entityIds)
     const cookieB = sessionCookieFor(adminB.id)
 

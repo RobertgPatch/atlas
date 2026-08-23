@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowDownIcon,
   ArrowUpDownIcon,
@@ -18,7 +18,7 @@ import type {
   ConsolidatedHoldingsQuery,
 } from '../../../../../../packages/types/src/reports'
 import { inferSector } from '../utils/consolidatedHoldingsAnalytics'
-import { formatCurrency } from '../utils/formatters'
+import { formatCurrencyWithCents } from '../utils/formatters'
 import { ConsolidatedHoldingsRow } from './ConsolidatedHoldingsRow'
 
 interface ConsolidatedHoldingsTableProps {
@@ -32,6 +32,10 @@ interface ConsolidatedHoldingsTableProps {
     sort: NonNullable<ConsolidatedHoldingsQuery['sort']>,
     direction: 'asc' | 'desc',
   ) => void
+  sectorFilter?: {
+    sectors: readonly string[]
+    onClear: () => void
+  }
 }
 
 type SortKey = NonNullable<ConsolidatedHoldingsQuery['sort']>
@@ -202,6 +206,7 @@ export function ConsolidatedHoldingsTable({
   direction,
   onSearchChange,
   onSortChange,
+  sectorFilter,
 }: ConsolidatedHoldingsTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
@@ -263,6 +268,23 @@ export function ConsolidatedHoldingsTable({
     )
   }, [direction, rows, sort])
 
+  const autoExpandCategoryKey =
+    sectorFilter && groupedByCategory.length === 1
+      ? groupedByCategory[0]?.category.key ?? null
+      : null
+  const sectorSelectionKey = sectorFilter?.sectors.join('\u001f') ?? ''
+
+  useEffect(() => {
+    if (!autoExpandCategoryKey) return
+
+    setExpandedCategories((previous) => {
+      if (previous.has(autoExpandCategoryKey)) return previous
+      const next = new Set(previous)
+      next.add(autoExpandCategoryKey)
+      return next
+    })
+  }, [autoExpandCategoryKey, sectorSelectionKey])
+
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev)
@@ -289,9 +311,9 @@ export function ConsolidatedHoldingsTable({
   const sortIcon = (key: SortKey) => {
     if (sort !== key) return <ArrowUpDownIcon className="h-3 w-3 text-gray-300" />
     return direction === 'asc' ? (
-      <ArrowUpIcon className="h-3 w-3 text-blue-600" />
+      <ArrowUpIcon className="h-3 w-3 text-primary" />
     ) : (
-      <ArrowDownIcon className="h-3 w-3 text-blue-600" />
+      <ArrowDownIcon className="h-3 w-3 text-primary" />
     )
   }
 
@@ -339,6 +361,27 @@ export function ConsolidatedHoldingsTable({
             {groupedByCategory.length} asset class
             {groupedByCategory.length === 1 ? '' : 'es'}
           </p>
+          {sectorFilter ? (
+            <div
+              className="mt-2 flex flex-wrap items-center gap-2 text-xs"
+              role="status"
+              aria-live="polite"
+            >
+              <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
+                Sector filter:{' '}
+                {sectorFilter.sectors.length > 0
+                  ? sectorFilter.sectors.join(', ')
+                  : 'No sectors selected'}
+              </span>
+              <button
+                type="button"
+                onClick={sectorFilter.onClear}
+                className="font-semibold text-primary hover:text-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Show all positions
+              </button>
+            </div>
+          ) : null}
         </div>
         <div className="relative">
           <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -347,7 +390,7 @@ export function ConsolidatedHoldingsTable({
             placeholder="Search symbol, name, or custodian..."
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-72"
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-focus sm:w-72"
           />
         </div>
       </div>
@@ -387,7 +430,9 @@ export function ConsolidatedHoldingsTable({
             <tbody>
               <tr>
                 <td colSpan={7} className="py-16 text-center text-sm text-gray-400">
-                  No holdings found. Try adjusting your search or account selection.
+                  {sectorFilter
+                    ? 'No holdings match the selected sectors.'
+                    : 'No holdings found. Try adjusting your search or account selection.'}
                 </td>
               </tr>
             </tbody>
@@ -445,7 +490,7 @@ export function ConsolidatedHoldingsTable({
                               }`}
                             >
                               {gainLossPositive ? '+' : ''}
-                              {formatCurrency(group.totalGainLoss)}
+                              {formatCurrencyWithCents(group.totalGainLoss)}
                             </span>
                           ) : null}
                         </div>
@@ -456,7 +501,7 @@ export function ConsolidatedHoldingsTable({
                           {group.accountCount}
                         </span>
                         <span className="text-right text-sm font-bold text-gray-900">
-                          {formatCurrency(group.totalValue)}
+                          {formatCurrencyWithCents(group.totalValue)}
                         </span>
                       </div>
                     </td>

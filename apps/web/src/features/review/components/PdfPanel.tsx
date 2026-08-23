@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Crosshair } from 'lucide-react'
 import type { K1SourceLocation } from '../../../../../../packages/types/src/review-finalization'
 import { ErrorState } from '../../../components/ErrorState'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 interface Props {
   pdfUrl: string
@@ -19,12 +21,13 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
   const ref = useRef<HTMLIFrameElement>(null)
   const [probeKey, setProbeKey] = useState(0)
   const [unavailable, setUnavailable] = useState(false)
+  const [page, setPage] = useState(highlight?.page ?? 1)
 
   useEffect(() => {
     let active = true
     setUnavailable(false)
 
-    void fetch(pdfUrl, {
+    void authenticatedFetch(pdfUrl, {
       method: 'HEAD',
       credentials: 'include',
       headers: { Accept: 'application/pdf' },
@@ -56,16 +59,39 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
     }
   }, [highlight, pdfUrl])
 
+  useEffect(() => setPage(highlight?.page ?? 1), [highlight])
+
+  useEffect(() => {
+    if (!ref.current) return
+    ref.current.src = `${pdfUrl}#page=${page}`
+  }, [page, pdfUrl])
+
   return (
-    <div className="flex flex-col h-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <section
+      className="flex flex-col h-full bg-white border border-slate-300 rounded-lg overflow-hidden shadow-[0_12px_35px_rgba(15,23,42,0.08)]"
+      aria-label="Source PDF evidence"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft' || event.key === 'PageUp') setPage((value) => Math.max(1, value - 1))
+        if (event.key === 'ArrowRight' || event.key === 'PageDown') setPage((value) => value + 1)
+      }}
+    >
       <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
         <div className="text-sm font-medium text-gray-700">{title}</div>
-        {highlight && (
-          <div className="text-xs text-gray-500 font-mono" data-testid="pdf-highlight-page">
-            p.{highlight.page}
+        <div className="flex items-center gap-2">
+          <button type="button" aria-label="Previous PDF page" onClick={() => setPage((value) => Math.max(1, value - 1))} className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-600"><ChevronLeft size={14} /></button>
+          <div className="min-w-12 text-center text-xs text-gray-500 font-mono" data-testid="pdf-highlight-page" aria-live="polite">
+            p.{page}
           </div>
-        )}
+          <button type="button" aria-label="Next PDF page" onClick={() => setPage((value) => value + 1)} className="rounded border border-slate-300 bg-white p-1 text-slate-600 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-600"><ChevronRight size={14} /></button>
+        </div>
       </div>
+      {highlight?.bbox && (
+        <div className="flex items-center gap-2 border-b border-cyan-200 bg-cyan-50 px-4 py-1.5 text-xs text-cyan-900" data-testid="pdf-highlight-bbox">
+          <Crosshair size={13} aria-hidden="true" />
+          Evidence region {highlight.bbox.map((coordinate) => Number(coordinate).toFixed(2)).join(' · ')}
+        </div>
+      )}
       {unavailable ? (
         <ErrorState
           title="PDF unavailable"
@@ -77,10 +103,10 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
           ref={ref}
           title="PDF preview"
           className="w-full flex-1"
-          src={`${pdfUrl}#page=${highlight?.page ?? 1}`}
+          src={`${pdfUrl}#page=${page}`}
           data-testid="pdf-iframe"
         />
       )}
-    </div>
+    </section>
   )
 }

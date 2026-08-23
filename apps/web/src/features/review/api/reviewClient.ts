@@ -9,9 +9,12 @@ import type {
   K1OpenIssueRequest,
   K1OpenIssueResponse,
   K1ResolveIssueResponse,
+  K1ResolveIssueRequest,
+  K1ResolveMatchRequest,
   K1ReviewErrorBody,
   K1ReviewSession,
 } from '../../../../../../packages/types/src/review-finalization'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -51,7 +54,7 @@ const request = async <T>(
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
   if (opts.version != null) headers['If-Match'] = String(opts.version)
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+  const res = await authenticatedFetch(`${API_BASE_URL}${path}`, {
     credentials: 'include',
     method: opts.method ?? 'GET',
     headers,
@@ -156,11 +159,22 @@ export const reviewClient = {
     k1DocumentId: string,
     issueId: string,
     version: number,
+    body: K1ResolveIssueRequest = {},
   ): Promise<VersionedResponse<K1ResolveIssueResponse>> {
     return request<K1ResolveIssueResponse>(
       `/k1-documents/${k1DocumentId}/issues/${issueId}/resolve`,
-      { method: 'POST', version },
+      { method: 'POST', version, body },
     )
+  },
+
+  async resolveMatch(k1DocumentId: string, body: K1ResolveMatchRequest) {
+    return request<{
+      documentVersion: number
+      entityId: string
+      partnershipId: string
+      taxYear: number
+      matchStatus: 'MATCHED' | 'REQUIRES_REVIEW'
+    }>(`/k1-documents/${k1DocumentId}/match`, { method: 'PUT', body })
   },
 }
 

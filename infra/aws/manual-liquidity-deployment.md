@@ -92,7 +92,6 @@ Create Secrets Manager entries for:
 - `ATLAS_SCHEDULER_TOKEN`
 - `ADMIN_PASSWORD` or invitation bootstrap equivalent
 - `USER_PASSWORD` only if the deployment still uses the local bootstrap user flow
-- Azure Document Intelligence secrets only when `K1_EXTRACTOR=azure`
 
 Use an environment-qualified namespace such as `atlas-staging/...` or `atlas-production/...`. Do not reuse production secrets, Plaid production credentials, scheduler tokens, admin bootstrap credentials, or databases in staging.
 
@@ -200,6 +199,11 @@ Route 53 record:
 - Run the task in private subnets with the API task security group and the same runtime secrets as the API service.
 - Confirm the scheduled task logs a terminal refresh attempt and exits.
 - Confirm duplicate refresh attempts are prevented by database locks.
+- Create the weekday `16:20` `America/New_York` market-price schedule after
+  populating the Alpaca key id and secret in Secrets Manager.
+- Use the separate ECS RunTask command
+  `node dist/scripts/run-market-price-refresh.js` and confirm it logs refreshed
+  and missing symbol counts.
 
 Evidence:
 
@@ -208,6 +212,8 @@ Schedule name/ARN:
 Schedule timezone:
 Target:
 Last run:
+Market price schedule name/ARN:
+Market price last run:
 ```
 
 ## 7. Observability, Security, And Cost

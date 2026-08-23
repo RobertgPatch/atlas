@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { z } from 'zod'
+import { pool } from '../../infra/db/client.js'
 import { k1Repository } from '../k1/k1.repository.js'
 import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
 
@@ -14,6 +15,32 @@ const partnershipQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 
+interface EntityOption {
+  id: string
+  name: string
+}
+
+const durableEntityOptions = async (
+  request: FastifyRequest,
+  q = '',
+  limit?: number,
+): Promise<EntityOption[] | null> => {
+  if (!pool) return null
+  const admin = request.authUser!.role === 'Admin'
+  const result = await pool.query<EntityOption>(
+    `select distinct e.id, e.name
+       from entities e
+       left join entity_memberships em
+         on em.entity_id = e.id and em.user_id = $1
+      where ($2::boolean or em.user_id is not null)
+        and ($3 = '' or e.name ilike '%' || $3 || '%')
+      order by e.name, e.id
+      limit coalesce($4::integer, 2147483647)`,
+    [request.authUser!.userId, admin, q, limit ?? null],
+  )
+  return result.rows
+}
+
 export const entityTypeaheadHandler = async (
   request: FastifyRequest,
   reply: FastifyReply,
@@ -23,6 +50,9 @@ export const entityTypeaheadHandler = async (
     return reply.code(400).send({ error: 'INVALID_QUERY' })
   }
   const { q, limit } = parsed.data
+
+  const durableItems = await durableEntityOptions(request, q, limit)
+  if (durableItems) return reply.send({ items: durableItems })
 
   const userId = request.authUser!.userId
   const allowedEntityIds = k1Repository.listEntitiesForUser(userId)
@@ -50,9 +80,12 @@ export const partnershipTypeaheadHandler = async (
 
   const userId = request.authUser!.userId
   const isAdmin = request.authUser!.role === 'Admin'
-  const allowedEntityIds = isAdmin
-    ? k1Repository.listEntities().map((entity) => entity.id)
-    : k1Repository.listEntitiesForUser(userId)
+  const durableEntities = await durableEntityOptions(request)
+  const allowedEntityIds = durableEntities
+    ? durableEntities.map((entity) => entity.id)
+    : isAdmin
+      ? k1Repository.listEntities().map((entity) => entity.id)
+      : k1Repository.listEntitiesForUser(userId)
 
   // Scope to entity_id if provided; verify the user has access to it.
   if (entity_id && !allowedEntityIds.includes(entity_id)) {

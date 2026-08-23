@@ -84,9 +84,14 @@ export const entitiesRepository = {
         entity: {
           id: entity.id,
           name: entity.name,
-          entityType: 'UNKNOWN',
-          status: 'ACTIVE',
-          notes: null,
+          entityType: entity.entityType,
+          jurisdiction: entity.jurisdiction,
+          taxId: entity.taxId,
+          formedOn: entity.formedOn,
+          status: entity.status,
+          notes: entity.notes,
+          registeredAgent: entity.registeredAgent,
+          primaryContact: entity.primaryContact,
         },
         partnerships,
         rollup: {
@@ -103,7 +108,9 @@ export const entitiesRepository = {
 
     // Fetch entity row
     const entityResult = await pool.query(
-      `select id, name, entity_type, status, notes from entities where id = $1`,
+      `select id, name, entity_type, jurisdiction, tax_id, formed_on, status, notes,
+        registered_agent, primary_contact
+       from entities where id = $1`,
       [entityId],
     )
     if (!entityResult.rows[0]) {
@@ -114,14 +121,30 @@ export const entitiesRepository = {
       if (!memEntity) return null
 
       await pool.query(
-        `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
-         values ($1, $2, 'UNKNOWN', 'ACTIVE', null, now(), now())
+        `insert into entities (
+          id, name, entity_type, jurisdiction, tax_id, formed_on, status, notes,
+          registered_agent, primary_contact, created_at, updated_at
+        )
+         values ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10, now(), now())
          on conflict (id) do nothing`,
-        [memEntity.id, memEntity.name],
+        [
+          memEntity.id,
+          memEntity.name,
+          memEntity.entityType,
+          memEntity.jurisdiction,
+          memEntity.taxId,
+          memEntity.formedOn,
+          memEntity.status,
+          memEntity.notes,
+          memEntity.registeredAgent,
+          memEntity.primaryContact,
+        ],
       )
 
       const refetch = await pool.query(
-        `select id, name, entity_type, status, notes from entities where id = $1`,
+        `select id, name, entity_type, jurisdiction, tax_id, formed_on, status, notes,
+          registered_agent, primary_contact
+         from entities where id = $1`,
         [entityId],
       )
       if (!refetch.rows[0]) return null
@@ -173,6 +196,7 @@ export const entitiesRepository = {
             0
           ) as paid_in_usd
         from capital_activity_events e
+        where e.settlement_status = 'SETTLED'
         group by e.partnership_id
       )
       select
@@ -235,8 +259,20 @@ export const entitiesRepository = {
         id: e.id,
         name: e.name,
         entityType: e.entity_type,
+        jurisdiction: e.jurisdiction ?? null,
+        taxId: e.tax_id ?? null,
+        formedOn: e.formed_on
+          ? new Date(e.formed_on).toLocaleDateString('en-US', {
+              month: '2-digit',
+              day: '2-digit',
+              year: 'numeric',
+              timeZone: 'UTC',
+            })
+          : null,
         status: e.status,
         notes: e.notes ?? null,
+        registeredAgent: e.registered_agent ?? null,
+        primaryContact: e.primary_contact ?? null,
       },
       partnerships,
       rollup: {

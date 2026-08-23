@@ -1,0 +1,423 @@
+{
+  "class": "ScheduleK1Form1065",
+  "description": "Schedule K-1 (Form 1065), tax years 2000 through 2025. Extract visible fields and continuation rows without deriving workpaper values.",
+  "properties": {
+    "match__partner_tin": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Partner taxpayer identification number exactly as printed."
+    },
+    "match__partnership_ein": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Partnership employer identification number exactly as printed."
+    },
+    "match__partner_name": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Partner name exactly as printed."
+    },
+    "match__partnership_name": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Partnership name exactly as printed."
+    },
+    "match__tax_year": {
+      "type": "number",
+      "inferenceType": "explicit",
+      "instruction": "Tax year shown by the tax period ending date or printed form year."
+    },
+    "calculation__capital_contributions": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for capital contributions. Preserve printed sign and parentheses; do not calculate. Extract this as document evidence; do not derive dated activity."
+    },
+    "calculation__box_1_ordinary_income_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 1 value for box 1 ordinary income loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_2_net_rental_real_estate_income_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 2 value for box 2 net rental real estate income loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_3_other_net_rental_income_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 3 value for box 3 other net rental income loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_4c_guaranteed_payments": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 4C value for box 4c guaranteed payments. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_5_interest_income": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 5 value for box 5 interest income. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_6a_ordinary_dividends": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 6A value for box 6a ordinary dividends. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_7_royalties": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 7 value for box 7 royalties. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_8_net_short_term_capital_gain_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 8 value for box 8 net short term capital gain loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_9a_net_long_term_capital_gain_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 9A value for box 9a net long term capital gain loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_10_net_section_1231_gain_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 10 value for box 10 net section 1231 gain loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_11_other_income_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 11 value for box 11 other income loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_12_section_179_deduction": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 12 value for box 12 section 179 deduction. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_19_distributions": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Extract a value only when Schedule K-1 line 19 contains a visibly entered amount with no letter code. Leave this field empty when line 19 has coded rows such as 19A, 19B, or 19C; those belong only in official__box_19_entries. Never duplicate a coded line 19 amount here. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__box_21_foreign_taxes": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line 21 value for box 21 foreign taxes. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_nonrecourse_beginning": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability nonrecourse beginning. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_nonrecourse_ending": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability nonrecourse ending. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_qualified_nonrecourse_beginning": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability qualified nonrecourse beginning. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_qualified_nonrecourse_ending": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability qualified nonrecourse ending. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_recourse_beginning": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability recourse beginning. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__liability_recourse_ending": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line K1 value for liability recourse ending. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__section_l_beginning_capital": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for section l beginning capital. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__section_l_current_year_net_income_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for section l current year net income loss. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__section_l_other_increase_decrease": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for section l other increase decrease. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__section_l_withdrawals_distributions": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for section l withdrawals distributions. Preserve printed sign and parentheses; do not calculate."
+    },
+    "calculation__section_l_ending_capital": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 line L value for section l ending capital. Preserve printed sign and parentheses; do not calculate."
+    },
+    "official__k1_status_final": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Inspect the small square immediately to the left of the 'Final K-1' label at the top of page 1. Return exactly CHECKED when that square contains any printed X, check mark, fill, or crossing stroke. Return exactly UNCHECKED only when that square is visually empty. The source document may use a typed X rather than a check-mark glyph. Do not decide from the label text alone or from the nearby Amended K-1 square; evaluate this square independently."
+    },
+    "official__k1_status_amended": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Inspect the small square immediately to the left of the 'Amended K-1' label at the top of page 1. Return exactly CHECKED when that square contains any printed X, check mark, fill, or crossing stroke. Return exactly UNCHECKED only when that square is visually empty. The source document may use a typed X rather than a check-mark glyph. Do not decide from the label text alone or from the nearby Final K-1 square; evaluate this square independently."
+    },
+    "official__tax_period_beginning": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for tax period beginning. Return exactly as printed and do not derive a value."
+    },
+    "official__tax_period_ending": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for tax period ending. Return exactly as printed and do not derive a value."
+    },
+    "official__part_i_a_partnership_ein": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part i a partnership ein. Return exactly as printed and do not derive a value."
+    },
+    "official__part_i_b_partnership_name_address": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part i b partnership name address. Return exactly as printed and do not derive a value."
+    },
+    "official__part_i_c_irs_center": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part i c irs center. Return exactly as printed and do not derive a value."
+    },
+    "official__part_i_d_publicly_traded_partnership": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for part i d publicly traded partnership is selected."
+    },
+    "official__part_ii_e_partner_tin": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii e partner tin. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_f_partner_name_address": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii f partner name address. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_g_partner_classification": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii g partner classification. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_h1_partner_residency": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii h1 partner residency. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_h2_disregarded_entity": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for part ii h2 disregarded entity is selected."
+    },
+    "official__part_ii_h2_disregarded_entity_tin": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii h2 disregarded entity tin. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_h2_disregarded_entity_name": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii h2 disregarded entity name. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_i1_partner_entity_type": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii i1 partner entity type. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_i2_retirement_plan": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for part ii i2 retirement plan is selected."
+    },
+    "official__part_ii_j_profit_beginning_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j profit beginning pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_profit_ending_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j profit ending pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_loss_beginning_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j loss beginning pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_loss_ending_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j loss ending pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_capital_beginning_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j capital beginning pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_capital_ending_pct": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii j capital ending pct. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_j_decrease_sale": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the single Schedule K-1 Part II, Item J checkbox labeled 'Check if decrease is due to sale or exchange of partnership interest' is selected. This is one checkbox, not separate sale and exchange fields."
+    },
+    "official__part_ii_k2_lower_tier_liabilities": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for part ii k2 lower tier liabilities is selected."
+    },
+    "official__part_ii_k3_guaranteed_liabilities": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for part ii k3 guaranteed liabilities is selected."
+    },
+    "official__part_ii_m_built_in_gain_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii m built in gain loss. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_n_704c_gain_loss_beginning": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii n 704c gain loss beginning. Return exactly as printed and do not derive a value."
+    },
+    "official__part_ii_n_704c_gain_loss_ending": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for part ii n 704c gain loss ending. Return exactly as printed and do not derive a value."
+    },
+    "official__box_4a_guaranteed_payments_services": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 4a guaranteed payments services. Return exactly as printed and do not derive a value."
+    },
+    "official__box_4b_guaranteed_payments_capital": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 4b guaranteed payments capital. Return exactly as printed and do not derive a value."
+    },
+    "official__box_6b_qualified_dividends": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 6b qualified dividends. Return exactly as printed and do not derive a value."
+    },
+    "official__box_6c_dividend_equivalents": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 6c dividend equivalents. Return exactly as printed and do not derive a value."
+    },
+    "official__box_9b_collectibles_gain_loss": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 9b collectibles gain loss. Return exactly as printed and do not derive a value."
+    },
+    "official__box_9c_unrecaptured_section_1250_gain": {
+      "type": "string",
+      "inferenceType": "explicit",
+      "instruction": "Visible Schedule K-1 field for box 9c unrecaptured section 1250 gain. Return exactly as printed and do not derive a value."
+    },
+    "official__box_11_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "All visible coded rows for box 11 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_13_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "Return all populated Schedule K-1 line 13 rows. When the face of the K-1 shows a code followed by STMT or an asterisk, follow the matching Federal Statements page in the same tax package and return each actual statement deduction with its code, description, and amount; do not leave a blank STMT placeholder when numeric statement rows are available. Do not extract the printed code legend. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_14_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "All visible coded rows for box 14 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_15_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "All visible coded rows for box 15 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_16_schedule_k3_attached": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for box 16 schedule k3 attached is selected."
+    },
+    "official__box_17_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "Return only actually populated Schedule K-1 line 17 entries. Do not extract the form's printed A-F code taxonomy or its blank template lines as separate rows. A row is populated only when a value or statement marker is visibly entered beside its code. If line 17 is visible but entirely blank, return exactly one compact JSON placeholder with code '', description 'Alternative Minimum Tax (AMT)', and amount ''. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_18_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "All visible coded rows for box 18 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_19_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "Return only actually populated Schedule K-1 line 19 coded rows. Each item must use the letter code visibly printed beside that same amount; do not also emit an uncoded generic line 19 row and do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_20_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "Return only actually populated Schedule K-1 line 20 rows. Read the code and value from the same physical line: an amount printed as 20A must have code A, and statement rows such as Z* or AG* must retain the asterisk. Never copy a line 19 distribution amount into line 20 and never emit an uncoded numeric line 20 row when a code is visibly present. Do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_21_entries": {
+      "type": "array",
+      "inferenceType": "explicit",
+      "instruction": "All visible coded rows for box 21 entries. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "official__box_22_more_than_one_at_risk_activity": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for box 22 more than one at risk activity is selected."
+    },
+    "official__box_23_more_than_one_passive_activity": {
+      "type": "boolean",
+      "inferenceType": "explicit",
+      "instruction": "Whether the Schedule K-1 checkbox for box 23 more than one passive activity is selected."
+    }
+  }
+}

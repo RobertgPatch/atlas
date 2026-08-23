@@ -130,8 +130,33 @@ export interface K1TrackerCodeEntry {
   value: string
 }
 
+export interface K1TrackerExtractedCodeEntry extends K1TrackerCodeEntry {
+  occurrenceId: string
+  occurrenceIndex: number
+  description: string | null
+  sourceFieldValueIds: string[]
+  sourceLocations: Array<{
+    page: number
+    bbox?: [number, number, number, number]
+    textRef?: string | null
+  }>
+}
+
 export type K1TrackerOfficialFormValue = string | boolean | K1TrackerCodeEntry[] | null
 export type K1TrackerOfficialFormData = Partial<Record<K1TrackerOfficialFormFieldKey, K1TrackerOfficialFormValue>>
+
+export interface K1TrackerOfficialFormSource {
+  sourceType: Extract<K1TrackerSourceType, 'FINALIZED_K1' | 'MANUAL_ENTRY' | 'MANUAL_OVERRIDE'>
+  sourceK1DocumentId: string | null
+  sourceK1FieldValueIds: string[]
+  extractionAttemptId: string | null
+  createdByEmail: string | null
+  createdAt: string
+}
+
+export type K1TrackerOfficialFormSources = Partial<
+  Record<K1TrackerOfficialFormFieldKey, K1TrackerOfficialFormSource>
+>
 
 export interface K1TrackerValue {
   id: string
@@ -212,6 +237,7 @@ export interface K1TrackerSignoffState {
 }
 
 export type K1TrackerCashFlowKind = 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+export type K1TrackerCashFlowSettlementStatus = 'ANNOUNCED' | 'SETTLED'
 
 export interface K1TrackerCashFlowEvent {
   id: string
@@ -219,6 +245,8 @@ export interface K1TrackerCashFlowEvent {
   taxYear: number
   kind: K1TrackerCashFlowKind
   activityDate: string
+  settlementStatus: K1TrackerCashFlowSettlementStatus
+  announcedDate: string | null
   amount: K1TrackerMoney
   note: string | null
   createdAt: string
@@ -231,6 +259,7 @@ export interface K1TrackerYearDetail {
   status: K1TrackerWorkflowStatus
   revision: number
   officialFormData: K1TrackerOfficialFormData
+  officialFormSources?: K1TrackerOfficialFormSources
   values: K1TrackerValue[]
   cashFlowEvents: K1TrackerCashFlowEvent[]
   sourceConflicts: Array<{ fieldKey: K1TrackerFieldKey; message: string }>

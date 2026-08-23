@@ -17,12 +17,36 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 interface EntityListItem {
   id: string
   name: string
+  entityType: string
+  jurisdiction: string | null
+  taxId: string | null
+  formedOn: string | null
+  status: string
+  notes: string | null
+  registeredAgent: string | null
+  primaryContact: string | null
+  ownerCount: number
   partnershipCount: number
+  investmentCount: number
+  holdingsValueUsd: number
   totalDistributionsUsd: number
 }
 
+const entityKindSchema = z.enum(['llc', 'trust', 'corporation', 'partnership', 'individual'])
+
+const formationDateSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{2}\/\d{2}\/\d{4}$/, 'Formation date must use MM/DD/YYYY')
+  .optional()
+  .or(z.literal(''))
+
 const createEntitySchema = z.object({
   name: z.string().trim().min(1, 'Entity name is required').max(200),
+  kind: entityKindSchema.default('llc'),
+  jurisdiction: z.string().trim().min(1, 'Jurisdiction is required').max(120).default('Not on file'),
+  taxId: z.string().trim().max(40).optional().default(''),
+  formedOn: formationDateSchema,
 })
 
 const updateEntitySchema = z.object({
@@ -30,6 +54,35 @@ const updateEntitySchema = z.object({
 })
 
 const paramsSchema = z.object({ id: z.string().uuid() })
+
+const toIsoDate = (value: string | undefined): string | null => {
+  if (!value) return null
+  const [month, day, year] = value.split('/').map(Number)
+  const parsed = new Date(Date.UTC(year!, month! - 1, day))
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month! - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new ZodError([
+      {
+        code: 'custom',
+        path: ['formedOn'],
+        message: 'Formation date is not valid',
+      },
+    ])
+  }
+  return `${year!.toString().padStart(4, '0')}-${month!.toString().padStart(2, '0')}-${day
+    .toString()
+    .padStart(2, '0')}`
+}
+
+const formatDirectoryDate = (value: unknown): string | null => {
+  if (!value) return null
+  const source = value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10)
+  const [year, month, day] = source.split('-')
+  return year && month && day ? `${month}/${day}/${year}` : String(value)
+}
 
 // ---------------------------------------------------------------------------
 // Handlers
@@ -54,17 +107,70 @@ const listEntitiesHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     const result = await pool.query<{
       id: string
       name: string
+      entity_type: string
+      jurisdiction: string | null
+      tax_id: string | null
+      formed_on: string | Date | null
+      status: string
+      notes: string | null
+      registered_agent: string | null
+      primary_contact: string | null
       partnership_count: string | number
+      investment_count: string | number
+      holdings_value_usd: string | number
     }>(
       `
+        with latest_partnership_fmv as (
+          select distinct on (partnership_id)
+            partnership_id,
+            fmv_amount
+          from partnership_fmv_snapshots
+          order by partnership_id, created_at desc, valuation_date desc, id desc
+        ),
+        latest_asset_fmv as (
+          select distinct on (asset_id)
+            asset_id,
+            fmv_amount
+          from partnership_asset_fmv_snapshots
+          order by asset_id, created_at desc, valuation_date desc, id desc
+        ),
+        partnership_rollup as (
+          select
+            p.entity_id,
+            count(*) as partnership_count,
+            coalesce(sum(lpf.fmv_amount), 0) as partnership_value_usd
+          from partnerships p
+          left join latest_partnership_fmv lpf on lpf.partnership_id = p.id
+          group by p.entity_id
+        ),
+        investment_rollup as (
+          select
+            p.entity_id,
+            count(pa.id) as investment_count,
+            coalesce(sum(laf.fmv_amount), 0) as investment_value_usd
+          from partnerships p
+          join partnership_assets pa on pa.partnership_id = p.id
+          left join latest_asset_fmv laf on laf.asset_id = pa.id
+          group by p.entity_id
+        )
         select
           e.id,
           e.name,
-          count(p.id) as partnership_count
+          e.entity_type,
+          e.jurisdiction,
+          e.tax_id,
+          e.formed_on,
+          e.status,
+          e.notes,
+          e.registered_agent,
+          e.primary_contact,
+          coalesce(pr.partnership_count, 0) as partnership_count,
+          coalesce(ir.investment_count, 0) as investment_count,
+          coalesce(pr.partnership_value_usd, 0) + coalesce(ir.investment_value_usd, 0) as holdings_value_usd
         from entities e
-        left join partnerships p on p.entity_id = e.id
+        left join partnership_rollup pr on pr.entity_id = e.id
+        left join investment_rollup ir on ir.entity_id = e.id
         ${where}
-        group by e.id, e.name
         order by e.name
       `,
       params,
@@ -73,7 +179,18 @@ const listEntitiesHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     const items: EntityListItem[] = result.rows.map((row) => ({
       id: row.id,
       name: row.name,
+      entityType: row.entity_type,
+      jurisdiction: row.jurisdiction,
+      taxId: row.tax_id,
+      formedOn: formatDirectoryDate(row.formed_on),
+      status: row.status,
+      notes: row.notes,
+      registeredAgent: row.registered_agent,
+      primaryContact: row.primary_contact,
+      ownerCount: 0,
       partnershipCount: Number(row.partnership_count),
+      investmentCount: Number(row.investment_count),
+      holdingsValueUsd: Number(row.holdings_value_usd),
       totalDistributionsUsd: 0,
     }))
 
@@ -108,7 +225,18 @@ const listEntitiesHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     return {
       id: entity.id,
       name: entity.name,
+      entityType: entity.entityType,
+      jurisdiction: entity.jurisdiction,
+      taxId: entity.taxId,
+      formedOn: entity.formedOn,
+      status: entity.status,
+      notes: entity.notes,
+      registeredAgent: entity.registeredAgent,
+      primaryContact: entity.primaryContact,
+      ownerCount: 0,
       partnershipCount: partnershipsForEntity.length,
+      investmentCount: 0,
+      holdingsValueUsd: 0,
       totalDistributionsUsd,
     }
   })
@@ -137,7 +265,23 @@ const createEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     return reply.status(409).send({ error: 'DUPLICATE_ENTITY_NAME' })
   }
 
-  const entity = k1Repository.createEntity({ name: body.name })
+  let formedOn: string | null
+  try {
+    formedOn = toIsoDate(body.formedOn || undefined)
+  } catch (err) {
+    if (err instanceof ZodError) {
+      return reply.status(400).send({ error: 'VALIDATION_ERROR', issues: err.issues })
+    }
+    throw err
+  }
+
+  const entity = k1Repository.createEntity({
+    name: body.name,
+    entityType: body.kind.toUpperCase(),
+    jurisdiction: body.jurisdiction,
+    taxId: body.taxId,
+    formedOn: body.formedOn || null,
+  })
 
   // Mirror to Postgres when configured so GET /v1/entities/:id (which reads
   // from the DB) can find the row. If the DB already has an entity with the
@@ -155,10 +299,13 @@ const createEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
         return reply.status(201).send(reconciled)
       }
       await pool.query(
-        `insert into entities (id, name, entity_type, status, notes, created_at, updated_at)
-         values ($1, $2, 'UNKNOWN', 'ACTIVE', null, now(), now())
+        `insert into entities (
+          id, name, entity_type, jurisdiction, tax_id, formed_on, status, notes,
+          registered_agent, primary_contact, created_at, updated_at
+        )
+         values ($1, $2, $3, $4, $5, $6::date, 'DRAFT', null, null, null, now(), now())
          on conflict (id) do nothing`,
-        [entity.id, entity.name],
+        [entity.id, entity.name, entity.entityType, entity.jurisdiction, entity.taxId, formedOn],
       )
     } catch (error) {
       console.warn(
@@ -174,9 +321,17 @@ const createEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
     objectType: 'entity',
     objectId: entity.id,
     before: null,
-    after: { id: entity.id, name: entity.name },
+    after: entity,
   })
-  return reply.status(201).send({ id: entity.id, name: entity.name })
+  return reply.status(201).send({
+    id: entity.id,
+    name: entity.name,
+    entityType: entity.entityType,
+    jurisdiction: entity.jurisdiction,
+    taxId: entity.taxId,
+    formedOn: entity.formedOn,
+    status: entity.status,
+  })
 }
 
 const updateEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => {

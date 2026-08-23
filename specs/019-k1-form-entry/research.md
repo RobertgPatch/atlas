@@ -125,4 +125,3 @@ The product should reproduce that information hierarchy, not the source document
 - **Should the layout exactly reproduce letter-size paper on mobile?** No. Desktop emphasizes resemblance; smaller screens emphasize readability and access.
 - **Should the source PDF be committed for tests or styling?** No. It is a local design reference only.
 - **Does Part I/Part II require invented or newly persisted tax profile data?** No. Existing facts render; missing facts are explicit.
-

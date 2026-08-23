@@ -23,7 +23,8 @@ export const loginHandler = async (
   }
 
   const user = authRepository.findUserByEmail(email)
-  if (!user || user.status === 'Inactive' || !authRepository.verifyPassword(user, password)) {
+  const passwordValid = await authRepository.verifyPassword(user, password)
+  if (!user || user.status === 'Inactive' || !passwordValid) {
     const lockoutUntil = await lockoutService.recordFailure(email, 'PASSWORD')
     await auditRepository.record({
       eventName: 'auth.login.failed',

@@ -4,6 +4,8 @@ import { pool, withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import { copyK1TrackerYears, k1TrackerRepository } from '../k1-tracker/k1-tracker.repository.js'
+import { k1Repository } from '../k1/k1.repository.js'
+import { getK1ObjectStore } from '../k1/storage/index.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange, K1TrackerOfficialFormData } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
@@ -36,6 +38,7 @@ type PartnershipRow = QueryResultRow & {
   latest_ending_basis: string | null; latest_section_l_capital: string | null; warning_count: string; total_count: string
   annual_performance: PartnershipAnnualPerformanceValue[] | null
   dated_cash_flows: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }> | null
+  unsettled_activity: string
 }
 type CommitmentRow = QueryResultRow & {
   id: string; partnership_id: string; commitment_amount: string; effective_date: Date | string
@@ -126,6 +129,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
   latestSectionLCapital: money(row.latest_section_l_capital),
   totalCapitalContributions: performance.totalCapitalContributions,
   totalDistributions: performance.totalDistributions,
+  unsettledActivityAmount: money(row.unsettled_activity)!,
   dpi: performance.dpi,
   tvpi: performance.tvpi,
   irr: performance.irr,
@@ -175,6 +179,7 @@ const summaryRows = async (
       latest_year.latest_section_l_capital,
       years.annual_performance,
       cash_flows.events as dated_cash_flows,
+      cash_flows.unsettled_activity,
       coalesce(years.warning_count, 0)::text as warning_count,
       count(*) over()::text as total_count
     from partnerships p
@@ -220,6 +225,7 @@ const summaryRows = async (
         where partnership_id = y.partnership_id
           and extract(year from activity_date)::int = y.tax_year
           and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
+          and settlement_status = 'SETTLED'
       ) activity on true
       where y.partnership_id = p.id
     ) years on true
@@ -232,7 +238,8 @@ const summaryRows = async (
         end,
         'activityDate', activity_date::text,
         'amount', abs(amount)::text
-      ) order by activity_date, created_at, id) as events
+      ) order by activity_date, created_at, id) filter (where settlement_status = 'SETTLED') as events,
+        coalesce(sum(abs(amount)) filter (where settlement_status = 'ANNOUNCED'), 0)::text as unsettled_activity
       from capital_activity_events
       where partnership_id = p.id and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
     ) cash_flows on true
@@ -297,9 +304,10 @@ export const partnershipTrackerRepository = {
 
   async getPartnership(partnershipId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerDetail> {
     await assertPartnership(partnershipId, scope, database())
-    const [summaries, k1, commitments, nav] = await Promise.all([
+    const [summaries, k1, cashFlowEvents, commitments, nav] = await Promise.all([
       summaryRows(scope, { partnershipId, limit: 1, offset: 0 }),
       k1TrackerRepository.getPartnership(partnershipId, scope, { syncSources: false }),
+      k1TrackerRepository.listCashFlows(partnershipId, scope),
       this.listCommitments(partnershipId, scope),
       this.listNav(partnershipId, scope),
     ])
@@ -309,6 +317,7 @@ export const partnershipTrackerRepository = {
     return {
       summary: mapSummary(summary),
       years: k1.years.map((year) => ({ ...year, status: workflow(year.status)! })),
+      cashFlowEvents,
       commitments: commitments.items,
       navEntries: nav.items,
       permissions: { canEditPartnership: canEdit, canEditK1: canEdit, canEditCommitment: canEdit, canEditNav: canEdit, canSignoff: canEdit },
@@ -461,6 +470,72 @@ export const partnershipTrackerRepository = {
     })
     const rows = await summaryRows(scope, { partnershipId, limit: 1, offset: 0 })
     return mapSummary(rows[0]!)
+  },
+
+  async deletePartnership(partnershipId: string, actorUserId: string, scope: PartnershipTrackerScope): Promise<void> {
+    const deletedStoragePaths = await withTransaction(async (client) => {
+      const before = (await client.query<{
+        id: string
+        entity_id: string
+        name: string
+        asset_class: string | null
+        status: string
+      }>('select id, entity_id, name, asset_class, status from partnerships where id = $1 for update', [partnershipId])).rows[0]
+      if (!before) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Partnership was not found.')
+      if (!scoped(before.entity_id, scope)) throw new PartnershipTrackerError('FORBIDDEN', 403, 'The partnership is outside your entity scope.')
+
+      const sourceDocumentIds = (await client.query<{ document_id: string }>(
+        'select distinct document_id from k1_documents where partnership_id = $1',
+        [partnershipId],
+      )).rows.map((row) => row.document_id)
+      const childCounts = (await client.query<{
+        k1_documents: number
+        tracker_years: number
+        cash_activity: number
+        commitments: number
+        nav_entries: number
+        assets: number
+      }>(`select
+          (select count(*)::int from k1_documents where partnership_id = $1) as k1_documents,
+          (select count(*)::int from k1_tracker_years where partnership_id = $1) as tracker_years,
+          (select count(*)::int from capital_activity_events where partnership_id = $1) as cash_activity,
+          (select count(*)::int from partnership_commitments where partnership_id = $1) as commitments,
+          (select count(*)::int from partnership_fmv_snapshots where partnership_id = $1) as nav_entries,
+          (select count(*)::int from partnership_assets where partnership_id = $1) as assets`, [partnershipId])).rows[0]!
+
+      await client.query('delete from partnerships where id = $1', [partnershipId])
+
+      let storageObjects: Array<{ key: string; bucket: string | null; versionId: string | null }> = []
+      if (sourceDocumentIds.length) {
+        const deletedDocuments = await client.query<{
+          storage_path: string
+          storage_bucket: string | null
+          storage_version_id: string | null
+        }>(`delete from documents d
+          where d.id = any($1::uuid[])
+            and not exists (select 1 from k1_documents k where k.document_id = d.id or k.superseded_by_document_id = d.id)
+            and not exists (select 1 from document_versions v where v.original_document_id = d.id or v.superseded_by_id = d.id)
+          returning d.storage_path, d.storage_bucket, d.storage_version_id`, [sourceDocumentIds])
+        storageObjects = deletedDocuments.rows.map((row) => ({
+          key: row.storage_path,
+          bucket: row.storage_bucket,
+          versionId: row.storage_version_id,
+        }))
+      }
+
+      await auditRepository.record({
+        actorUserId,
+        eventName: PARTNERSHIP_TRACKER_AUDIT_EVENTS.PARTNERSHIP_DELETED,
+        objectType: 'partnership',
+        objectId: partnershipId,
+        before: { ...before, deletedChildren: childCounts },
+        after: null,
+      }, client)
+      return storageObjects
+    })
+
+    k1Repository.deletePartnership(partnershipId)
+    await Promise.allSettled(deletedStoragePaths.map((identity) => getK1ObjectStore().delete(identity)))
   },
 
   async listCommitments(partnershipId: string, scope: PartnershipTrackerScope, asOfDate?: string) {
@@ -641,6 +716,18 @@ export const partnershipTrackerRepository = {
   },
   deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.deleteCashFlow(partnershipId, taxYear, cashFlowId, expectedUpdatedAt, actorUserId, scope)
+  },
+  createCapitalActivity(partnershipId: string, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.createOperationalCashFlow(partnershipId, body, actorUserId, scope)
+  },
+  createCapitalActivities(partnershipId: string, entries: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }>, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.createOperationalCashFlows(partnershipId, entries, actorUserId, scope)
+  },
+  settleCapitalActivity(partnershipId: string, cashFlowId: string, settlementDate: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.settleOperationalCashFlow(partnershipId, cashFlowId, settlementDate, expectedUpdatedAt, actorUserId, scope)
+  },
+  deleteCapitalActivity(partnershipId: string, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.deleteOperationalCashFlow(partnershipId, cashFlowId, expectedUpdatedAt, actorUserId, scope)
   },
   deleteYear(partnershipId: string, taxYear: number, expectedRevision: number, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.deleteYear(partnershipId, taxYear, expectedRevision, actorUserId, scope)

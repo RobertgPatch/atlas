@@ -22,6 +22,8 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   CAPITAL_ACTIVITY_CREATED: 'partnership.capital_activity.created',
   CAPITAL_ACTIVITY_UPDATED: 'partnership.capital_activity.updated',
   ASSET_CREATED: 'partnership.asset.created',
+  ASSET_UPDATED: 'partnership.asset.updated',
+  ASSET_DELETED: 'partnership.asset.deleted',
   ASSET_FMV_RECORDED: 'partnership.asset.fmv_recorded',
   REPORT_COMMITMENT_EDITED: 'reports.portfolio_summary.commitment.edited',
   REPORT_COMMITMENT_UNDONE: 'reports.portfolio_summary.commitment.undone',
@@ -57,6 +59,7 @@ export type K1TrackerAuditEventName =
 export const PARTNERSHIP_TRACKER_AUDIT_EVENTS = {
   PARTNERSHIP_CREATED: 'partnership_tracker.partnership.created',
   PARTNERSHIP_UPDATED: 'partnership_tracker.partnership.updated',
+  PARTNERSHIP_DELETED: 'partnership_tracker.partnership.deleted',
   K1_YEAR_COPIED: 'partnership_tracker.k1_year.copied',
   MANUAL_YEAR_CREATED: 'partnership_tracker.manual_year.created',
   MANUAL_YEAR_UPDATED: 'partnership_tracker.manual_year.updated',

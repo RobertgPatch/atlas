@@ -44,4 +44,31 @@ describe('partnership aggregation cache invalidation', () => {
     })
     expect(aggregationInvalidations).toHaveLength(12)
   })
+
+  it('deletes a selected group of K-1 years newest-to-oldest and refreshes once', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const wrapper = ({ children }: PropsWithChildren) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    const { result } = renderHook(() => usePartnershipTrackerActions(), { wrapper })
+
+    await act(async () => {
+      await result.current.deleteYears.mutateAsync({
+        id: 'p-1',
+        years: [
+          { year: 2021, expectedRevision: 2 },
+          { year: 2025, expectedRevision: 6 },
+          { year: 2023, expectedRevision: 4 },
+        ],
+      })
+    })
+
+    expect(api.deleteYear).toHaveBeenNthCalledWith(1, 'p-1', 2025, 6)
+    expect(api.deleteYear).toHaveBeenNthCalledWith(2, 'p-1', 2023, 4)
+    expect(api.deleteYear).toHaveBeenNthCalledWith(3, 'p-1', 2021, 2)
+    const aggregationInvalidations = invalidate.mock.calls.filter(([filters]) => {
+      const key = filters.queryKey as string[] | undefined
+      return key?.[0] === 'partnership-tracker' && key[1] === 'aggregation'
+    })
+    expect(aggregationInvalidations).toHaveLength(1)
+  })
 })

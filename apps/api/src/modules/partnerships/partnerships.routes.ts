@@ -16,6 +16,8 @@ import {
   listPartnershipAssetsHandler,
   getPartnershipAssetHandler,
   createPartnershipAssetHandler,
+  updatePartnershipAssetHandler,
+  deletePartnershipAssetHandler,
 } from './assets.handler.js'
 import {
   listAssetFmvSnapshotsHandler,
@@ -55,6 +57,8 @@ export const registerPartnershipRoutes = async (app: FastifyInstance): Promise<v
   app.get('/partnerships/:partnershipId/assets', gated, listPartnershipAssetsHandler)
   app.get('/partnerships/:partnershipId/assets/:assetId', gated, getPartnershipAssetHandler)
   app.post('/partnerships/:partnershipId/assets', gated, createPartnershipAssetHandler)
+  app.patch('/partnerships/:partnershipId/assets/:assetId', gated, updatePartnershipAssetHandler)
+  app.delete('/partnerships/:partnershipId/assets/:assetId', gated, deletePartnershipAssetHandler)
   app.get(
     '/partnerships/:partnershipId/assets/:assetId/fmv-snapshots',
     gated,

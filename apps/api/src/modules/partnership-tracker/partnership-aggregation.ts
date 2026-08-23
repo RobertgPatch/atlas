@@ -297,6 +297,7 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershi
   const distributions = coveredMoney(rows, (row) => row.totalDistributions)
   const latestNav = coveredMoney(rows, (row) => row.latestNav?.amount)
   const unfundedCommitment = coveredMoney(rows, (row) => row.unfundedCommitmentAmount)
+  const unsettledActivity = coveredMoney(rows, (row) => row.unsettledActivityAmount)
   const paidInCents = paidInCapital.amount == null ? null : moneyToCents(paidInCapital.amount)
   const distributionCents = distributions.amount == null ? null : moneyToCents(distributions.amount)
   const navCents = latestNav.amount == null ? null : moneyToCents(latestNav.amount)
@@ -327,6 +328,7 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershi
     distributions,
     latestNav,
     unfundedCommitment,
+    unsettledActivity,
     dpi,
     tvpi,
     annualizedCashOnCashYield: weightedCashYield(rows),

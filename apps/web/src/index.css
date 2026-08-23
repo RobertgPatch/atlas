@@ -1,5 +1,5 @@
 /* @import url() FONT IMPORTS MUST ALWAYS BE AT THE VERY TOP OF THIS FILE, ABOVE THE TAILWIND IMPORTS */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&display=swap');
 
 /* CRITICAL: THE FOLLOWING TAILWIND IMPORTS MUST NEVER BE DELETED OR REORDERED */
@@ -9,24 +9,31 @@
 
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+    @apply bg-canvas text-content-primary font-sans antialiased;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md border border-transparent bg-jackson-gold px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-jackson-hover focus:outline-none focus:ring-2 focus:ring-jackson-gold focus:ring-offset-2;
+    @apply inline-flex items-center justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover active:bg-primary-active focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-disabled-background disabled:text-disabled-foreground;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-jackson-gold focus:ring-offset-2;
+    @apply inline-flex items-center justify-center rounded-md border border-border-control bg-surface px-4 py-2 text-sm font-medium text-content-primary shadow-sm transition-colors hover:bg-primary-subtle active:bg-primary-subtle-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-disabled-background disabled:text-disabled-foreground;
   }
 
   .input-field {
-    @apply block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-jackson-gold focus:outline-none focus:ring-2 focus:ring-jackson-gold;
+    @apply block w-full rounded-md border border-border-control bg-surface px-3 py-2 text-sm text-content-primary shadow-sm placeholder:text-content-muted focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-1 disabled:cursor-not-allowed disabled:bg-disabled-background disabled:text-disabled-foreground;
   }
 
   .label-text {
-    @apply mb-1 block text-sm font-medium text-gray-700;
+    @apply mb-1 block text-sm font-medium text-content-secondary;
+  }
+}
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
   }
 }

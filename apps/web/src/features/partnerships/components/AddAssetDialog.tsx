@@ -2,9 +2,31 @@ import React, { Fragment, useMemo, useState } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import { XIcon } from 'lucide-react'
 import { useCreatePartnershipAsset } from '../hooks/useAssetMutations'
-import type { AssetFmvSource } from 'packages/types/src'
+import type { AssetFmvSource, PartnershipAssetCategory } from 'packages/types/src'
 
-const ASSET_TYPES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit', 'Infrastructure', 'Other']
+const ASSET_CATEGORIES: Array<{ value: PartnershipAssetCategory; label: string }> = [
+  { value: 'real_estate', label: 'Real Estate' },
+  { value: 'marketable_securities', label: 'Marketable Securities' },
+  { value: 'alternatives', label: 'Alternatives' },
+  { value: 'cash_equivalents', label: 'Cash & Cash Equivalents' },
+  { value: 'other', label: 'Other Assets' },
+]
+
+const ASSET_TYPES = [
+  'Private Equity',
+  'Real Estate',
+  'Public Equity',
+  'Brokerage Account',
+  'Hedge Fund',
+  'Venture Capital',
+  'Private Credit',
+  'Infrastructure',
+  'Cash Account',
+  'Treasury Securities',
+  'Insurance',
+  'Collectibles',
+  'Other',
+]
 
 const SOURCE_OPTIONS: { value: AssetFmvSource; label: string }[] = [
   { value: 'manual', label: 'Manual' },
@@ -25,7 +47,9 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
   const { mutateAsync, isPending } = useCreatePartnershipAsset(partnershipId)
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const [name, setName] = useState('')
+  const [assetCategory, setAssetCategory] = useState<PartnershipAssetCategory>('alternatives')
   const [assetType, setAssetType] = useState(ASSET_TYPES[0])
+  const [displayDetail, setDisplayDetail] = useState('')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
   const [includeInitialValuation, setIncludeInitialValuation] = useState(false)
@@ -38,7 +62,9 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
 
   function reset() {
     setName('')
+    setAssetCategory('alternatives')
     setAssetType(ASSET_TYPES[0])
+    setDisplayDetail('')
     setDescription('')
     setNotes('')
     setIncludeInitialValuation(false)
@@ -79,7 +105,9 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
 
     const result = await mutateAsync({
       name: trimmedName,
+      assetCategory,
       assetType,
+      displayDetail: displayDetail.trim() || null,
       description: description.trim() || null,
       notes: notes.trim() || null,
       initialValuation: includeInitialValuation && parsedAmount != null
@@ -148,6 +176,19 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
                             {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name}</p>}
                           </div>
                           <div>
+                            <label className="label-text">Estate Map Category</label>
+                            <select
+                              value={assetCategory}
+                              onChange={(event) => setAssetCategory(event.target.value as PartnershipAssetCategory)}
+                              className="input-field"
+                            >
+                              {ASSET_CATEGORIES.map((option) => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                              ))}
+                            </select>
+                            <p className="mt-1 text-xs text-text-tertiary">Controls the column and allocation slice used on Estate Maps.</p>
+                          </div>
+                          <div>
                             <label className="label-text">Asset Type</label>
                             <select
                               value={assetType}
@@ -158,6 +199,17 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
                                 <option key={option} value={option}>{option}</option>
                               ))}
                             </select>
+                          </div>
+                          <div>
+                            <label className="label-text">Map Detail</label>
+                            <input
+                              value={displayDetail}
+                              onChange={(event) => setDisplayDetail(event.target.value)}
+                              className="input-field"
+                              placeholder="Location, account suffix, strategy…"
+                              maxLength={240}
+                            />
+                            <p className="mt-1 text-xs text-text-tertiary">Short secondary line shown beneath the asset name.</p>
                           </div>
                         </div>
 
@@ -188,7 +240,7 @@ export function AddAssetDialog({ open, onClose, partnershipId }: AddAssetDialogP
                               type="checkbox"
                               checked={includeInitialValuation}
                               onChange={(event) => setIncludeInitialValuation(event.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-jackson-gold focus:ring-jackson-gold"
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-focus"
                             />
                             Record an initial FMV estimate now
                           </label>

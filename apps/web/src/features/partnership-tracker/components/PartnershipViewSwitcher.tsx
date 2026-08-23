@@ -12,7 +12,7 @@ export function PartnershipViewSwitcher({ view }: { view: 'aggregation' | 'works
           key={option.id}
           to={option.to}
           aria-current={view === option.id ? 'page' : undefined}
-          className={`inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-jackson-gold focus-visible:ring-offset-2 ${view === option.id ? 'bg-gray-950 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950'}`}
+          className={`inline-flex min-h-9 items-center rounded-md px-3 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 ${view === option.id ? 'bg-primary-subtle text-primary' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-950'}`}
         >
           {option.label}
         </Link>

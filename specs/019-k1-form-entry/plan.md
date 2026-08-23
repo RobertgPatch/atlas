@@ -28,7 +28,7 @@ Implementation spans the web, shared contracts, Fastify validation/repositories,
 **Target Platform**: Jackson browser application on supported desktop, tablet, and mobile viewports  
 **Project Type**: npm-workspace React/Fastify/PostgreSQL monorepo
 **Performance Goals**: Render and edit 42 calculation fields plus 48 official-form fields with no additional data request; local keystroke feedback remains immediate; save continues to use the existing update request
-**Constraints**: Preserve all existing field keys, signs, validation, calculation results, provenance, cash-activity derivation, override audit behavior, and unsaved-change guard; one continuous form; no page-level horizontal overflow at 390 CSS pixels; no private PDF content committed  
+**Constraints**: Preserve all existing field keys, signs, validation, calculation results, provenance, cash-activity derivation, override audit behavior, and unsaved-change guard; one continuous form; no page-level horizontal overflow at 390 CSS pixels; no private PDF content committed
 **Scale/Scope**: One partnership workspace tab, one selected tax year, 42 calculation placements, 48 official-form fields, and focused UI/API/persistence/accessibility tests
 
 ## Constitution Check
@@ -142,4 +142,3 @@ apps/web/src/features/partnership-tracker/
 ## Complexity Tracking
 
 No constitution violations or exceptional complexity are introduced. The component split is limited to reusable visual regions of one form, while the single existing state/change-set owner prevents behavior drift.
-

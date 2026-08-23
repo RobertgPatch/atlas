@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createReviewFixture, type ReviewFixture } from './helpers/reviewFixture.js'
 import { reviewRepository } from '../src/modules/review/review.repository.js'
+import { pool } from '../src/infra/db/client.js'
+import { createDurableK1ReviewFixture, type DurableK1ReviewFixture } from './helpers/durableK1ReviewFixture.js'
 
 // T018a — raw_value / original_value must NEVER be touched by any correction.
 // Fuzz ≥200 random corrections across the NEEDS_REVIEW fixture and confirm the
@@ -63,5 +65,33 @@ describe('Review corrections — raw_value immutability fuzz (SC-003)', () => {
       expect(after.rawValue).toBe(snap.raw)
       expect(after.originalValue).toBe(snap.original)
     }
+  })
+})
+
+const durable = pool ? describe : describe.skip
+
+durable('Feature 022 provider evidence immutability', () => {
+  let f: DurableK1ReviewFixture
+  beforeEach(async () => { f = await createDurableK1ReviewFixture() })
+  afterEach(async () => { await f.cleanup() })
+
+  it('keeps provider JSON immutable while appending reviewer corrections', async () => {
+    const before = await pool!.query<{ raw_value_json: unknown; normalized_value_json: unknown }>(
+      'select raw_value_json, normalized_value_json from k1_field_values where id = $1', [f.moneyFieldId],
+    )
+    const response = await f.app.inject({
+      method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/corrections`,
+      headers: { cookie: f.cookie, 'if-match': '3' },
+      payload: { corrections: [{ fieldValueId: f.moneyFieldId, value: 9191.25 }] },
+    })
+    expect(response.statusCode).toBe(200)
+    const after = await pool!.query<{ raw_value_json: unknown; normalized_value_json: unknown; reviewer_corrected_value_json: unknown }>(
+      'select raw_value_json, normalized_value_json, reviewer_corrected_value_json from k1_field_values where id = $1', [f.moneyFieldId],
+    )
+    expect(after.rows[0].raw_value_json).toEqual(before.rows[0].raw_value_json)
+    expect(after.rows[0].normalized_value_json).toEqual(before.rows[0].normalized_value_json)
+    expect(after.rows[0].reviewer_corrected_value_json).toBe(9191.25)
+    await expect(pool!.query(`update k1_field_values set raw_value_json = '0'::jsonb where id = $1`, [f.moneyFieldId]))
+      .rejects.toMatchObject({ code: '23514' })
   })
 })

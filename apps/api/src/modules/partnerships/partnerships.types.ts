@@ -8,6 +8,13 @@ export type CapitalActivityEventType =
   | 'distribution'
   | 'other_adjustment'
 export type PartnershipAssetSource = 'manual' | 'imported' | 'plaid'
+export type PartnershipAssetCategory =
+  | 'real_estate'
+  | 'marketable_securities'
+  | 'alternatives'
+  | 'cash_equivalents'
+  | 'other'
+export type PartnershipAssetStatus = 'ACTIVE' | 'INACTIVE'
 export type AssetFmvSource =
   | 'manual'
   | 'manager_statement'
@@ -176,8 +183,13 @@ export interface EntityDetail {
     id: string
     name: string
     entityType: string
+    jurisdiction: string | null
+    taxId: string | null
+    formedOn: string | null
     status: string
     notes: string | null
+    registeredAgent: string | null
+    primaryContact: string | null
   }
   partnerships: PartnershipDirectoryRow[]
   rollup: {
@@ -240,9 +252,11 @@ export interface PartnershipAssetRow {
   id: string
   partnershipId: string
   name: string
+  assetCategory: PartnershipAssetCategory
   assetType: string
   sourceType: PartnershipAssetSource
-  status: string
+  status: PartnershipAssetStatus
+  displayDetail: string | null
   description: string | null
   notes: string | null
   createdAt: string
@@ -287,8 +301,20 @@ export interface CreateAssetFmvSnapshotRequest {
 
 export interface CreatePartnershipAssetRequest {
   name: string
+  assetCategory?: PartnershipAssetCategory
   assetType: string
+  displayDetail?: string | null
   description?: string | null
   notes?: string | null
   initialValuation?: CreateAssetFmvSnapshotRequest | null
+}
+
+export interface UpdatePartnershipAssetRequest {
+  name?: string
+  assetCategory?: PartnershipAssetCategory
+  assetType?: string
+  status?: PartnershipAssetStatus
+  displayDetail?: string | null
+  description?: string | null
+  notes?: string | null
 }

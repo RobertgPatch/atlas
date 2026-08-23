@@ -12,5 +12,6 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
   app.post('/auth/mfa/verify', mfaVerifyHandler)
 
   app.get('/auth/session', { preHandler: [withSession, requireAuthenticated] }, getSessionHandler)
+  app.post('/auth/session/extend', { preHandler: [withSession, requireAuthenticated] }, getSessionHandler)
   app.post('/auth/logout', { preHandler: [withSession] }, logoutHandler)
 }

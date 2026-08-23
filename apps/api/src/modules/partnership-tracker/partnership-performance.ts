@@ -116,13 +116,17 @@ const solveIrr = (flows: Array<{ date: string; cents: bigint }>): { value: strin
 
 export const composePartnershipPerformance = ({
   annualValues,
-  cashFlowEvents = [],
+  cashFlowEvents,
   latestNav,
   inceptionDate = null,
   currentCommitment = null,
   latestEndingOutsideBasis = null,
   asOfDate = today(),
 }: PartnershipPerformanceInput): PartnershipPerformance => {
+  // Repository summaries always pass the operational ledger. An explicitly empty
+  // ledger means zero cash moved; omitting it preserves the legacy K-1-only calculator.
+  const hasOperationalLedger = cashFlowEvents !== undefined
+  const operationalEvents = cashFlowEvents ?? []
   const contributions = annualValues.flatMap((year) => {
     const amount = year.hasCanonicalContribution ? year.capitalContributions : year.legacyCapitalContributions
     const cents = moneyToCents(amount)
@@ -132,18 +136,22 @@ export const composePartnershipPerformance = ({
     const cents = moneyToCents(year.distributions)
     return cents == null ? [] : [{ taxYear: year.taxYear, cents: absolute(cents) }]
   })
-  const datedContributions = cashFlowEvents.filter((event) => event.kind === 'CAPITAL_CALL').map((event) => ({
+  const datedContributions = operationalEvents.filter((event) => event.kind === 'CAPITAL_CALL').map((event) => ({
     date: event.activityDate,
     taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),
   }))
-  const datedDistributions = cashFlowEvents.filter((event) => event.kind === 'DISTRIBUTION' || event.kind === 'RECALLABLE_DISTRIBUTION').map((event) => ({
+  const datedDistributions = operationalEvents.filter((event) => event.kind === 'DISTRIBUTION' || event.kind === 'RECALLABLE_DISTRIBUTION').map((event) => ({
     date: event.activityDate,
     taxYear: Number(event.activityDate.slice(0, 4)),
     cents: absolute(moneyToCents(event.amount) ?? zero),
   }))
-  const totalContributionCents = contributions.length ? sum(contributions.map((item) => item.cents)) : null
-  const totalDistributionCents = distributions.length ? sum(distributions.map((item) => item.cents)) : null
+  const totalContributionCents = hasOperationalLedger
+    ? sum(datedContributions.map((item) => item.cents))
+    : contributions.length ? sum(contributions.map((item) => item.cents)) : null
+  const totalDistributionCents = hasOperationalLedger
+    ? sum(datedDistributions.map((item) => item.cents))
+    : distributions.length ? sum(distributions.map((item) => item.cents)) : null
   const navCents = moneyToCents(latestNav?.amount)
   const commitmentCents = moneyToCents(currentCommitment)
   const outsideBasisCents = moneyToCents(latestEndingOutsideBasis)
@@ -160,18 +168,19 @@ export const composePartnershipPerformance = ({
       status.irr = 'MISSING_NAV'
     } else {
       const cashFlows = new Map<string, bigint>()
-      const datedContributionYears = new Set(datedContributions.map((entry) => entry.taxYear))
-      const datedDistributionYears = new Set(datedDistributions.map((entry) => entry.taxYear))
-      for (const entry of contributions.filter((item) => !datedContributionYears.has(item.taxYear))) {
-        const date = dateAtYearEnd(entry.taxYear)
-        cashFlows.set(date, (cashFlows.get(date) ?? zero) - entry.cents)
+      if (hasOperationalLedger) {
+        for (const entry of datedContributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
+        for (const entry of datedDistributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
+      } else {
+        for (const entry of contributions) {
+          const date = dateAtYearEnd(entry.taxYear)
+          cashFlows.set(date, (cashFlows.get(date) ?? zero) - entry.cents)
+        }
+        for (const entry of distributions) {
+          const date = dateAtYearEnd(entry.taxYear)
+          cashFlows.set(date, (cashFlows.get(date) ?? zero) + entry.cents)
+        }
       }
-      for (const entry of distributions.filter((item) => !datedDistributionYears.has(item.taxYear))) {
-        const date = dateAtYearEnd(entry.taxYear)
-        cashFlows.set(date, (cashFlows.get(date) ?? zero) + entry.cents)
-      }
-      for (const entry of datedContributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
-      for (const entry of datedDistributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
       const latestAnnualDate = cashFlows.size ? [...cashFlows.keys()].sort().at(-1)! : latestNav.date
       irrTerminalDate = latestNav.date > latestAnnualDate ? latestNav.date : latestAnnualDate
       irrUsesCarriedForwardNav = irrTerminalDate > latestNav.date

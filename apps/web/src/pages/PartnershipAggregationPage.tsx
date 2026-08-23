@@ -8,7 +8,6 @@ export function PartnershipAggregationPage() {
   return (
     <AppShell
       currentPath="/partnership-aggregation"
-      contentClassName="max-w-[112rem]"
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
       onSignOut={() => { void authClient.logout().finally(() => sessionStore.setUnauthenticated()) }}

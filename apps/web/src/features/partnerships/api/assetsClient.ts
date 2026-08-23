@@ -5,8 +5,10 @@ import type {
   DuplicatePartnershipAssetError,
   PartnershipAssetDetail,
   PartnershipAssetsResponse,
+  UpdatePartnershipAssetRequest,
 } from '../../../../../../packages/types/src/partnership-management'
 import { PartnershipsApiError } from './partnershipsClient'
+import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
 const API_BASE =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
@@ -16,7 +18,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body !== undefined && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
-  const response = await fetch(`${API_BASE}${path}`, { credentials: 'include', headers, ...init })
+  const response = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', headers, ...init })
   if (!response.ok) {
     let payload: unknown
     try {
@@ -73,5 +75,27 @@ export const assetsClient = {
       method: 'POST',
       body: JSON.stringify(body),
     })
+  },
+
+  async update(
+    partnershipId: string,
+    assetId: string,
+    body: UpdatePartnershipAssetRequest,
+  ): Promise<PartnershipAssetDetail | DuplicatePartnershipAssetError> {
+    try {
+      return await request<PartnershipAssetDetail>(`/partnerships/${partnershipId}/assets/${assetId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+    } catch (error) {
+      if (error instanceof PartnershipsApiError && error.status === 409) {
+        return { kind: 'duplicate-asset', error: 'DUPLICATE_PARTNERSHIP_ASSET' }
+      }
+      throw error
+    }
+  },
+
+  remove(partnershipId: string, assetId: string): Promise<void> {
+    return request<void>(`/partnerships/${partnershipId}/assets/${assetId}`, { method: 'DELETE' })
   },
 }

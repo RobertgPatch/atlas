@@ -64,6 +64,33 @@ durable('Partnership Tracker persistence compatibility', () => {
     }
   })
 
+  it('records capital activity before a K-1 exists and later rolls it into the matching tax year', async () => {
+    const created = await partnershipTrackerRepository.createCapitalActivity(fixture.partnershipId, {
+      kind: 'CAPITAL_CALL',
+      activityDate: '2024-04-15',
+      amount: '75000.00',
+      note: 'Manager capital call notice',
+    }, fixture.adminUserId, scope)
+
+    const beforeK1 = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(beforeK1.years).toEqual([])
+    expect(beforeK1.cashFlowEvents).toEqual([expect.objectContaining({
+      id: created.id,
+      taxYear: 2024,
+      kind: 'CAPITAL_CALL',
+      amount: '75000.00',
+    })])
+    expect(beforeK1.summary.totalCapitalContributions).toBe('75000.00')
+
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    const year = await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)
+    expect(year.cashFlowEvents).toEqual([expect.objectContaining({ id: created.id })])
+    expect(year.values.find((value) => value.fieldKey === 'capital_contributions')).toMatchObject({
+      amount: '75000.00',
+      originalSourceText: 'Dated cash activity rollup',
+    })
+  })
+
   it('rolls exact-dated cash activity into the K-1 year and XIRR inputs', async () => {
     const createdYear = await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
     expect(createdYear.officialFormData).toMatchObject({
@@ -87,6 +114,7 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect(year.values.find((value) => value.fieldKey === 'box_19_distributions')).toMatchObject({ amount: '17500.00', originalSourceText: 'Dated cash activity rollup' })
     const summary = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
     expect(summary.summary).toMatchObject({ totalCapitalContributions: '100000.00', totalDistributions: '17500.00', currentCommittedCapital: { amount: '257500.00', date: '2024-11-15' } })
+    expect(summary.summary.unfundedCommitmentAmount).toBe('157500.00')
     expect(summary.commitments.at(-1)).toMatchObject({ amount: '257500.00', sourceCashFlowEventId: secondRecallable.id, isCurrent: true })
     expect(summary.summary.performanceStatus.irr).toBe('AVAILABLE')
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, recallable.id, recallable.updatedAt, fixture.adminUserId, scope)
@@ -95,6 +123,19 @@ durable('Partnership Tracker persistence compatibility', () => {
     expect((await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)).summary.currentCommittedCapital?.amount).toBe('250000.00')
     await partnershipTrackerRepository.deleteCashFlow(fixture.partnershipId, 2024, call.id, call.updatedAt, fixture.adminUserId, scope)
     expect((await partnershipTrackerRepository.getYear(fixture.partnershipId, 2024, scope)).cashFlowEvents).toHaveLength(1)
+  })
+
+  it('raises current unfunded commitment when a historical recallable distribution is entered after a later commitment snapshot', async () => {
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    await fixture.createCommitment(fixture.partnershipId, { amount: '250000.00', effectiveDate: '2025-01-01' })
+    await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
+      { kind: 'CAPITAL_CALL', activityDate: '2024-01-15', amount: '100000.00' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: '2024-10-15', amount: '5000.00' },
+    ], fixture.adminUserId, scope)
+
+    const detail = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(detail.summary.currentCommittedCapital).toEqual({ amount: '255000.00', date: '2025-01-01' })
+    expect(detail.summary.unfundedCommitmentAmount).toBe('155000.00')
   })
 
   it('enforces future-date, exact rate range, and optimistic concurrency boundaries', async () => {

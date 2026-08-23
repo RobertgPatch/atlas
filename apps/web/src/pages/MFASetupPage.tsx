@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
+import { Button } from '../components/shared/Button'
 
 const getEnrollmentErrorMessage = (error: unknown) => {
   if (
@@ -97,7 +98,7 @@ export function MFASetupPage() {
       >
         <div className="flex items-center gap-2 mb-8 justify-center">
           <div className="w-9 h-9 bg-black rounded-lg flex items-center justify-center">
-            <span className="text-jackson-gold font-serif font-bold text-lg">J</span>
+            <span className="text-decorative-brand-accent font-serif font-bold text-lg">J</span>
           </div>
           <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
             Jackson
@@ -160,14 +161,13 @@ export function MFASetupPage() {
                 <code className="flex-1 rounded-lg bg-gray-50 border border-gray-200 px-4 py-3 text-sm font-mono text-gray-900 tracking-wide break-all">
                   {enrollment.manualEntryKey}
                 </code>
-                <button
-                  type="button"
+                <Button
                   onClick={handleCopy}
-                  className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  variant="secondary"
                 >
                   <Copy className="w-4 h-4" />
                   {copied ? 'Copied' : 'Copy'}
-                </button>
+                </Button>
               </div>
             </div>
           </section>
@@ -193,16 +193,18 @@ export function MFASetupPage() {
                   autoComplete="one-time-code"
                   value={code}
                   onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="block w-full max-w-xs px-4 py-3 border border-gray-200 rounded-lg text-lg font-mono tracking-[0.4em] text-center placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-colors"
+                  className="block w-full max-w-xs px-4 py-3 border border-gray-200 rounded-lg text-lg font-mono tracking-[0.4em] text-center placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus transition-colors"
                   placeholder="123456"
                   maxLength={6}
                 />
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={isLoading || code.length !== 6}
-                className="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-black text-white text-sm font-medium rounded-lg hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-jackson-gold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                pending={isLoading}
+                size="lg"
+                className="w-full sm:w-auto"
               >
                 {isLoading ? (
                   <>
@@ -212,7 +214,7 @@ export function MFASetupPage() {
                 ) : (
                   'Activate MFA'
                 )}
-              </button>
+              </Button>
             </form>
           </section>
         </div>

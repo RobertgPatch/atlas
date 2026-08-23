@@ -3,7 +3,12 @@ import { ZodError } from 'zod'
 import { pool, withTransaction } from '../../infra/db/client.js'
 import { partnershipsRepository } from './partnerships.repository.js'
 import { assetsRepository } from './assets.repository.js'
-import { createPartnershipAssetBodySchema, partnershipAssetParamsSchema, partnershipAssetsParamsSchema } from './assets.zod.js'
+import {
+  createPartnershipAssetBodySchema,
+  partnershipAssetParamsSchema,
+  partnershipAssetsParamsSchema,
+  updatePartnershipAssetBodySchema,
+} from './assets.zod.js'
 
 async function getScopedPartnership(
   request: FastifyRequest,
@@ -120,4 +125,118 @@ export const createPartnershipAssetHandler = async (
     : await assetsRepository.createPartnershipAsset(params.partnershipId, body, request.authUser!.userId, null)
 
   return reply.status(201).send(detail)
+}
+
+export const updatePartnershipAssetHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (request.authUser?.role !== 'Admin') {
+    return reply.status(403).send({ error: 'FORBIDDEN_ROLE' })
+  }
+
+  let params: { partnershipId: string; assetId: string }
+  let body: ReturnType<typeof updatePartnershipAssetBodySchema.parse>
+  try {
+    params = partnershipAssetParamsSchema.parse(request.params)
+    body = updatePartnershipAssetBodySchema.parse(request.body)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
+    }
+    throw error
+  }
+
+  const scopedPartnership = await getScopedPartnership(request, params.partnershipId)
+  if (scopedPartnership.status === 'not-found') {
+    return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
+  }
+  if (scopedPartnership.status === 'forbidden') {
+    return reply.status(403).send({ error: 'FORBIDDEN_ENTITY' })
+  }
+
+  const current = await assetsRepository.getPartnershipAsset(params.partnershipId, params.assetId)
+  if (!current) {
+    return reply.status(404).send({ error: 'PARTNERSHIP_ASSET_NOT_FOUND' })
+  }
+
+  const duplicate = await assetsRepository.findDuplicateAsset(
+    params.partnershipId,
+    body.name ?? current.asset.name,
+    body.assetType ?? current.asset.assetType,
+    params.assetId,
+  )
+  if (duplicate) {
+    return reply.status(409).send({ error: 'DUPLICATE_PARTNERSHIP_ASSET' })
+  }
+
+  const updated = pool
+    ? await withTransaction((client) =>
+        assetsRepository.updatePartnershipAsset(
+          params.partnershipId,
+          params.assetId,
+          body,
+          request.authUser!.userId,
+          client,
+        ),
+      )
+    : await assetsRepository.updatePartnershipAsset(
+        params.partnershipId,
+        params.assetId,
+        body,
+        request.authUser!.userId,
+        null,
+      )
+
+  if (!updated) {
+    return reply.status(404).send({ error: 'PARTNERSHIP_ASSET_NOT_FOUND' })
+  }
+  return reply.send(await assetsRepository.getPartnershipAsset(params.partnershipId, params.assetId))
+}
+
+export const deletePartnershipAssetHandler = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (request.authUser?.role !== 'Admin') {
+    return reply.status(403).send({ error: 'FORBIDDEN_ROLE' })
+  }
+
+  let params: { partnershipId: string; assetId: string }
+  try {
+    params = partnershipAssetParamsSchema.parse(request.params)
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
+    }
+    throw error
+  }
+
+  const scopedPartnership = await getScopedPartnership(request, params.partnershipId)
+  if (scopedPartnership.status === 'not-found') {
+    return reply.status(404).send({ error: 'PARTNERSHIP_NOT_FOUND' })
+  }
+  if (scopedPartnership.status === 'forbidden') {
+    return reply.status(403).send({ error: 'FORBIDDEN_ENTITY' })
+  }
+
+  const deleted = pool
+    ? await withTransaction((client) =>
+        assetsRepository.deletePartnershipAsset(
+          params.partnershipId,
+          params.assetId,
+          request.authUser!.userId,
+          client,
+        ),
+      )
+    : await assetsRepository.deletePartnershipAsset(
+        params.partnershipId,
+        params.assetId,
+        request.authUser!.userId,
+        null,
+      )
+  if (!deleted) {
+    return reply.status(404).send({ error: 'PARTNERSHIP_ASSET_NOT_FOUND' })
+  }
+  return reply.status(204).send()
 }

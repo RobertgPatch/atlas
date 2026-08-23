@@ -5,16 +5,16 @@ import { K1_OFFICIAL_FORM_FIELD_BY_KEY } from '../k1OfficialFormFields'
 import { K1FormFieldCell, type K1FormFieldStateGetter } from './K1FormFieldCell'
 import { K1OfficialFormField, type K1OfficialFormFieldStateGetter } from './K1OfficialFormField'
 
-function PartHeading({ part, title, id }: { part: string; title: string; id: string }) {
-  return <div className="flex items-stretch border-y-2 border-gray-950 bg-gray-100">
-    <span aria-hidden="true" className="flex w-16 shrink-0 items-center justify-center bg-gray-950 px-2 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white">{part}</span>
-    <h4 id={id} className="px-3 py-2 text-xs font-black uppercase tracking-[0.04em] text-gray-950"><span className="sr-only">{part} - </span>{title}</h4>
+function PartHeading({ part, title, id, workspace }: { part: string; title: string; id: string; workspace: boolean }) {
+  return <div className={workspace ? 'flex items-stretch border-y border-slate-300 bg-slate-50' : 'flex items-stretch border-y-2 border-gray-950 bg-gray-100'}>
+    <span aria-hidden="true" className={workspace ? 'flex w-16 shrink-0 items-center justify-center bg-primary px-2 py-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-white' : 'flex w-16 shrink-0 items-center justify-center bg-gray-950 px-2 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-white'}>{part}</span>
+    <h4 id={id} className={workspace ? 'px-3 py-2 text-xs font-semibold uppercase tracking-[0.04em] text-slate-950' : 'px-3 py-2 text-xs font-black uppercase tracking-[0.04em] text-gray-950'}><span className="sr-only">{part} - </span>{title}</h4>
   </div>
 }
 
-function OfficialRow({ item, children }: { item: string; children: ReactNode }) {
-  return <div className="grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] border-b border-gray-400">
-    <span className="flex items-start justify-center border-r border-gray-400 bg-gray-100 px-1 py-2 font-mono text-xs font-black text-gray-900">{item}</span>
+function OfficialRow({ item, children, workspace }: { item: string; children: ReactNode; workspace: boolean }) {
+  return <div className={workspace ? 'grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] border-b border-slate-200' : 'grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)] border-b border-gray-400'}>
+    <span className={workspace ? 'flex items-start justify-center border-r border-slate-200 bg-slate-50 px-1 py-2 font-mono text-xs font-semibold text-slate-800' : 'flex items-start justify-center border-r border-gray-400 bg-gray-100 px-1 py-2 font-mono text-xs font-black text-gray-900'}>{item}</span>
     <div className="min-w-0 p-2.5">{children}</div>
   </div>
 }
@@ -31,10 +31,12 @@ const itemJRows: Array<{ label: string; beginning: K1TrackerOfficialFormFieldKey
   { label: 'Capital', beginning: 'part_ii_j_capital_beginning_pct', ending: 'part_ii_j_capital_ending_pct' },
 ]
 
-export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor }: {
+export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor, appearance = 'default' }: {
   fieldStateFor: K1FormFieldStateGetter
   officialFieldStateFor: K1OfficialFormFieldStateGetter
+  appearance?: 'default' | 'workspace'
 }) {
+  const workspace = appearance === 'workspace'
   const sectionL = placementsForRegion('section-l')
   const officialField = (key: K1TrackerOfficialFormFieldKey) => {
     const definition = K1_OFFICIAL_FORM_FIELD_BY_KEY.get(key)
@@ -42,33 +44,33 @@ export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor }: {
     return <K1OfficialFormField {...officialFieldStateFor(key)} field={definition} />
   }
 
-  return <div className="min-w-0 border-x-2 border-b-2 border-gray-950 bg-white" data-testid="k1-identity-panel">
+  return <div className={workspace ? 'min-w-0 border-x border-b border-slate-300 bg-white' : 'min-w-0 border-x-2 border-b-2 border-gray-950 bg-white'} data-testid="k1-identity-panel">
     <section aria-labelledby="k1-part-i-heading">
-      <PartHeading part="Part I" title="Information About the Partnership" id="k1-part-i-heading" />
-      <OfficialRow item="A">{officialField('part_i_a_partnership_ein')}</OfficialRow>
-      <OfficialRow item="B">{officialField('part_i_b_partnership_name_address')}</OfficialRow>
-      <OfficialRow item="C">{officialField('part_i_c_irs_center')}</OfficialRow>
-      <OfficialRow item="D">{officialField('part_i_d_publicly_traded_partnership')}</OfficialRow>
+      <PartHeading part="Part I" title="Information About the Partnership" id="k1-part-i-heading" workspace={workspace} />
+      <OfficialRow item="A" workspace={workspace}>{officialField('part_i_a_partnership_ein')}</OfficialRow>
+      <OfficialRow item="B" workspace={workspace}>{officialField('part_i_b_partnership_name_address')}</OfficialRow>
+      <OfficialRow item="C" workspace={workspace}>{officialField('part_i_c_irs_center')}</OfficialRow>
+      <OfficialRow item="D" workspace={workspace}>{officialField('part_i_d_publicly_traded_partnership')}</OfficialRow>
     </section>
 
     <section aria-labelledby="k1-part-ii-heading">
-      <PartHeading part="Part II" title="Information About the Partner" id="k1-part-ii-heading" />
-      <OfficialRow item="E">{officialField('part_ii_e_partner_tin')}</OfficialRow>
-      <OfficialRow item="F">{officialField('part_ii_f_partner_name_address')}</OfficialRow>
-      <OfficialRow item="G">{officialField('part_ii_g_partner_classification')}</OfficialRow>
-      <OfficialRow item="H1">{officialField('part_ii_h1_partner_residency')}</OfficialRow>
-      <OfficialRow item="H2"><div className="grid min-w-0 gap-2 sm:grid-cols-2">
+      <PartHeading part="Part II" title="Information About the Partner" id="k1-part-ii-heading" workspace={workspace} />
+      <OfficialRow item="E" workspace={workspace}>{officialField('part_ii_e_partner_tin')}</OfficialRow>
+      <OfficialRow item="F" workspace={workspace}>{officialField('part_ii_f_partner_name_address')}</OfficialRow>
+      <OfficialRow item="G" workspace={workspace}>{officialField('part_ii_g_partner_classification')}</OfficialRow>
+      <OfficialRow item="H1" workspace={workspace}>{officialField('part_ii_h1_partner_residency')}</OfficialRow>
+      <OfficialRow item="H2" workspace={workspace}><div className="grid min-w-0 gap-2 sm:grid-cols-2">
         <div className="sm:col-span-2">{officialField('part_ii_h2_disregarded_entity')}</div>
         {officialField('part_ii_h2_disregarded_entity_tin')}
         {officialField('part_ii_h2_disregarded_entity_name')}
       </div></OfficialRow>
-      <OfficialRow item="I1">{officialField('part_ii_i1_partner_entity_type')}</OfficialRow>
-      <OfficialRow item="I2">{officialField('part_ii_i2_retirement_plan')}</OfficialRow>
+      <OfficialRow item="I1" workspace={workspace}>{officialField('part_ii_i1_partner_entity_type')}</OfficialRow>
+      <OfficialRow item="I2" workspace={workspace}>{officialField('part_ii_i2_retirement_plan')}</OfficialRow>
 
-      <section aria-labelledby="k1-item-j-heading" className="border-t-2 border-gray-950">
-        <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
-          <span className="flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white">J</span>
-          <h5 id="k1-item-j-heading" className="px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950">Partner's Share of Profit, Loss, and Capital</h5>
+      <section aria-labelledby="k1-item-j-heading" className={workspace ? 'border-t border-slate-300' : 'border-t-2 border-gray-950'}>
+        <div className={workspace ? 'flex items-stretch border-b border-slate-300 bg-slate-50' : 'flex items-stretch border-b border-gray-950 bg-gray-100'}>
+          <span className={workspace ? 'flex w-9 shrink-0 items-center justify-center bg-primary px-1 py-2 font-mono text-xs font-semibold text-white' : 'flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white'}>J</span>
+          <h5 id="k1-item-j-heading" className={workspace ? 'px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.035em] text-slate-950' : 'px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950'}>Partner's Share of Profit, Loss, and Capital</h5>
         </div>
         <div className="grid grid-cols-[minmax(5.5rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-500 bg-gray-100 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-gray-600">
           <span className="border-r border-gray-400 px-2 py-1.5 text-left">Share</span>
@@ -80,16 +82,15 @@ export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor }: {
           <div className="min-w-0 border-r border-gray-400 p-1.5">{officialField(row.beginning)}</div>
           <div className="min-w-0 p-1.5">{officialField(row.ending)}</div>
         </div>)}
-        <div className="grid gap-1 border-b border-gray-400 px-2.5 py-2 sm:grid-cols-2">
+        <div className="border-b border-gray-400 px-2.5 py-2">
           {officialField('part_ii_j_decrease_sale')}
-          {officialField('part_ii_j_decrease_exchange')}
         </div>
       </section>
 
-      <section aria-labelledby="k1-item-k-heading" className="border-t-2 border-gray-950">
-        <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
-          <span className="flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white">K</span>
-          <h5 id="k1-item-k-heading" className="px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950">Partner's Share of Liabilities</h5>
+      <section aria-labelledby="k1-item-k-heading" className={workspace ? 'border-t border-slate-300' : 'border-t-2 border-gray-950'}>
+        <div className={workspace ? 'flex items-stretch border-b border-slate-300 bg-slate-50' : 'flex items-stretch border-b border-gray-950 bg-gray-100'}>
+          <span className={workspace ? 'flex w-9 shrink-0 items-center justify-center bg-primary px-1 py-2 font-mono text-xs font-semibold text-white' : 'flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white'}>K</span>
+          <h5 id="k1-item-k-heading" className={workspace ? 'px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.035em] text-slate-950' : 'px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950'}>Partner's Share of Liabilities</h5>
         </div>
         <div className="grid grid-cols-[minmax(6.5rem,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-gray-500 bg-gray-100 text-center text-[9px] font-bold uppercase tracking-[0.08em] text-gray-600">
           <span className="border-r border-gray-400 px-2 py-1.5 text-left">Liability type</span>
@@ -107,10 +108,10 @@ export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor }: {
         </div>
       </section>
 
-      <section aria-labelledby="k1-section-l-heading" className="border-t-2 border-gray-950">
-        <div className="flex items-stretch border-b border-gray-950 bg-gray-100">
-          <span className="flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white">L</span>
-          <h5 id="k1-section-l-heading" className="px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950">Partner's Capital Account Analysis</h5>
+      <section aria-labelledby="k1-section-l-heading" className={workspace ? 'border-t border-slate-300' : 'border-t-2 border-gray-950'}>
+        <div className={workspace ? 'flex items-stretch border-b border-slate-300 bg-slate-50' : 'flex items-stretch border-b border-gray-950 bg-gray-100'}>
+          <span className={workspace ? 'flex w-9 shrink-0 items-center justify-center bg-primary px-1 py-2 font-mono text-xs font-semibold text-white' : 'flex w-9 shrink-0 items-center justify-center bg-gray-950 px-1 py-2 font-mono text-xs font-black text-white'}>L</span>
+          <h5 id="k1-section-l-heading" className={workspace ? 'px-2.5 py-2 text-[11px] font-semibold uppercase tracking-[0.035em] text-slate-950' : 'px-2.5 py-2 text-[11px] font-black uppercase tracking-[0.035em] text-gray-950'}>Partner's Capital Account Analysis</h5>
         </div>
         {sectionL.map((placement) => <div key={placement.fieldKey} className="grid min-w-0 grid-cols-[minmax(7.5rem,1.15fr)_minmax(0,1fr)] border-b border-gray-400 last:border-b-0">
           <p className="border-r border-gray-400 px-2.5 py-2 text-[10px] font-semibold leading-tight text-gray-700">{placement.sublabel}</p>
@@ -118,8 +119,8 @@ export function K1FormIdentityPanel({ fieldStateFor, officialFieldStateFor }: {
         </div>)}
       </section>
 
-      <OfficialRow item="M">{officialField('part_ii_m_built_in_gain_loss')}</OfficialRow>
-      <OfficialRow item="N"><div className="grid min-w-0 gap-2 sm:grid-cols-2">
+      <OfficialRow item="M" workspace={workspace}>{officialField('part_ii_m_built_in_gain_loss')}</OfficialRow>
+      <OfficialRow item="N" workspace={workspace}><div className="grid min-w-0 gap-2 sm:grid-cols-2">
         {officialField('part_ii_n_704c_gain_loss_beginning')}
         {officialField('part_ii_n_704c_gain_loss_ending')}
       </div></OfficialRow>

@@ -35,4 +35,14 @@ describe('currencyInput', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('valid comma grouping')
     expect(formatCurrency('-1000.50')).toBe('-$1,000.50')
   })
+
+  it('uses the shared field boundary and focus roles', () => {
+    render(<CurrencyInput aria-label="Amount" value="" onChange={vi.fn()} />)
+
+    expect(screen.getByLabelText('Amount')).toHaveClass(
+      'border-border-control',
+      'focus:border-focus',
+      'focus:ring-focus',
+    )
+  })
 })
