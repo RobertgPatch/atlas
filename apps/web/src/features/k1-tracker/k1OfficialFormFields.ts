@@ -88,5 +88,16 @@ export const K1_OFFICIAL_FORM_FIELDS: K1OfficialFormFieldDefinition[] = [
 
 export const K1_OFFICIAL_FORM_FIELD_BY_KEY = new Map(K1_OFFICIAL_FORM_FIELDS.map((definition) => [definition.key, definition]))
 
+/** Keep only the printed letter code; the field key already identifies its line. */
+export const normalizeK1OfficialCode = (fieldKey: K1TrackerOfficialFormFieldKey, rawCode: string): string => {
+  const line = /^box_(\d+[a-z]?)_entries$/i.exec(fieldKey)?.[1]
+  let code = rawCode.trim().toUpperCase()
+  if (line) {
+    const escapedLine = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    code = code.replace(new RegExp(`^${escapedLine}(?:\\s*[-.:/]\\s*|\\s*)(?=[A-Z*])`, 'i'), '')
+  }
+  return code.replace(/\s+(?=\*)/g, '')
+}
+
 export const emptyOfficialValueFor = (definition: K1OfficialFormFieldDefinition): K1TrackerOfficialFormValue =>
   definition.kind === 'boolean' ? false : definition.kind === 'coded' ? [] : ''

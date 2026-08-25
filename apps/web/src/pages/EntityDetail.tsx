@@ -1,4 +1,3 @@
-import React from 'react'
 import { colorTokens } from '../../design-tokens.js'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeftIcon, Building2Icon, DollarSignIcon, TrendingUpIcon, CalendarIcon } from 'lucide-react'
@@ -40,6 +39,7 @@ function LegacyEntityDetail() {
   return (
     <AppShell
       currentPath="/partnerships"
+      magicPatternDesigns={false}
       userRole={session?.role ?? 'User'}
       userEmail={session?.user.email}
       onSignOut={() => {

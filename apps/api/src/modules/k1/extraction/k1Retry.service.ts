@@ -18,6 +18,9 @@ const retryableFailure = (code: string | null): boolean => {
 
 const REPROCESSABLE_ITEM_STATUSES = ['FAILED', 'NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY'] as const
 
+const configuredExtractionProvider = (): 'AWS_BDA' | 'STUB' =>
+  config.k1ExtractorBackend === 'aws_bda' ? 'AWS_BDA' : 'STUB'
+
 export interface K1RetryExtractionResult {
   k1DocumentId: string
   documentVersion: number
@@ -62,7 +65,7 @@ export const retryK1Extraction = async (args: {
     const attempt = await k1ExtractionAttemptRepository.createOrGet({
       k1DocumentId: args.k1DocumentId,
       requestedAttemptNumber: attemptNumber,
-      provider: previous.provider,
+      provider: configuredExtractionProvider(),
       mappingSchemaVersion: config.k1Ingestion.bda.mappingSchemaVersion,
       projectArn: config.k1Ingestion.bda.projectArn || null,
       projectStage: config.k1Ingestion.bda.projectStage,

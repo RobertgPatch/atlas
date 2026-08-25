@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1BasisWorkspace } from '../components/K1BasisWorkspace'
@@ -30,6 +31,15 @@ const detail: PartnershipTrackerDetail = {
 }
 let trackerActions: ReturnType<typeof usePartnershipTrackerActions>
 
+const renderWorkspace = (appearance: 'default' | 'magic-pattern' = 'default') => render(
+  <MemoryRouter initialEntries={['/workspace']}>
+    <Routes>
+      <Route path="/workspace" element={<K1BasisWorkspace appearance={appearance} detail={detail} selectedYear={2024} canEdit onSelectYear={vi.fn()} onDirtyChange={vi.fn()} />} />
+      <Route path="/k1" element={<h1>K-1 upload processing queue</h1>} />
+    </Routes>
+  </MemoryRouter>,
+)
+
 describe('K1BasisWorkspace year actions', () => {
   beforeEach(() => {
     vi.mocked(usePartnershipTrackerYear).mockReturnValue({ data: k1EntryDetailFixture, isLoading: false, isError: false } as ReturnType<typeof usePartnershipTrackerYear>)
@@ -47,7 +57,7 @@ describe('K1BasisWorkspace year actions', () => {
   })
 
   it('selects multiple K-1 entry years and deletes them in one confirmed action', async () => {
-    render(<K1BasisWorkspace detail={detail} selectedYear={2024} canEdit onSelectYear={vi.fn()} onDirtyChange={vi.fn()} />)
+    renderWorkspace()
 
     const actions = screen.getByRole('group', { name: 'K-1 year actions' })
     expect(within(actions).getByRole('button', { name: 'Select years' })).toBeInTheDocument()
@@ -73,7 +83,7 @@ describe('K1BasisWorkspace year actions', () => {
   })
 
   it('maps the Magic Patterns K-1 History hierarchy without duplicating operational cash entry', () => {
-    render(<K1BasisWorkspace appearance="magic-pattern" detail={detail} selectedYear={2024} canEdit onSelectYear={vi.fn()} onDirtyChange={vi.fn()} />)
+    renderWorkspace('magic-pattern')
 
     expect(screen.getByRole('heading', { name: 'K-1 entry and outside basis' })).toBeInTheDocument()
     expect(screen.getByText(/Upload one or more K-1 PDFs/)).toBeInTheDocument()
@@ -81,6 +91,7 @@ describe('K1BasisWorkspace year actions', () => {
     expect(screen.getByRole('tablist', { name: 'Tax year' })).toHaveClass('overflow-x-auto')
     expect(screen.getByRole('button', { name: 'Add tax year' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Select years' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'View processing queue' })).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'K-1 document workflow' })).toBeInTheDocument()
     expect(screen.queryByText('Cash activity', { selector: 'div' })).not.toBeInTheDocument()
     expect(screen.queryByText('K-1 results')).not.toBeInTheDocument()
@@ -88,5 +99,13 @@ describe('K1BasisWorkspace year actions', () => {
     const actions = screen.getByRole('group', { name: 'K-1 year actions' })
     fireEvent.click(within(actions).getByRole('button', { name: 'Upload K-1 PDFs' }))
     expect(screen.getByRole('dialog', { name: 'Upload K-1 documents' })).toHaveTextContent('Uploading for Jackson Family Trust')
+  })
+
+  it('opens the K-1 upload processing queue from the year actions', async () => {
+    renderWorkspace('magic-pattern')
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'K-1 year actions' })).getByRole('button', { name: 'View processing queue' }))
+
+    expect(await screen.findByRole('heading', { name: 'K-1 upload processing queue' })).toBeInTheDocument()
   })
 })

@@ -274,7 +274,8 @@ const detailFor = async (partnershipId: string, year: TrackerYearRow, allYears: 
     calculation.summary.sourceConflictCount = sourceConflicts.length
   }
   return {
-    partnershipId, taxYear: year.tax_year, status: year.workflow_status, revision: year.revision,
+    partnershipId, taxYear: year.tax_year, isInceptionYear: year.is_inception_year,
+    status: year.workflow_status, revision: year.revision,
     officialFormData: year.official_form_data ?? {},
     officialFormSources: await k1OfficialRevisionRepository.listActiveSources(client as never, year.id),
     values: projectCanonicalContribution(valuesByYear.get(year.id) ?? []).map(mapValue),

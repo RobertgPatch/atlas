@@ -143,7 +143,7 @@ describe('BDA output parser', () => {
     const draft = mapBdaResult(result('MATCH', [{
       canonical_path: 'official.box_20_entries',
       value_kind: 'CODE_ROW',
-      value: { code: 'A', description: 'Other information', amount: 'SEE STMT' },
+      value: { code: '20 A', description: 'Other information', amount: 'SEE STMT' },
     }]))
 
     expect(draft.values[0]?.normalizedValue).toEqual({
@@ -224,6 +224,36 @@ describe('BDA output parser', () => {
       { code: 'A', description: 'Other information', amount: '13816.00' },
       { code: 'Z*', description: 'STMT', amount: null },
       { code: 'AG*', description: 'STMT', amount: null },
+    ])
+    expect(draft.validationIssues).toEqual([])
+  })
+
+  it('removes a duplicated Line 19A amount when the real Line 20A row is already coded', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      {
+        canonical_path: 'official.box_19_entries',
+        value_kind: 'CODE_ROW',
+        value: { code: 'A', description: 'Distributions', amount: '273,077' },
+      },
+      {
+        canonical_path: 'official.box_20_entries',
+        value_kind: 'CODE_ROW',
+        value: [
+          { code: 'A', description: 'Distributions', amount: '273,077' },
+          { code: 'A', description: 'Other information', amount: '12,354' },
+          { code: 'Z*', description: 'STMT', amount: '' },
+        ],
+      },
+    ]))
+
+    expect(draft.values.filter((value) => value.canonicalPath === 'official.box_19_entries')
+      .map((value) => value.normalizedValue)).toEqual([
+      { code: 'A', description: 'Distributions', amount: '273077.00' },
+    ])
+    expect(draft.values.filter((value) => value.canonicalPath === 'official.box_20_entries')
+      .map((value) => value.normalizedValue)).toEqual([
+      { code: 'A', description: 'Other information', amount: '12354.00' },
+      { code: 'Z*', description: 'STMT', amount: null },
     ])
     expect(draft.validationIssues).toEqual([])
   })
@@ -556,14 +586,21 @@ describe('BDA output parser', () => {
     expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('MULTIPLE_K1_PACKAGE')
   })
 
-  it('treats masked identifiers and empty printed money cells as absent instead of invalid', () => {
+  it('omits an empty Section L withdrawals cell and keeps other absence evidence without invalid issues', () => {
     const draft = mapBdaResult(result('MATCH', [
       { canonical_path: 'match.partner_tin', value_kind: 'STRING', value: '***-**-0233' },
       { canonical_path: 'calculation.section_l_withdrawals_distributions', value_kind: 'MONEY', value: '$ ( )' },
+      { canonical_path: 'calculation.section_l_withdrawals_distributions', value_kind: 'MONEY', value: '' },
+      { canonical_path: 'calculation.section_l_beginning_capital', value_kind: 'MONEY', value: '$ ( )' },
     ]))
 
+    expect(draft.values.map((value) => value.canonicalPath)).toEqual([
+      'match.partner_tin',
+      'calculation.section_l_beginning_capital',
+    ])
     expect(draft.values.map((value) => value.normalizedValue)).toEqual([null, null])
     expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('INVALID_EXTRACTED_VALUE')
+    expect(draft.validationIssues.map((issue) => issue.code)).not.toContain('BLANK_EXTRACTED_FIELD')
   })
 
   it('preserves accounting-parentheses signs when the dollar sign precedes Section L parentheses', () => {

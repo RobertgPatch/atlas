@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, ListChecks } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ListChecks, Loader2 } from 'lucide-react'
 import { formatCurrency, normalizeCurrencyInput } from '../../../components/shared/currencyInput'
 import type {
   K1TrackerCalculation,
@@ -12,9 +12,9 @@ import type {
   K1TrackerYearDetail,
 } from '../../../../../../packages/types/src/k1-tracker'
 import { K1_EDITABLE_FIELDS } from '../k1FieldGroups'
-import { isReconciliationBlocker } from '../reconciliationGuidance'
+import { isK1TrackerYearReconciled, isReconciliationBlocker } from '../reconciliationGuidance'
 import type { K1FormIdentityContext } from '../k1FormLayout'
-import { emptyOfficialValueFor, K1_OFFICIAL_FORM_FIELD_BY_KEY, K1_OFFICIAL_FORM_FIELDS } from '../k1OfficialFormFields'
+import { emptyOfficialValueFor, K1_OFFICIAL_FORM_FIELD_BY_KEY, K1_OFFICIAL_FORM_FIELDS, normalizeK1OfficialCode } from '../k1OfficialFormFields'
 import { K1FormHeader } from './K1FormHeader'
 import { type K1FormFieldStateGetter } from './K1FormFieldCell'
 import { K1FormIdentityPanel } from './K1FormIdentityPanel'
@@ -75,6 +75,12 @@ const initialOfficialFormData = (detail: K1TrackerYearDetail): K1TrackerOfficial
   }
   return Object.fromEntries(Object.entries(source).map(([key, value]) => {
     const definition = K1_OFFICIAL_FORM_FIELD_BY_KEY.get(key as K1TrackerOfficialFormFieldKey)
+    if (definition?.kind === 'coded' && Array.isArray(value)) {
+      return [key, value.map((entry) => ({
+        ...entry,
+        code: normalizeK1OfficialCode(definition.key, entry.code),
+      }))]
+    }
     return [key, definition?.kind === 'money' && typeof value === 'string' && value.trim() ? formatCurrency(value) : value]
   })) as K1TrackerOfficialFormData
 }
@@ -92,7 +98,7 @@ const normalizeOfficialFormData = (raw: K1TrackerOfficialFormData): { value: K1T
     if (Array.isArray(current)) {
       const entries: K1TrackerCodeEntry[] = []
       for (const entry of current) {
-        const code = entry.code.trim().toUpperCase()
+        const code = normalizeK1OfficialCode(definition.key, entry.code)
         let value = entry.value.trim()
         if (definition.key === 'box_11_entries' && code === 'ZZ' && value) {
           const money = normalizeCurrencyInput(value, true)
@@ -185,8 +191,12 @@ export function K1YearEntryForm({
   const [reason, setReason] = useState('')
   const [notice, setNotice] = useState<string>()
   const [draft, setDraft] = useState<K1TrackerCalculation>()
+  const [reconciling, setReconciling] = useState(false)
+  const [reconciledRevision, setReconciledRevision] = useState<number | null>(null)
   const [warningsAcknowledgedRevision, setWarningsAcknowledgedRevision] = useState<number | null>(null)
   const warningsAcknowledged = warningsAcknowledgedRevision === detail.revision
+  const reconciled = isK1TrackerYearReconciled(detail.signoff)
+    || reconciledRevision === detail.revision
 
   const reconciliationBlockers = detail.calculation.checks.filter(isReconciliationBlocker)
   const reconciliationWarnings = detail.calculation.checks.filter((check) => check.status === 'WARNING')
@@ -284,14 +294,18 @@ export function K1YearEntryForm({
     }
     if (dirty && !(await save())) return
     if (!onReconcile) return
+    setReconciling(true)
     try {
       await onReconcile()
+      setReconciledRevision(detail.revision)
       setNotice(`${detail.taxYear} was marked reconciled.`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to reconcile this K-1 year.'
       setNotice(message === 'SIGNOFF_GATE_FAILED'
         ? 'Required reconciliation checks are still open. Complete the checklist and try again.'
         : message)
+    } finally {
+      setReconciling(false)
     }
   }
 
@@ -429,33 +443,41 @@ export function K1YearEntryForm({
       </div>
     </section>}
 
-    {magicPattern && onReconcile && <section aria-labelledby="k1-reconciliation-gate-heading" className={`border-t px-4 py-3 sm:px-5 ${reconciliationBlockers.length || detail.sourceConflicts.length ? 'border-amber-300 bg-amber-50' : reconciliationWarnings.length ? 'border-sky-200 bg-sky-50' : 'border-emerald-200 bg-emerald-50'}`}>
+    {magicPattern && onReconcile && <section aria-labelledby="k1-reconciliation-gate-heading" aria-live="polite" className={`border-t px-4 py-3 sm:px-5 ${reconciled ? 'border-emerald-300 bg-emerald-50' : reconciliationBlockers.length || detail.sourceConflicts.length ? 'border-amber-300 bg-amber-50' : reconciliationWarnings.length ? 'border-sky-200 bg-sky-50' : 'border-emerald-200 bg-emerald-50'}`}>
       <div className="flex items-start gap-3">
-        {reconciliationBlockers.length || detail.sourceConflicts.length
+        {!reconciled && (reconciliationBlockers.length || detail.sourceConflicts.length)
           ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
           : <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />}
         <div className="min-w-0 flex-1">
           <h4 id="k1-reconciliation-gate-heading" className="text-xs font-bold text-slate-950">
-            {reconciliationBlockers.length || detail.sourceConflicts.length
+            {reconciled
+              ? `${detail.taxYear} reconciled`
+              : reconciliationBlockers.length || detail.sourceConflicts.length
               ? `${reconciliationBlockers.length + detail.sourceConflicts.length} required item${reconciliationBlockers.length + detail.sourceConflicts.length === 1 ? '' : 's'} remain`
               : reconciliationWarnings.length
                 ? 'Required inputs are complete'
                 : 'Ready to reconcile'}
           </h4>
-          {reconciliationBlockers.length || detail.sourceConflicts.length
+          {reconciled
+            ? <p className="mt-1 text-xs leading-5 text-emerald-900">Signed off by {detail.signoff.reviewedByEmail ?? 'the reviewer'}. Changing and saving a value will reopen reconciliation.</p>
+            : reconciliationBlockers.length || detail.sourceConflicts.length
             ? <p className="mt-1 text-xs leading-5 text-amber-900">Use the Reconciliation checklist beside the form. Each item identifies the missing value and takes you to the correct field.</p>
             : reconciliationWarnings.length
               ? <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs leading-5 text-sky-950"><input type="checkbox" checked={warningsAcknowledged} onChange={(event) => setWarningsAcknowledgedRevision(event.target.checked ? detail.revision : null)} className="mt-1 h-4 w-4 accent-primary" /><span>I reviewed the {reconciliationWarnings.length} calculated warning{reconciliationWarnings.length === 1 ? '' : 's'} and confirmed the source values are correct.</span></label>
               : <p className="mt-1 text-xs leading-5 text-emerald-900">All required checks pass. Marking reconciled will lock this revision's sign-off until a value changes.</p>}
         </div>
-        {(reconciliationBlockers.length > 0 || detail.sourceConflicts.length > 0) && <button type="button" onClick={() => document.getElementById('k1-open-checks-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"><ListChecks className="h-3.5 w-3.5" />View checklist</button>}
+        {!reconciled && (reconciliationBlockers.length > 0 || detail.sourceConflicts.length > 0) && <button type="button" onClick={() => document.getElementById('k1-open-checks-heading')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-white px-2.5 text-[11px] font-semibold text-amber-950 hover:bg-amber-100"><ListChecks className="h-3.5 w-3.5" />View checklist</button>}
       </div>
     </section>}
 
     {canEdit && (magicPattern ? <div data-testid="k1-form-actions" className="sticky -bottom-4 z-10 flex flex-col-reverse gap-2 border-t border-gray-950 bg-white/95 px-4 py-3 shadow-[0_-6px_16px_rgba(15,23,42,0.08)] backdrop-blur sm:-bottom-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:-bottom-8">
       <button type="submit" disabled={pending} className="min-h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-800 hover:bg-slate-100 disabled:opacity-50">Save draft</button>
-      {onReconcile && <button type="button" onClick={() => void reconcile()} disabled={pending || !canReconcile} title={!canReconcile ? 'Complete the reconciliation checklist first.' : undefined} className="min-h-9 rounded-md border border-primary bg-primary px-3 text-xs font-semibold text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-600">
-        {reconciliationBlockers.length || detail.sourceConflicts.length
+      {onReconcile && <button type="button" onClick={() => void reconcile()} disabled={pending || reconciling || reconciled || !canReconcile} title={reconciled ? `${detail.taxYear} is already reconciled.` : !canReconcile ? 'Complete the reconciliation checklist first.' : undefined} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-md border px-3 text-xs font-semibold ${reconciled ? 'cursor-default border-emerald-600 bg-emerald-600 text-white' : 'border-primary bg-primary text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-600'}`}>
+        {reconciling
+          ? <><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />Marking reconciled…</>
+          : reconciled
+            ? <><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />Reconciled</>
+            : reconciliationBlockers.length || detail.sourceConflicts.length
           ? `Complete ${reconciliationBlockers.length + detail.sourceConflicts.length} required item${reconciliationBlockers.length + detail.sourceConflicts.length === 1 ? '' : 's'}`
           : reconciliationWarnings.length && !warningsAcknowledged
             ? `Review ${reconciliationWarnings.length} warning${reconciliationWarnings.length === 1 ? '' : 's'}`

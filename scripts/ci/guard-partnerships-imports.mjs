@@ -19,10 +19,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(HERE, '../..')
 
 const GUARDED_PATHS = [
-  'apps/web/src/pages/PartnershipDirectory.tsx',
-  'apps/web/src/pages/PartnershipDetail.tsx',
   'apps/web/src/pages/EntityDetail.tsx',
+  'apps/web/src/pages/EntitiesPage.tsx',
+  'apps/web/src/pages/PartnershipTrackerPage.tsx',
   'apps/web/src/features/partnerships',
+  'apps/web/src/features/partnership-tracker',
 ]
 
 /** Recursively collect .ts/.tsx files from a directory or file path */
@@ -72,7 +73,7 @@ for (const target of GUARDED_PATHS) {
 }
 
 if (violations > 0) {
-  console.error(`\n${violations} @mui violation(s) found. Use components from packages/ui instead.`)
+  console.error(`\n${violations} @mui violation(s) found. Use app-local shared components instead.`)
   process.exit(1)
 } else {
   console.log('\x1b[32mPASS\x1b[0m  No @mui imports found in partnerships feature files.')

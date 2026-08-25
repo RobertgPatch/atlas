@@ -5,7 +5,9 @@ import { CurrencyInput } from '../../../components/shared/CurrencyField'
 import type { K1FieldDefinition } from '../k1FieldGroups'
 
 const sourceLabel = (source: K1TrackerValue): string => {
-  const sourceName = source.sourceType.replaceAll('_', ' ')
+  const sourceName = source.sourceType === 'SYSTEM_DEFAULT'
+    ? 'Inception-year default'
+    : source.sourceType.replaceAll('_', ' ')
   const location = source.sourceSheet
     ? `${source.sourceSheet}${source.sourceCell ? `!${source.sourceCell}` : ''}`
     : null

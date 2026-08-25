@@ -1,5 +1,4 @@
 export { PartnershipTrackerPageContent } from './components/PartnershipTrackerPageContent'
-export { MagicPatternPartnershipTrackerPageContent } from './components/magic-patterns/MagicPatternPartnershipTrackerPageContent'
 export { PartnershipAggregationPageContent } from './components/aggregation'
 export { PartnershipViewSwitcher } from './components/PartnershipViewSwitcher'
 export * from './api/partnershipTrackerClient'

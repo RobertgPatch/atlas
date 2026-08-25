@@ -32,7 +32,7 @@ describe('PartnershipTrackerPage feature flag', () => {
 
   it('redirects the retired Magic Patterns partnerships page into the investment tracker', () => {
     render(
-      <MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=valuations']}>
+      <MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=valuations&year=2025']}>
         <Routes>
           <Route path="/partnership-tracker" element={<PartnershipTrackerPage magicPatternDesigns />} />
           <Route path="/investment-tracker" element={<CurrentLocation />} />
@@ -40,7 +40,7 @@ describe('PartnershipTrackerPage feature flag', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByText('Current location: /investment-tracker?partnership=p-1&area=valuations')).toBeTruthy()
+    expect(screen.getByText('Current location: /investment-tracker?partnership=p-1&area=valuations&year=2025')).toBeTruthy()
     expect(screen.queryByText('Legacy partnership experience')).toBeNull()
   })
 

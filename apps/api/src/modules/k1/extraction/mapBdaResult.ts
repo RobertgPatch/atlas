@@ -611,12 +611,20 @@ const sanitizePartThreeValues = (values: K1ExtractedValue[]): K1ExtractedValue[]
     return Boolean(row && !row.code && row.amount !== null
       && normalizedWords(row.description) === 'other information')
   })
-  if (borrowedLine20.length === 1 && uncodedLine20.length === 1) {
-    const borrowedId = borrowedLine20[0].occurrenceId
-    const uncodedId = uncodedLine20[0].occurrenceId
-    sanitized = sanitized
-      .filter((value) => value.occurrenceId !== borrowedId)
-      .map((value) => value.occurrenceId === uncodedId
+  if (borrowedLine20.length > 0) {
+    const borrowedIds = new Set(borrowedLine20.map((value) => value.occurrenceId))
+    sanitized = sanitized.filter((value) => !borrowedIds.has(value.occurrenceId))
+
+    // Some BDA responses omit the visible A from the legitimate Line 20 row.
+    // Restore it only when no independently extracted numeric 20A row remains.
+    const hasCodedLine20A = sanitized.some((value) => {
+      if (value.canonicalPath !== 'official.box_20_entries') return false
+      const row = normalizedCodeRow(value.normalizedValue)
+      return Boolean(row && row.code === 'A' && row.amount !== null)
+    })
+    if (!hasCodedLine20A && uncodedLine20.length === 1) {
+      const uncodedId = uncodedLine20[0].occurrenceId
+      sanitized = sanitized.map((value) => value.occurrenceId === uncodedId
         ? {
             ...value,
             normalizedValue: {
@@ -625,6 +633,7 @@ const sanitizePartThreeValues = (values: K1ExtractedValue[]): K1ExtractedValue[]
             },
           }
         : value)
+    }
   }
 
   return sanitized
@@ -703,6 +712,12 @@ export const mapBdaResult = (raw: unknown): K1ExtractionDraft => {
     repeatedValues.forEach((occurrenceRawValue, occurrenceIndex) => {
       const occurrenceId = deterministicUuid([canonicalPath, fieldIndex, occurrenceIndex, occurrenceRawValue, evidenceIds])
       const normalization = normalizeK1ExtractedValue(canonicalPath, kind, occurrenceRawValue)
+      // Section L prints accounting parentheses even when the cell contains no
+      // amount. Treat that punctuation-only cell as absent instead of creating
+      // a blank withdrawals/distributions field that a reviewer must correct.
+      if (canonicalPath === 'calculation.section_l_withdrawals_distributions'
+        && normalization.value === null
+        && (!normalization.issue || normalization.issue.code === 'BLANK_EXTRACTED_FIELD')) return
       const confidence = number(field.confidence ?? field.confidence_score)
       values.push({
         occurrenceId,

@@ -222,7 +222,14 @@ module "k1_ingestion" {
   bda_stage                          = var.k1_bda_stage
   bda_blueprint_version              = var.k1_bda_blueprint_version
   mapping_schema_version             = var.k1_mapping_schema_version
-  upload_allowed_origins             = var.k1_upload_allowed_origins
+  # CloudFront distribution hostnames can change when an environment is
+  # recreated (for example, after moving AWS accounts). Always permit the
+  # public URL provisioned by this stack in addition to any explicit local or
+  # custom origins so direct browser uploads do not retain a stale CORS entry.
+  upload_allowed_origins = distinct(concat(
+    var.k1_upload_allowed_origins,
+    [module.edge.public_web_url],
+  ))
 }
 
 module "security" {

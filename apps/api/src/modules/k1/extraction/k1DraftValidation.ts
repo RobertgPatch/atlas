@@ -131,6 +131,21 @@ const codeRowDisplayName = (canonicalPath: string, code: string): {
   }
 }
 
+/**
+ * A printed K-1 line number locates a coded row but is not part of its code.
+ * BDA can occasionally return the combined visual token (for example,
+ * `20 A` or `20A`) even though the canonical path already identifies Line 20.
+ */
+export const normalizeK1PrintedCode = (canonicalPath: string, rawCode: string): string => {
+  const line = /^official\.box_(\d+[a-z]?)_entries$/i.exec(canonicalPath)?.[1]
+  let code = rawCode.trim().toUpperCase()
+  if (line) {
+    const escapedLine = line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    code = code.replace(new RegExp(`^${escapedLine}(?:\\s*[-.:/]\\s*|\\s*)(?=[A-Z*])`, 'i'), '')
+  }
+  return code.replace(/\s+(?=\*)/g, '')
+}
+
 const normalizeCodeRow = (canonicalPath: string, raw: unknown): K1NormalizationResult => {
   let candidate = raw
   if (typeof raw === 'string') {
@@ -144,7 +159,7 @@ const normalizeCodeRow = (canonicalPath: string, raw: unknown): K1NormalizationR
   }
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return invalid('Expected a coded K-1 row.')
   const record = candidate as Record<string, unknown>
-  const code = typeof record.code === 'string' ? record.code.trim().toUpperCase() : ''
+  const code = typeof record.code === 'string' ? normalizeK1PrintedCode(canonicalPath, record.code) : ''
   const description = typeof record.description === 'string' ? record.description.trim() : ''
   const amountRaw = record.amount ?? record.value
   const amountIsBlank = amountRaw === null

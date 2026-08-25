@@ -397,6 +397,7 @@ export interface K1ApplyRequest {
   applicationId: string
   expectedDocumentVersion: number
   expectedTrackerRevision: number
+  inceptionYear?: boolean
   decisions: K1ApplyDecisionRequest[]
 }
 

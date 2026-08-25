@@ -5,6 +5,7 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 
 import { BdaExtractor } from '../src/modules/k1/extraction/bdaExtractor.js'
+import { listExtractorProviders } from '../src/modules/k1/extraction/index.js'
 
 const options = (send: ReturnType<typeof vi.fn>) => ({
   client: { send } as never,
@@ -15,6 +16,10 @@ const options = (send: ReturnType<typeof vi.fn>) => ({
 })
 
 describe('BDA extractor', () => {
+  it('registers exactly the offline stub and Amazon BDA providers', () => {
+    expect(listExtractorProviders()).toEqual(['stub', 'aws_bda'])
+  })
+
   it('submits the configured project with the caller deterministic token', async () => {
     const send = vi.fn().mockResolvedValue({ invocationArn: 'arn:aws:bedrock:job/123' })
     const extractor = new BdaExtractor(options(send))

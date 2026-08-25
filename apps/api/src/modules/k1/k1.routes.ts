@@ -926,7 +926,8 @@ const sendApplicationError = (reply: FastifyReply, error: unknown) => {
   const status = code === 'K1_DOCUMENT_NOT_FOUND' || code === 'APPLICATION_PREVIEW_NOT_FOUND' ? 404
     : code === 'FORBIDDEN_ENTITY' || code === 'ROLE_REQUIRED_ADMIN' ? 403
       : code.startsWith('STALE_') || code.includes('PREVIEW') || code.includes('INCOMPLETE')
-        || code.includes('AUTHORITATIVE') || code.includes('ALREADY_APPLIED') || code.includes('TARGET_CHANGED') ? 409
+        || code.includes('AUTHORITATIVE') || code.includes('ALREADY_APPLIED') || code.includes('TARGET_CHANGED')
+        || code === 'INCEPTION_YEAR_CONFLICT' ? 409
         : code.includes('DECISION') || code.includes('INVALID') ? 400 : 500
   return reply.code(status).send({
     error: code,
@@ -969,12 +970,13 @@ const applyK1Handler = async (request: FastifyRequest, reply: FastifyReply) => {
       applicationId: body.data.applicationId,
       expectedDocumentVersion: body.data.expectedDocumentVersion,
       expectedTrackerRevision: body.data.expectedTrackerRevision,
+      inceptionYear: body.data.inceptionYear,
       decisions: body.data.decisions,
       actorUserId: request.authUser!.userId,
       authorizedEntityIds: request.k1Scope?.entityIds ?? [],
       isAdmin: request.authUser!.role === 'Admin',
     })
-    logK1Workflow(request.log, 'k1.apply.completed', { k1DocumentId: applied.k1DocumentId, applicationId: applied.applicationId, status: applied.status, count: applied.invalidatedTaxYears.length })
+    logK1Workflow(request.log, 'k1.apply.completed', { k1DocumentId: applied.k1DocumentId, applicationId: applied.applicationId, status: applied.status, inceptionYear: body.data.inceptionYear, count: applied.invalidatedTaxYears.length })
     return reply.send(applied)
   } catch (error) {
     return sendApplicationError(reply, error)

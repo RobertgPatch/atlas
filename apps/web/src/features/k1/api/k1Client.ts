@@ -20,6 +20,33 @@ import { authenticatedFetch, reportAuthenticationResponse } from '../../../auth/
 const API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? '/v1'
 
+const s3UploadMessage = (code: string, status: number): string => {
+  if (code === 'UPLOAD_NETWORK_ERROR') {
+    return 'The browser could not upload to S3. Verify that the bucket CORS policy allows this app origin.'
+  }
+  if (code === 'SignatureDoesNotMatch' || code === 'InvalidAccessKeyId' || code === 'ExpiredToken') {
+    return 'AWS rejected the upload credentials. Refresh the page and try again; if it persists, redeploy the API task with the current AWS account credentials.'
+  }
+  if (code === 'AccessDenied') {
+    return 'AWS denied the S3 upload. Verify the API task role, KMS key permissions, bucket policy, and presigned upload headers.'
+  }
+  if (code === 'BadDigest' || code === 'InvalidRequest') {
+    return 'AWS rejected the PDF checksum or required upload headers. Select the file again and retry.'
+  }
+  return `S3 rejected the PDF upload (HTTP ${status}).`
+}
+
+export const parseS3UploadFailure = (args: {
+  status: number
+  responseText?: string
+}): K1ApiError => {
+  const awsCode = args.responseText?.match(/<Code>([^<]+)<\/Code>/i)?.[1]
+  const code = awsCode ?? (args.status === 0 ? 'UPLOAD_NETWORK_ERROR' : `HTTP_${args.status}`)
+  return new K1ApiError(code, args.status, {
+    message: s3UploadMessage(code, args.status),
+  })
+}
+
 // --- Status mapping ----------------------------------------------------------
 // Existing shared components use lowercase keys; the API contract uses uppercase.
 // Keep the wire types intact and translate at the boundary only.
@@ -110,7 +137,7 @@ const putFileWithProgress = async (args: {
   xhr.upload.onprogress = (event) => {
     if (event.lengthComputable) args.onProgress?.(Math.round((event.loaded / event.total) * 100))
   }
-  xhr.onerror = () => reject(new K1ApiError('UPLOAD_NETWORK_ERROR', 0))
+  xhr.onerror = () => reject(parseS3UploadFailure({ status: 0 }))
   xhr.onload = () => {
     if (args.url.startsWith('/')) reportAuthenticationResponse(xhr.status)
     if (xhr.status >= 200 && xhr.status < 300) {
@@ -118,12 +145,7 @@ const putFileWithProgress = async (args: {
       resolve(xhr.getResponseHeader('x-amz-version-id'))
       return
     }
-    let payload: unknown
-    try { payload = JSON.parse(xhr.responseText) } catch { payload = undefined }
-    const code = payload && typeof payload === 'object' && 'error' in payload
-      ? String((payload as { error: unknown }).error)
-      : `HTTP_${xhr.status}`
-    reject(new K1ApiError(code, xhr.status, payload))
+    reject(parseS3UploadFailure({ status: xhr.status, responseText: xhr.responseText }))
   }
   xhr.send(args.file)
 })
@@ -265,9 +287,11 @@ export const k1Client = {
       mimeType: 'application/pdf' as const,
     })))
     const batch = await k1Client.createBatch({ entityScopeId: args.entityScopeId, files: declared })
-    const completionItems = await Promise.all(batch.items.map(async (item, index) => {
+    const uploads = await Promise.all(batch.items.map(async (item, index) => {
       const file = args.files[index]
-      if (!file || !item.upload) return { itemId: item.id, sha256: item.sha256 }
+      if (!file || !item.upload) {
+        return { completion: { itemId: item.id, sha256: item.sha256 }, error: null }
+      }
       try {
         const objectVersionId = await putFileWithProgress({
           file,
@@ -275,13 +299,40 @@ export const k1Client = {
           headers: item.upload.headers,
           onProgress: (progress) => args.onProgress?.(file.name, progress),
         })
-        return { itemId: item.id, sha256: item.sha256, objectVersionId }
-      } catch {
-        // Completion verifies every item independently and turns a missing or
-        // interrupted PUT into a retryable per-file error.
-        return { itemId: item.id, sha256: item.sha256 }
+        return {
+          completion: { itemId: item.id, sha256: item.sha256, objectVersionId },
+          error: null,
+        }
+      } catch (caught) {
+        // Still complete the batch so the API records a durable, retryable
+        // failure, but retain the real S3 failure for the immediate UI instead
+        // of replacing it with the downstream UPLOAD_NOT_FOUND symptom.
+        return {
+          completion: { itemId: item.id, sha256: item.sha256 },
+          error: caught instanceof K1ApiError
+            ? caught
+            : parseS3UploadFailure({ status: 0 }),
+        }
       }
     }))
-    return k1Client.completeBatchUploads(batch.id, { items: completionItems })
+    const completed = await k1Client.completeBatchUploads(batch.id, {
+      items: uploads.map(({ completion }) => completion),
+    })
+    return {
+      ...completed,
+      items: completed.items.map((item) => {
+        const uploadError = uploads.find(({ completion }) => completion.itemId === item.id)?.error
+        if (!uploadError) return item
+        return {
+          ...item,
+          error: {
+            code: uploadError.code,
+            message: (uploadError.payload as { message?: string } | undefined)?.message
+              ?? uploadError.code,
+            retryable: true,
+          },
+        }
+      }),
+    }
   },
 }

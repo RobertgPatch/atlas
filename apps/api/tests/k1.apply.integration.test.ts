@@ -74,10 +74,60 @@ durable('revision-bound atomic K-1 application', () => {
         where tracker_year_id = $1 and field_key = 'box_13_entries' and is_active`, [application.trackerYearId],
     )
     expect(official.rows[0].source_k1_field_value_ids).toEqual([f.codeRowFieldId])
+    const activeBeforeReplay = (await pool!.query<{ count: string }>(
+      'select count(*)::text as count from k1_tracker_value_revisions where source_k1_document_id = $1 and is_active',
+      [f.k1DocumentId],
+    )).rows[0].count
     const replay = await apply(application)
     expect(replay.statusCode).toBe(200)
     expect(replay.json().applicationId).toBe(application.applicationId)
-    expect((await pool!.query<{ count: string }>('select count(*)::text as count from k1_tracker_value_revisions where source_k1_document_id = $1 and is_active', [f.k1DocumentId])).rows[0].count).toBe('1')
+    expect((await pool!.query<{ count: string }>('select count(*)::text as count from k1_tracker_value_revisions where source_k1_document_id = $1 and is_active', [f.k1DocumentId])).rows[0].count).toBe(activeBeforeReplay)
+  })
+
+  it('marks an inception year and seeds only missing beginning balances', async () => {
+    const version = await finalizeReview()
+    const application = await preview(version)
+    await pool!.query(
+      `insert into k1_tracker_value_revisions
+         (id, tracker_year_id, field_key, amount, source_type, is_active, created_by_user_id)
+       values ($1, $2, 'opening_outside_basis', '42.00', 'MANUAL_ENTRY', true, $3)`,
+      [randomUUID(), application.trackerYearId, f.admin.id],
+    )
+    const response = await apply(application, { inceptionYear: true })
+
+    expect(response.statusCode).toBe(200)
+    const year = await pool!.query<{ is_inception_year: boolean }>(
+      'select is_inception_year from k1_tracker_years where id = $1',
+      [application.trackerYearId],
+    )
+    expect(year.rows[0]?.is_inception_year).toBe(true)
+    const defaults = await pool!.query<{ field_key: string; amount: string; source_type: string }>(
+      `select field_key, amount, source_type from k1_tracker_value_revisions
+        where tracker_year_id = $1 and is_active
+          and field_key in ('opening_outside_basis', 'opening_suspended_loss', 'section_l_beginning_capital')
+        order by field_key`,
+      [application.trackerYearId],
+    )
+    expect(defaults.rows).toEqual([
+      { field_key: 'opening_outside_basis', amount: '42.00', source_type: 'MANUAL_ENTRY' },
+      { field_key: 'opening_suspended_loss', amount: '0.00', source_type: 'SYSTEM_DEFAULT' },
+      { field_key: 'section_l_beginning_capital', amount: '0.00', source_type: 'SYSTEM_DEFAULT' },
+    ])
+  })
+
+  it('rejects an inception designation when an earlier tracker year exists', async () => {
+    const version = await finalizeReview()
+    const application = await preview(version)
+    await pool!.query(
+      `insert into k1_tracker_years (id, entity_id, partnership_id, tax_year, workflow_status)
+       values ($1, $2, $3, 2024, 'IN_PROGRESS')`,
+      [randomUUID(), f.entityId, f.partnershipId],
+    )
+
+    const response = await apply(application, { inceptionYear: true })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json().error).toBe('INCEPTION_YEAR_CONFLICT')
   })
 
   it('deletes an applied tax year while retaining the reviewed PDF for a clean restart', async () => {
