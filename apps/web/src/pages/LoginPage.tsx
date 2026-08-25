@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
+import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { featureFlags } from '../config/featureFlags'
 import { Button } from '../components/shared/Button'
@@ -56,8 +57,22 @@ export function LoginPage({
 
     setIsLoading(true)
     try {
-      const session = await authClient.login(email, password)
-      sessionStore.setAuthenticated(session)
+      const result = await authClient.login(email, password)
+
+      if ('status' in result && result.status === 'MFA_ENROLL_REQUIRED') {
+        authFlowStore.setEnrollment(result)
+        navigate('/mfa/setup')
+        return
+      }
+
+      if ('status' in result && result.status === 'MFA_REQUIRED') {
+        authFlowStore.setChallenge(result)
+        navigate('/mfa')
+        return
+      }
+
+      authFlowStore.clear()
+      sessionStore.setAuthenticated(result)
       navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
     } catch (err) {
       setError(getLoginErrorMessage(err))

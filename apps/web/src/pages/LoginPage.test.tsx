@@ -2,7 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { authClient, type SessionResponse } from '../auth/authClient'
+import {
+  authClient,
+  type MfaChallengeResponse,
+  type MfaEnrollmentResponse,
+  type SessionResponse,
+} from '../auth/authClient'
+import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { LoginPage } from './LoginPage'
 
@@ -15,6 +21,14 @@ vi.mock('../auth/authClient', () => ({
 vi.mock('../auth/sessionStore', () => ({
   sessionStore: {
     setAuthenticated: vi.fn(),
+  },
+}))
+
+vi.mock('../auth/authFlowStore', () => ({
+  authFlowStore: {
+    setChallenge: vi.fn(),
+    setEnrollment: vi.fn(),
+    clear: vi.fn(),
   },
 }))
 
@@ -31,6 +45,19 @@ const session: SessionResponse = {
     idleTimeoutSeconds: 1_800,
     absoluteTimeoutSeconds: 28_800,
   },
+}
+
+const enrollment: MfaEnrollmentResponse = {
+  status: 'MFA_ENROLL_REQUIRED',
+  enrollmentToken: 'enrollment-token',
+  otpAuthUrl: 'otpauth://totp/Jackson:advisor@example.com',
+  qrCodeDataUrl: 'data:image/png;base64,abc',
+  manualEntryKey: 'MANUALKEY',
+}
+
+const challenge: MfaChallengeResponse = {
+  status: 'MFA_REQUIRED',
+  challengeId: 'challenge-token',
 }
 
 function LocationProbe() {
@@ -101,6 +128,38 @@ describe('LoginPage design flag', () => {
     await waitFor(() => {
       expect(screen.getByTestId('current-location').textContent).toBe('/liquidity')
     })
+  })
+
+  it('stores enrollment state and opens MFA setup without authenticating', async () => {
+    vi.mocked(authClient.login).mockResolvedValue(enrollment)
+    const user = userEvent.setup()
+    renderLogin(false)
+
+    await user.type(screen.getByPlaceholderText('you@example.com'), 'advisor@example.com')
+    await user.type(document.querySelector('input[type="password"]')!, 'Password123!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location').textContent).toBe('/mfa/setup')
+    })
+    expect(authFlowStore.setEnrollment).toHaveBeenCalledWith(enrollment)
+    expect(sessionStore.setAuthenticated).not.toHaveBeenCalled()
+  })
+
+  it('stores challenge state and opens MFA verification without authenticating', async () => {
+    vi.mocked(authClient.login).mockResolvedValue(challenge)
+    const user = userEvent.setup()
+    renderLogin(true)
+
+    await user.type(screen.getByLabelText('Email'), 'advisor@example.com')
+    await user.type(screen.getByLabelText('Password'), 'Password123!')
+    await user.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location').textContent).toBe('/mfa')
+    })
+    expect(authFlowStore.setChallenge).toHaveBeenCalledWith(challenge)
+    expect(sessionStore.setAuthenticated).not.toHaveBeenCalled()
   })
 
   it('uses the existing required-credentials validation before calling the API', () => {

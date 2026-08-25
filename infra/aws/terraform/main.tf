@@ -45,6 +45,7 @@ locals {
     WEB_ORIGIN                      = local.web_origin
     SESSION_COOKIE_SECURE           = "true"
     SESSION_COOKIE_SAMESITE         = "lax"
+    MFA_LOGIN_ENABLED               = tostring(var.mfa_login_enabled)
     PLAID_REFRESH_TIME_LOCAL        = var.plaid_refresh_time_local
     PLAID_REFRESH_TIMEZONE          = var.plaid_refresh_timezone
     PLAID_REFRESH_SCHEDULER_ENABLED = "true"

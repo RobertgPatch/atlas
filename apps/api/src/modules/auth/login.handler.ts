@@ -4,6 +4,7 @@ import { loginSchema } from './auth.schemas.js'
 import { lockoutService } from './lockout.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
+import { totpService } from './totp.service.js'
 
 export const loginHandler = async (
   request: FastifyRequest,
@@ -43,6 +44,43 @@ export const loginHandler = async (
   }
 
   await lockoutService.clear(email, 'PASSWORD')
+
+  if (config.mfaLoginEnabled) {
+    if (authRepository.isMfaEnrollmentRequired(user)) {
+      const secret = totpService.generateSecret()
+      const enrollment = authRepository.createMfaEnrollment(user.id, secret)
+      const otpAuthUrl = totpService.buildOtpAuthUrl(user.email, secret)
+      const qrCodeDataUrl = await totpService.buildQrCodeDataUrl(otpAuthUrl)
+
+      await auditRepository.record({
+        actorUserId: user.id,
+        eventName: 'auth.login.mfa_enrollment_required',
+        objectType: 'user',
+        objectId: user.id,
+      })
+
+      reply.send({
+        enrollmentToken: enrollment.id,
+        status: 'MFA_ENROLL_REQUIRED',
+        otpAuthUrl,
+        qrCodeDataUrl,
+        manualEntryKey: secret,
+      })
+      return
+    }
+
+    const challenge = authRepository.createMfaChallenge(user.id)
+    await auditRepository.record({
+      actorUserId: user.id,
+      eventName: 'auth.login.mfa_required',
+      objectType: 'user',
+      objectId: user.id,
+    })
+
+    reply.send({ challengeId: challenge.id, status: 'MFA_REQUIRED' })
+    return
+  }
+
   const { token, session } = authRepository.createSession(user.id)
 
   await auditRepository.record({

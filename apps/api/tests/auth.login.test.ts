@@ -3,12 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../src/config.js'
 import { authRepository } from '../src/modules/auth/auth.repository.js'
 import { lockoutService } from '../src/modules/auth/lockout.service.js'
+import { totpService } from '../src/modules/auth/totp.service.js'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 
-describe('password-only login', () => {
+const setMfaLoginEnabled = (enabled: boolean) => {
+  Object.assign(config, { mfaLoginEnabled: enabled })
+}
+
+describe('feature-flagged login', () => {
   let fixture: TestFixture
 
   beforeEach(async () => {
+    setMfaLoginEnabled(false)
     fixture = await createTestFixture()
     vi.spyOn(lockoutService, 'getLockout').mockResolvedValue(null)
     vi.spyOn(lockoutService, 'clear').mockResolvedValue()
@@ -16,6 +22,7 @@ describe('password-only login', () => {
   })
 
   afterEach(async () => {
+    setMfaLoginEnabled(false)
     await fixture.app.close()
     vi.restoreAllMocks()
   })
@@ -74,6 +81,51 @@ describe('password-only login', () => {
     })
   })
 
+  it('requires MFA enrollment without creating a session when the flag is enabled', async () => {
+    setMfaLoginEnabled(true)
+    authRepository.resetUserMfa(fixture.admin.id)
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: {
+        email: fixture.admin.email,
+        password: config.adminPassword,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({
+      status: 'MFA_ENROLL_REQUIRED',
+      enrollmentToken: expect.any(String),
+      otpAuthUrl: expect.any(String),
+      qrCodeDataUrl: expect.stringMatching(/^data:image\/png;base64,/),
+      manualEntryKey: expect.any(String),
+    })
+    expect(response.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('requires an MFA challenge without creating a session for an enrolled user', async () => {
+    setMfaLoginEnabled(true)
+    authRepository.completeMfaEnrollment(fixture.admin.id, totpService.generateSecret())
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: {
+        email: fixture.admin.email,
+        password: config.adminPassword,
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({
+      status: 'MFA_REQUIRED',
+      challengeId: expect.any(String),
+    })
+    expect(response.headers['set-cookie']).toBeUndefined()
+  })
+
   it('stores bootstrap passwords with Argon2id', () => {
     const admin = authRepository.getUserById(fixture.admin.id)
 
@@ -97,7 +149,10 @@ describe('password-only login', () => {
     expect(admin.passwordHash).toMatch(/^\$argon2id\$v=19\$/)
   })
 
-  it('does not upgrade a legacy hash when the password is incorrect', async () => {
+  it.each([false, true])(
+    'does not upgrade a legacy hash when the password is incorrect with MFA=%s',
+    async (mfaEnabled) => {
+      setMfaLoginEnabled(mfaEnabled)
     const admin = authRepository.getUserById(fixture.admin.id)!
     const legacyHash = createHash('sha256').update(config.adminPassword).digest('hex')
     admin.passwordHash = legacyHash
@@ -113,7 +168,34 @@ describe('password-only login', () => {
 
     expect(response.statusCode).toBe(401)
     expect(admin.passwordHash).toBe(legacyHash)
-  })
+      expect(response.headers['set-cookie']).toBeUndefined()
+    },
+  )
+
+  it.each([false, true])(
+    'preserves password lockout behavior with MFA=%s',
+    async (mfaEnabled) => {
+      setMfaLoginEnabled(mfaEnabled)
+      const lockoutUntil = new Date('2026-08-25T12:30:00.000Z')
+      vi.mocked(lockoutService.recordFailure).mockResolvedValueOnce(lockoutUntil)
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: {
+          email: fixture.admin.email,
+          password: 'definitely-wrong',
+        },
+      })
+
+      expect(response.statusCode).toBe(423)
+      expect(response.json()).toEqual({
+        error: 'ACCOUNT_LOCKED',
+        lockoutUntil: lockoutUntil.toISOString(),
+      })
+      expect(response.headers['set-cookie']).toBeUndefined()
+    },
+  )
 
   it('uses Argon2id when a new invited user record is created', async () => {
     const invited = await authRepository.upsertInvitedUser(

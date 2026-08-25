@@ -6,6 +6,7 @@ import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { Button } from '../components/shared/Button'
+import { featureFlags } from '../config/featureFlags'
 
 const getMfaErrorMessage = (error: unknown) => {
   if (
@@ -29,8 +30,15 @@ const getMfaErrorMessage = (error: unknown) => {
   return 'Invalid verification code. Please try again.'
 }
 
-export function MFAPage() {
+interface MFAPageProps {
+  magicPatternDesigns?: boolean
+}
+
+export function MFAPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: MFAPageProps = {}) {
   const navigate = useNavigate()
+  const [challenge] = useState(() => authFlowStore.getChallenge())
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,7 +88,6 @@ export function MFAPage() {
 
     setIsLoading(true)
     try {
-      const challenge = authFlowStore.getChallenge()
       if (!challenge) {
         setError('Your sign-in session expired. Please sign in again.')
         navigate('/')
@@ -90,7 +97,7 @@ export function MFAPage() {
       const session = await authClient.verifyMfa(challenge.challengeId, fullCode)
       authFlowStore.clear()
       sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
     } catch (err) {
       setError(getMfaErrorMessage(err))
       setCode(['', '', '', '', '', ''])
@@ -101,10 +108,10 @@ export function MFAPage() {
   }
 
   useEffect(() => {
-    if (!authFlowStore.getChallenge()) {
+    if (!challenge) {
       navigate('/', { replace: true })
     }
-  }, [navigate])
+  }, [challenge, navigate])
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">

@@ -76,6 +76,7 @@ export const config = {
   ),
   authLockoutThreshold: asNumber(process.env.AUTH_LOCKOUT_THRESHOLD, 3),
   authLockoutMinutes: asNumber(process.env.AUTH_LOCKOUT_MINUTES, 30),
+  mfaLoginEnabled: asBoolean(process.env.MFA_LOGIN_ENABLED),
   totpIssuer: process.env.TOTP_ISSUER ?? 'Jackson',
   storageRoot: process.env.STORAGE_ROOT ?? './.storage',
   k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),

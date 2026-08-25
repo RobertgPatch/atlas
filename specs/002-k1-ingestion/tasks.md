@@ -158,7 +158,7 @@ description: "Task list for Feature 002 — K-1 Ingestion and Processing Dashboa
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [ ] T055 [P] Playwright E2E `apps/web/tests/e2e/k1-upload-to-review.spec.ts` — **DEFERRED**: Playwright not installed in repo; requires separate test-infra task
-- [X] T056 [P] Seed script `apps/api/src/infra/db/seed/002_k1_fixtures.ts` — creates up to 1 000 K-1 rows evenly distributed across the five statuses (accepts `K1_PERF_FIXTURE_COUNT` env override). Run via `npx tsx src/infra/db/seed/002_k1_fixtures.ts` from `apps/api`.
+- [X] T056 [P] Historical process-local K-1 seed coverage is now provided by current API test fixtures under `apps/api/tests/helpers/`; the obsolete executable seed was retired by Spec 025 and must not be run.
 - [X] T057 [P] CI grep guard `scripts/ci/guard-k1-imports.mjs` — fails the build if any file under `apps/web/src/pages/K1Dashboard.tsx` or `apps/web/src/features/k1/**` imports from `@mui/*` or `specs/002-k1-ingestion/reference/**` (UI Constitution §1, §10; SC-009). Wire into CI via `node scripts/ci/guard-k1-imports.mjs`.
 - [ ] T058 Run `specs/002-k1-ingestion/quickstart.md` §6 verification steps manually and check every bullet in its §9 Definition of Done — **DEFERRED**: manual walkthrough owed to the reviewer
 - [X] T059 [P] Updated `docs/ui/40-screen-map.md` (§Composition notes — K-1 Processing Dashboard) and `docs/ui/46-component-catalog.md` (§Screen compositions → K-1 Processing Dashboard) to document the catalog-only composition

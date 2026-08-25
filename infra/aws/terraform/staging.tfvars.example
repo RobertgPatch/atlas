@@ -30,6 +30,8 @@ api_image_tag = "staging"
 api_desired_count = 0
 api_task_cpu      = "256"
 api_task_memory   = "512"
+# Keep password-only compatibility until staging MFA enrollment/challenge tests pass.
+mfa_login_enabled = false
 ecr_force_delete  = true
 ecr_image_tag_mutability = "MUTABLE"
 

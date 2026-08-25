@@ -31,7 +31,7 @@ description: "Task list for Feature 006 - Reports Phased Delivery"
 - [x] T006 [P] Add shared report value-formatting helpers (currency, percent, multiple, N/A) in `apps/web/src/features/reports/utils/formatters.ts`
 - [x] T007 Add common reports query and body validation schemas in `apps/api/src/modules/reports/reports.zod.ts`
 - [x] T008 [P] Extend report audit event constants in `apps/api/src/modules/audit/audit.events.ts` for report edit and undo events
-- [x] T009 [P] Add reports seed fixture script for tests in `apps/api/src/infra/db/seed/006_reports_fixtures.ts`
+- [x] T009 [P] Historical report setup data is now owned by current API report test helpers under `apps/api/tests/helpers/`; the obsolete process-local seed was retired by Spec 025
 - [x] T010 [P] Add reports test helper utilities in `apps/api/tests/helpers/reportsTestHelpers.ts`
 
 **Checkpoint**: Shared infrastructure is ready; delivery phases can proceed in requested order.

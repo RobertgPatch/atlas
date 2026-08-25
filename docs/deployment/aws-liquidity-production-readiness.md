@@ -38,6 +38,7 @@ REQUIRE_DURABLE_PERSISTENCE=true
 WEB_ORIGIN=https://<environment-app-domain>
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=lax
+MFA_LOGIN_ENABLED=false
 PLAID_CLIENT_ID=<Secrets Manager>
 PLAID_SECRET=<Secrets Manager>
 PLAID_ENV=<sandbox-or-production>
@@ -59,6 +60,8 @@ AWS_ENVIRONMENT_PROFILE=<staging-or-production>
 - Do not place Plaid access tokens, database URLs with credentials, scheduler tokens, or `PERSISTENCE_SECRET_KEY` in docs, logs, browser responses, Terraform outputs, or committed env files.
 - Use parameterized SQL only.
 - Keep admin diagnostics behind existing auth/RBAC.
+- `MFA_LOGIN_ENABLED` is the single login-enforcement switch. It defaults to `false`; set it through Terraform and restart/redeploy the API to apply a change. The web application does not need a rebuild and must not have a separate MFA flag.
+- When MFA login is enabled, password validation returns enrollment or challenge state without issuing the authenticated session cookie. The cookie is issued only after successful TOTP completion.
 - Use WAF and app-level rate limits for abusive request volume.
 - Treat `PERSISTENCE_SECRET_KEY` as long-lived key material. Rotation requires a migration or re-encryption plan.
 - Use Plaid sandbox until the deployment path, refresh behavior, and persistence checks are proven.
@@ -102,6 +105,7 @@ Run these checks before launch and after each infrastructure change:
 | Staging parity | Staging evidence proves the same routing, scheduler, private database, WAF, logs, alarms, and diagnostics before production promotion. |
 | Secret rotation | RDS rotation is enabled or scheduled; Plaid/session/scheduler rotation runbooks exist; `PERSISTENCE_SECRET_KEY` rotation is emergency-only with a re-encryption plan. |
 | CSRF and cookies | Cookie-authenticated write paths use same-site secure cookies and origin controls. |
+| MFA login | The deployed `mfa_login_enabled` value reaches API-derived tasks as `MFA_LOGIN_ENABLED`; false preserves direct password sessions, while true requires enrollment/challenge completion before the session cookie is issued. |
 | XSS | React-rendered user data remains escaped; no unsafe HTML rendering is introduced. |
 | SQL injection | Database access uses parameterized SQL and repository-scoped queries. |
 | Token minimization | Ordinary Liquidity reads use saved snapshots and do not call Plaid; diagnostics and exports do not include Plaid access tokens. |
