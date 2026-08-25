@@ -143,6 +143,59 @@ describe('market data pricing service', () => {
     ).resolves.toEqual([])
   })
 
+  it('does not let a later daily refresh downgrade an official close', async () => {
+    const valuationStore = createInMemoryLiquidityValuationStore()
+    const accountId = randomUUID()
+    const source = holding({ accountId })
+    const save = (
+      valuationKind: 'market_close' | 'daily',
+      marketValue: number,
+      capturedAt: string,
+    ) =>
+      valuationStore.saveSnapshot({
+        valuationKind,
+        tradingDate: '2026-08-14',
+        selectedAccountIds: [accountId],
+        provider: 'alpaca',
+        feed: 'sip',
+        priceAsOf: '2026-08-14T20:00:00.000Z',
+        capturedAt,
+        warnings: [],
+        positions: [
+          {
+            sourceHoldingId: source.id,
+            accountId,
+            symbol: source.symbol,
+            description: source.description,
+            securityType: source.type,
+            currencyCode: source.currencyCode,
+            quantity: source.quantity,
+            costBasis: source.costBasis,
+            closingPrice: marketValue / 10,
+            marketValue,
+            unrealizedGainLoss: marketValue - 1_000,
+            valuationSource:
+              valuationKind === 'market_close' ? 'official_close' : 'market_price',
+            provider: 'alpaca',
+            feed: 'sip',
+            priceAsOf: '2026-08-14T20:00:00.000Z',
+          },
+        ],
+      })
+
+    await save('market_close', 2_000, '2026-08-14T20:20:00.000Z')
+    await save('daily', 2_100, '2026-08-14T20:30:00.000Z')
+
+    await expect(
+      valuationStore.listPerformancePoints({ accountIds: [accountId] }),
+    ).resolves.toMatchObject([
+      {
+        source: 'market_close',
+        totalMarketValue: 2_000,
+      },
+    ])
+  })
+
   it('returns the saved database price immediately and persists a later live update', async () => {
     const store = createInMemoryMarketPriceStore()
     await store.savePrices([quote({ price: 180, receivedAt: '2026-08-15T17:00:00.000Z' })])
@@ -173,6 +226,69 @@ describe('market data pricing service', () => {
     const persisted = await service.priceHoldingsForRead([holding()], { refreshStale: false })
     expect(persisted.holdings[0]?.marketValue).toBe(2_050)
     expect(getLatestPrices).toHaveBeenCalledTimes(1)
+  })
+
+  it('upserts the refreshed portfolio total once per day for performance history', async () => {
+    const valuationStore = createInMemoryLiquidityValuationStore()
+    const accountId = randomUUID()
+    let currentTime = new Date('2026-08-17T18:00:10.000Z')
+    let currentPrice = 200
+    const getLatestPrices = vi.fn(async () => [
+      quote({
+        price: currentPrice,
+        providerTimestamp: new Date(currentTime.getTime() - 2_000).toISOString(),
+        receivedAt: new Date(currentTime.getTime() - 1_000).toISOString(),
+        tradingDate: currentTime.toISOString().slice(0, 10),
+      }),
+    ])
+    const service = createMarketDataService({
+      provider: {
+        id: 'alpaca',
+        feed: 'sip',
+        isDelayed: false,
+        getLatestPrices,
+        getClosingPrices: vi.fn(async () => []),
+      },
+      store: createInMemoryMarketPriceStore(),
+      valuationStore,
+      refreshOnRead: true,
+      maxAgeSeconds: 0,
+      now: () => currentTime,
+    })
+
+    await service.priceHoldingsForRead([holding({ accountId })], {
+      saveDailySnapshot: true,
+      selectedAccountIds: [accountId],
+    })
+    currentPrice = 210
+    currentTime = new Date('2026-08-17T18:05:10.000Z')
+    await service.priceHoldingsForRead([holding({ accountId })], {
+      saveDailySnapshot: true,
+      selectedAccountIds: [accountId],
+    })
+    currentPrice = 220
+    currentTime = new Date('2026-08-18T18:00:10.000Z')
+    await service.priceHoldingsForRead([holding({ accountId })], {
+      saveDailySnapshot: true,
+      selectedAccountIds: [accountId],
+    })
+
+    await expect(
+      valuationStore.listPerformancePoints({ accountIds: [accountId] }),
+    ).resolves.toMatchObject([
+      {
+        date: '2026-08-17',
+        source: 'daily',
+        totalMarketValue: 2_100,
+        pricedHoldingCount: 1,
+      },
+      {
+        date: '2026-08-18',
+        source: 'daily',
+        totalMarketValue: 2_200,
+        pricedHoldingCount: 1,
+      },
+    ])
   })
 
   it('reprices holdings on read and reuses a fresh server-side quote', async () => {

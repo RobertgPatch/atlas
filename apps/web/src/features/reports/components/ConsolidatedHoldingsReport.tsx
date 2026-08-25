@@ -138,6 +138,11 @@ export function ConsolidatedHoldingsReport() {
             Consolidated view across all connected accounts
           </p>
           <p className="mt-1 text-xs text-gray-400">Last updated: {lastUpdated}</p>
+          {holdings.isMarketRefreshing ? (
+            <p className="mt-1 text-xs font-medium text-primary" aria-live="polite">
+              Updating market values in the background…
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-3">
           {plaidAccounts.accounts.length > 0 ? (

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ConsolidatedHoldingsQuery } from '../../../../../../packages/types/src/reports'
 import { reportsClient } from '../api/reportsClient'
 
@@ -46,18 +46,49 @@ export const consolidatedHoldingsKeys = {
 
 export const useConsolidatedHoldings = () => {
   const queryClient = useQueryClient()
+  const startedMarketRefresh = useRef(false)
+  const [isMarketRefreshing, setIsMarketRefreshing] = useState(false)
   const [filters, setFilters] = useState<ConsolidatedHoldingsFilters>(DEFAULT_FILTERS)
   const queryInput = useMemo(() => toQuery(filters), [filters])
+  const queryKey = useMemo(
+    () => consolidatedHoldingsKeys.report(queryInput),
+    [queryInput],
+  )
 
   const query = useQuery({
-    queryKey: consolidatedHoldingsKeys.report(queryInput),
-    queryFn: () => reportsClient.getConsolidatedHoldings(queryInput),
+    queryKey,
+    queryFn: () =>
+      reportsClient.getConsolidatedHoldings(queryInput, { pricingMode: 'saved' }),
     placeholderData: (previous) => previous,
     staleTime: 0,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
   })
+
+  const refreshMarketValues = useCallback(async () => {
+    setIsMarketRefreshing(true)
+    try {
+      const refreshed = await reportsClient.getConsolidatedHoldings(queryInput, {
+        pricingMode: 'refresh',
+      })
+      queryClient.setQueryData(queryKey, refreshed)
+      await queryClient.invalidateQueries({
+        queryKey: ['reports', 'liquidity-performance'],
+      })
+      return refreshed
+    } finally {
+      setIsMarketRefreshing(false)
+    }
+  }, [queryClient, queryInput, queryKey])
+
+  useEffect(() => {
+    if (!query.data || startedMarketRefresh.current) return
+    startedMarketRefresh.current = true
+    void refreshMarketValues().catch(() => {
+      // Keep the saved values visible when the market-data provider is unavailable.
+    })
+  }, [query.data, refreshMarketValues])
 
   const refresh = useMutation({
     mutationFn: (input?: { force?: boolean }) =>
@@ -83,6 +114,8 @@ export const useConsolidatedHoldings = () => {
     queryInput,
     query,
     refresh,
+    refreshMarketValues,
+    isMarketRefreshing,
     updateFilter,
     clearFilters,
   }

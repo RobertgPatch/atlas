@@ -168,7 +168,7 @@ export interface LiquidityPerformancePoint {
   totalCostBasis: number | null
   totalUnrealizedGainLoss: number | null
   accountCount: number
-  source: 'market_close' | 'custodian_snapshot' | 'current'
+  source: 'market_close' | 'daily_valuation' | 'custodian_snapshot' | 'current'
   capturedAt: string | null
   priceAsOf: string | null
   pricedHoldingCount: number
