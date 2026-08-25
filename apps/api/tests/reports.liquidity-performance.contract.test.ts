@@ -146,7 +146,7 @@ describe('GET /v1/reports/consolidated-holdings/performance contract', () => {
     expect(invalid.statusCode).toBe(400)
   })
 
-  it('prefers the official market-close valuation when both sources share a date', async () => {
+  it('prefers a saved market valuation on the same date without dropping later daily history', async () => {
     await liquidityValuationRepository.saveSnapshot({
       tradingDate: '2026-05-10',
       selectedAccountIds: [accountId],
@@ -187,6 +187,7 @@ describe('GET /v1/reports/consolidated-holdings/performance contract', () => {
     expect(body.points.map((point: { date: string }) => point.date)).toEqual([
       '2026-05-01',
       '2026-05-10',
+      '2026-05-11',
     ])
     expect(body.points.find((point: { date: string }) => point.date === '2026-05-10')).toEqual({
       date: '2026-05-10',
@@ -199,6 +200,10 @@ describe('GET /v1/reports/consolidated-holdings/performance contract', () => {
       priceAsOf: '2026-05-10T20:00:00.000Z',
       pricedHoldingCount: 1,
       fallbackHoldingCount: 0,
+    })
+    expect(body.points.find((point: { date: string }) => point.date === '2026-05-11')).toMatchObject({
+      totalMarketValue: 4_500,
+      source: 'custodian_snapshot',
     })
     expect(body.marketCloseAvailableFrom).toBe('2026-05-10')
   })

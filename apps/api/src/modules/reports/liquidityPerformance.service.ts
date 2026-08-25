@@ -9,7 +9,7 @@ interface LiquidityPerformancePoint {
   totalCostBasis: number | null
   totalUnrealizedGainLoss: number | null
   accountCount: number
-  source: 'market_close' | 'custodian_snapshot'
+  source: 'market_close' | 'daily_valuation' | 'custodian_snapshot'
   capturedAt: string | null
   priceAsOf: string | null
   pricedHoldingCount: number
@@ -49,7 +49,7 @@ export const buildLiquidityPerformanceResponse = async (
     : []
   const accountIds = accounts.map((account) => account.id)
   const accountIdSet = new Set(accountIds)
-  const [snapshots, marketClosePoints] = await Promise.all([
+  const [snapshots, valuationPoints] = await Promise.all([
     plaidRepository.listDashboardHoldingsSnapshots({
       accountIds,
       fromDate: query.from,
@@ -60,12 +60,12 @@ export const buildLiquidityPerformanceResponse = async (
       toDate: query.to,
     }),
   ])
-  const marketCloseAvailableFrom = marketClosePoints[0]?.date ?? null
+  const marketCloseAvailableFrom =
+    valuationPoints.find((point) => point.source === 'market_close')?.date ?? null
 
   const pointByDate = new Map<string, LiquidityPerformancePoint>()
   for (const snapshot of snapshots) {
     const date = snapshotDate(snapshot)
-    if (marketCloseAvailableFrom && date >= marketCloseAvailableFrom) continue
     if (pointByDate.has(date)) continue
 
     const holdings = plaidRepository
@@ -89,11 +89,11 @@ export const buildLiquidityPerformanceResponse = async (
     })
   }
 
-  for (const point of marketClosePoints) {
+  for (const point of valuationPoints) {
     if (query.from && point.date < query.from) continue
     pointByDate.set(point.date, {
       ...point,
-      source: 'market_close',
+      source: point.source === 'market_close' ? 'market_close' : 'daily_valuation',
     })
   }
 

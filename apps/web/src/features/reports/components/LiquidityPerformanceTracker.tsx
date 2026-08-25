@@ -256,7 +256,7 @@ export function LiquidityPerformanceTracker({
               </h3>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Portfolio value change from saved market-close snapshots
+              Portfolio value change from saved daily snapshots
             </p>
           </div>
 
@@ -357,7 +357,7 @@ export function LiquidityPerformanceTracker({
           <CalendarRangeIcon className="h-7 w-7 text-gray-400" aria-hidden="true" />
           <p className="mt-3 text-sm font-semibold text-gray-900">No snapshots in this range</p>
           <p className="mt-1 max-w-md text-xs leading-5 text-gray-500">
-            Choose a wider range. Performance tracking begins after the first market-close snapshot is saved.
+            Choose a wider range. Performance tracking begins after the first daily snapshot is saved.
           </p>
         </div>
       ) : (
@@ -374,6 +374,8 @@ export function LiquidityPerformanceTracker({
                 <p className="mt-1 text-[11px] font-medium text-gray-400">
                   {activePoint.source === 'market_close'
                     ? `Official close · ${activePoint.pricedHoldingCount} priced${activePoint.fallbackHoldingCount > 0 ? ` · ${activePoint.fallbackHoldingCount} custodian fallback` : ''}`
+                    : activePoint.source === 'daily_valuation'
+                      ? `Saved daily valuation · ${activePoint.pricedHoldingCount} market priced${activePoint.fallbackHoldingCount > 0 ? ` · ${activePoint.fallbackHoldingCount} custodian fallback` : ''}`
                     : activePoint.source === 'current'
                       ? 'Current valuation · awaiting the next market close'
                       : 'Historical custodian snapshot'}
@@ -397,7 +399,7 @@ export function LiquidityPerformanceTracker({
           {valuedPoints.length === 1 ? (
             <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 px-6 text-center">
               <p className="max-w-md text-sm leading-6 text-gray-500">
-                One snapshot is available. The first change will appear after the next market close.
+                One snapshot is available. The first change will appear after the next daily snapshot.
               </p>
             </div>
           ) : (
@@ -409,7 +411,7 @@ export function LiquidityPerformanceTracker({
           )}
 
           <p className="mt-2 px-2 text-[11px] leading-5 text-gray-400 sm:px-0">
-            Saved after each U.S. market close. Earlier custodian snapshots remain visible until enough closing history accumulates. Value change includes deposits, withdrawals, and market movement; it is not a time-weighted investment return.
+            Saved once per day and finalized after each U.S. market close. Custodian snapshots fill dates without a saved market valuation. Value change includes deposits, withdrawals, and market movement; it is not a time-weighted investment return.
           </p>
         </div>
       )}

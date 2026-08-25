@@ -12,6 +12,7 @@
     "reconcile:k1-extractions": "node dist/scripts/run-k1-extraction-reconciler.js",
     "evaluate:k1-bda": "tsx src/scripts/evaluate-k1-bda.ts",
     "refresh-market-prices": "node dist/scripts/run-market-price-refresh.js",
+    "backfill-market-prices": "tsx src/scripts/backfill-market-price-snapshots.ts",
     "test": "vitest run"
   },
   "dependencies": {

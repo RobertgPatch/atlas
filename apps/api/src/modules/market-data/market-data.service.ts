@@ -112,7 +112,11 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
 
   const priceHoldingsForRead = async (
     holdings: SourceHoldingRecord[],
-    request: { refreshStale?: boolean } = {},
+    request: {
+      refreshStale?: boolean
+      saveDailySnapshot?: boolean
+      selectedAccountIds?: string[]
+    } = {},
   ): Promise<PricedHoldingsResult> => {
     const symbols = [
       ...new Set(
@@ -230,23 +234,89 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
               ? 'delayed'
               : 'live'
 
+    const pricing: HoldingsPricingMetadata = {
+      status,
+      provider:
+        usedProviders.length === 1
+          ? usedProviders[0]!
+          : usedProviders.length > 1
+            ? options.provider?.id ?? null
+            : options.provider?.id ?? null,
+      feed: usedFeeds.length === 1 ? usedFeeds[0]! : (options.provider?.feed ?? null),
+      priceAsOf: latestIso(usedPrices.map((price) => price.providerTimestamp)),
+      refreshedAt: latestIso(usedPrices.map((price) => price.receivedAt)),
+      pricedHoldingCount,
+      fallbackHoldingCount,
+      warnings,
+    }
+
+    if (request.saveDailySnapshot && options.valuationStore && repriced.length > 0) {
+      const valuationDate = easternTradingDate(now())
+      const valuationKind =
+        usedPrices.length > 0 &&
+        usedPrices.every(
+          (price) =>
+            price.priceType === 'official_close' && price.tradingDate === valuationDate,
+        )
+          ? 'market_close'
+          : 'daily'
+      const positions: LiquidityValuationPositionInput[] = repriced.map((holding) => {
+        const symbol = normalizedSymbolFor(holding)
+        const price = symbol ? bySymbol.get(symbol) : undefined
+        return {
+          sourceHoldingId: holding.id,
+          accountId: holding.accountId,
+          symbol: holding.symbol,
+          description: holding.description,
+          securityType: holding.type,
+          currencyCode: holding.currencyCode,
+          quantity: holding.quantity,
+          costBasis: holding.costBasis,
+          closingPrice: holding.institutionPrice,
+          marketValue: holding.marketValue,
+          unrealizedGainLoss: holding.unrealizedGainLoss,
+          valuationSource: price
+            ? price.priceType === 'official_close'
+              ? 'official_close'
+              : 'market_price'
+            : 'custodian_fallback',
+          provider: price?.provider ?? null,
+          feed: price?.feed ?? null,
+          priceAsOf: price?.providerTimestamp ?? holding.asOfDate,
+        }
+      })
+
+      try {
+        await options.valuationStore.saveSnapshot({
+          valuationKind,
+          tradingDate: valuationDate,
+          selectedAccountIds:
+            request.selectedAccountIds ?? [
+              ...new Set(repriced.map((holding) => holding.accountId)),
+            ],
+          provider: pricing.provider,
+          feed: pricing.feed,
+          priceAsOf: pricing.priceAsOf,
+          capturedAt: now().toISOString(),
+          positions,
+          warnings,
+        })
+      } catch (error) {
+        console.warn(
+          JSON.stringify({
+            event: 'liquidity_daily_valuation_save_failed',
+            errorName: error instanceof Error ? error.name : 'UnknownError',
+          }),
+        )
+        warnings.push(
+          'Current market values were displayed but the daily valuation could not be saved.',
+        )
+      }
+    }
+
     return {
       holdings: repriced,
-      pricing: {
-        status,
-        provider:
-          usedProviders.length === 1
-            ? usedProviders[0]!
-            : usedProviders.length > 1
-              ? options.provider?.id ?? null
-              : options.provider?.id ?? null,
-        feed: usedFeeds.length === 1 ? usedFeeds[0]! : (options.provider?.feed ?? null),
-        priceAsOf: latestIso(usedPrices.map((price) => price.providerTimestamp)),
-        refreshedAt: latestIso(usedPrices.map((price) => price.receivedAt)),
-        pricedHoldingCount,
-        fallbackHoldingCount,
-        warnings,
-      },
+      pricing,
     }
   }
 
@@ -367,6 +437,7 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     ]
     const savedSnapshot = options.valuationStore
       ? await options.valuationStore.saveSnapshot({
+          valuationKind: 'market_close',
           tradingDate,
           selectedAccountIds: [
             ...new Set(holdings.map((holding) => holding.accountId)),

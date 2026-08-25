@@ -284,6 +284,14 @@ export const buildConsolidatedHoldingsResponse = async (
   const { holdings: filteredSource, pricing } =
     await marketDataService.priceHoldingsForRead(filteredHoldings, {
       refreshStale: query.pricingMode !== 'saved',
+      saveDailySnapshot:
+        query.pricingMode === 'refresh' &&
+        !query.search &&
+        !query.custodian &&
+        !query.accountId &&
+        !query.type &&
+        !query.gainLossState,
+      selectedAccountIds,
     })
 
   const groups = new Map<

@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto'
 import { pool, withTransaction } from '../../infra/db/client.js'
 
-export type LiquidityValuationSource = 'official_close' | 'custodian_fallback'
+export type LiquidityValuationKind = 'market_close' | 'daily'
+
+export type LiquidityValuationSource =
+  | 'official_close'
+  | 'market_price'
+  | 'custodian_fallback'
 
 export interface LiquidityValuationPositionInput {
   sourceHoldingId: string
@@ -22,6 +27,7 @@ export interface LiquidityValuationPositionInput {
 }
 
 export interface SaveLiquidityValuationInput {
+  valuationKind?: LiquidityValuationKind
   tradingDate: string
   selectedAccountIds: string[]
   provider: string | null
@@ -40,6 +46,7 @@ export interface SavedLiquidityValuation {
 
 export interface LiquidityValuationPerformancePoint {
   date: string
+  source: LiquidityValuationKind
   totalMarketValue: number | null
   totalCostBasis: number | null
   totalUnrealizedGainLoss: number | null
@@ -67,6 +74,7 @@ interface MemorySnapshot extends SaveLiquidityValuationInput {
 
 interface PerformanceRow {
   trading_date: Date | string
+  valuation_kind: LiquidityValuationKind
   captured_at: Date | string
   price_as_of: Date | string | null
   total_market_value_amount: number | string | null
@@ -99,6 +107,7 @@ const numericValue = (value: number | string | null): number | null =>
 
 const toPerformancePoint = (row: PerformanceRow): LiquidityValuationPerformancePoint => ({
   date: dateValue(row.trading_date),
+  source: row.valuation_kind,
   totalMarketValue: numericValue(row.total_market_value_amount),
   totalCostBasis: numericValue(row.total_cost_basis_amount),
   totalUnrealizedGainLoss: numericValue(row.total_unrealized_gain_loss_amount),
@@ -118,6 +127,7 @@ const aggregateSnapshot = (
 
   return {
     date: snapshot.tradingDate,
+    source: snapshot.valuationKind ?? 'market_close',
     totalMarketValue: sumKnown(positions.map((position) => position.marketValue)),
     totalCostBasis: sumKnown(positions.map((position) => position.costBasis)),
     totalUnrealizedGainLoss: sumKnown(
@@ -127,7 +137,7 @@ const aggregateSnapshot = (
     capturedAt: snapshot.capturedAt,
     priceAsOf: snapshot.priceAsOf,
     pricedHoldingCount: positions.filter(
-      (position) => position.valuationSource === 'official_close',
+      (position) => position.valuationSource !== 'custodian_fallback',
     ).length,
     fallbackHoldingCount: positions.filter(
       (position) => position.valuationSource === 'custodian_fallback',
@@ -149,8 +159,19 @@ export const createInMemoryLiquidityValuationStore = (): LiquidityValuationStore
           snapshot.tradingDate === input.tradingDate &&
           snapshot.accountSelectionKey === key,
       )
+      if (
+        existing?.valuationKind === 'market_close' &&
+        input.valuationKind === 'daily'
+      ) {
+        return {
+          id: existing.id,
+          tradingDate: existing.tradingDate,
+          capturedAt: existing.capturedAt,
+        }
+      }
       const saved: MemorySnapshot = {
         ...input,
+        valuationKind: input.valuationKind ?? 'market_close',
         id: existing?.id ?? randomUUID(),
         selectedAccountIds: normalizedIds,
         accountSelectionKey: key,
@@ -207,7 +228,7 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
       input.positions.map((position) => position.unrealizedGainLoss),
     )
     const pricedHoldingCount = input.positions.filter(
-      (position) => position.valuationSource === 'official_close',
+      (position) => position.valuationSource !== 'custodian_fallback',
     ).length
     const fallbackHoldingCount = input.positions.length - pricedHoldingCount
 
@@ -239,16 +260,17 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
       const id = randomUUID()
       const snapshotResult = await client.query<{ id: string; captured_at: Date | string }>(
         `insert into liquidity_valuation_snapshots (
-           id, trading_date, account_selection_key, selected_account_ids, provider, feed,
+           id, valuation_kind, trading_date, account_selection_key, selected_account_ids, provider, feed,
            price_as_of, captured_at, total_market_value_amount, total_cost_basis_amount,
            total_unrealized_gain_loss_amount, account_count, holding_count,
            priced_holding_count, fallback_holding_count, warnings, updated_at
          ) values (
-           $1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-           $16::jsonb, $8
+           $1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+           $17::jsonb, $9
          )
          on conflict (trading_date, account_selection_key)
          do update set
+           valuation_kind = excluded.valuation_kind,
            selected_account_ids = excluded.selected_account_ids,
            provider = excluded.provider,
            feed = excluded.feed,
@@ -263,9 +285,12 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
            fallback_holding_count = excluded.fallback_holding_count,
            warnings = excluded.warnings,
            updated_at = excluded.updated_at
+         where liquidity_valuation_snapshots.valuation_kind <> 'market_close'
+            or excluded.valuation_kind = 'market_close'
          returning id, captured_at`,
         [
           id,
+          input.valuationKind ?? 'market_close',
           input.tradingDate,
           key,
           JSON.stringify(normalizedIds),
@@ -283,7 +308,24 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
           JSON.stringify(input.warnings),
         ],
       )
-      const snapshot = snapshotResult.rows[0]!
+      const snapshot = snapshotResult.rows[0]
+      if (!snapshot) {
+        const preservedResult = await client.query<{
+          id: string
+          captured_at: Date | string
+        }>(
+          `select id, captured_at
+           from liquidity_valuation_snapshots
+           where trading_date = $1 and account_selection_key = $2`,
+          [input.tradingDate, key],
+        )
+        const preserved = preservedResult.rows[0]!
+        return {
+          id: preserved.id,
+          tradingDate: input.tradingDate,
+          capturedAt: isoValue(preserved.captured_at),
+        }
+      }
       await client.query(
         'delete from liquidity_valuation_positions where valuation_snapshot_id = $1',
         [snapshot.id],
@@ -356,23 +398,23 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
 
     const result = await pool.query<PerformanceRow>(
       `with ranked as (
-         select id, trading_date, captured_at, price_as_of,
+         select id, valuation_kind, trading_date, captured_at, price_as_of,
            row_number() over (partition by trading_date order by captured_at desc, updated_at desc) as rank
          from liquidity_valuation_snapshots
          where ${conditions.join(' and ')}
        ), chosen as (
-         select id, trading_date, captured_at, price_as_of
+         select id, valuation_kind, trading_date, captured_at, price_as_of
          from ranked
          where rank = 1
          order by trading_date desc
          limit $${params.length - 1}
        )
-       select chosen.trading_date, chosen.captured_at, chosen.price_as_of,
+       select chosen.trading_date, chosen.valuation_kind, chosen.captured_at, chosen.price_as_of,
          sum(position.market_value_amount) as total_market_value_amount,
          sum(position.cost_basis_amount) as total_cost_basis_amount,
          sum(position.unrealized_gain_loss_amount) as total_unrealized_gain_loss_amount,
          count(distinct position.plaid_investment_account_id) as account_count,
-         count(*) filter (where position.valuation_source = 'official_close') as priced_holding_count,
+         count(*) filter (where position.valuation_source <> 'custodian_fallback') as priced_holding_count,
          count(*) filter (where position.valuation_source = 'custodian_fallback') as fallback_holding_count
        from chosen
        join liquidity_valuation_positions position
@@ -380,7 +422,7 @@ export const liquidityValuationRepository: LiquidityValuationStore & {
        join plaid_investment_accounts account
          on account.id = position.plaid_investment_account_id
         and account.plaid_account_id = any($${accountIdsParam}::text[])
-       group by chosen.id, chosen.trading_date, chosen.captured_at, chosen.price_as_of
+       group by chosen.id, chosen.valuation_kind, chosen.trading_date, chosen.captured_at, chosen.price_as_of
        order by chosen.trading_date asc`,
       params,
     )
