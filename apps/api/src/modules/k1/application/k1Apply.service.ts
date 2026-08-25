@@ -21,6 +21,7 @@ export interface ApplyK1Input {
   applicationId: string
   expectedDocumentVersion: number
   expectedTrackerRevision: number
+  inceptionYear?: boolean
   decisions: Array<{
     decisionId: string
     decision: 'USE_EXTRACTED' | 'KEEP_EXISTING' | 'SKIP_UNMAPPED'
@@ -36,6 +37,46 @@ interface ApplicationRow {
   expected_document_version: number; expected_tracker_revision: number
   status: 'PREVIEWED' | 'APPLIED' | 'STALE' | 'FAILED' | 'CANCELLED'
   preview_expires_at: Date; applied_at: Date | null; created_at: Date
+}
+
+const applyInceptionYearDefaults = async (
+  client: Parameters<Parameters<typeof withTransaction>[0]>[0],
+  trackerYear: { id: string; partnership_id: string; tax_year: number },
+  actorUserId: string,
+): Promise<boolean> => {
+  const conflict = await client.query<{ tax_year: number }>(
+    `select tax_year from k1_tracker_years
+      where partnership_id = $1 and id <> $2
+        and (tax_year < $3 or is_inception_year)
+      order by tax_year limit 1`,
+    [trackerYear.partnership_id, trackerYear.id, trackerYear.tax_year],
+  )
+  if (conflict.rows[0]) {
+    throw Object.assign(new Error('INCEPTION_YEAR_CONFLICT'), {
+      code: 'INCEPTION_YEAR_CONFLICT',
+      conflictingTaxYear: conflict.rows[0].tax_year,
+    })
+  }
+
+  await client.query('update k1_tracker_years set is_inception_year = true where id = $1', [trackerYear.id])
+  let changed = false
+  for (const fieldKey of ['opening_outside_basis', 'opening_suspended_loss', 'section_l_beginning_capital']) {
+    const existing = await client.query<{ id: string }>(
+      'select id from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and is_active for update',
+      [trackerYear.id, fieldKey],
+    )
+    if (existing.rows[0]) continue
+    await client.query(
+      `insert into k1_tracker_value_revisions
+         (id, tracker_year_id, field_key, amount, original_source_text,
+          source_type, is_active, created_by_user_id)
+       values ($1, $2, $3, '0.00', 'Defaulted because this K-1 is the inception year',
+          'SYSTEM_DEFAULT', true, $4)`,
+      [randomUUID(), trackerYear.id, fieldKey, actorUserId],
+    )
+    changed = true
+  }
+  return changed
 }
 
 const idempotentResponse = async (
@@ -172,6 +213,10 @@ export const applyReviewedK1 = async (args: ApplyK1Input): Promise<K1ApplyRespon
       }
     }
   }
+  if (args.inceptionYear) {
+    const inceptionDefaultsChanged = await applyInceptionYearDefaults(client, trackerYear, args.actorUserId)
+    propagationRequired ||= inceptionDefaultsChanged
+  }
   failAt('after_revisions')
   if (officialChanged) {
     const snapshot = await k1OfficialRevisionRepository.rebuildSnapshot(client, trackerYear.id)
@@ -207,7 +252,7 @@ export const applyReviewedK1 = async (args: ApplyK1Input): Promise<K1ApplyRespon
   }
   await auditRepository.record({
     actorUserId: args.actorUserId, eventName: 'k1.document_applied', objectType: 'k1_document', objectId: document.id,
-    after: { applicationId: application.id, extractionAttemptId: application.extraction_attempt_id, trackerYearId: trackerYear.id, decisions: args.decisions.map((decision) => ({ decisionId: decision.decisionId, decision: decision.decision })) },
+    after: { applicationId: application.id, extractionAttemptId: application.extraction_attempt_id, trackerYearId: trackerYear.id, inceptionYear: args.inceptionYear === true, decisions: args.decisions.map((decision) => ({ decisionId: decision.decisionId, decision: decision.decision })) },
   }, client)
   failAt('before_commit')
   return {

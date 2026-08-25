@@ -35,7 +35,7 @@ const FORBIDDEN = [
   { pattern: /require\(\s*['"]@mui\//, label: '@mui/*' },
   { pattern: /specs\/002-k1-ingestion\/reference\//, label: 'specs/002-k1-ingestion/reference/**' },
   { pattern: /specs\/003-review-and-finalization\/reference\//, label: 'specs/003-review-and-finalization/reference/**' },
-  { pattern: /from\s+['"]pdfjs-dist/, label: 'pdfjs-dist (wrap via packages/ui/PdfPreview instead)' },
+  { pattern: /from\s+['"]pdfjs-dist/, label: 'pdfjs-dist (keep rendering inside the shared PdfPanel owner)' },
 ]
 
 const collectFiles = (path) => {

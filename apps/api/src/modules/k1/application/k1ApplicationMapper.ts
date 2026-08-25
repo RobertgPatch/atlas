@@ -11,6 +11,7 @@ import {
   K1_OFFICIAL_DESTINATIONS,
   type K1CalculationMappingPolicy,
 } from '../extraction/k1DestinationInventory.js'
+import { normalizeK1PrintedCode } from '../extraction/k1DraftValidation.js'
 
 export interface K1MappedApplicationValue {
   destinationKind: 'CALCULATION' | 'OFFICIAL'
@@ -40,10 +41,10 @@ const normalizeMoney = (value: unknown, fieldKey: K1TrackerFieldKey): string | n
   return centsToMoney(normalized)
 }
 
-const codeEntry = (value: unknown): { code: string; value: string } | null => {
+const codeEntry = (value: unknown, destinationKey: K1TrackerOfficialFormFieldKey): { code: string; value: string } | null => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const row = value as Record<string, unknown>
-  const code = String(row.code ?? '').trim()
+  const code = normalizeK1PrintedCode(`official.${destinationKey}`, String(row.code ?? ''))
   const amount = row.value ?? row.amount ?? ''
   const normalizedValue = typeof amount === 'number' ? centsToMoney(BigInt(Math.round(amount * 100)))! : String(amount).trim()
   if (!code && !normalizedValue) return null
@@ -66,7 +67,10 @@ const reviewedCodeRow = (field: DurableK1FieldValueRecord): ReviewedCodeRow | nu
   if (parsed == null) return null
   return {
     field,
-    code: String(row.code ?? '').trim().toUpperCase().replace(/\*+$/, ''),
+    code: normalizeK1PrintedCode(
+      field.canonicalPath ?? `official.${field.destinationKey ?? ''}`,
+      String(row.code ?? ''),
+    ).replace(/\*+$/, ''),
     amount: parsed,
   }
 }
@@ -113,6 +117,7 @@ export const mapReviewedK1ApplicationValues = (
     if (value == null && effective(destinationFields[0]) != null) {
       throw Object.assign(new Error('INVALID_CALCULATION_VALUE'), { code: 'INVALID_CALCULATION_VALUE', destinationKey: key })
     }
+    if (key === 'section_l_withdrawals_distributions' && value === null) continue
     const role = trackerFieldByKey.get(key)?.role
     mapped.push({
       destinationKind: 'CALCULATION', destinationKey: key, value,
@@ -231,7 +236,7 @@ export const mapReviewedK1ApplicationValues = (
     const key = rawKey as K1TrackerOfficialFormFieldKey
     let value: K1TrackerOfficialFormValue
     if (repeatedOfficial.has(key)) {
-      value = destinationFields.map((field) => codeEntry(effective(field))).filter((entry): entry is { code: string; value: string } => entry !== null)
+      value = destinationFields.map((field) => codeEntry(effective(field), key)).filter((entry): entry is { code: string; value: string } => entry !== null)
     } else {
       if (destinationFields.length !== 1) {
         throw Object.assign(new Error('DUPLICATE_OFFICIAL_DESTINATION'), { code: 'DUPLICATE_OFFICIAL_DESTINATION', destinationKey: key })

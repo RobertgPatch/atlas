@@ -267,6 +267,7 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     expect(screen.getByRole('heading', { name: 'Double-check 1 extracted value' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Check Part III · Line 13 · Code W' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save verified K-1 to tax basis' })).toBeEnabled()
+    expect(screen.getByRole('checkbox', { name: /This K-1 is the partnership’s inception year/i })).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Save verified K-1 to tax basis' })).toHaveClass(
       'bg-primary',
       'hover:bg-primary-hover',
@@ -324,6 +325,18 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     await screen.findByRole('heading', { name: 'K-1 saved to tax basis' })
   })
 
+  it('applies inception-year defaults when the reviewer selects the upload option', async () => {
+    const user = userEvent.setup()
+    renderWorkspace()
+
+    await user.click(screen.getByRole('checkbox', { name: /This K-1 is the partnership’s inception year/i }))
+    await user.click(screen.getByRole('button', { name: 'Save verified K-1 to tax basis' }))
+
+    await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({
+      inceptionYear: true,
+    })))
+  })
+
   it('blocks the single save button until a required extracted value is completed', async () => {
     const session = baseSession()
     session.fields.core = session.fields.core.map((item) => item.canonicalPath === 'official.part_i_a_partnership_ein'
@@ -334,7 +347,7 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     expect(await screen.findByRole('button', { name: 'Complete 1 required field' })).toBeDisabled()
   })
 
-  it('opens the saved partnership year directly in K-1 history', async () => {
+  it('opens the saved partnership year directly in K-1 history from the top and bottom actions', async () => {
     const user = userEvent.setup()
     const session = baseSession()
     session.status = 'FINALIZED'
@@ -347,7 +360,11 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
       <Route path="/partnership-tracker" element={<Location />} />
     </Routes></MemoryRouter>)
 
-    await user.click(await screen.findByRole('button', { name: /Open K-1 history/i }))
+    const historyButtons = await screen.findAllByRole('button', { name: /Open K-1 history/i })
+    expect(historyButtons).toHaveLength(2)
+    expect(screen.getByRole('region', { name: 'K-1 history navigation' })).toHaveTextContent('manual inputs')
+
+    await user.click(historyButtons.at(-1)!)
     const params = new URLSearchParams(screen.getByTestId('location').textContent ?? '')
     expect(params.get('partnership')).toBe(partnershipId)
     expect(params.get('year')).toBe('2025')

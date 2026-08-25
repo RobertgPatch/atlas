@@ -79,7 +79,7 @@ All Technical Context items in `plan.md` resolved; no `NEEDS CLARIFICATION` mark
   V1 implementation is an in-process stub that: (a) sleeps briefly to exercise the `PROCESSING` state, (b) produces a deterministic set of `k1_field_values` keyed off file size, and (c) opens 0–3 `k1_issues` rows.
 - **Rationale**: This feature's user-visible contract is lifecycle + issues + row visibility, not extraction accuracy. Isolating the extractor prevents coupling the UI spec to a specific ML implementation and keeps SC-010 (upload → visible `Uploaded` row < 5 s) achievable against any future extractor.
 - **Alternatives considered**:
-  - Integrate a real extractor (e.g., Textract, Azure Document Intelligence) now: rejected — extractor selection is its own decision with compliance implications for a financial system.
+  - Integrate a managed extraction provider now: rejected — extractor selection is its own decision with compliance implications for a financial system.
   - Synchronous extraction on upload thread: rejected — upload response would couple to extraction latency; user would see no `Processing` state.
 
 ## Decision 9: Extraction runs in-process on V1; no queue

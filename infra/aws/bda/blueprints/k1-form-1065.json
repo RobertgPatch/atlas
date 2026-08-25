@@ -150,7 +150,7 @@
     "calculation__section_l_withdrawals_distributions": {
       "type": "string",
       "inferenceType": "explicit",
-      "instruction": "Visible Schedule K-1 line L value for section l withdrawals distributions. Preserve printed sign and parentheses; do not calculate."
+      "instruction": "Visible Schedule K-1 line L value for section l withdrawals distributions. Preserve printed sign and parentheses; do not calculate. If the cell contains only currency marks or accounting parentheses with no digits, return an empty string rather than the punctuation."
     },
     "calculation__section_l_ending_capital": {
       "type": "string",
@@ -396,7 +396,7 @@
     "official__box_20_entries": {
       "type": "array",
       "inferenceType": "explicit",
-      "instruction": "Return only actually populated Schedule K-1 line 20 rows. Read the code and value from the same physical line: an amount printed as 20A must have code A, and statement rows such as Z* or AG* must retain the asterisk. Never copy a line 19 distribution amount into line 20 and never emit an uncoded numeric line 20 row when a code is visibly present. Do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
+      "instruction": "Return only actually populated Schedule K-1 line 20 rows. Read the code and value from the same physical line: an amount printed as 20A must have code A, and statement rows such as Z* or AG* must retain the asterisk. Never copy a line 19 distribution amount into line 20. A line 20 row described as Distributions or Cash and marketable securities is invalid because those descriptions belong to line 19; omit it. When both 19A and 20A are populated, read their amounts independently from their own physical lines. Never emit an uncoded numeric line 20 row when a code is visibly present. Do not extract blank code-taxonomy labels. Each item must be compact JSON with code, description, and amount. Preserve row order.",
       "items": {
         "type": "string"
       }

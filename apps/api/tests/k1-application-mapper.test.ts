@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mapReviewedK1ApplicationValues } from '../src/modules/k1/application/k1ApplicationMapper.js'
 import type { DurableK1FieldValueRecord } from '../src/modules/review/review.repository.js'
 
-const reviewedSectionLWithdrawal = (normalizedValue: string): DurableK1FieldValueRecord => ({
+const reviewedSectionLWithdrawal = (normalizedValue: string | null): DurableK1FieldValueRecord => ({
   id: 'field-1',
   k1DocumentId: 'document-1',
   extractionAttemptId: 'attempt-1',
@@ -32,7 +32,7 @@ const reviewedSectionLWithdrawal = (normalizedValue: string): DurableK1FieldValu
 
 const reviewedCodeRow = (
   id: string,
-  destinationKey: 'box_11_entries' | 'box_13_entries' | 'box_18_entries' | 'box_19_entries' | 'box_21_entries',
+  destinationKey: 'box_11_entries' | 'box_13_entries' | 'box_18_entries' | 'box_19_entries' | 'box_20_entries' | 'box_21_entries',
   code: string,
   amount: string | null,
 ): DurableK1FieldValueRecord => ({
@@ -57,6 +57,10 @@ describe('reviewed K-1 application mapping', () => {
         destinationKey: 'section_l_withdrawals_distributions',
         value: '-250.00',
       }))
+  })
+
+  it('omits a blank Section L withdrawals value instead of applying a zero or null field', () => {
+    expect(mapReviewedK1ApplicationValues([reviewedSectionLWithdrawal(null)])).toEqual([])
   })
 
   it('preserves a negative Line 19 distribution from the reviewed K-1', () => {
@@ -133,6 +137,18 @@ describe('reviewed K-1 application mapping', () => {
 
     expect(mapped.some((value) => value.destinationKind === 'CALCULATION'
       && value.destinationKey === 'box_13_other_deductions')).toBe(false)
+  })
+
+  it('removes a repeated printed line number from an official code', () => {
+    const mapped = mapReviewedK1ApplicationValues([
+      reviewedCodeRow('box-20-a', 'box_20_entries', '20A', '7469.00'),
+    ])
+
+    expect(mapped).toContainEqual(expect.objectContaining({
+      destinationKind: 'OFFICIAL',
+      destinationKey: 'box_20_entries',
+      value: [{ code: 'A', value: '7469.00' }],
+    }))
   })
 
   it('applies the legacy Item J sale/exchange fields as one combined checkbox', () => {

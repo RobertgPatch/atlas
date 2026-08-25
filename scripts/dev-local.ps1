@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
   [ValidateSet('stub', 'bda')]
-  [string]$K1Mode = 'stub'
+  [string]$K1Mode = 'bda'
 )
 
 $ErrorActionPreference = 'Stop'

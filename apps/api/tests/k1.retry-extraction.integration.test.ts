@@ -50,7 +50,7 @@ durable('K-1 extraction retry', () => {
     const attempt = await k1ExtractionAttemptRepository.createOrGet({
       k1DocumentId,
       requestedAttemptNumber: 1,
-      provider: 'AWS_BDA',
+      provider: config.k1ExtractorBackend === 'aws_bda' ? 'STUB' : 'AWS_BDA',
       mappingSchemaVersion: config.k1Ingestion.bda.mappingSchemaVersion,
     })
     await k1ExtractionAttemptRepository.markFailed({
@@ -108,6 +108,7 @@ durable('K-1 extraction retry', () => {
       completedAt: attempts[0].completedAt?.toISOString(),
     }).toEqual(beforeAttemptSnapshot)
     expect(attempts[1]).toMatchObject({ status: 'CREATED', attemptNumber: 2 })
+    expect(attempts[1].provider).toBe(config.k1ExtractorBackend === 'aws_bda' ? 'AWS_BDA' : 'STUB')
     expect((await durableK1BatchRepository.getItemById(itemId))?.status).toBe('QUEUED')
 
     const afterDocument = await durableK1Repository.getById(k1DocumentId)

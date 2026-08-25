@@ -14,6 +14,7 @@ export const K1_TRACKER_SOURCE_TYPES = [
   'MANUAL_ENTRY',
   'MANUAL_OVERRIDE',
   'CARRYFORWARD',
+  'SYSTEM_DEFAULT',
 ] as const
 
 export type K1TrackerSourceType = (typeof K1_TRACKER_SOURCE_TYPES)[number]
@@ -256,6 +257,7 @@ export interface K1TrackerCashFlowEvent {
 export interface K1TrackerYearDetail {
   partnershipId: string
   taxYear: number
+  isInceptionYear: boolean
   status: K1TrackerWorkflowStatus
   revision: number
   officialFormData: K1TrackerOfficialFormData

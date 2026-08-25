@@ -176,3 +176,10 @@ secrets/
 !infra/aws/terraform/modules/secrets/*.tf
 aws-exports.*
 cdk.context.json
+
+# First-pass pruning: machine-local/generated artifacts
+/tmp/
+/new_k1.pdf
+/apps/api/tmp-live-k1-check.mjs
+/design-qa.md
+/tic-registry.html

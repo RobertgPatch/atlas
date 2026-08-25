@@ -7,7 +7,7 @@
 - Docker Desktop running for durable PostgreSQL tests
 - An Atlas Admin user and at least one entity
 
-Partnership Tracker v1 uses manual K-1 entry. No workbook, PDF, OCR, Azure, AWS, or model credential is required.
+Partnership Tracker v1 uses manual K-1 entry. No workbook, PDF, external extraction service, or model credential is required.
 
 ## 2. Start the Application
 

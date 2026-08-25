@@ -15,6 +15,7 @@ export interface TrackerYearRow extends QueryResultRow {
   entity_id: string
   partnership_id: string
   tax_year: number
+  is_inception_year: boolean
   workflow_status: K1TrackerWorkflowStatus
   revision: number
   source_conflict_count: number

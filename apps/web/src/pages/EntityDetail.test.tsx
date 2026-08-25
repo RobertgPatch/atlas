@@ -78,11 +78,11 @@ vi.mock('../auth/sessionStore', () => ({
 
 vi.mock('../auth/authClient', () => ({ authClient: { logout: vi.fn() } }))
 
-function renderDetail() {
+function renderDetail(magicPatternDesigns = true) {
   return render(
     <MemoryRouter initialEntries={['/entities/e-1']}>
       <Routes>
-        <Route path="/entities/:id" element={<EntityDetail magicPatternDesigns />} />
+        <Route path="/entities/:id" element={<EntityDetail magicPatternDesigns={magicPatternDesigns} />} />
         <Route path="/entities" element={<div>Entity directory</div>} />
       </Routes>
     </MemoryRouter>,
@@ -125,5 +125,14 @@ describe('Magic Patterns entity detail', () => {
     expect(
       screen.getByText(/along with its links to owners, partnerships, and investments/i),
     ).toBeTruthy()
+  })
+
+  it('preserves the legacy detail experience when the flag is disabled', () => {
+    renderDetail(false)
+
+    expect(screen.getByTestId('app-sidebar-panel')).toHaveAttribute('data-design-variant', 'legacy')
+    expect(screen.getByRole('heading', { name: 'Jackson Family Trust' })).toBeTruthy()
+    expect(screen.getAllByText('Partnerships').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Remove entity' })).toBeNull()
   })
 })

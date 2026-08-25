@@ -22,8 +22,17 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
 }))
 
 vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace', () => ({
-  MagicPatternPartnershipWorkspace: ({ detail, onBack }: { detail: { id: string }; onBack: () => void }) => (
-    <section aria-label="Partnership management">
+  MagicPatternPartnershipWorkspace: ({ detail, area, selectedYear, onBack }: {
+    detail: { id: string }
+    area: string
+    selectedYear?: number
+    onBack: () => void
+  }) => (
+    <section
+      aria-label="Partnership management"
+      data-area={area}
+      data-year={selectedYear === undefined ? 'unset' : String(selectedYear)}
+    >
       Workspace {detail.id}
       <button type="button" onClick={onBack}>Investment tracker</button>
     </section>
@@ -44,9 +53,9 @@ function CurrentLocation() {
   return <output aria-label="Current location">{location.pathname}{location.search}</output>
 }
 
-function renderTracker(canEdit = true) {
+function renderTracker(canEdit = true, initialEntry = '/investment-tracker') {
   return render(
-    <MemoryRouter initialEntries={['/investment-tracker']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <MagicPatternInvestmentTrackerPageContent canEdit={canEdit} />
       <CurrentLocation />
     </MemoryRouter>,
@@ -87,5 +96,32 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
     renderTracker(false)
 
     expect(screen.queryByRole('button', { name: 'Add partnership' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['cash-activity', 'capital-activity'],
+    ['k1', 'k1-history'],
+    ['capital', 'valuations'],
+    ['assets', 'underlying-assets'],
+  ])('maps the legacy %s area alias to %s', (alias, expectedArea) => {
+    renderTracker(true, `/investment-tracker?partnership=p-1&area=${alias}`)
+    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
+      'data-area',
+      expectedArea,
+    )
+  })
+
+  it.each([
+    ['2025', '2025'],
+    ['1899', 'unset'],
+    ['2101', 'unset'],
+    ['2025.5', 'unset'],
+    ['not-a-year', 'unset'],
+  ])('validates the selected workspace year %s', (year, expectedYear) => {
+    renderTracker(true, `/investment-tracker?partnership=p-1&area=k1-history&year=${year}`)
+    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
+      'data-year',
+      expectedYear,
+    )
   })
 })

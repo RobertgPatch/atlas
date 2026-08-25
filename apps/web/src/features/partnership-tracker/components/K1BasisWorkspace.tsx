@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckSquare2, FileText, Loader2, Plus, Trash2, UploadCloud, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { CreatePartnershipCashFlowRequest, K1TrackerFieldChange, PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import type { K1TrackerCashFlowEvent, K1TrackerOfficialFormData } from '../../../../../../packages/types/src/k1-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
@@ -49,6 +50,7 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
   const effectiveYear = selectedYear ?? detail.years.at(-1)?.taxYear
   const year = usePartnershipTrackerYear(partnershipId, effectiveYear)
   const actions = usePartnershipTrackerActions()
+  const navigate = useNavigate()
   const [adding, setAdding] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [comparing, setComparing] = useState(false)
@@ -187,6 +189,7 @@ export function K1BasisWorkspace({ detail, selectedYear, canEdit, onSelectYear, 
         <div role="group" aria-label="K-1 year actions" className="flex flex-wrap gap-2">
           {selectingYears ? yearSelectionActions : <>
             {canEdit && <button type="button" onClick={() => setUploading(true)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-primary bg-primary px-3 text-xs font-semibold text-white shadow-sm hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><UploadCloud className="h-3.5 w-3.5" />Upload K-1 PDFs</button>}
+            <button type="button" onClick={() => navigate('/k1')} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><FileText className="h-3.5 w-3.5" aria-hidden="true" />View processing queue</button>
             <button type="button" disabled={!detail.years.length} onClick={() => setComparing(true)} className="min-h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100 disabled:opacity-40">Compare years</button>
             {canEdit && detail.years.length > 0 && <button type="button" onClick={() => setSelectingYears(true)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-700 focus:ring-offset-2"><CheckSquare2 className="h-3.5 w-3.5" aria-hidden="true" />Select years</button>}
             {canEdit && <button type="button" onClick={() => setAdding(true)} className="inline-flex min-h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-100"><Plus className="h-3.5 w-3.5" />Add tax year</button>}

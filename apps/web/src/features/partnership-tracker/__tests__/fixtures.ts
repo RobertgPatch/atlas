@@ -132,6 +132,7 @@ const k1CalculationFixture = {
 export const k1EntryDetailFixture: K1TrackerYearDetail = {
   partnershipId: 'p-1',
   taxYear: 2024,
+  isInceptionYear: false,
   status: 'IN_PROGRESS',
   revision: 4,
   values: [

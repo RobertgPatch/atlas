@@ -14,7 +14,7 @@ describe('Partnership Tracker sign-off panel', () => {
     expect(signoff).toHaveBeenCalledOnce()
     rerender(<SignOffPanel state={{ ...state, reviewedByEmail: 'cpa@example.com', reviewedAt: '2025-01-01T00:00:00.000Z' }} checksPassing canEdit pending={false} onSignoff={signoff} />)
     expect(screen.getByText(/Signed off by cpa@example.com/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Sign off year' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Signed off' })).toBeDisabled()
   })
   it('shows revision invalidation evidence', () => {
     render(<SignOffPanel state={{ yearRevision: 3, preparedByEmail: null, preparedAt: null, reviewedByEmail: null, reviewedAt: null, invalidatedAt: '2025-01-01T00:00:00.000Z', invalidationReason: 'Earlier year changed' }} checksPassing={false} canEdit={false} pending={false} onSignoff={vi.fn()} />)

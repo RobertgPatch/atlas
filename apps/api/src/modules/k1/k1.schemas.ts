@@ -62,6 +62,7 @@ export const applyK1BodySchema = z.object({
   applicationId: uuidSchema,
   expectedDocumentVersion: z.number().int().nonnegative(),
   expectedTrackerRevision: z.number().int().positive(),
+  inceptionYear: z.boolean().optional().default(false),
   decisions: z.array(z.object({
     decisionId: uuidSchema,
     decision: k1ApplicationDecisionSchema,

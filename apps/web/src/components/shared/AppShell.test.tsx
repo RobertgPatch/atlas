@@ -113,4 +113,30 @@ describe('AppShell design flag', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
     expect(screen.getByTestId('app-sidebar-frame')).toHaveClass('lg:w-20')
   })
+
+  it('shows the User role, opens mobile navigation, and signs out from the Magic shell', () => {
+    const onSignOut = vi.fn()
+    render(
+      <MemoryRouter>
+        <AppShell
+          currentPath="/entities"
+          userEmail="member@jackson.test"
+          userRole="User"
+          onSignOut={onSignOut}
+          magicPatternDesigns
+        >
+          <div>Entities content</div>
+        </AppShell>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByText('User')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+    expect(screen.getAllByRole('button', { name: 'Close navigation' })).toHaveLength(2)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close navigation' })[0])
+    expect(screen.queryAllByRole('button', { name: 'Close navigation' })).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    expect(onSignOut).toHaveBeenCalledOnce()
+  })
 })

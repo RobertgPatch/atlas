@@ -1,5 +1,6 @@
 import type {
   K1TrackerCheckResult,
+  K1TrackerSignoffState,
   K1TrackerWritableFieldKey,
 } from '../../../../../packages/types/src/k1-tracker'
 
@@ -20,6 +21,12 @@ const money = (value: string | null): string | null => value == null
 
 export const isReconciliationBlocker = (check: K1TrackerCheckResult): boolean =>
   check.status === 'FAIL' || check.status === 'INCOMPLETE'
+
+export const isK1TrackerYearReconciled = (state: K1TrackerSignoffState): boolean => {
+  const reviewedAt = state.reviewedAt ? Date.parse(state.reviewedAt) : Number.NaN
+  const invalidatedAt = state.invalidatedAt ? Date.parse(state.invalidatedAt) : Number.NaN
+  return Boolean(state.reviewedAt) && (!state.invalidatedAt || reviewedAt > invalidatedAt)
+}
 
 export const reconciliationGuidanceFor = (check: K1TrackerCheckResult): K1ReconciliationGuidance => {
   const actual = money(check.actual)

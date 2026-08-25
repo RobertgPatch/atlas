@@ -75,6 +75,7 @@ const completionLabel: Record<CompletionStage, string> = {
 const friendlyError = (code: string): string => ({
   K1_REVIEW_INCOMPLETE: 'A required extracted value is still missing. Complete the highlighted field and try again.',
   K1_REVIEW_NOT_FINALIZED: 'The review changed while it was being saved. Reload the latest values and try again.',
+  INCEPTION_YEAR_CONFLICT: 'This cannot be the inception year because an earlier tax-basis year already exists for this partnership.',
   FINALIZE_PRECONDITION_FAILED: 'A required field or destination is still missing. Complete the highlighted item and try again.',
   APPLICATION_DECISIONS_INCOMPLETE: 'The tax-basis save could not include every extracted field. Reload and try again.',
   ROLE_REQUIRED_ADMIN: 'An administrator must save a verified K-1 to tax basis.',
@@ -100,6 +101,7 @@ export const K1ReviewWorkspace = () => {
   const [selectedPartnershipId, setSelectedPartnershipId] = useState<string | null>(null)
   const [selectedPartnershipName, setSelectedPartnershipName] = useState<string | null>(null)
   const [selectedTaxYear, setSelectedTaxYear] = useState('')
+  const [inceptionYear, setInceptionYear] = useState(false)
   const [destinationEditorOpen, setDestinationEditorOpen] = useState(false)
   const [completionStage, setCompletionStage] = useState<CompletionStage>('idle')
   const [appliedResult, setAppliedResult] = useState<K1ApplyResponse | null>(null)
@@ -283,6 +285,7 @@ export const K1ReviewWorkspace = () => {
         applicationId: preview.applicationId,
         expectedDocumentVersion: preview.expectedDocumentVersion,
         expectedTrackerRevision: preview.expectedTrackerRevision,
+        inceptionYear,
         decisions,
       })
       setAppliedResult(result)
@@ -381,6 +384,21 @@ export const K1ReviewWorkspace = () => {
                 <div><label htmlFor="review-tax-year" className="mb-1 block text-xs font-medium text-slate-700">Tax year</label><input id="review-tax-year" inputMode="numeric" value={selectedTaxYear} disabled={!sessionData.canEdit} onChange={(event) => setSelectedTaxYear(event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm focus:border-cyan-600 focus:outline-none focus:ring-2 focus:ring-cyan-200" /></div>
                 <p className="self-end text-xs leading-5 text-slate-600">There is no separate linking step. This destination is confirmed when you save the verified K-1.</p>
               </div>}
+              <div className="border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+                <label className={`flex items-start gap-3 rounded-md border px-3 py-3 transition-colors ${inceptionYear ? 'border-cyan-500 bg-cyan-50' : 'border-slate-300 bg-white'} ${sessionData.canEdit ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}>
+                  <input
+                    type="checkbox"
+                    checked={inceptionYear}
+                    disabled={!sessionData.canEdit}
+                    onChange={(event) => setInceptionYear(event.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-primary focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-slate-950">This K-1 is the partnership’s inception year</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-slate-600">Use zero beginning balances for outside basis, suspended losses, and Section L capital when the reviewed K-1 does not provide them. Existing extracted values are preserved.</span>
+                  </span>
+                </label>
+              </div>
             </section>}
 
             {!applied && reviewFlags.length > 0 && <section className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3" aria-labelledby="double-check-heading">
@@ -405,6 +423,11 @@ export const K1ReviewWorkspace = () => {
               <summary className="cursor-pointer font-semibold text-slate-700">AWS extraction details</summary>
               <div className="mt-3 flex items-center justify-between gap-3"><p className="text-xs text-slate-600">Attempt {sessionData.activeAttempt?.attemptNumber ?? '—'} · {sessionData.activeAttempt?.status ?? 'Unknown'} · {sessionData.activeAttempt?.provider ?? 'AWS'}</p>{sessionData.canEdit && !applied && <button type="button" onClick={() => void handleReprocessExtraction()} disabled={retryExtractionMutation.isPending} className="inline-flex min-h-8 items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 hover:border-cyan-500 hover:bg-cyan-50 disabled:opacity-50"><RotateCcw className="h-3 w-3" />Re-run extraction</button>}</div>
             </details>
+
+            {applied && <section className="flex flex-col gap-3 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-4 sm:flex-row sm:items-center" aria-label="K-1 history navigation">
+              <div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-slate-950">Continue with the saved K-1</h2><p className="mt-1 text-xs leading-5 text-slate-600">Open this partnership year to review the extracted values alongside any manual inputs.</p></div>
+              <Button type="button" onClick={openTaxBasisHistory} size="sm" className="shrink-0 self-start sm:self-auto">Open K-1 history <ArrowRight className="h-4 w-4" /></Button>
+            </section>}
           </div>
 
           {!applied && <div id="k1-review-actions" className="sticky bottom-0 z-20 -mt-20 flex flex-col gap-3 border-t border-slate-300 bg-white/95 px-4 py-3 shadow-[0_-8px_22px_rgba(15,23,42,0.12)] backdrop-blur sm:flex-row sm:items-center">
