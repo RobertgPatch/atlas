@@ -1,12 +1,12 @@
 # Quickstart: K-1 Review Workspace and Finalization
 
-Manual walkthrough used to validate FR coverage end-to-end. Every step maps to a functional requirement or success criterion and should produce the documented side-effect. Run this against a freshly migrated dev DB with the 002 fixture seeded.
+Manual walkthrough used to validate FR coverage end-to-end. Every step maps to a functional requirement or success criterion and should produce the documented side-effect. Run this against a freshly migrated dev DB populated through current durable test/setup helpers.
 
 ## 0. Prerequisites
 
 - Postgres migrations through `002_k1_ingestion.sql` applied.
 - Apply `apps/api/src/infra/db/migrations/003_review_finalization.sql` (adds `k1_documents.version`, `approved_by_user_id`, `finalized_by_user_id`; `k1_issues.k1_field_value_id`, `resolved_at`, `resolved_by_user_id`).
-- Run 002's seed (`npx tsx apps/api/src/infra/db/seed/002_k1_fixtures.ts`) to produce K-1s across all statuses.
+- Populate the required K-1 states through the current API fixture/setup helpers under `apps/api/tests/helpers/`; the obsolete process-local 002 seed was retired by Spec 025.
 - Run the API (`cd apps/api; npm run dev`) and the web (`cd apps/web; npm run dev`).
 - You need two Admin users (call them **Admin A** and **Admin B**) and one non-Admin **User C**, all with `entity_memberships` including the K-1's owning entity.
 

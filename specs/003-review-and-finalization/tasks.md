@@ -178,7 +178,7 @@
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [ ] T073 [P] Add E2E Playwright spec `tests/e2e/review-finalize.e2e.ts` — full browser flow: sign in Admin A → open K-1 → correct → approve → sign out → sign in Admin B → finalize → navigate to `/k1` → assert dashboard row reads `Finalized` within 3 s (SC-010)
-- [ ] T074 [P] Add seeding helper `apps/api/src/infra/db/seed/003_review_fixtures.ts` that extends 002's perf seeder to include varying field-value + issue distributions for per-state UI snapshot coverage (SC-001)
+- [ ] T074 [P] Extend current durable test helpers under `apps/api/tests/helpers/` with varying field-value and issue distributions for per-state UI snapshot coverage (SC-001); do not restore the process-local seeds retired by Spec 025
 - [X] T075 [P] Update `docs/ui/40-screen-map.md` "Composition notes" section with screen #7 K-1 Review Workspace composition details (catalog components used, panel boundaries, action-bar gating)
 - [X] T076 [P] Update `docs/ui/46-component-catalog.md` "Screen compositions (reference)" with the K-1 Review Workspace entry; add `PdfPreview` to the catalog listing
 - [ ] T077 [P] Add a minimal README or inline doc block in `packages/ui/src/components/PdfPreview/PdfPreview.tsx` describing the props contract and the "do not import `pdfjs-dist` directly" rule

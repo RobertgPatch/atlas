@@ -122,6 +122,12 @@ variable "api_desired_count" {
   default     = 1
 }
 
+variable "mfa_login_enabled" {
+  description = "Require the existing MFA enrollment or verification flow after password validation. Evaluated when the API process starts."
+  type        = bool
+  default     = false
+}
+
 variable "api_health_check_path" {
   description = "API health check path."
   type        = string

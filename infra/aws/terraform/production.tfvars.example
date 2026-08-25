@@ -24,6 +24,8 @@ api_image_tag            = "latest"
 api_desired_count        = 1
 api_task_cpu             = "512"
 api_task_memory          = "1024"
+# Set true only after staging validation; changing it requires an API restart/redeploy.
+mfa_login_enabled        = false
 ecr_force_delete         = false
 ecr_image_tag_mutability = "MUTABLE"
 

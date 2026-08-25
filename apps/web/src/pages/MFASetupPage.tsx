@@ -6,6 +6,7 @@ import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { Button } from '../components/shared/Button'
+import { featureFlags } from '../config/featureFlags'
 
 const getEnrollmentErrorMessage = (error: unknown) => {
   if (
@@ -29,13 +30,19 @@ const getEnrollmentErrorMessage = (error: unknown) => {
   return 'The verification code was invalid. Scan the QR code again and try a fresh code.'
 }
 
-export function MFASetupPage() {
+interface MFASetupPageProps {
+  magicPatternDesigns?: boolean
+}
+
+export function MFASetupPage({
+  magicPatternDesigns = featureFlags.magicPatternDesigns,
+}: MFASetupPageProps = {}) {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
-  const enrollment = authFlowStore.getEnrollment()
+  const [enrollment] = useState(() => authFlowStore.getEnrollment())
 
   useEffect(() => {
     if (!enrollment) {
@@ -79,7 +86,7 @@ export function MFASetupPage() {
       )
       authFlowStore.clear()
       sessionStore.setAuthenticated(session)
-      navigate('/liquidity')
+      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
     } catch (err) {
       setError(getEnrollmentErrorMessage(err))
       setCode('')

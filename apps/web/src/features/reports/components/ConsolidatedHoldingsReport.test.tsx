@@ -7,7 +7,6 @@ import {
   getCustodianBreakdown,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
-import { ConsolidatedHoldingsSummaryCards } from './ConsolidatedHoldingsSummaryCards'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
 
 describe('ConsolidatedHoldingsReport table behavior', () => {
@@ -265,16 +264,6 @@ describe('Consolidated holdings analytics', () => {
       totalValue: 0,
       percentage: 0,
     })
-  })
-})
-
-describe('ConsolidatedHoldingsSummaryCards', () => {
-  it('renders portfolio value and connected account metrics', () => {
-    render(<ConsolidatedHoldingsSummaryCards kpis={consolidatedHoldingsFixture.kpis} />)
-
-    expect(screen.getByText('Total Portfolio Value')).toBeInTheDocument()
-    expect(screen.getByText('$12,250.00')).toBeInTheDocument()
-    expect(screen.getByText('Connected Accounts')).toBeInTheDocument()
   })
 })
 

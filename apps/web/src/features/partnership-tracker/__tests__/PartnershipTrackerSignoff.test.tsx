@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SignOffPanel } from '../components/SignOffPanel'
+import { SignOffPanel } from '../../k1-tracker/components/SignOffPanel'
 
 describe('Partnership Tracker sign-off panel', () => {
   it('lets one CPA sign off directly after all checks pass', () => {

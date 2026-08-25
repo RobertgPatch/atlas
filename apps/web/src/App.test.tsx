@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 let magicPatternDesigns = false
+let sessionStatus: 'authenticated' | 'unauthenticated' = 'authenticated'
 
 vi.mock('./config/featureFlags', () => ({
   featureFlags: {
@@ -13,11 +14,13 @@ vi.mock('./config/featureFlags', () => ({
 
 vi.mock('./auth/sessionStore', () => ({
   useSession: () => ({
-    status: 'authenticated',
-    session: { role: 'Admin', user: { email: 'admin@example.com' } },
+    status: sessionStatus,
+    session: sessionStatus === 'authenticated'
+      ? { role: 'Admin', user: { email: 'admin@example.com' } }
+      : null,
   }),
   sessionStore: {
-    getSnapshot: () => ({ status: 'authenticated' }),
+    getSnapshot: () => ({ status: sessionStatus }),
     setAuthenticated: vi.fn(),
     setUnauthenticated: vi.fn(),
   },
@@ -28,6 +31,8 @@ vi.mock('./components/GlobalLoadingBar', () => ({ GlobalLoadingBar: () => null }
 
 const pageMocks = [
   ['./pages/LoginPage', 'LoginPage', 'Login'],
+  ['./pages/MFAPage', 'MFAPage', 'MFA verification'],
+  ['./pages/MFASetupPage', 'MFASetupPage', 'MFA setup'],
   ['./pages/PermissionDeniedPage', 'PermissionDeniedPage', 'Forbidden'],
   ['./pages/UserManagementPage', 'UserManagementPage', 'Users'],
   ['./pages/UserDetailPage', 'UserDetailPage', 'User detail'],
@@ -59,6 +64,7 @@ function open(path: string) {
 describe('top-level application routing', () => {
   beforeEach(() => {
     magicPatternDesigns = false
+    sessionStatus = 'authenticated'
     window.history.pushState({}, '', '/')
   })
 
@@ -72,6 +78,17 @@ describe('top-level application routing', () => {
     magicPatternDesigns = true
     open('/dashboard')
     expect(screen.getByText('Magic dashboard')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['/mfa', 'MFA verification'],
+    ['/mfa/setup', 'MFA setup'],
+  ])('keeps %s public before a session exists', (path, label) => {
+    sessionStatus = 'unauthenticated'
+    open(path)
+
+    expect(screen.getByText(label)).toBeInTheDocument()
+    expect(window.location.pathname).toBe(path)
   })
 
   it.each([
