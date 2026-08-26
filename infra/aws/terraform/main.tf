@@ -41,7 +41,7 @@ locals {
 
   abuse_protection_environment_variables = {
     ABUSE_HMAC_KEY_ID                          = "terraform-v1"
-    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS   = "2500"
+    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS  = "2500"
     ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "50"
     ABUSE_K1_BDA_CALLS_PER_MONTH               = "1"
     ABUSE_K1_CHECKBOX_CALLS_PER_MONTH          = "4"
