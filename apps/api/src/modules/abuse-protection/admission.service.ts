@@ -35,6 +35,7 @@ export interface EffectiveProtectionControl {
   readonly enabled: boolean
   readonly source: 'environment_hard_disable' | 'configured_default' | 'runtime_override'
   readonly expiresAt?: Date | null
+  readonly lowerLimits?: Readonly<Record<string, number>>
 }
 
 export interface AdmissionControlResolver {
@@ -272,6 +273,7 @@ export class AdmissionService {
 
     try {
       return await this.#repository.withTransaction(async (client) => {
+        let lowerLimits: Readonly<Record<string, number>> = {}
         if (controlKey) {
           const control = await this.#controls.resolveInTransaction(client, {
             controlKey,
@@ -279,6 +281,7 @@ export class AdmissionService {
             subjectHashes: request.subjectHashes,
           })
           if (!control.enabled) return disabledDecision(request)
+          lowerLimits = control.lowerLimits ?? {}
         }
 
         let idempotency: IdempotencyReservation | null = null
@@ -287,14 +290,25 @@ export class AdmissionService {
         // `none` must allow every request to execute. Reserving a reusable
         // operation for those reads turns the second browser range request
         // into an IDEMPOTENT_REPLAY JSON response instead of PDF bytes.
-        if (request.workload && request.policy.idempotency !== 'none') {
+        if (request.workload) {
           idempotency = await this.#idempotency.reserveInTransaction(client, {
             ...request.workload.idempotency,
+            ...(request.policy.idempotency === 'none'
+              ? {
+                  canonicalRequest: {
+                    ...request.workload.idempotency.canonicalRequest,
+                    inputs: {
+                      requestId: request.requestId,
+                      original: request.workload.idempotency.canonicalRequest.inputs,
+                    },
+                  },
+                }
+              : {}),
             workloadKey: request.workload.workloadKey,
             requestId: request.requestId,
             now,
           })
-          if (idempotency.disposition === 'reused') {
+          if (idempotency.disposition === 'reused' && request.policy.idempotency !== 'none') {
             return {
               decision: 'deduplicated',
               policyKey: request.policy.policyKey,
@@ -308,20 +322,35 @@ export class AdmissionService {
 
         const operation = idempotency?.operation
         const workload = request.workload
-        const backlogLimit = request.policy.backlogLimit ?? workload?.backlogLimit
+        const configuredConcurrency = request.policy.concurrencyLimit
+        const concurrencyLimit = configuredConcurrency === null
+          ? null
+          : Math.min(configuredConcurrency, lowerLimits.concurrencyLimit ?? configuredConcurrency)
+        const configuredBacklog = request.policy.backlogLimit ?? workload?.backlogLimit
+        const backlogLimit = configuredBacklog === undefined || configuredBacklog === null
+          ? configuredBacklog
+          : Math.min(configuredBacklog, lowerLimits.backlogLimit ?? configuredBacklog)
+        const quotas = workload ? quotaReservationsFor(workload, now).map((quota) => {
+          const override = quota.scopeKind === 'global' && quota.periodKind === 'utc_day'
+            ? lowerLimits.globalDailyLimit
+            : lowerLimits[`${quota.scopeKind}Limit`]
+          if (override === undefined) return quota
+          const lowerLimit = typeof quota.limit === 'bigint' ? BigInt(override) : override
+          return { ...quota, limit: quota.limit < lowerLimit ? quota.limit : lowerLimit }
+        }) : []
         const reservation: AtomicAdmissionReservation = {
           rateWindows: rateReservationsFor(request, now),
-          quotas: workload ? quotaReservationsFor(workload, now) : [],
+          quotas,
           capacity:
-            workload && operation && request.policy.concurrencyLimit !== null
+            workload && operation && concurrencyLimit !== null
               ? {
                   operationId: operation.operationId,
                   workloadKey: workload.workloadKey,
                   scopeKind: workload.leaseScopeKind,
                   scopeHash: workload.leaseScopeHash,
-                  concurrencyLimit: request.policy.concurrencyLimit,
+                  concurrencyLimit,
                   backlogLimit: positiveInteger(
-                    backlogLimit ?? request.policy.concurrencyLimit,
+                    backlogLimit ?? concurrencyLimit,
                     'backlogLimit',
                   ),
                   expiresAt: new Date(

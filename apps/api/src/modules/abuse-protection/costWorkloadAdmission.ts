@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { config } from '../../config.js'
 import { admissionService } from './admission.service.js'
+import { idempotencyService } from './idempotency.service.js'
 import { defaultRouteProtectionPolicy } from './policy.defaults.js'
 import {
   fingerprintSubject,
@@ -29,6 +30,43 @@ export interface CostWorkloadAdmissionInput {
     readonly units?: number
     readonly periodKind?: 'rolling_hour' | 'utc_day' | 'billing_month'
   }[]
+}
+
+export interface CostWorkloadOperation {
+  readonly operationId: string | null
+  readonly fencingToken: bigint | null
+  succeed(resultReference?: string): Promise<void>
+  fail(failureCode?: string): Promise<void>
+}
+
+const terminalOperation = (
+  operationId: string | undefined,
+  fencingToken: bigint | undefined,
+): CostWorkloadOperation => {
+  let started = false
+  let terminal = false
+  const start = async () => {
+    if (!operationId || started) return
+    await idempotencyService.markQueued({ operationId })
+    await idempotencyService.markRunning({ operationId })
+    started = true
+  }
+  return {
+    operationId: operationId ?? null,
+    fencingToken: fencingToken ?? null,
+    async succeed(resultReference = `operation://${operationId ?? 'untracked'}/succeeded`) {
+      if (!operationId || terminal) return
+      await start()
+      await idempotencyService.markSucceeded({ operationId, resultReference })
+      terminal = true
+    },
+    async fail(failureCode = 'WORKLOAD_FAILED') {
+      if (!operationId || terminal) return
+      await start()
+      await idempotencyService.markFailed({ operationId, failureCode })
+      terminal = true
+    },
+  }
 }
 
 interface MonthlyCostProfile {
@@ -99,7 +137,7 @@ const monthlyCostProfile = (workloadKey: string): MonthlyCostProfile | null => {
 
 export const admitCostWorkload = async (
   input: CostWorkloadAdmissionInput,
-): Promise<void> => {
+): Promise<CostWorkloadOperation> => {
   const basePolicy = defaultRouteProtectionPolicy(input.method, input.routePattern)
   const policy = input.controlKey === undefined
     ? basePolicy
@@ -204,6 +242,7 @@ export const admitCostWorkload = async (
     config.nodeEnv === 'test'
     && decision.decision === 'protection_unavailable'
     && !admissionWasTestMocked
-  ) return
-  requireWorkloadAdmission(decision)
+  ) return terminalOperation(undefined, undefined)
+  const allowed = requireWorkloadAdmission(decision)
+  return terminalOperation(allowed.operationId, allowed.fencingToken)
 }

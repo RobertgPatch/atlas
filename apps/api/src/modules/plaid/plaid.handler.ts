@@ -41,7 +41,7 @@ export const createPlaidLinkTokenHandler = async (
     throw error
   }
 
-  await admitCostWorkload({
+  const operation = await admitCostWorkload({
     workloadKey: 'plaid_link_token',
     method: 'POST',
     routePattern: '/v1/plaid/link-token',
@@ -49,6 +49,9 @@ export const createPlaidLinkTokenHandler = async (
     canonicalInputs: {
       mode: body.mode,
       connectionId: body.connectionId ?? null,
+      // Do not reuse an expired token from an earlier Link session. Clients can
+      // still supply a bounded key when they need transport-level retry safety.
+      attemptId: body.idempotencyKey ?? randomUUID(),
     },
     globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
     quotas: [
@@ -58,27 +61,35 @@ export const createPlaidLinkTokenHandler = async (
     leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
   })
 
-  if (!isPlaidConfigured()) {
+  try {
+    if (!isPlaidConfigured()) {
+      const linkToken = `link-sandbox-${randomUUID()}`
+      await operation.succeed()
+      reply.send({
+        linkToken,
+        expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      })
+      return
+    }
+
+    const response = await callPlaidWithRetry((signal) => plaidApi.linkTokenCreate({
+      user: { client_user_id: request.authUser!.userId },
+      client_name: 'Jackson',
+      language: 'en',
+      products: plaidClientConfig.products,
+      country_codes: plaidClientConfig.countryCodes,
+      redirect_uri: plaidClientConfig.redirectUri,
+    }, { signal }))
+
+    await operation.succeed()
     reply.send({
-      linkToken: `link-sandbox-${randomUUID()}`,
-      expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      linkToken: response.data.link_token,
+      expiration: response.data.expiration,
     })
-    return
+  } catch (error) {
+    await operation.fail()
+    throw error
   }
-
-  const response = await callPlaidWithRetry((signal) => plaidApi.linkTokenCreate({
-    user: { client_user_id: request.authUser!.userId },
-    client_name: 'Jackson',
-    language: 'en',
-    products: plaidClientConfig.products,
-    country_codes: plaidClientConfig.countryCodes,
-    redirect_uri: plaidClientConfig.redirectUri,
-  }, { signal }))
-
-  reply.send({
-    linkToken: response.data.link_token,
-    expiration: response.data.expiration,
-  })
 }
 
 export const exchangePlaidPublicTokenHandler = async (
