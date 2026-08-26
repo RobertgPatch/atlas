@@ -241,7 +241,14 @@ describe('atomic admission service', () => {
     await expect(test.service.admit(download)).resolves.toMatchObject({
       decision: 'allowed',
     })
-    expect(test.reserveIdempotency).not.toHaveBeenCalled()
+    expect(test.reserveIdempotency).toHaveBeenCalledWith(
+      client,
+      expect.objectContaining({
+        canonicalRequest: expect.objectContaining({
+          inputs: expect.objectContaining({ requestId: download.requestId }),
+        }),
+      }),
+    )
     expect(test.reserveInTransaction).toHaveBeenCalledWith(
       client,
       expect.objectContaining({
@@ -250,7 +257,10 @@ describe('atomic admission service', () => {
           periodKind: 'rolling_hour',
           limit: 120,
         })],
-        capacity: undefined,
+        capacity: expect.objectContaining({
+          operationId: expect.any(String),
+          concurrencyLimit: 4,
+        }),
       }),
     )
   })

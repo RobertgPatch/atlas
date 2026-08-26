@@ -4,6 +4,9 @@ import { config } from '../../config.js'
 export const plaidLinkTokenBodySchema = z.object({
   mode: z.enum(['create', 'update']).optional().default('create'),
   connectionId: z.string().uuid().nullish(),
+  idempotencyKey: z.string().min(1)
+    .max(config.abuseProtection.payloadLimits.maximumIdempotencyKeyCharacters)
+    .optional(),
 })
 
 export const plaidExchangePublicTokenBodySchema = z.object({

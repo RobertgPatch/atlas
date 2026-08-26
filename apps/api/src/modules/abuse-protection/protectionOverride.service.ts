@@ -113,6 +113,13 @@ export class ProtectionOverrideService implements AdmissionControlResolver {
           enabled: active.mode !== 'disable',
           source: 'runtime_override',
           expiresAt: active.expiresAt,
+          ...(active.mode === 'lower_limit'
+            ? {
+                lowerLimits: Object.fromEntries(Object.entries(active.value).filter(
+                  (entry): entry is [string, number] => typeof entry[1] === 'number',
+                )),
+              }
+            : {}),
         }
         // Only disabled decisions are cached: a limiter-store outage must never
         // turn a recently cached allow into paid work that fails open.

@@ -41,6 +41,16 @@ locals {
 
   abuse_protection_environment_variables = {
     ABUSE_HMAC_KEY_ID                          = "terraform-v1"
+    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS   = "2500"
+    ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "50"
+    ABUSE_K1_BDA_CALLS_PER_MONTH               = "1"
+    ABUSE_K1_CHECKBOX_CALLS_PER_MONTH          = "4"
+    ABUSE_PLAID_LINK_TOKENS_PER_MONTH          = "10"
+    ABUSE_PLAID_EXCHANGES_PER_MONTH            = "5"
+    ABUSE_PLAID_REFRESHES_PER_MONTH            = "2"
+    ABUSE_MARKET_PROVIDER_CALLS_PER_MONTH      = "25"
+    ABUSE_EXPORTS_PER_MONTH                    = "40"
+    ABUSE_BACKFILL_RUNS_PER_MONTH              = "1"
     ABUSE_AUTH_SOURCE_REQUESTS                 = "20"
     ABUSE_AUTH_ACCOUNT_REQUESTS                = "5"
     ABUSE_AUTH_HASH_GLOBAL_CONCURRENCY         = "4"
