@@ -84,7 +84,7 @@ describe('abuse-protection configuration', () => {
         },
         'production',
       ),
-    ).toThrow(/ABUSE_WORKBOOK_USER_PER_DAY/)
+    ).toThrow(/ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS/)
   })
 
   it('rejects inconsistent user/global, retry, delay, and timeout ceilings', () => {

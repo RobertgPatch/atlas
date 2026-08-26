@@ -12,6 +12,7 @@ import {
 import { plaidRepository } from './plaid.repository.js'
 import {
   plaidExchangePublicTokenBodySchema,
+  plaidIdempotencyKeySchema,
   plaidLinkTokenBodySchema,
   updatePlaidInvestmentAccountsBodySchema,
 } from './plaid.zod.js'
@@ -41,6 +42,23 @@ export const createPlaidLinkTokenHandler = async (
     throw error
   }
 
+  const rawHeaderKey = request.headers['idempotency-key']
+  const headerKey = Array.isArray(rawHeaderKey) ? rawHeaderKey[0] : rawHeaderKey
+  const parsedHeaderKey = plaidIdempotencyKeySchema.optional().safeParse(headerKey)
+  if (!parsedHeaderKey.success) {
+    sendValidationError(reply, parsedHeaderKey.error)
+    return
+  }
+  if (
+    body.idempotencyKey !== undefined
+    && parsedHeaderKey.data !== undefined
+    && body.idempotencyKey !== parsedHeaderKey.data
+  ) {
+    reply.status(400).send({ error: 'IDEMPOTENCY_KEY_MISMATCH' })
+    return
+  }
+  const idempotencyKey = body.idempotencyKey ?? parsedHeaderKey.data
+
   const operation = await admitCostWorkload({
     workloadKey: 'plaid_link_token',
     method: 'POST',
@@ -51,7 +69,7 @@ export const createPlaidLinkTokenHandler = async (
       connectionId: body.connectionId ?? null,
       // Do not reuse an expired token from an earlier Link session. Clients can
       // still supply a bounded key when they need transport-level retry safety.
-      attemptId: body.idempotencyKey ?? randomUUID(),
+      attemptId: idempotencyKey ?? randomUUID(),
     },
     globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
     quotas: [

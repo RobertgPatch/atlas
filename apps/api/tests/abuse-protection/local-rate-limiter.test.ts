@@ -196,7 +196,7 @@ describe('bounded local rate limiter', () => {
     expect(() => buildAbuseProtectionConfig({
       NODE_ENV: 'production',
       ABUSE_HMAC_ACTIVE_KEY: fingerprintKey,
-    }, 'production')).toThrow(/ABUSE_WORKBOOK_USER_PER_DAY.*explicit finite production value/)
+    }, 'production')).toThrow(/ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS.*explicit finite production value/)
     expect(() => buildAbuseProtectionConfig({
       ABUSE_LOCAL_MAX_BUCKETS: 'Infinity',
     }, 'test')).toThrow(/ABUSE_LOCAL_MAX_BUCKETS.*base-10 integer/)

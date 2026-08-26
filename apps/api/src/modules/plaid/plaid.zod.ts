@@ -1,12 +1,13 @@
 import { z } from 'zod'
 import { config } from '../../config.js'
 
+export const plaidIdempotencyKeySchema = z.string().min(1)
+  .max(config.abuseProtection.payloadLimits.maximumIdempotencyKeyCharacters)
+
 export const plaidLinkTokenBodySchema = z.object({
   mode: z.enum(['create', 'update']).optional().default('create'),
   connectionId: z.string().uuid().nullish(),
-  idempotencyKey: z.string().min(1)
-    .max(config.abuseProtection.payloadLimits.maximumIdempotencyKeyCharacters)
-    .optional(),
+  idempotencyKey: plaidIdempotencyKeySchema.optional(),
 })
 
 export const plaidExchangePublicTokenBodySchema = z.object({
