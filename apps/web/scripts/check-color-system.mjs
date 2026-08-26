@@ -116,8 +116,12 @@ export function scanSource(source, relativePath) {
   for (const rule of RULES) addMatches(findings, source, relativePath, rule, new RegExp(rule.pattern))
 
   const lines = source.split(/\r?\n/)
-  let offset = 0
-  for (const line of lines) {
+  const lineStartOffsets = [0]
+  for (const newline of source.matchAll(/\r?\n/g)) {
+    lineStartOffsets.push((newline.index ?? 0) + newline[0].length)
+  }
+  for (const [lineIndex, line] of lines.entries()) {
+    const offset = lineStartOffsets[lineIndex] ?? source.length
     if (/<button\b|buttonClassName\s*\(/i.test(line)) {
       addLineMatches(findings, line, offset, source, relativePath, {
         id: 'competing-action-color',
@@ -138,7 +142,6 @@ export function scanSource(source, relativePath) {
         }, new RegExp(match[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'))
       }
     }
-    offset += line.length + 1
   }
 
   const unique = new Map()
