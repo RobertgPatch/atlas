@@ -20,6 +20,8 @@ import {
   plaidHoldingsSync,
   RefreshAlreadyRunningError,
 } from '../plaid/plaid.holdings-sync.js'
+import { config } from '../../config.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -239,11 +241,37 @@ export const refreshConsolidatedHoldingsHandler = async (
     throw error
   }
 
+  const forced = body.force || body.reason === 'forced'
+  if (forced && request.authUser.role !== 'Admin') {
+    reply.status(403).send({ error: 'FORBIDDEN_ROLE' })
+    return
+  }
+
+  await admitCostWorkload({
+    workloadKey: 'plaid_holdings_refresh',
+    controlKey: 'plaid_refresh',
+    method: 'POST',
+    routePattern: '/v1/reports/consolidated-holdings/refresh',
+    principal: request.authUser.userId,
+    canonicalInputs: { forced },
+    globalDailyLimit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay },
+      ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
+        scopeKind: 'account' as const,
+        scopeValue: account.id,
+        limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesPerAccountDay,
+      })),
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
+  })
+
   try {
     const attempt = await plaidHoldingsSync.syncSelectedHoldings({
       requestedByUserId: request.authUser.userId,
       triggerSource: 'manual',
-      force: body.force || body.reason === 'forced',
+      force: forced,
     })
 
     reply.status(202).send(attempt)
@@ -290,6 +318,20 @@ export const getReportsExportHandler = async (
     return
   }
 
+  await admitCostWorkload({
+    workloadKey: 'report_export',
+    method: 'GET',
+    routePattern: '/v1/reports/export',
+    principal: request.authUser.userId,
+    canonicalInputs: query,
+    globalDailyLimit: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.reportExport.userExportsPerDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.reportExport.globalExportsPerDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.exportMs / 1_000),
+  })
+
   const exported = await reportsExport.generateReportExport(
     query,
     scope,
@@ -327,6 +369,20 @@ export const getConsolidatedHoldingsExportHandler = async (
     }
     throw error
   }
+
+  await admitCostWorkload({
+    workloadKey: 'consolidated_holdings_export',
+    method: 'GET',
+    routePattern: '/v1/reports/consolidated-holdings/export',
+    principal: request.authUser.userId,
+    canonicalInputs: query,
+    globalDailyLimit: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.reportExport.userExportsPerDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.reportExport.globalExportsPerDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.exportMs / 1_000),
+  })
 
   const exported = await reportsExport.generateReportExport(
     {

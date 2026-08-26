@@ -10,19 +10,23 @@ resource "aws_db_subnet_group" "this" {
 resource "aws_db_instance" "postgres" {
   identifier = "${var.name_prefix}-postgres"
 
-  engine         = "postgres"
-  engine_version = var.postgres_engine_version
-  instance_class = var.instance_class
+  snapshot_identifier = var.snapshot_identifier
+  engine              = var.snapshot_identifier == null ? "postgres" : null
+  engine_version      = var.snapshot_identifier == null ? var.postgres_engine_version : null
+  instance_class      = var.instance_class
 
-  allocated_storage     = var.allocated_storage_gb
+  allocated_storage     = var.snapshot_identifier == null ? var.allocated_storage_gb : null
   max_allocated_storage = var.max_allocated_storage_gb
   storage_encrypted     = true
   storage_type          = "gp3"
 
-  db_name  = var.database_name
-  username = var.master_username
+  db_name  = var.snapshot_identifier == null ? var.database_name : null
+  username = var.snapshot_identifier == null ? var.master_username : null
 
-  manage_master_user_password = true
+  # RDS cannot enable a managed master password in the same PostgreSQL
+  # operation that restores a snapshot. Restore first with this false, then
+  # set it true and apply again after the instance becomes available.
+  manage_master_user_password = var.manage_master_user_password
 
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [var.rds_security_group_id]

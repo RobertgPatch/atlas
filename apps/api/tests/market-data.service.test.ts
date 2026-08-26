@@ -228,6 +228,127 @@ describe('market data pricing service', () => {
     expect(getLatestPrices).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the most recent market date when an older quote is received later', async () => {
+    const store = createInMemoryMarketPriceStore()
+    await store.savePrices([
+      quote({
+        price: 225,
+        providerTimestamp: '2026-08-25T20:00:00.000Z',
+        receivedAt: '2026-08-25T20:00:01.000Z',
+        tradingDate: '2026-08-25',
+      }),
+    ])
+    await store.savePrices([
+      quote({
+        price: 214,
+        providerTimestamp: '2026-08-14T20:00:00.000Z',
+        receivedAt: '2026-08-26T12:00:00.000Z',
+        tradingDate: '2026-08-14',
+      }),
+    ])
+
+    await expect(store.getLatestPrices('alpaca', ['AAPL'])).resolves.toMatchObject([
+      {
+        price: 225,
+        providerTimestamp: '2026-08-25T20:00:00.000Z',
+        tradingDate: '2026-08-25',
+      },
+    ])
+  })
+
+  it('shows the newest market date when cached providers have conflicting receipt order', async () => {
+    const provider: MarketDataProvider = {
+      id: 'alpaca+massive',
+      feed: null,
+      isDelayed: false,
+      cacheProviderIds: ['alpaca', 'massive'],
+      getLatestPrices: vi.fn(async () => []),
+      getClosingPrices: vi.fn(async () => []),
+    }
+    const store = {
+      getLatestPrices: vi.fn(async (providerId: string) =>
+        providerId === 'alpaca'
+          ? [
+              quote({
+                price: 225,
+                providerTimestamp: '2026-08-25T20:00:00.000Z',
+                receivedAt: '2026-08-25T20:00:01.000Z',
+                tradingDate: '2026-08-25',
+              }),
+            ]
+          : [
+              quote({
+                provider: 'massive',
+                price: 214,
+                providerTimestamp: '2026-08-14T20:00:00.000Z',
+                receivedAt: '2026-08-26T12:00:00.000Z',
+                tradingDate: '2026-08-14',
+              }),
+            ],
+      ),
+      savePrices: vi.fn(async () => undefined),
+    }
+    const service = createMarketDataService({
+      provider,
+      store,
+      refreshOnRead: false,
+      maxAgeSeconds: 60,
+    })
+
+    const result = await service.priceHoldingsForRead([holding()], {
+      refreshStale: false,
+    })
+
+    expect(result.holdings[0]).toMatchObject({
+      institutionPrice: 225,
+      marketValue: 2_250,
+      asOfDate: '2026-08-25T20:00:00.000Z',
+    })
+    expect(result.pricing.priceAsOf).toBe('2026-08-25T20:00:00.000Z')
+  })
+
+  it('does not replace a newer market date with an older refresh', async () => {
+    const cached = quote({
+      price: 225,
+      providerTimestamp: '2026-08-25T20:00:00.000Z',
+      receivedAt: '2026-08-25T20:00:01.000Z',
+      tradingDate: '2026-08-25',
+    })
+    const provider: MarketDataProvider = {
+      id: 'alpaca',
+      feed: 'sip',
+      isDelayed: false,
+      getLatestPrices: vi.fn(async () => [
+        quote({
+          price: 214,
+          providerTimestamp: '2026-08-14T20:00:00.000Z',
+          receivedAt: '2026-08-26T12:00:00.000Z',
+          tradingDate: '2026-08-14',
+        }),
+      ]),
+      getClosingPrices: vi.fn(async () => []),
+    }
+    const store = {
+      getLatestPrices: vi.fn(async () => [cached]),
+      savePrices: vi.fn(async () => undefined),
+    }
+    const service = createMarketDataService({
+      provider,
+      store,
+      refreshOnRead: true,
+      maxAgeSeconds: 60,
+      now: () => new Date('2026-08-26T12:00:10.000Z'),
+    })
+
+    const result = await service.priceHoldingsForRead([holding()])
+
+    expect(result.holdings[0]).toMatchObject({
+      institutionPrice: 225,
+      marketValue: 2_250,
+      asOfDate: '2026-08-25T20:00:00.000Z',
+    })
+  })
+
   it('upserts the refreshed portfolio total once per day for performance history', async () => {
     const valuationStore = createInMemoryLiquidityValuationStore()
     const accountId = randomUUID()

@@ -44,11 +44,6 @@ export const usePlaidLink = () => {
     plaid.open()
   }, [plaid])
 
-  const prepare = useCallback(async () => {
-    if (linkToken || createToken.isPending) return
-    await createToken.mutateAsync()
-  }, [createToken, linkToken])
-
   const open = useCallback(async () => {
     if (plaid.ready) {
       plaid.open()
@@ -68,7 +63,6 @@ export const usePlaidLink = () => {
 
   return {
     open,
-    prepare,
     ready: plaid.ready,
     isLoading: createToken.isPending || exchangeToken.isPending,
     error: createToken.error ?? exchangeToken.error,

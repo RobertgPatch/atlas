@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { config } from '../../config.js'
 
 export const plaidLinkTokenBodySchema = z.object({
   mode: z.enum(['create', 'update']).optional().default('create'),
@@ -6,12 +7,14 @@ export const plaidLinkTokenBodySchema = z.object({
 })
 
 export const plaidExchangePublicTokenBodySchema = z.object({
-  publicToken: z.string().min(1),
+  publicToken: z.string().min(1).max(config.abuseProtection.payloadLimits.businessJsonBodyBytes),
   metadata: z.record(z.unknown()).optional(),
 })
 
 export const updatePlaidInvestmentAccountsBodySchema = z.object({
-  selectedAccountIds: z.array(z.string().min(1)).default([]),
+  selectedAccountIds: z.array(z.string().min(1).max(256))
+    .max(config.abuseProtection.payloadLimits.maximumJsonProperties)
+    .default([]),
 })
 
 export type PlaidLinkTokenBody = z.output<typeof plaidLinkTokenBodySchema>

@@ -23,6 +23,19 @@ variable "master_username" {
   type        = string
 }
 
+variable "snapshot_identifier" {
+  description = "Optional RDS snapshot identifier used for a one-time database restore."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "manage_master_user_password" {
+  description = "Whether RDS manages the master password in Secrets Manager. Keep false for the initial snapshot restore, then set true on the next apply."
+  type        = bool
+  default     = true
+}
+
 variable "postgres_engine_version" {
   description = "PostgreSQL engine version."
   type        = string
@@ -80,5 +93,5 @@ output "db_port" {
 
 output "master_user_secret_arn" {
   description = "AWS-managed RDS master user secret ARN."
-  value       = aws_db_instance.postgres.master_user_secret[0].secret_arn
+  value       = try(aws_db_instance.postgres.master_user_secret[0].secret_arn, null)
 }

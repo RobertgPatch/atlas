@@ -63,7 +63,6 @@ output "api" {
     ecs_cluster_arn          = module.api.ecs_cluster_arn
     task_definition_arn      = module.api.api_task_definition_arn
     log_group_name           = module.api.api_log_group_name
-    load_balancer_dns_name   = module.api.api_load_balancer_dns_name
     load_balancer_arn_suffix = module.api.api_load_balancer_arn_suffix
     target_group_arn_suffix  = module.api.api_target_group_arn_suffix
   }
@@ -101,11 +100,15 @@ output "scheduler" {
 output "observability" {
   description = "Alarm, WAF log, and budget identifiers."
   value = {
-    environment_name   = var.environment_name
-    alarm_topic_arn    = module.observability.alarm_topic_arn
-    alarm_names        = module.observability.alarm_names
-    waf_log_group_name = module.security.waf_log_group_name
-    budget_name        = module.budgets.budget_name
+    environment_name              = var.environment_name
+    alarm_topic_arn               = module.observability.alarm_topic_arn
+    alarm_names                   = module.observability.alarm_names
+    dashboard_name                = module.observability.dashboard_name
+    waf_log_group_name            = module.security.waf_log_group_name
+    budget_name                   = module.budgets.budget_name
+    bedrock_budget_name           = module.budgets.k1_bedrock_budget_name
+    cost_anomaly_monitor_arn      = module.budgets.cost_anomaly_monitor_arn
+    cost_anomaly_subscription_arn = module.budgets.cost_anomaly_subscription_arn
   }
 }
 

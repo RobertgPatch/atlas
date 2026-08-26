@@ -19,6 +19,7 @@ import { getK1ObjectStore } from '../modules/k1/storage/index.js'
 import { createK1CompletionHandler } from '../modules/k1/worker/k1Completion.handler.js'
 import { K1ExtractionReconciler } from '../modules/k1/worker/k1ExtractionReconciler.js'
 import { createK1StartWorkHandler } from '../modules/k1/worker/k1StartWork.handler.js'
+import { emitK1Metric } from '../modules/k1/k1Observability.js'
 
 const log = pino({
   name: 'k1-extraction-worker',
@@ -53,6 +54,13 @@ export const processK1ReceivedMessages = async <T extends K1StartWorkMessage | K
     try {
       await handler(received, signal)
       await queue.acknowledge(received.receipt)
+      emitK1Metric(log, {
+        metric: 'DocumentsProcessed',
+        value: 1,
+        unit: 'Count',
+        environment: config.nodeEnv,
+        status: 'COMPLETED',
+      })
     } catch (error) {
       if (signal.aborted) return
       const delay = Math.min(300, 2 ** Math.min(received.deliveryCount, 8))
@@ -62,6 +70,13 @@ export const processK1ReceivedMessages = async <T extends K1StartWorkMessage | K
         deliveryCount: received.deliveryCount,
         errorCode: (error as { code?: string }).code ?? 'K1_WORKER_HANDLER_ERROR',
       }, 'K-1 queue message failed')
+      emitK1Metric(log, {
+        metric: 'WorkerErrors',
+        value: 1,
+        unit: 'Count',
+        environment: config.nodeEnv,
+        status: 'FAILED',
+      })
       await queue.retry(received.receipt, delay)
     }
   }))
@@ -108,6 +123,12 @@ export const runK1ExtractionWorker = async (
         const result = await dependencies.reconcile()
         if (result.checked > 0 || result.completionsQueued > 0 || result.failed > 0) {
           log.info(result, 'K-1 extraction reconciliation completed')
+          emitK1Metric(log, {
+            metric: 'ExtractionFailures',
+            value: result.failed,
+            unit: 'Count',
+            environment: config.nodeEnv,
+          })
         }
       } catch (error) {
         if (!signal.aborted) {

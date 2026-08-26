@@ -13,13 +13,8 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Public subnet ids for the API load balancer."
-  type        = list(string)
-}
-
 variable "private_subnet_ids" {
-  description = "Private subnet ids for API tasks."
+  description = "Private subnet ids for the internal API load balancer and API tasks."
   type        = list(string)
 }
 
@@ -66,6 +61,39 @@ variable "task_memory" {
 variable "desired_count" {
   description = "Desired API task count."
   type        = number
+
+  validation {
+    condition     = var.desired_count >= 0 && var.desired_count <= 4 && floor(var.desired_count) == var.desired_count
+    error_message = "desired_count must be a fixed integer from 0 through 4."
+  }
+}
+
+variable "runtime_capacity_guardrails" {
+  description = "Mandatory ALB hardening and fixed ECS capacity posture from the security module."
+  type = object({
+    alb_deletion_protection    = bool
+    alb_drop_invalid_headers   = bool
+    alb_desync_mitigation_mode = string
+    ecs_scaling_policy         = string
+    request_count_autoscaling  = bool
+  })
+  default = {
+    alb_deletion_protection    = false
+    alb_drop_invalid_headers   = true
+    alb_desync_mitigation_mode = "strictest"
+    ecs_scaling_policy         = "fixed"
+    request_count_autoscaling  = false
+  }
+
+  validation {
+    condition = (
+      var.runtime_capacity_guardrails.alb_drop_invalid_headers &&
+      var.runtime_capacity_guardrails.alb_desync_mitigation_mode == "strictest" &&
+      var.runtime_capacity_guardrails.ecs_scaling_policy == "fixed" &&
+      !var.runtime_capacity_guardrails.request_count_autoscaling
+    )
+    error_message = "API runtime guardrails require invalid-header dropping, strictest desync mitigation, fixed ECS capacity, and no request-count autoscaling."
+  }
 }
 
 variable "environment_variables" {
@@ -135,8 +163,35 @@ output "api_log_group_name" {
 }
 
 output "api_load_balancer_dns_name" {
-  description = "Public DNS name for the API origin load balancer."
+  description = "Private DNS name used only to wire the internal API load balancer to CloudFront."
   value       = aws_lb.api.dns_name
+}
+
+variable "ecr_max_images" {
+  description = "Maximum recent ECR images retained after lifecycle expiration."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.ecr_max_images >= 2 && floor(var.ecr_max_images) == var.ecr_max_images
+    error_message = "ecr_max_images must be an integer of at least 2."
+  }
+}
+
+variable "ecr_untagged_retention_days" {
+  description = "Days to retain untagged ECR images before lifecycle expiration."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.ecr_untagged_retention_days >= 1 && floor(var.ecr_untagged_retention_days) == var.ecr_untagged_retention_days
+    error_message = "ecr_untagged_retention_days must be a positive integer."
+  }
+}
+
+output "api_load_balancer_arn" {
+  description = "Internal API load balancer ARN used to create the CloudFront VPC origin."
+  value       = aws_lb.api.arn
 }
 
 output "api_load_balancer_arn_suffix" {

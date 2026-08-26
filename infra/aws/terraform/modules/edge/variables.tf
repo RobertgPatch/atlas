@@ -21,12 +21,12 @@ variable "web_assets_bucket_name" {
 }
 
 variable "api_origin_domain_name" {
-  description = "API origin DNS name, usually the API ALB DNS name."
+  description = "Private API load balancer DNS name used inside the CloudFront VPC origin."
   type        = string
 }
 
-variable "api_origin_protocol_policy" {
-  description = "CloudFront protocol policy for the API origin."
+variable "api_origin_arn" {
+  description = "Internal API load balancer ARN attached to the CloudFront VPC origin."
   type        = string
 }
 

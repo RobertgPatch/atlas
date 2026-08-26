@@ -4,11 +4,13 @@ import type { PartnershipTrackerYearDetail } from '../../../../../../packages/ty
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
 import { AddYearDialog } from '../components/AddYearDialog'
 import { YearRail } from '../components/YearRail'
-import { k1EntryDetailFixture } from './fixtures'
+import { k1EntryDetailFixture, unsignedK1SignoffFixture } from './fixtures'
 
 const carryforwardDetail = {
-  partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'IN_PROGRESS', values: [],
-  calculation: { basis: { beginningOutsideBasis: '500.00' }, lossLimitation: { priorSuspendedLoss: '0.00' }, liabilities: {}, sectionL: {} },
+  partnershipId: 'p-1', taxYear: 2024, isInceptionYear: false, revision: 1, status: 'IN_PROGRESS', officialFormData: {}, values: [], cashFlowEvents: [],
+  calculation: { basis: { beginningOutsideBasis: '500.00' }, lossLimitation: { priorSuspendedLoss: '0.00' }, liabilities: {}, sectionL: {}, checks: [] },
+  sourceConflicts: [],
+  signoff: unsignedK1SignoffFixture(),
 } as unknown as PartnershipTrackerYearDetail
 
 describe('manual K-1 workflow', () => {

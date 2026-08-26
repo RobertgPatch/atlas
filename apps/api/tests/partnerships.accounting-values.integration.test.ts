@@ -7,7 +7,9 @@ import {
   type K1TrackerFixture,
 } from './helpers/k1TrackerFixture.js'
 
-describe('partnership directory K-1 amount formatting', () => {
+const durable = pool ? describe : describe.skip
+
+durable('partnership directory K-1 amount formatting', () => {
   let fixture: K1TrackerFixture
   let documentId: string
 
@@ -17,7 +19,7 @@ describe('partnership directory K-1 amount formatting', () => {
   })
 
   afterEach(async () => {
-    await fixture.cleanup()
+    await fixture?.cleanup()
     if (pool) await pool.query('delete from documents where id = $1', [documentId])
   })
 

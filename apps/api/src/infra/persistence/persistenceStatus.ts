@@ -10,6 +10,21 @@ export interface PersistenceStatus {
   warnings: string[]
 }
 
+export interface LivenessStatus {
+  status: 'ok'
+}
+
+export interface ReadinessStatus {
+  status: 'ready' | 'not_ready'
+  persistence: PersistenceStatus
+}
+
+/**
+ * Public liveness must stay dependency-free so an unavailable database cannot
+ * amplify a cheap health request into connection work.
+ */
+export const getLivenessStatus = (): LivenessStatus => ({ status: 'ok' })
+
 export const getPersistenceStatus = async (): Promise<PersistenceStatus> => {
   const warnings: string[] = []
   const databaseConfigured = config.databaseUrl.length > 0
@@ -36,5 +51,13 @@ export const getPersistenceStatus = async (): Promise<PersistenceStatus> => {
     databaseReachable,
     dedicatedSecretKeyConfigured: isDedicatedSecretKeyConfigured(),
     warnings,
+  }
+}
+
+export const getReadinessStatus = async (): Promise<ReadinessStatus> => {
+  const persistence = await getPersistenceStatus()
+  return {
+    status: persistence.databaseReachable ? 'ready' : 'not_ready',
+    persistence,
   }
 }

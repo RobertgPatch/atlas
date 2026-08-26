@@ -9,6 +9,7 @@ import { durableK1BatchRepository } from '../k1.repository.js'
 import type { K1ReceivedMessage, K1StartWorkMessage } from '../queue/K1WorkQueue.js'
 import type { K1WorkQueue } from '../queue/K1WorkQueue.js'
 import { randomUUID } from 'node:crypto'
+import { admitCostWorkload } from '../../abuse-protection/costWorkloadAdmission.js'
 
 export interface K1StartWorkHandlerDependencies {
   extractor: K1AsyncExtractor
@@ -74,6 +75,19 @@ export const createK1StartWorkHandler = (dependencies: K1StartWorkHandlerDepende
     const inputS3Uri = inputUri(dependencies.extractor, message.object.bucket, message.object.key)
     const outputS3Uri = outputUri(dependencies.extractor, attempt.id)
     try {
+      await admitCostWorkload({
+        workloadKey: 'k1_bda_provider_call',
+        method: 'POST',
+        routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
+        principal: message.k1DocumentId,
+        canonicalInputs: {
+          k1DocumentId: message.k1DocumentId,
+          extractionAttemptId: attempt.id,
+          clientToken: attempt.clientToken,
+        },
+        globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
+        leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
+      })
       const submitted = await dependencies.extractor.submit({
         clientToken: attempt.clientToken,
         inputS3Uri,

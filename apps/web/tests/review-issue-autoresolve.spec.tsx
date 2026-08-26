@@ -68,33 +68,35 @@ describe('K1ReviewWorkspace — issue count after correction (T041)', () => {
           { headers: { ETag: '1' } },
         )
       }),
+      // Pause the rest of the all-in-one completion flow after the correction
+      // refetch so this test can inspect issue auto-resolution in isolation.
+      http.post('*/v1/k1-documents/*/issues/*/resolve', () => new Promise(() => {})),
       http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
     )
 
     renderWorkspace(MOCK_K1_ID)
 
-    // Wait for initial session load with 2 OPEN issues.
+    // Wait for the two current review flags.
     await waitFor(() => {
-      expect(screen.getByText('Linked field issue')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Check Box 1: Ordinary Income' })).toBeInTheDocument()
       expect(screen.getByText('Unlinked issue')).toBeInTheDocument()
     })
-    const openBadgesBefore = screen.getAllByText('OPEN')
-    expect(openBadgesBefore.length).toBe(2)
+    expect(screen.getByRole('heading', { name: 'Double-check 2 extracted values' })).toBeInTheDocument()
 
     // Edit a field and save using userEvent to trigger React's onChange.
     const input = screen.getByTestId('field-input-box_1_ordinary_income')
     await user.type(input, 'X')
 
     await waitFor(() => {
-      expect(screen.getByTestId('save-corrections')).not.toBeDisabled()
+      expect(screen.getByTestId('save-verified-k1')).not.toBeDisabled()
     })
-    await user.click(screen.getByTestId('save-corrections'))
+    await user.click(screen.getByTestId('save-verified-k1'))
 
-    // After session refetch, linked issue shows RESOLVED; unlinked shows OPEN.
+    // Resolved flags are omitted; the remaining open flag stays visible.
     await waitFor(() => {
-      const openBadgesAfter = screen.getAllByText('OPEN')
-      expect(openBadgesAfter.length).toBe(1)
-      expect(screen.getByText('RESOLVED')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Check Box 1: Ordinary Income' })).not.toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Double-check 1 extracted value' })).toBeInTheDocument()
+      expect(screen.getByText('Unlinked issue')).toBeInTheDocument()
     })
   })
 })

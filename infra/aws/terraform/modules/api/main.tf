@@ -26,6 +26,35 @@ resource "aws_ecr_repository" "api" {
   }
 }
 
+resource "aws_ecr_lifecycle_policy" "api" {
+  repository = aws_ecr_repository.api.name
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Expire untagged images after ${var.ecr_untagged_retention_days} days"
+        selection = {
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = var.ecr_untagged_retention_days
+        }
+        action = { type = "expire" }
+      },
+      {
+        rulePriority = 2
+        description  = "Retain only the ${var.ecr_max_images} most recent images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = var.ecr_max_images
+        }
+        action = { type = "expire" }
+      },
+    ]
+  })
+}
+
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/ecs/${var.name_prefix}/api"
   retention_in_days = var.log_retention_days
@@ -85,11 +114,14 @@ resource "aws_iam_role" "task" {
 }
 
 resource "aws_lb" "api" {
-  name               = "${var.name_prefix}-api"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [var.alb_security_group_id]
-  subnets            = var.public_subnet_ids
+  name                       = "${var.name_prefix}-api"
+  internal                   = true
+  load_balancer_type         = "application"
+  security_groups            = [var.alb_security_group_id]
+  subnets                    = var.private_subnet_ids
+  enable_deletion_protection = var.runtime_capacity_guardrails.alb_deletion_protection
+  drop_invalid_header_fields = var.runtime_capacity_guardrails.alb_drop_invalid_headers
+  desync_mitigation_mode     = var.runtime_capacity_guardrails.alb_desync_mitigation_mode
 }
 
 resource "aws_lb_target_group" "api" {
@@ -193,4 +225,14 @@ resource "aws_ecs_service" "api" {
   }
 
   depends_on = [aws_lb_listener.api_http]
+
+  lifecycle {
+    precondition {
+      condition = (
+        var.runtime_capacity_guardrails.ecs_scaling_policy == "fixed" &&
+        !var.runtime_capacity_guardrails.request_count_autoscaling
+      )
+      error_message = "The API ECS service must remain fixed-capacity and cannot use request-count autoscaling."
+    }
+  }
 }

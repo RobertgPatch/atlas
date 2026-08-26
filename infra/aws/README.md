@@ -1,6 +1,30 @@
 # Jackson AWS Liquidity Deployment
 
-This directory tracks the AWS deployment path for the Plaid refresh policy feature. Staging is created manually in the AWS console first for learning and inspection, then mirrored in Terraform for comparison. Production follows the same topology after staging is validated. Terraform becomes the source of truth only after each environment's manual resources and plan differences are reviewed.
+This directory tracks the AWS deployment path for the Plaid refresh policy and cost-abuse protection features. Staging is created manually in the AWS console first for learning and inspection, then mirrored in Terraform for comparison. Production follows the same topology after staging is validated. Terraform becomes the source of truth only after each environment's manual resources and plan differences are reviewed.
+
+## Security and cost guardrails
+
+- Bootstrap the versioned SSE-KMS remote-state bucket and lockfile configuration separately before ordinary plans.
+- CloudFront is the only public origin path; the API ALB is internal, accepts the CloudFront managed prefix list, drops invalid headers, uses strict desync mitigation, and enables deletion protection in production.
+- WAF managed rules plus general, auth, paid-path, and global-emergency rate rules protect every public request path. Keep new rules in count mode through the documented staging observation window before block mode.
+- API and K-1 worker desired counts are fixed and capped; request-count-driven autoscaling is intentionally absent.
+- ECR, K-1 quarantine/evidence objects, WAF logs, application logs, and database backups all have explicit retention policies.
+- Production plans require confirmed alarm and budget destinations. Total and Bedrock actual/forecast budgets and Cost Anomaly Detection are delay-tolerant notifications, not real-time circuit breakers.
+- Application quotas and seven audited workload controls are the real-time paid-work ceiling. See [the response runbook](./cost-abuse-response-runbook.md) for exact containment and rollback commands.
+
+Before deployment, run from the repository root:
+
+```powershell
+npm run security:audit:runtime
+npm run security:cost-envelope
+npm run security:route-policy
+terraform -chdir=infra/aws/terraform fmt -check -recursive
+terraform -chdir=infra/aws/terraform init -backend=false
+terraform -chdir=infra/aws/terraform validate
+terraform -chdir=infra/aws/terraform test
+```
+
+Use `scripts/security/validate-terraform-guardrails.ps1` against sanitized staging and production plan JSON before apply. Recovery restores the last known-good task definition/configuration, keeps paid switches disabled during uncertainty, and re-enables one scoped workload only after dashboards and durable read paths are healthy.
 
 ## Deployment Shape
 

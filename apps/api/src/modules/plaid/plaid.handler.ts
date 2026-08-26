@@ -3,13 +3,20 @@ import { ZodError } from 'zod'
 import { randomUUID } from 'node:crypto'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
-import { plaidApi, plaidClientConfig, isPlaidConfigured } from './plaid.client.js'
+import {
+  callPlaidWithRetry,
+  plaidApi,
+  plaidClientConfig,
+  isPlaidConfigured,
+} from './plaid.client.js'
 import { plaidRepository } from './plaid.repository.js'
 import {
   plaidExchangePublicTokenBodySchema,
   plaidLinkTokenBodySchema,
   updatePlaidInvestmentAccountsBodySchema,
 } from './plaid.zod.js'
+import { config } from '../../config.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -23,8 +30,9 @@ export const createPlaidLinkTokenHandler = async (
     return
   }
 
+  let body: ReturnType<typeof plaidLinkTokenBodySchema.parse>
   try {
-    plaidLinkTokenBodySchema.parse(request.body ?? {})
+    body = plaidLinkTokenBodySchema.parse(request.body ?? {})
   } catch (error) {
     if (error instanceof ZodError) {
       sendValidationError(reply, error)
@@ -32,6 +40,23 @@ export const createPlaidLinkTokenHandler = async (
     }
     throw error
   }
+
+  await admitCostWorkload({
+    workloadKey: 'plaid_link_token',
+    method: 'POST',
+    routePattern: '/v1/plaid/link-token',
+    principal: request.authUser.userId,
+    canonicalInputs: {
+      mode: body.mode,
+      connectionId: body.connectionId ?? null,
+    },
+    globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.externalProvider.plaidLinkTokensPerUserDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
+  })
 
   if (!isPlaidConfigured()) {
     reply.send({
@@ -41,14 +66,14 @@ export const createPlaidLinkTokenHandler = async (
     return
   }
 
-  const response = await plaidApi.linkTokenCreate({
-    user: { client_user_id: request.authUser.userId },
+  const response = await callPlaidWithRetry((signal) => plaidApi.linkTokenCreate({
+    user: { client_user_id: request.authUser!.userId },
     client_name: 'Jackson',
     language: 'en',
     products: plaidClientConfig.products,
     country_codes: plaidClientConfig.countryCodes,
     redirect_uri: plaidClientConfig.redirectUri,
-  })
+  }, { signal }))
 
   reply.send({
     linkToken: response.data.link_token,
@@ -76,8 +101,25 @@ export const exchangePlaidPublicTokenHandler = async (
     throw error
   }
 
+  await admitCostWorkload({
+    workloadKey: 'plaid_public_token_exchange',
+    method: 'POST',
+    routePattern: '/v1/plaid/exchange-public-token',
+    principal: request.authUser.userId,
+    canonicalInputs: { publicToken: body.publicToken },
+    globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.externalProvider.plaidExchangesPerUserDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
+  })
+
   const exchange = isPlaidConfigured()
-    ? await plaidApi.itemPublicTokenExchange({ public_token: body.publicToken })
+    ? await callPlaidWithRetry((signal) => plaidApi.itemPublicTokenExchange(
+        { public_token: body.publicToken },
+        { signal },
+      ))
     : {
         data: {
           access_token: `access-sandbox-${randomUUID()}`,

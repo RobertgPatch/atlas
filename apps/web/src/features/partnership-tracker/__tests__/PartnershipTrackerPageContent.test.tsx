@@ -12,6 +12,23 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: () => ({ createPartnership: { mutateAsync: vi.fn(), isPending: false }, updatePartnership: { mutateAsync: update, isPending: false }, deletePartnership: { mutateAsync: remove, isPending: false } }),
 }))
 vi.mock('../../partnerships/hooks/useEntityQueries', () => ({ useEntityList: () => ({ data: { items: [{ id: 'e-1', name: 'Jackson Family Trust' }] }, isLoading: false, isError: false }) }))
+vi.mock('../../partnerships/hooks/useAssetQueries', () => ({
+  usePartnershipAssets: () => ({
+    data: {
+      summary: { assetCount: 0, valuedAssetCount: 0, totalLatestAssetFmvUsd: null },
+      rows: [],
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
+}))
+vi.mock('../../partnerships/hooks/useAssetMutations', () => ({
+  useCreatePartnershipAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdatePartnershipAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useRecordAssetFmvSnapshot: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeletePartnershipAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
 vi.mock('../components/K1BasisWorkspace', () => ({
   K1BasisWorkspace: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) => (
     <button type="button" onClick={() => onDirtyChange(true)}>Make K-1 changes</button>
@@ -49,12 +66,12 @@ describe('PartnershipTrackerPageContent', () => {
     expect(screen.getByText('TVPI')).toBeInTheDocument()
     expect(screen.getByText('XIRR')).toBeInTheDocument()
   })
-  it('restores the read-only Underlying Assets area from the URL', () => {
+  it('restores the Underlying Assets register from the URL', () => {
     render(<MemoryRouter initialEntries={['/partnership-tracker?partnership=p-1&area=assets']}><PartnershipTrackerPageContent canEdit /></MemoryRouter>)
     expect(screen.getByRole('tab', { name: 'Underlying Assets' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('heading', { name: 'Underlying Assets' })).toBeInTheDocument()
-    expect(screen.getByText('Coming soon')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /add asset/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Underlying asset summary for Redwood Fund' })).toBeInTheDocument()
+    expect(screen.getByText('No underlying assets recorded')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add asset' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Edit Partnership' })).toBeInTheDocument()
   })
   it('opens the identity editor from the shared workspace header', () => {

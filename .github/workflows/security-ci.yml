@@ -1,0 +1,62 @@
+name: Security and cost guardrails
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    name: Application security gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Clean install
+        run: npm ci
+      - name: Runtime dependency and exception-expiry audit
+        run: npm run security:audit:runtime
+      - name: Finite cost envelope
+        run: npm run security:cost-envelope
+      - name: Route-policy coverage
+        run: npm run security:route-policy
+      - name: Build API and web
+        run: |
+          npm run build:api
+          npm run build:web
+      - name: Test API and web
+        run: |
+          npm run test:api
+          npm run test:web
+
+  terraform:
+    name: Terraform security gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: infra/aws/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+      - name: Format
+        run: terraform fmt -check -recursive
+      - name: Initialize without remote state
+        run: terraform init -backend=false -input=false
+      - name: Validate
+        run: terraform validate
+      - name: Test guardrails
+        run: terraform test

@@ -45,15 +45,15 @@ describe('K1ReviewWorkspace — stale version banner (T040)', () => {
 
     // Click Save.
     await waitFor(() => {
-      expect(screen.getByTestId('save-corrections')).not.toBeDisabled()
+      expect(screen.getByTestId('save-verified-k1')).not.toBeDisabled()
     })
-    await user.click(screen.getByTestId('save-corrections'))
+    await user.click(screen.getByTestId('save-verified-k1'))
 
     // Stale banner should appear.
     await waitFor(() => {
       expect(screen.getByTestId('stale-banner')).toBeInTheDocument()
     })
-    expect(screen.getByText(/Another reviewer made changes/)).toBeInTheDocument()
+    expect(screen.getByText(/changed while you were reviewing it/)).toBeInTheDocument()
   })
 
   it('stale-banner includes a Reload button', async () => {
@@ -80,9 +80,9 @@ describe('K1ReviewWorkspace — stale version banner (T040)', () => {
     await user.type(input, 'X')
 
     await waitFor(() => {
-      expect(screen.getByTestId('save-corrections')).not.toBeDisabled()
+      expect(screen.getByTestId('save-verified-k1')).not.toBeDisabled()
     })
-    await user.click(screen.getByTestId('save-corrections'))
+    await user.click(screen.getByTestId('save-verified-k1'))
 
     await waitFor(() => screen.getByTestId('stale-banner'))
     expect(screen.getByRole('button', { name: /reload/i })).toBeInTheDocument()

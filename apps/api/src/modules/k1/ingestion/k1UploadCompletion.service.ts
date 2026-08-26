@@ -16,6 +16,7 @@ import { readObjectToBuffer } from '../storage/K1ObjectStore.js'
 import { getK1ObjectStore } from '../storage/index.js'
 import { toPublicBatch } from './k1Batch.service.js'
 import { createK1ExtractionClientToken } from '../extraction/k1ExtractionAttempt.repository.js'
+import { admitCostWorkload } from '../../abuse-protection/costWorkloadAdmission.js'
 
 const safeMessages: Record<K1IngestionErrorCode, string> = {
   K1_INGESTION_DISABLED: 'K-1 ingestion is not available.',
@@ -144,7 +145,29 @@ const completeOne = async (args: {
     const batch = await durableK1BatchRepository.getById(args.batchId)
     if (!batch) throw Object.assign(new Error('BATCH_NOT_FOUND'), { code: 'BATCH_NOT_FOUND' })
 
+    await admitCostWorkload({
+      workloadKey: 'k1_bda_document',
+      method: 'POST',
+      routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
+      principal: batch.createdByUserId,
+      canonicalInputs: {
+        batchId: args.batchId,
+        itemId: args.itemId,
+        sha256: actualHash,
+        pageCount,
+      },
+      globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
+      units: 1,
+      quotas: [
+        { scopeKind: 'user', scopeValue: batch.createdByUserId, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+        { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+      ],
+      leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
+    })
+
     let k1DocumentId = item.k1DocumentId
+    let acceptedMetadata = metadata
+    let acceptedObjectKey = item.objectKey
     if (!k1DocumentId) {
       const duplicate = batch.entityScopeId
         ? await durableK1Repository.findActiveDuplicateByHash(batch.entityScopeId, actualHash)
@@ -154,15 +177,19 @@ const completeOne = async (args: {
       }
       const documentId = randomUUID()
       k1DocumentId = randomUUID()
+      acceptedObjectKey = `${config.k1Ingestion.s3.inputPrefix.replace(/^\/+|\/+$/g, '')}/accepted/${k1DocumentId}.pdf`
+      if (store.promoteAccepted) {
+        acceptedMetadata = await store.promoteAccepted(identity, acceptedObjectKey)
+      }
       await withTransaction(async (client) => {
         await durableK1Repository.createAccepted({
           documentId,
           k1DocumentId: k1DocumentId!,
           ingestionItemId: item.id,
           fileName: item.fileName,
-          storagePath: item.objectKey,
-          storageBucket: metadata.bucket,
-          storageVersionId: metadata.versionId,
+          storagePath: acceptedObjectKey,
+          storageBucket: acceptedMetadata.bucket,
+          storageVersionId: acceptedMetadata.versionId,
           mimeType: 'application/pdf',
           sizeBytes: item.sizeBytes,
           sha256: actualHash,
@@ -174,7 +201,7 @@ const completeOne = async (args: {
           to: 'UPLOADED',
           documentId,
           k1DocumentId,
-          objectVersionId: metadata.versionId,
+          objectVersionId: acceptedMetadata.versionId,
         })
       })
     } else {
@@ -202,9 +229,9 @@ const completeOne = async (args: {
         config.k1Ingestion.bda.mappingSchemaVersion,
       ),
       object: {
-        key: item.objectKey,
-        bucket: metadata.bucket ?? null,
-        versionId: metadata.versionId ?? null,
+        key: acceptedObjectKey,
+        bucket: acceptedMetadata.bucket ?? null,
+        versionId: acceptedMetadata.versionId ?? null,
       },
       enqueuedAt: new Date().toISOString(),
     }

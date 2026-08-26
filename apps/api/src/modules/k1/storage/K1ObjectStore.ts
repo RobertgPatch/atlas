@@ -42,6 +42,10 @@ export interface K1ObjectStore {
   head(identity: K1ObjectIdentity): Promise<K1ObjectMetadata | null>
   read(identity: K1ObjectIdentity, range?: K1ObjectRange): Promise<K1ObjectRead>
   delete(identity: K1ObjectIdentity): Promise<void>
+  promoteAccepted?(
+    source: K1ObjectIdentity,
+    acceptedKey: string,
+  ): Promise<K1ObjectMetadata>
   putRawResult(input: PutK1ObjectInput): Promise<K1ObjectMetadata>
   readRawResult(identity: K1ObjectIdentity): Promise<K1ObjectRead>
 }

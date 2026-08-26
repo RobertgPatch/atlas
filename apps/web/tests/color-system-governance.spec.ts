@@ -18,7 +18,7 @@ describe('color-system governance CLI', () => {
     const result = run('tests/fixtures/color-system/prohibited.tsx')
 
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:24 [competing-action-color]')
+    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:22 [competing-action-color]')
     expect(result.stderr).toContain('[nonsemantic-focus]')
     expect(result.stderr).toContain('[legacy-interaction-token]')
     expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:9:28 [raw-canonical-interaction]')

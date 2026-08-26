@@ -46,6 +46,21 @@ resource "aws_cloudfront_origin_access_control" "web" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_vpc_origin" "api" {
+  vpc_origin_endpoint_config {
+    name                   = "${var.name_prefix}-api-origin"
+    arn                    = var.api_origin_arn
+    http_port              = 80
+    https_port             = 443
+    origin_protocol_policy = "http-only"
+
+    origin_ssl_protocols {
+      items    = ["TLSv1.2"]
+      quantity = 1
+    }
+  }
+}
+
 resource "aws_acm_certificate" "viewer" {
   provider = aws.us_east_1
   count    = local.custom_domain_enabled && var.acm_certificate_arn == null ? 1 : 0
@@ -100,16 +115,23 @@ resource "aws_cloudfront_distribution" "this" {
     domain_name = var.api_origin_domain_name
     origin_id   = local.api_origin_id
 
-    custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = var.api_origin_protocol_policy
-      origin_ssl_protocols   = ["TLSv1.2"]
+    vpc_origin_config {
+      vpc_origin_id = aws_cloudfront_vpc_origin.api.id
     }
   }
 
   default_cache_behavior {
     target_origin_id       = local.s3_origin_id
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = var.static_cache_policy_id
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/health"
+    target_origin_id       = local.api_origin_id
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]

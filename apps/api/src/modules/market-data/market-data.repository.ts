@@ -49,7 +49,12 @@ const newerPrice = (
   current: MarketPriceObservation | undefined,
   candidate: MarketPriceObservation,
 ): MarketPriceObservation =>
-  !current || candidate.receivedAt > current.receivedAt ? candidate : current
+  !current ||
+  candidate.providerTimestamp > current.providerTimestamp ||
+  (candidate.providerTimestamp === current.providerTimestamp &&
+    candidate.receivedAt > current.receivedAt)
+    ? candidate
+    : current
 
 export const createInMemoryMarketPriceStore = (): MarketPriceStore & {
   clear(): void
@@ -86,7 +91,7 @@ export const marketPriceRepository: MarketPriceStore = {
            provider_timestamp, received_at, trading_date, is_delayed, feed
          from market_price_observations
          where provider = $1 and upper(symbol) = any($2::text[])
-         order by upper(symbol), received_at desc, provider_timestamp desc`,
+         order by upper(symbol), provider_timestamp desc, received_at desc`,
         [provider, normalizedSymbols],
       )
       for (const row of result.rows) {

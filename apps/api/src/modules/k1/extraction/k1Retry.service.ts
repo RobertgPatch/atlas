@@ -10,6 +10,10 @@ import {
   createK1ExtractionClientToken,
   k1ExtractionAttemptRepository,
 } from './k1ExtractionAttempt.repository.js'
+import { admissionService } from '../../abuse-protection/admission.service.js'
+import { defaultRouteProtectionPolicy } from '../../abuse-protection/policy.defaults.js'
+import { fingerprintSubject } from '../../abuse-protection/subjectFingerprint.js'
+import { requireWorkloadAdmission } from '../../abuse-protection/workloadAdmission.js'
 
 const retryableFailure = (code: string | null): boolean => {
   if (!code) return true
@@ -34,6 +38,50 @@ export const retryK1Extraction = async (args: {
   expectedDocumentVersion: number
   actorUserId: string
 }): Promise<K1RetryExtractionResult> => {
+  const userHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'user', value: args.actorUserId,
+  })
+  const operationHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'operation', value: args.k1DocumentId,
+  })
+  const globalHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'global', value: 'atlas',
+  })
+  const policy = defaultRouteProtectionPolicy(
+    'POST',
+    '/v1/k1-documents/:k1DocumentId/retry-extraction',
+  )
+  requireWorkloadAdmission(await admissionService.admit({
+    policy,
+    requestId: `k1-retry-${randomUUID()}`,
+    subjectHashes: { user: userHash, operation: operationHash, global: globalHash },
+    workload: {
+      workloadKey: 'k1_bda_document',
+      idempotency: {
+        principalHash: userHash,
+        canonicalRequest: {
+          policyKey: policy.policyKey,
+          method: policy.method,
+          routePattern: policy.routePattern,
+          inputs: {
+            k1DocumentId: args.k1DocumentId,
+            expectedDocumentVersion: args.expectedDocumentVersion,
+          },
+        },
+        reservedUnits: { document: 1, page: 1, provider_call: 1, queue_message: 1 },
+      },
+      quotas: [
+        { scopeKind: 'user', scopeHash: userHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+        { scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+        { scopeKind: 'entity', scopeHash: operationHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.retriesPerDocumentPerDay },
+        { scopeKind: 'entity', scopeHash: operationHash, periodKind: 'billing_month', units: 1, limit: config.abuseProtection.quotas.paidExtraction.lifetimeRetriesPerDocument },
+      ],
+      leaseScopeKind: 'global',
+      leaseScopeHash: globalHash,
+      leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
+      backlogLimit: config.abuseProtection.quotas.paidExtraction.globalBacklog,
+    },
+  }))
   const prepared = await withTransaction(async (client) => {
     const document = await durableK1Repository.lockById(client, args.k1DocumentId)
     if (!document) throw Object.assign(new Error('K1_DOCUMENT_NOT_FOUND'), { code: 'K1_DOCUMENT_NOT_FOUND' })

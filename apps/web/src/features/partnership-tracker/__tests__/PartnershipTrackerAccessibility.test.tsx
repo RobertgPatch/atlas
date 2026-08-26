@@ -4,14 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerYearDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
+import { K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS } from '../../k1-tracker/k1FormLayout'
+import { K1_OFFICIAL_FORM_FIELDS } from '../../k1-tracker/k1OfficialFormFields'
 import { PartnershipPicker } from '../components/PartnershipPicker'
 import { NavHistoryChart } from '../components/NavHistoryChart'
-import { navFixtures, summaryFixture } from './fixtures'
+import { navFixtures, summaryFixture, unsignedK1SignoffFixture } from './fixtures'
 
 const inlineDetail = {
-  partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'NOT_STARTED', values: [],
+  partnershipId: 'p-1', taxYear: 2024, isInceptionYear: true, revision: 1, status: 'NOT_STARTED', officialFormData: {}, values: [], cashFlowEvents: [],
   calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {}, checks: [] },
   sourceConflicts: [],
+  signoff: unsignedK1SignoffFixture(),
 } as unknown as PartnershipTrackerYearDetail
 
 describe('Partnership Tracker accessibility', () => {
@@ -54,7 +57,9 @@ describe('Partnership Tracker accessibility', () => {
     expect(screen.getByRole('heading', { name: 'Part II - Information About the Partner' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /Part III - Partner's Share/ })).toBeInTheDocument()
     expect(screen.getAllByRole('textbox')).toHaveLength(64)
-    expect(container.querySelectorAll('[data-k1-official-field]')).toHaveLength(48)
+    expect(container.querySelectorAll('[data-k1-official-field]')).toHaveLength(
+      K1_OFFICIAL_FORM_FIELDS.length - K1_OVERLAPPING_CODED_OFFICIAL_FIELD_KEYS.length,
+    )
     expect(firstAmount).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Preview calculation' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save revisions' })).toBeInTheDocument()

@@ -14,6 +14,8 @@ import { k1ExtractionAttemptRepository } from '../k1/extraction/k1ExtractionAtte
 import { k1MatchRepository } from '../k1/matching/k1Match.repository.js'
 import { pool, query } from '../../infra/db/client.js'
 import { k1ReviewParamsSchema } from './review.schemas.js'
+import { config } from '../../config.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 import type {
   K1ReviewSession,
   K1FieldValue,
@@ -408,6 +410,18 @@ export const sessionHandler = async (
 export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const parsed = k1ReviewParamsSchema.safeParse(request.params)
   if (!parsed.success) return sendZodError(reply, parsed.error)
+  await admitCostWorkload({
+    workloadKey: 'k1_document_download',
+    method: 'GET',
+    routePattern: '/v1/k1-documents/:k1DocumentId/pdf',
+    principal: request.authUser!.userId,
+    canonicalInputs: {
+      k1DocumentId: parsed.data.k1DocumentId,
+      range: request.headers.range ?? null,
+    },
+    globalDailyLimit: config.abuseProtection.quotas.documentDownload.userPerHour * 24,
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.documentDownloadMs / 1_000),
+  })
   if (pool) {
     const durable = await durableK1Repository.getById(parsed.data.k1DocumentId)
     if (durable) {

@@ -135,6 +135,6 @@ describe('K1PartnershipIntakeRail', () => {
     const checklist = screen.getByRole('heading', { name: 'Reconciliation checklist' }).closest('section')!
     expect(within(checklist).getAllByText('Required')).toHaveLength(3)
     expect(within(checklist).getAllByText('Review')).toHaveLength(3)
-    expect(screen.getByRole('button', { name: /Complete book-tax workpaper/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enter book capital' })).toBeInTheDocument()
   })
 })

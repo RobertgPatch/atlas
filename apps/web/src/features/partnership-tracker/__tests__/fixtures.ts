@@ -1,5 +1,5 @@
 import type { PartnershipAggregateGroup, PartnershipAggregateRow, PartnershipAggregationResponse, PartnershipCommitmentEntry, PartnershipNavEntry, PartnershipTrackerSummary } from '../../../../../../packages/types/src/partnership-tracker'
-import type { K1TrackerCalculation, K1TrackerCashFlowEvent, K1TrackerValue, K1TrackerYearDetail, K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerCalculation, K1TrackerCashFlowEvent, K1TrackerSignoffState, K1TrackerValue, K1TrackerYearDetail, K1TrackerYearSummary } from '../../../../../../packages/types/src/k1-tracker'
 
 export const ownerFixtures = [
   { id: 'e-1', name: 'Jackson Family Trust' },
@@ -129,12 +129,23 @@ const k1CalculationFixture = {
   checks: [],
 } as unknown as K1TrackerCalculation
 
+export const unsignedK1SignoffFixture = (yearRevision = 1): K1TrackerSignoffState => ({
+  yearRevision,
+  preparedByEmail: null,
+  preparedAt: null,
+  reviewedByEmail: null,
+  reviewedAt: null,
+  invalidatedAt: null,
+  invalidationReason: null,
+})
+
 export const k1EntryDetailFixture: K1TrackerYearDetail = {
   partnershipId: 'p-1',
   taxYear: 2024,
   isInceptionYear: false,
   status: 'IN_PROGRESS',
   revision: 4,
+  officialFormData: {},
   values: [
     k1Value('value-opening-basis', 'opening_outside_basis', '1234567890.00', 'FINALIZED_K1'),
     k1Value('value-opening-loss', 'opening_suspended_loss', '1500.00', 'CARRYFORWARD'),
@@ -146,15 +157,7 @@ export const k1EntryDetailFixture: K1TrackerYearDetail = {
   cashFlowEvents: [],
   sourceConflicts: [{ fieldKey: 'section_l_beginning_capital', message: 'Reported beginning capital differs from the carried amount.' }],
   calculation: k1CalculationFixture,
-  signoff: {
-    yearRevision: 4,
-    preparedByEmail: null,
-    preparedAt: null,
-    reviewedByEmail: null,
-    reviewedAt: null,
-    invalidatedAt: null,
-    invalidationReason: null,
-  },
+  signoff: unsignedK1SignoffFixture(4),
 }
 
 const cashActivity = (

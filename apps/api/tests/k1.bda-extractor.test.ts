@@ -32,7 +32,9 @@ describe('BDA extractor', () => {
     })).resolves.toEqual({ providerJobId: 'arn:aws:bedrock:job/123' })
 
     const command = send.mock.calls[0][0]
+    const requestOptions = send.mock.calls[0][1]
     expect(command).toBeInstanceOf(InvokeDataAutomationAsyncCommand)
+    expect(requestOptions.abortSignal).toBeInstanceOf(AbortSignal)
     expect(command.input).toMatchObject({
       clientToken: 'k1-deterministic-token',
       inputConfiguration: { s3Uri: 's3://private/originals/document.pdf' },
@@ -57,6 +59,7 @@ describe('BDA extractor', () => {
     const extractor = new BdaExtractor(options(send))
     const status = await extractor.getStatus('arn:aws:bedrock:job/123')
     expect(send.mock.calls[0][0]).toBeInstanceOf(GetDataAutomationStatusCommand)
+    expect(send.mock.calls[0][1].abortSignal).toBeInstanceOf(AbortSignal)
     expect(status.status).toBe(expected)
     expect(status.providerStatus).toBe(providerStatus)
   })

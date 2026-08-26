@@ -36,6 +36,7 @@ interface MfaChallengeRecord {
   id: string
   userId: string
   createdAt: Date
+  expiresAt: Date
 }
 
 interface MfaEnrollmentRecord {
@@ -43,6 +44,7 @@ interface MfaEnrollmentRecord {
   userId: string
   secret: string
   createdAt: Date
+  expiresAt: Date
 }
 
 interface UserRow {
@@ -77,8 +79,32 @@ const now = () => new Date()
 
 const users = new Map<string, UserRecord>()
 const sessions = new Map<string, SessionRecord>()
+const persistedSessionActivity = new Map<string, Date>()
 const challenges = new Map<string, MfaChallengeRecord>()
 const enrollments = new Map<string, MfaEnrollmentRecord>()
+
+const cleanupMfaArtifacts = (at = now()): void => {
+  for (const [id, challenge] of challenges) {
+    if (challenge.expiresAt <= at) challenges.delete(id)
+  }
+  for (const [id, enrollment] of enrollments) {
+    if (enrollment.expiresAt <= at) enrollments.delete(id)
+  }
+}
+
+const evictOldest = <T extends { createdAt: Date }>(
+  records: Map<string, T>,
+  maximum: number,
+): void => {
+  while (records.size >= maximum) {
+    let oldest: [string, T] | undefined
+    for (const entry of records) {
+      if (!oldest || entry[1].createdAt < oldest[1].createdAt) oldest = entry
+    }
+    if (!oldest) return
+    records.delete(oldest[0])
+  }
+}
 
 let dummyPasswordHashPromise: Promise<string> | undefined
 
@@ -259,9 +285,11 @@ const loadSessionsFromDatabase = async () => {
     `,
   )
   sessions.clear()
+  persistedSessionActivity.clear()
   for (const row of result.rows) {
     const session = mapSessionRow(row)
     sessions.set(session.id, session)
+    persistedSessionActivity.set(session.id, new Date(session.lastActivityAt))
   }
 }
 
@@ -436,49 +464,66 @@ export const authRepository = {
   },
 
   createMfaChallenge(userId: string): MfaChallengeRecord {
+    const createdAt = now()
+    cleanupMfaArtifacts(createdAt)
+    for (const existing of challenges.values()) {
+      if (existing.userId === userId) challenges.delete(existing.id)
+    }
+    evictOldest(challenges, config.abuseProtection.authArtifacts.maximumChallenges)
     const challenge: MfaChallengeRecord = {
       id: randomUUID(),
       userId,
-      createdAt: now(),
+      createdAt,
+      expiresAt: new Date(
+        createdAt.getTime() + config.abuseProtection.authArtifacts.challengeTtlSeconds * 1_000,
+      ),
     }
     challenges.set(challenge.id, challenge)
     return challenge
   },
 
   createMfaEnrollment(userId: string, secret: string): MfaEnrollmentRecord {
+    const createdAt = now()
+    cleanupMfaArtifacts(createdAt)
     for (const existing of enrollments.values()) {
       if (existing.userId === userId) {
         enrollments.delete(existing.id)
       }
     }
+    evictOldest(enrollments, config.abuseProtection.authArtifacts.maximumEnrollments)
 
     const enrollment: MfaEnrollmentRecord = {
       id: randomUUID(),
       userId,
       secret,
-      createdAt: now(),
+      createdAt,
+      expiresAt: new Date(
+        createdAt.getTime() + config.abuseProtection.authArtifacts.enrollmentTtlSeconds * 1_000,
+      ),
     }
     enrollments.set(enrollment.id, enrollment)
     return enrollment
   },
 
   getChallenge(challengeId: string): MfaChallengeRecord | undefined {
+    cleanupMfaArtifacts()
     return challenges.get(challengeId)
   },
 
   consumeChallenge(challengeId: string): MfaChallengeRecord | undefined {
-    const challenge = challenges.get(challengeId)
+    const challenge = this.getChallenge(challengeId)
     if (!challenge) return undefined
     challenges.delete(challengeId)
     return challenge
   },
 
   getMfaEnrollment(enrollmentId: string): MfaEnrollmentRecord | undefined {
+    cleanupMfaArtifacts()
     return enrollments.get(enrollmentId)
   },
 
   consumeMfaEnrollment(enrollmentId: string): MfaEnrollmentRecord | undefined {
-    const enrollment = enrollments.get(enrollmentId)
+    const enrollment = this.getMfaEnrollment(enrollmentId)
     if (!enrollment) return undefined
     enrollments.delete(enrollmentId)
     return enrollment
@@ -498,6 +543,7 @@ export const authRepository = {
       ),
     }
     sessions.set(session.id, session)
+    persistedSessionActivity.set(session.id, new Date(session.lastActivityAt))
     persistSession(session)
 
     const user = users.get(userId)
@@ -519,9 +565,34 @@ export const authRepository = {
   touchSession(sessionId: string): void {
     const session = sessions.get(sessionId)
     if (!session) return
-    session.lastActivityAt = now()
+    const touchedAt = now()
+    const lastPersisted = persistedSessionActivity.get(sessionId) ?? session.lastActivityAt
+    session.lastActivityAt = touchedAt
     sessions.set(sessionId, session)
-    persistSession(session)
+    const writeIntervalMs = Math.max(
+      1,
+      config.sessionActivityWriteIntervalSeconds,
+    ) * 1_000
+    if (touchedAt.getTime() - lastPersisted.getTime() >= writeIntervalMs) {
+      persistedSessionActivity.set(sessionId, new Date(touchedAt))
+      persistSession(session)
+    }
+  },
+
+  async cleanupAuthAttempts(maximumRows = config.abuseProtection.retention.cleanupBatchSize): Promise<number> {
+    if (!pool) return 0
+    const result = await pool.query(
+      `with candidates as (
+         select id from auth_attempts
+          where attempted_at < now() - ($1::integer * interval '1 day')
+          order by attempted_at, id
+          limit $2
+       )
+       delete from auth_attempts target using candidates
+        where target.id = candidates.id`,
+      [config.abuseProtection.retention.authAttemptDays, maximumRows],
+    )
+    return result.rowCount ?? 0
   },
 
   revokeSession(sessionId: string, reason: string): void {
@@ -530,6 +601,7 @@ export const authRepository = {
     session.revokedAt = now()
     session.revokeReason = reason
     sessions.set(sessionId, session)
+    persistedSessionActivity.set(sessionId, new Date(session.lastActivityAt))
     persistSession(session)
   },
 
@@ -539,6 +611,7 @@ export const authRepository = {
         session.revokedAt = now()
         session.revokeReason = reason
         sessions.set(session.id, session)
+        persistedSessionActivity.set(session.id, new Date(session.lastActivityAt))
         persistSession(session)
       }
     }
@@ -634,5 +707,10 @@ export const authRepository = {
 
   async _flushPersistenceWrites(): Promise<void> {
     await dbWriteQueue
+  },
+
+  _debugMfaArtifactCounts(): { challenges: number; enrollments: number } {
+    cleanupMfaArtifacts()
+    return { challenges: challenges.size, enrollments: enrollments.size }
   },
 }

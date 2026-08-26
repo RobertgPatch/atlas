@@ -4,6 +4,7 @@ import { pool } from '../infra/db/client.js'
 import { runMigrations } from '../infra/db/migrate.js'
 import { marketDataService } from '../modules/market-data/market-data.service.js'
 import { plaidRepository } from '../modules/plaid/plaid.repository.js'
+import { admitCostWorkload } from '../modules/abuse-protection/costWorkloadAdmission.js'
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 const MARKET_CLOSE_SETTLED_MINUTE = 16 * 60 + 20
@@ -126,6 +127,20 @@ export const runBackfill = async (
 
   const range = parseBackfillRange(args, now)
   const { dates, deferredToday } = completedWeekdaysInRange(range, now)
+  if (dates.length > config.abuseProtection.quotas.backfill.maximumRowsPerRun) {
+    throw new Error('Backfill row ceiling exceeded.')
+  }
+  await admitCostWorkload({
+    workloadKey: 'market_price_backfill',
+    controlKey: 'backfills',
+    method: 'POST',
+    routePattern: '/v1/reports/consolidated-holdings/refresh',
+    principal: 'system:market-price-backfill',
+    canonicalInputs: { from: range.from, to: range.to },
+    globalDailyLimit: config.abuseProtection.quotas.backfill.globalRunsPerDay,
+    units: 1,
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.backfillMs / 1_000),
+  })
   await runMigrations((message) => console.info(message))
   await plaidRepository.bootstrapFromDatabase()
 

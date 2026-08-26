@@ -1,4 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
+import {
+  defaultRouteProtectionPolicy,
+  type HttpMethod,
+} from '../abuse-protection/index.js'
 import { requireAdminAccess } from './admin.guard.js'
 import { authRepository } from '../auth/auth.repository.js'
 import { k1Repository } from '../k1/k1.repository.js'
@@ -13,6 +17,10 @@ import {
   createInMemoryCommitment,
   createInMemoryCapitalActivity,
 } from '../partnerships/capital.store.js'
+
+const abuseProtection = (method: HttpMethod, routePattern: string) => ({
+  abuseProtection: defaultRouteProtectionPolicy(method, routePattern),
+})
 
 /**
  * Dev-only maintenance endpoints exposed on the Admin page. These let an Admin
@@ -203,6 +211,12 @@ const seedHandler = async (_req: FastifyRequest, reply: FastifyReply) => {
 export const registerAdminDevRoutes = async (app: FastifyInstance) => {
   if (process.env.NODE_ENV === 'production') return
 
-  app.post('/admin/dev/clear', { preHandler: [requireAdminAccess] }, clearHandler)
-  app.post('/admin/dev/seed', { preHandler: [requireAdminAccess] }, seedHandler)
+  app.post('/admin/dev/clear', {
+    config: abuseProtection('POST', '/v1/admin/dev/clear'),
+    preHandler: [requireAdminAccess],
+  }, clearHandler)
+  app.post('/admin/dev/seed', {
+    config: abuseProtection('POST', '/v1/admin/dev/seed'),
+    preHandler: [requireAdminAccess],
+  }, seedHandler)
 }

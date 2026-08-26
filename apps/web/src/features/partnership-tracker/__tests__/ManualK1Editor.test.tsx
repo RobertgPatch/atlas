@@ -2,12 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerYearDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
-import { k1CashActivityDetailFixture, k1EntryDetailFixture } from './fixtures'
+import { k1CashActivityDetailFixture, k1EntryDetailFixture, unsignedK1SignoffFixture } from './fixtures'
 
 const detail = {
-  partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'IN_PROGRESS',
+  partnershipId: 'p-1', taxYear: 2024, isInceptionYear: false, revision: 1, status: 'IN_PROGRESS', officialFormData: {},
   values: [{ id: 'v-1', fieldKey: 'opening_outside_basis', amount: '100.00', sourceType: 'FINALIZED_K1', originalSourceText: '100', sourceK1DocumentId: 'd-1', sourceK1FieldValueId: 'f-1', importBatchId: null, sourceSheet: null, sourceCell: null, carryforwardFromTaxYear: null, overrideReason: null, isActive: true, createdByEmail: null, createdAt: '2025-01-01T00:00:00.000Z' }],
-  calculation: { basis: { beginningOutsideBasis: '100.00' }, lossLimitation: { priorSuspendedLoss: '0.00' }, liabilities: {}, sectionL: {} },
+  cashFlowEvents: [],
+  calculation: { basis: { beginningOutsideBasis: '100.00' }, lossLimitation: { priorSuspendedLoss: '0.00' }, liabilities: {}, sectionL: {}, checks: [] },
+  sourceConflicts: [],
+  signoff: unsignedK1SignoffFixture(),
 } as unknown as PartnershipTrackerYearDetail
 
 describe('manual K-1 annual entry', () => {

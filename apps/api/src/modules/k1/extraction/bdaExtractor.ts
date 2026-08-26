@@ -24,6 +24,8 @@ export interface BdaExtractorOptions {
   projectArn?: string
   projectStage?: 'DEVELOPMENT' | 'LIVE'
   kmsKeyArn?: string
+  timeoutMs?: number
+  beforeProviderCall?: () => Promise<void>
 }
 
 const requireSetting = (value: string, code: string): string => {
@@ -44,16 +46,20 @@ export class BdaExtractor implements K1AsyncExtractor {
   private readonly projectArn: string
   private readonly projectStage: 'DEVELOPMENT' | 'LIVE'
   private readonly kmsKeyArn: string
+  private readonly timeoutMs: number
+  private readonly beforeProviderCall?: () => Promise<void>
 
   constructor(options: BdaExtractorOptions = {}) {
     this.client = options.client ?? new BedrockDataAutomationRuntimeClient({
       region: options.region ?? config.aws.region,
-      maxAttempts: 5,
+      maxAttempts: config.abuseProtection.retryBudgets.bdaMaximumAttempts,
     })
     this.profileArn = requireSetting(options.profileArn ?? config.k1Ingestion.bda.profileArn, 'K1_BDA_PROFILE_ARN_REQUIRED')
     this.projectArn = requireSetting(options.projectArn ?? config.k1Ingestion.bda.projectArn, 'K1_BDA_PROJECT_ARN_REQUIRED')
     this.projectStage = options.projectStage ?? config.k1Ingestion.bda.projectStage
     this.kmsKeyArn = requireSetting(options.kmsKeyArn ?? config.k1Ingestion.s3.kmsKeyArn, 'K1_S3_KMS_KEY_REQUIRED')
+    this.timeoutMs = options.timeoutMs ?? config.abuseProtection.timeouts.bdaProviderMs
+    this.beforeProviderCall = options.beforeProviderCall
   }
 
   async extract(_ctx: ExtractCtx): Promise<ExtractResult> {
@@ -65,6 +71,7 @@ export class BdaExtractor implements K1AsyncExtractor {
   }
 
   async submit(input: K1AsyncSubmissionInput): Promise<K1AsyncSubmission> {
+    await this.beforeProviderCall?.()
     const response = await this.client.send(new InvokeDataAutomationAsyncCommand({
       clientToken: input.clientToken,
       inputConfiguration: { s3Uri: input.inputS3Uri },
@@ -88,13 +95,17 @@ export class BdaExtractor implements K1AsyncExtractor {
         { key: 'atlas-workload', value: 'k1-ingestion' },
         { key: 'atlas-attempt-id', value: input.extractionAttemptId },
       ],
-    })) as { invocationArn?: string }
+    }), { abortSignal: AbortSignal.timeout(this.timeoutMs) }) as { invocationArn?: string }
     if (!response.invocationArn) throw Object.assign(new Error('BDA_INVOCATION_ARN_MISSING'), { code: 'BDA_INVOCATION_ARN_MISSING' })
     return { providerJobId: response.invocationArn }
   }
 
   async getStatus(providerJobId: string): Promise<K1AsyncJobStatus> {
-    const response = await this.client.send(new GetDataAutomationStatusCommand({ invocationArn: providerJobId })) as {
+    await this.beforeProviderCall?.()
+    const response = await this.client.send(
+      new GetDataAutomationStatusCommand({ invocationArn: providerJobId }),
+      { abortSignal: AbortSignal.timeout(this.timeoutMs) },
+    ) as {
       status?: AutomationJobStatus
       outputConfiguration?: { s3Uri?: string }
       errorType?: string

@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { z, ZodError } from 'zod'
+import {
+  defaultRouteProtectionPolicy,
+  type HttpMethod,
+} from '../abuse-protection/index.js'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { requirePartnershipScope } from './partnershipScope.plugin.js'
@@ -464,9 +468,14 @@ const deleteEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
 // ---------------------------------------------------------------------------
 
 export const registerEntityAdminRoutes = async (app: FastifyInstance) => {
-  const gated = { preHandler: [withSession, requireAuthenticated, requirePartnershipScope] }
-  app.get('/entities', gated, listEntitiesHandler)
-  app.post('/entities', gated, createEntityHandler)
-  app.patch('/entities/:id', gated, updateEntityHandler)
-  app.delete('/entities/:id', gated, deleteEntityHandler)
+  const gated = (method: HttpMethod, routePattern: string) => ({
+    config: {
+      abuseProtection: defaultRouteProtectionPolicy(method, routePattern),
+    },
+    preHandler: [withSession, requireAuthenticated, requirePartnershipScope],
+  })
+  app.get('/entities', gated('GET', '/v1/entities'), listEntitiesHandler)
+  app.post('/entities', gated('POST', '/v1/entities'), createEntityHandler)
+  app.patch('/entities/:id', gated('PATCH', '/v1/entities/:id'), updateEntityHandler)
+  app.delete('/entities/:id', gated('DELETE', '/v1/entities/:id'), deleteEntityHandler)
 }

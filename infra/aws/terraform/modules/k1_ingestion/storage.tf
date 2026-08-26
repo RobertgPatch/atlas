@@ -76,9 +76,25 @@ resource "aws_s3_bucket_cors_configuration" "documents" {
 resource "aws_s3_bucket_lifecycle_configuration" "documents" {
   bucket = aws_s3_bucket.documents.id
   rule {
-    id     = "retain-k1-evidence"
+    id     = "expire-unaccepted-quarantine"
     status = "Enabled"
-    filter { prefix = "" }
+    filter { prefix = "${var.input_prefix}/quarantine/" }
+    expiration { days = 7 }
+    noncurrent_version_expiration { noncurrent_days = 1 }
+    abort_incomplete_multipart_upload { days_after_initiation = 1 }
+  }
+  rule {
+    id     = "retain-accepted-k1-evidence"
+    status = "Enabled"
+    filter { prefix = "${var.input_prefix}/accepted/" }
+    expiration { days = var.retention_days }
+    noncurrent_version_expiration { noncurrent_days = var.noncurrent_retention_days }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+  rule {
+    id     = "retain-k1-extraction-results"
+    status = "Enabled"
+    filter { prefix = "${var.output_prefix}/" }
     expiration { days = var.retention_days }
     noncurrent_version_expiration { noncurrent_days = var.noncurrent_retention_days }
     abort_incomplete_multipart_upload { days_after_initiation = 7 }

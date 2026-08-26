@@ -79,13 +79,14 @@ export const uploadBodySchema = z.object({
 
 export const createIngestionBatchSchema = z.object({
   entityScopeId: uuidSchema.nullish(),
+  uploadAttemptId: uuidSchema.optional(),
   files: z.array(z.object({
     fileName: z.string().trim().min(1).max(255)
       .refine((value) => !/[\\/\0-\x1f]/.test(value), 'File name contains unsupported characters.'),
-    sizeBytes: z.number().int().min(1).max(config.k1Ingestion.uploadMaxBytes),
+    sizeBytes: z.number().int().min(1).max(config.abuseProtection.payloadLimits.k1FileBytes),
     sha256: k1Sha256Schema,
     mimeType: z.literal('application/pdf').optional().default('application/pdf'),
-  }).strict()).min(1).max(config.k1Ingestion.batchMaxFiles),
+  }).strict()).min(1).max(config.abuseProtection.payloadLimits.k1FilesPerBatch),
 }).strict()
 
 export const ingestionBatchParamsSchema = z.object({ batchId: uuidSchema })
@@ -104,7 +105,7 @@ export const completeIngestionUploadsSchema = z.object({
     itemId: uuidSchema,
     sha256: k1Sha256Schema,
     objectVersionId: z.string().max(1_024).nullish(),
-  }).strict()).min(1).max(config.k1Ingestion.batchMaxFiles),
+  }).strict()).min(1).max(config.abuseProtection.payloadLimits.k1FilesPerBatch),
 }).strict()
 
 export const localUploadHeadersSchema = z.object({
@@ -112,7 +113,7 @@ export const localUploadHeadersSchema = z.object({
     (value) => value.split(';', 1)[0]?.trim().toLowerCase() === 'application/pdf',
     'Content-Type must be application/pdf.',
   ),
-  'content-length': z.coerce.number().int().min(1).max(config.k1Ingestion.uploadMaxBytes),
+  'content-length': z.coerce.number().int().min(1).max(config.abuseProtection.payloadLimits.k1FileBytes),
   'x-amz-checksum-sha256': k1Sha256Schema,
 })
 

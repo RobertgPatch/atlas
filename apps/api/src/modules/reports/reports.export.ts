@@ -5,6 +5,7 @@ import type {
   ReportType,
 } from './reports.zod.js'
 import { reportsRepository, type ReportsScope } from './reports.repository.js'
+import { config } from '../../config.js'
 
 type ExportCell = string | number | boolean | null
 
@@ -92,6 +93,9 @@ const fetchAllPortfolioRows = async (
     )
 
     rows.push(...response.rows)
+    if (rows.length > config.abuseProtection.payloadLimits.exportRows) {
+      throw Object.assign(new Error('EXPORT_ROW_LIMIT_EXCEEDED'), { code: 'EXPORT_ROW_LIMIT_EXCEEDED' })
+    }
     if (rows.length >= response.page.total || response.rows.length === 0) {
       break
     }
@@ -127,6 +131,9 @@ const fetchAllActivityRows = async (
     )
 
     rows.push(...response.rows)
+    if (rows.length > config.abuseProtection.payloadLimits.exportRows) {
+      throw Object.assign(new Error('EXPORT_ROW_LIMIT_EXCEEDED'), { code: 'EXPORT_ROW_LIMIT_EXCEEDED' })
+    }
     if (rows.length >= response.page.total || response.rows.length === 0) {
       break
     }
@@ -406,11 +413,30 @@ export const reportsExport = {
     scope: ReportsScope,
     actorUserId: string,
   ): Promise<GeneratedReportExport> {
-    const tabular = await buildTabularExportData(query, scope, actorUserId)
-    const body =
-      query.format === 'csv'
+    const generation = async () => {
+      const tabular = await buildTabularExportData(query, scope, actorUserId)
+      if (tabular.rows.length > config.abuseProtection.payloadLimits.exportRows) {
+        throw Object.assign(new Error('EXPORT_ROW_LIMIT_EXCEEDED'), { code: 'EXPORT_ROW_LIMIT_EXCEEDED' })
+      }
+      const body = query.format === 'csv'
         ? toCsvBuffer(tabular.headers, tabular.rows)
         : await toXlsxBuffer(query.reportType, tabular.headers, tabular.rows)
+      if (body.byteLength > config.abuseProtection.quotas.reportExport.userBytesPerDay) {
+        throw Object.assign(new Error('EXPORT_BYTE_LIMIT_EXCEEDED'), { code: 'EXPORT_BYTE_LIMIT_EXCEEDED' })
+      }
+      return body
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(Object.assign(
+        new Error('EXPORT_TIMEOUT'),
+        { code: 'EXPORT_TIMEOUT' },
+      )), config.abuseProtection.timeouts.exportMs)
+      timer.unref?.()
+    })
+    const body = await Promise.race([generation(), timeout]).finally(() => {
+      if (timer) clearTimeout(timer)
+    })
 
     return {
       fileName: buildExportFileName(query.reportType, query.format),

@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -138,6 +139,33 @@ export class S3K1ObjectStore implements K1ObjectStore {
       Key: assertSafeObjectKey(identity.key),
       VersionId: identity.versionId ?? undefined,
     }))
+  }
+
+  async promoteAccepted(
+    source: K1ObjectIdentity,
+    acceptedKey: string,
+  ): Promise<K1ObjectMetadata> {
+    const sourceBucket = source.bucket ?? this.bucket
+    const sourceKey = assertSafeObjectKey(source.key)
+    const destinationKey = assertSafeObjectKey(acceptedKey)
+    const copySource = `${sourceBucket}/${sourceKey.split('/').map(encodeURIComponent).join('/')}`
+    const copied = await this.client.send(new CopyObjectCommand({
+      Bucket: this.bucket,
+      Key: destinationKey,
+      CopySource: copySource,
+      ServerSideEncryption: 'aws:kms',
+      SSEKMSKeyId: this.kmsKeyArn,
+      BucketKeyEnabled: true,
+      MetadataDirective: 'COPY',
+    }))
+    await this.delete({ bucket: sourceBucket, key: sourceKey, versionId: source.versionId })
+    const metadata = await this.head({
+      bucket: this.bucket,
+      key: destinationKey,
+      versionId: copied.VersionId,
+    })
+    if (!metadata) throw new Error('ACCEPTED_OBJECT_NOT_FOUND')
+    return metadata
   }
 
   putRawResult(input: PutK1ObjectInput): Promise<K1ObjectMetadata> {

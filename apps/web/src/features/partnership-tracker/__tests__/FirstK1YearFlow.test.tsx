@@ -3,10 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerYearDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1YearEntryForm } from '../../k1-tracker/components/K1YearEntryForm'
 import { AddYearDialog } from '../components/AddYearDialog'
+import { unsignedK1SignoffFixture } from './fixtures'
 
 const inlineDetail = {
-  partnershipId: 'p-1', taxYear: 2024, revision: 1, status: 'NOT_STARTED', values: [],
-  calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {} },
+  partnershipId: 'p-1', taxYear: 2024, isInceptionYear: true, revision: 1, status: 'NOT_STARTED', officialFormData: {}, values: [], cashFlowEvents: [],
+  calculation: { basis: {}, lossLimitation: {}, liabilities: {}, sectionL: {}, checks: [] },
+  sourceConflicts: [],
+  signoff: unsignedK1SignoffFixture(),
 } as unknown as PartnershipTrackerYearDetail
 
 describe('first K-1 year flow', () => {

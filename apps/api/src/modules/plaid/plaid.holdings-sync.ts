@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Holding, InvestmentAccount, Security } from 'plaid'
 import { auditRepository } from '../audit/audit.repository.js'
 import { PARTNERSHIP_AUDIT_EVENTS } from '../audit/audit.events.js'
-import { plaidApi, isPlaidConfigured } from './plaid.client.js'
+import { callPlaidWithRetry, plaidApi, isPlaidConfigured } from './plaid.client.js'
 import {
   evaluateSnapshotFreshness,
   getRefreshCutoffAt,
@@ -389,12 +389,12 @@ export const plaidHoldingsSync = {
 
         for (const { connection, accounts } of selectedByConnection) {
           try {
-            const response = await plaidApi.investmentsHoldingsGet({
+            const response = await callPlaidWithRetry((signal) => plaidApi.investmentsHoldingsGet({
               access_token: connection.accessToken,
               options: {
                 account_ids: accounts.map((account) => account.id),
               },
-            })
+            }, { signal }))
             const securitiesById = new Map(
               response.data.securities.map((security) => [security.security_id, security]),
             )
