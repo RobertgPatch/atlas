@@ -106,6 +106,12 @@ variable "secret_arns" {
   type        = map(string)
 }
 
+variable "create_task_execution_secrets_policy" {
+  description = "Whether to create the execution-role policy that grants access to configured secrets."
+  type        = bool
+  default     = false
+}
+
 variable "additional_secret_arns" {
   description = "Additional secret ARNs the execution role may read."
   type        = list(string)

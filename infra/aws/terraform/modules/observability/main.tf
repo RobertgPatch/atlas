@@ -521,7 +521,7 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
   lifecycle {
     precondition {
       condition = var.environment_name != "production" || (
-        var.alarm_email != null && trimspace(var.alarm_email) != "" && var.alarm_destination_confirmed
+        try(trimspace(var.alarm_email), "") != "" && var.alarm_destination_confirmed
       )
       error_message = "Production requires a non-empty alarm_email and alarm_destination_confirmed=true after the SNS subscription is confirmed."
     }

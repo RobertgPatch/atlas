@@ -57,6 +57,6 @@ jobs:
       - name: Initialize without remote state
         run: terraform init -backend=false -input=false
       - name: Validate
-        run: terraform validate
+        run: terraform validate -no-tests
       - name: Test guardrails
         run: terraform test

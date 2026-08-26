@@ -13,6 +13,11 @@ mock_provider "aws" {
 run "production_security_posture" {
   command = plan
 
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
   module {
     source = "./modules/security"
   }

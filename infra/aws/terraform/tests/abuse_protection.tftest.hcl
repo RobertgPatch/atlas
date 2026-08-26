@@ -109,6 +109,11 @@ run "no_public_origin_output" {
 run "cloudfront_vpc_origin" {
   command = plan
 
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
   module {
     source = "./modules/edge"
   }
@@ -148,6 +153,11 @@ run "cloudfront_vpc_origin" {
 
 run "waf_managed_and_rate_rules" {
   command = plan
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 
   module {
     source = "./modules/security"
@@ -209,6 +219,11 @@ run "waf_managed_and_rate_rules" {
 
 run "safe_waf_logging" {
   command = plan
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 
   module {
     source = "./modules/security"

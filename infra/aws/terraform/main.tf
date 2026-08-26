@@ -41,7 +41,7 @@ locals {
 
   abuse_protection_environment_variables = {
     ABUSE_HMAC_KEY_ID                          = "terraform-v1"
-    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS  = "2500"
+    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS   = "2500"
     ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "50"
     ABUSE_K1_BDA_CALLS_PER_MONTH               = "1"
     ABUSE_K1_CHECKBOX_CALLS_PER_MONTH          = "4"
@@ -227,21 +227,22 @@ module "secrets" {
 module "api" {
   source = "./modules/api"
 
-  name_prefix                 = local.name_prefix
-  aws_region                  = var.aws_region
-  vpc_id                      = module.network.vpc_id
-  private_subnet_ids          = module.network.private_subnet_ids
-  alb_security_group_id       = module.network.alb_security_group_id
-  api_security_group_id       = module.network.api_security_group_id
-  container_name              = var.api_container_name
-  container_port              = var.api_container_port
-  health_check_path           = var.api_health_check_path
-  api_image_tag               = var.api_image_tag
-  task_cpu                    = var.api_task_cpu
-  task_memory                 = var.api_task_memory
-  desired_count               = var.api_desired_count
-  runtime_capacity_guardrails = module.security.runtime_capacity_guardrails
-  environment_variables       = local.api_environment_variables
+  name_prefix                          = local.name_prefix
+  aws_region                           = var.aws_region
+  vpc_id                               = module.network.vpc_id
+  private_subnet_ids                   = module.network.private_subnet_ids
+  alb_security_group_id                = module.network.alb_security_group_id
+  api_security_group_id                = module.network.api_security_group_id
+  container_name                       = var.api_container_name
+  container_port                       = var.api_container_port
+  health_check_path                    = var.api_health_check_path
+  api_image_tag                        = var.api_image_tag
+  task_cpu                             = var.api_task_cpu
+  task_memory                          = var.api_task_memory
+  desired_count                        = var.api_desired_count
+  runtime_capacity_guardrails          = module.security.runtime_capacity_guardrails
+  environment_variables                = local.api_environment_variables
+  create_task_execution_secrets_policy = true
   secret_arns = {
     for key, arn in module.secrets.secret_arns : key => arn
     if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")

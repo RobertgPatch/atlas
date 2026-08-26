@@ -101,7 +101,7 @@ data "aws_iam_policy_document" "task_execution_secrets" {
 }
 
 resource "aws_iam_role_policy" "task_execution_secrets" {
-  count = length(values(var.secret_arns)) + length(var.additional_secret_arns) > 0 ? 1 : 0
+  count = var.create_task_execution_secrets_policy ? 1 : 0
 
   name   = "${var.name_prefix}-ecs-secrets"
   role   = aws_iam_role.task_execution.id
