@@ -74,12 +74,6 @@ variable "private_subnet_cidrs" {
   default     = ["10.42.10.0/24", "10.42.11.0/24"]
 }
 
-variable "api_origin_ingress_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the public API origin ALB. Tighten this after CloudFront origin controls are finalized."
-  type        = list(string)
-  default     = ["0.0.0.0/0"]
-}
-
 variable "enable_nat_gateway" {
   description = "Create a NAT gateway so private API tasks can reach ECR, Plaid, and AWS APIs."
   type        = bool
@@ -156,6 +150,19 @@ variable "database_master_username" {
   description = "RDS master username. Password is generated and stored by AWS."
   type        = string
   default     = "atlas_admin"
+}
+
+variable "database_snapshot_identifier" {
+  description = "Optional RDS snapshot identifier used to restore an existing database instead of creating an empty one."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "database_manage_master_user_password" {
+  description = "Whether RDS manages the database master password in Secrets Manager. Use false for the first snapshot-restore apply and true thereafter."
+  type        = bool
+  default     = true
 }
 
 variable "postgres_engine_version" {
@@ -329,21 +336,99 @@ variable "waf_log_retention_days" {
 }
 
 variable "waf_rate_limit_requests_per_5_minutes" {
-  description = "WAF rate limit per IP over a 5-minute window."
+  description = "General /v1 WAF rate limit per IP over a 5-minute window."
   type        = number
   default     = 1000
+}
+
+variable "ecr_max_images" {
+  description = "Maximum recent API/worker images retained in ECR."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.ecr_max_images >= 2 && floor(var.ecr_max_images) == var.ecr_max_images
+    error_message = "ecr_max_images must be an integer of at least 2."
+  }
+}
+
+variable "ecr_untagged_retention_days" {
+  description = "Days to retain untagged API/worker images in ECR."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.ecr_untagged_retention_days >= 1 && floor(var.ecr_untagged_retention_days) == var.ecr_untagged_retention_days
+    error_message = "ecr_untagged_retention_days must be a positive integer."
+  }
+}
+
+variable "waf_api_general_rate_action" {
+  description = "General /v1 WAF rate action: count for observation or block for enforcement."
+  type        = string
+  default     = "block"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_api_general_rate_action)
+    error_message = "waf_api_general_rate_action must be count or block."
+  }
+}
+
+variable "waf_auth_rate_limit_requests_per_5_minutes" {
+  description = "Authentication-path WAF rate limit per IP over a 5-minute window."
+  type        = number
+  default     = 100
+}
+
+variable "waf_auth_rate_action" {
+  description = "Authentication-path WAF rate action: count for observation or block for enforcement."
+  type        = string
+  default     = "count"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_auth_rate_action)
+    error_message = "waf_auth_rate_action must be count or block."
+  }
+}
+
+variable "waf_paid_admission_rate_limit_requests_per_5_minutes" {
+  description = "Paid-admission-path WAF rate limit per IP over a 5-minute window."
+  type        = number
+  default     = 100
+}
+
+variable "waf_paid_admission_rate_action" {
+  description = "Paid-admission-path WAF rate action: count for observation or block for enforcement."
+  type        = string
+  default     = "count"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_paid_admission_rate_action)
+    error_message = "waf_paid_admission_rate_action must be count or block."
+  }
+}
+
+variable "waf_paid_admission_global_emergency_requests_per_5_minutes" {
+  description = "Count-all paid-admission WAF emergency ceiling over a 5-minute window."
+  type        = number
+  default     = 500
+}
+
+variable "waf_paid_admission_global_emergency_action" {
+  description = "Count-all paid-admission WAF emergency action: count for observation or block for enforcement."
+  type        = string
+  default     = "count"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_paid_admission_global_emergency_action)
+    error_message = "waf_paid_admission_global_emergency_action must be count or block."
+  }
 }
 
 variable "cloudfront_price_class" {
   description = "CloudFront price class."
   type        = string
   default     = "PriceClass_100"
-}
-
-variable "api_origin_protocol_policy" {
-  description = "CloudFront protocol policy for the API ALB origin."
-  type        = string
-  default     = "http-only"
 }
 
 variable "static_cache_policy_id" {
@@ -371,10 +456,52 @@ variable "alarm_email" {
   sensitive   = true
 }
 
+variable "alarm_destination_confirmed" {
+  description = "Set true only after the production CloudWatch alarm email subscription is confirmed."
+  type        = bool
+  default     = false
+}
+
+variable "cloudfront_requests_threshold" {
+  description = "CloudFront request-count alarm threshold over five minutes."
+  type        = number
+  default     = 10000
+}
+
+variable "cloudfront_5xx_rate_threshold_percent" {
+  description = "CloudFront 5xx error-rate alarm threshold over five minutes."
+  type        = number
+  default     = 5
+}
+
+variable "alb_requests_threshold" {
+  description = "ALB request-count alarm threshold over five minutes."
+  type        = number
+  default     = 5000
+}
+
+variable "alb_target_p95_latency_threshold_seconds" {
+  description = "ALB target p95 response-time alarm threshold in seconds over five minutes."
+  type        = number
+  default     = 2
+}
+
 variable "api_5xx_threshold" {
   description = "API target 5xx count threshold over five minutes."
   type        = number
   default     = 5
+}
+
+variable "ecs_cpu_threshold_percent" {
+  description = "ECS API and worker CPU utilization alarm threshold over five minutes."
+  type        = number
+  default     = 80
+}
+
+variable "ecs_memory_threshold_percent" {
+  description = "ECS API and worker memory utilization alarm threshold over five minutes."
+  type        = number
+  default     = 80
 }
 
 variable "rds_cpu_threshold_percent" {
@@ -401,11 +528,53 @@ variable "waf_blocked_requests_threshold" {
   default     = 100
 }
 
+variable "abuse_protection_decision_threshold" {
+  description = "Application throttle/admission/protection decision threshold over five minutes."
+  type        = number
+  default     = 100
+}
+
+variable "provider_calls_threshold" {
+  description = "Paid provider-call threshold over five minutes."
+  type        = number
+  default     = 100
+}
+
+variable "retry_attempts_threshold" {
+  description = "Paid-work retry threshold over five minutes."
+  type        = number
+  default     = 25
+}
+
+variable "cost_units_threshold" {
+  description = "Estimated paid-work cost-unit threshold over five minutes."
+  type        = number
+  default     = 10000
+}
+
+variable "cleanup_failures_threshold" {
+  description = "Retention cleanup failure threshold over five minutes."
+  type        = number
+  default     = 1
+}
+
+variable "s3_put_requests_threshold" {
+  description = "K-1 S3 object-write request threshold over five minutes."
+  type        = number
+  default     = 1000
+}
+
 variable "budget_alert_email" {
   description = "Email address for AWS Budget notifications. Leave null until budget alerts are configured."
   type        = string
   default     = null
   sensitive   = true
+}
+
+variable "budget_destination_confirmed" {
+  description = "Set true only after the production budget/anomaly email destination is confirmed and monitored."
+  type        = bool
+  default     = false
 }
 
 variable "monthly_budget_limit_usd" {
@@ -414,10 +583,50 @@ variable "monthly_budget_limit_usd" {
   default     = 100
 }
 
+variable "bedrock_monthly_budget_limit_usd" {
+  description = "Monthly Amazon Bedrock budget limit for this environment."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.bedrock_monthly_budget_limit_usd > 0
+    error_message = "bedrock_monthly_budget_limit_usd must be greater than zero."
+  }
+}
+
 variable "budget_notification_thresholds" {
   description = "Budget alert thresholds as percentages of the monthly limit for this environment."
   type        = list(number)
   default     = [50, 80, 100]
+}
+
+variable "budget_forecast_notification_thresholds" {
+  description = "Forecast budget alert thresholds as percentages of the monthly total limit."
+  type        = list(number)
+  default     = [80, 100]
+}
+
+variable "bedrock_budget_notification_thresholds" {
+  description = "Actual Bedrock budget alert thresholds as percentages."
+  type        = list(number)
+  default     = [50, 80, 100]
+}
+
+variable "bedrock_budget_forecast_notification_thresholds" {
+  description = "Forecast Bedrock budget alert thresholds as percentages."
+  type        = list(number)
+  default     = [80, 100]
+}
+
+variable "cost_anomaly_threshold_usd" {
+  description = "Minimum absolute AWS service cost anomaly impact in USD before notification."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.cost_anomaly_threshold_usd > 0
+    error_message = "cost_anomaly_threshold_usd must be greater than zero."
+  }
 }
 
 variable "additional_tags" {

@@ -6,9 +6,9 @@ environment_cost_profile = "staging"
 project_name             = "atlas"
 aws_region               = "us-west-2"
 
-# Use null for the first low-friction staging smoke test. Terraform will create
-# CloudFront with the generated *.cloudfront.net domain and default certificate.
-# Switch to "staging.example.com" plus Route 53/ACM values for parity validation.
+# A null domain is permitted only while api_desired_count is 0 during the first
+# infrastructure apply. Configure the final HTTPS app domain before starting the
+# API because production-mode CORS intentionally fails closed without WEB_ORIGIN.
 app_domain             = null
 route53_hosted_zone_id = null
 acm_certificate_arn    = null
@@ -31,9 +31,11 @@ api_desired_count = 0
 api_task_cpu      = "256"
 api_task_memory   = "512"
 # Keep password-only compatibility until staging MFA enrollment/challenge tests pass.
-mfa_login_enabled = false
-ecr_force_delete  = true
-ecr_image_tag_mutability = "MUTABLE"
+mfa_login_enabled           = false
+ecr_force_delete            = true
+ecr_image_tag_mutability    = "MUTABLE"
+ecr_max_images              = 15
+ecr_untagged_retention_days = 3
 
 database_instance_class           = "db.t4g.micro"
 database_allocated_storage_gb     = 20
@@ -63,9 +65,21 @@ market_price_scheduler_enabled     = false
 log_retention_days     = 7
 waf_log_retention_days = 7
 
-waf_rate_limit_requests_per_5_minutes = 500
-monthly_budget_limit_usd              = 40
-budget_notification_thresholds        = [50, 80, 100]
+waf_rate_limit_requests_per_5_minutes                           = 500
+waf_api_general_rate_action                                     = "count"
+waf_auth_rate_limit_requests_per_5_minutes                      = 100
+waf_auth_rate_action                                            = "count"
+waf_paid_admission_rate_limit_requests_per_5_minutes            = 100
+waf_paid_admission_rate_action                                  = "count"
+waf_paid_admission_global_emergency_requests_per_5_minutes      = 500
+waf_paid_admission_global_emergency_action                      = "count"
+monthly_budget_limit_usd                                        = 40
+budget_notification_thresholds                                  = [50, 80, 100]
+budget_forecast_notification_thresholds                         = [80, 100]
+bedrock_monthly_budget_limit_usd                                = 10
+bedrock_budget_notification_thresholds                          = [50, 80, 100]
+bedrock_budget_forecast_notification_thresholds                 = [80, 100]
+cost_anomaly_threshold_usd                                      = 5
 
 cloudfront_price_class = "PriceClass_100"
 
@@ -75,8 +89,10 @@ additional_tags = {
 }
 
 # Optional notification destinations. Use real emails only in local tfvars.
-alarm_email        = null
-budget_alert_email = null
+alarm_email                  = null
+alarm_destination_confirmed  = false
+budget_alert_email           = null
+budget_destination_confirmed = false
 
 # Keep the worker dormant until the DEVELOPMENT blueprint passes the sanitized
 # fixture evaluation. Promotion to LIVE is a separate, explicitly approved step.

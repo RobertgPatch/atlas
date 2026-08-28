@@ -126,6 +126,20 @@ export class LocalK1ObjectStore implements K1ObjectStore {
     })
   }
 
+  async promoteAccepted(
+    source: K1ObjectIdentity,
+    acceptedKey: string,
+  ): Promise<K1ObjectMetadata> {
+    const sourcePath = resolveLocalK1ObjectPath(source.key)
+    const destinationKey = assertSafeObjectKey(acceptedKey)
+    const destinationPath = resolveLocalK1ObjectPath(destinationKey)
+    await mkdir(path.dirname(destinationPath), { recursive: true })
+    await rename(sourcePath, destinationPath)
+    const metadata = await this.head({ key: destinationKey })
+    if (!metadata) throw new Error('ACCEPTED_OBJECT_NOT_FOUND')
+    return metadata
+  }
+
   putRawResult(input: PutK1ObjectInput): Promise<K1ObjectMetadata> {
     return this.put(input)
   }

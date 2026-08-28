@@ -17,6 +17,10 @@ import type {
 } from '../k1.types.js'
 import { localK1UploadSlotService } from './localUploadSlots.service.js'
 import { getS3K1UploadSlotService, type K1UploadSlotService } from './k1UploadSlots.service.js'
+import { admissionService } from '../../abuse-protection/admission.service.js'
+import { defaultRouteProtectionPolicy } from '../../abuse-protection/policy.defaults.js'
+import { fingerprintSubject } from '../../abuse-protection/subjectFingerprint.js'
+import { requireWorkloadAdmission } from '../../abuse-protection/workloadAdmission.js'
 
 const retryableError = (code: K1IngestionErrorCode | null): boolean =>
   code != null && [
@@ -134,10 +138,20 @@ export const toPublicBatch = async (
 export const createK1IngestionBatch = async (args: {
   actorUserId: string
   entityScopeId: string | null
+  uploadAttemptId?: string
   files: Array<{ fileName: string; sizeBytes: number; sha256: string }>
 }): Promise<K1IngestionBatch> => {
   if (args.files.length < 1 || args.files.length > config.k1Ingestion.batchMaxFiles) {
     throw Object.assign(new Error('INVALID_FILE_COUNT'), { code: 'INVALID_FILE_COUNT' })
+  }
+  for (const file of args.files) {
+    if (
+      !Number.isSafeInteger(file.sizeBytes)
+      || file.sizeBytes < 1
+      || file.sizeBytes > config.abuseProtection.payloadLimits.k1FileBytes
+    ) {
+      throw Object.assign(new Error('INVALID_FILE_SIZE'), { code: 'INVALID_FILE_SIZE' })
+    }
   }
   const hashes = new Set<string>()
   for (const file of args.files) {
@@ -146,6 +160,61 @@ export const createK1IngestionBatch = async (args: {
     }
     hashes.add(file.sha256)
   }
+  const userHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'user', value: args.actorUserId,
+  })
+  const globalHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'global', value: 'atlas',
+  })
+  const entityHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+    scope: 'entity', value: args.entityScopeId ?? 'unscoped',
+  })
+  const totalBytes = args.files.reduce((sum, item) => sum + item.sizeBytes, 0)
+  const policy = defaultRouteProtectionPolicy('POST', '/v1/k1-ingestion-batches')
+  requireWorkloadAdmission(await admissionService.admit({
+    policy,
+    requestId: `k1-batch-${randomUUID()}`,
+    subjectHashes: { user: userHash, entity: entityHash, global: globalHash },
+    workload: {
+      workloadKey: 'k1_upload_batch',
+      idempotency: {
+        principalHash: userHash,
+        canonicalRequest: {
+          policyKey: policy.policyKey,
+          method: policy.method,
+          routePattern: policy.routePattern,
+          inputs: {
+            entityScopeId: args.entityScopeId,
+            // File content remains part of the fingerprint, while this ID
+            // distinguishes an explicit retry/re-upload from a duplicated
+            // network request within the same browser attempt.
+            uploadAttemptId: args.uploadAttemptId ?? randomUUID(),
+            files: args.files.map((item) => ({
+              sha256: item.sha256,
+              sizeBytes: item.sizeBytes,
+            })).sort((left, right) => left.sha256.localeCompare(right.sha256)),
+          },
+        },
+        reservedUnits: {
+          file: args.files.length,
+          byte: totalBytes,
+          storage_byte_day: totalBytes,
+        },
+      },
+      quotas: [
+        { workloadKey: 'k1_upload_user_files', scopeKind: 'user', scopeHash: userHash, periodKind: 'utc_day', units: args.files.length, limit: config.abuseProtection.quotas.k1Upload.userFilesPerDay },
+        { workloadKey: 'k1_upload_entity_files', scopeKind: 'entity', scopeHash: entityHash, periodKind: 'utc_day', units: args.files.length, limit: config.abuseProtection.quotas.k1Upload.userFilesPerDay },
+        { workloadKey: 'k1_upload_global_files', scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: args.files.length, limit: config.abuseProtection.quotas.k1Upload.globalFilesPerDay },
+        { workloadKey: 'k1_upload_global_bytes', scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: totalBytes, limit: config.abuseProtection.quotas.k1Upload.globalUnacceptedBytes },
+        { workloadKey: 'cost-family:k1_upload_file', scopeKind: 'global', scopeHash: globalHash, periodKind: 'billing_month', units: args.files.length, limit: config.abuseProtection.quotas.monthlyCost.k1UploadFiles },
+        { workloadKey: 'cost-budget:paid-workload-cents', scopeKind: 'global', scopeHash: globalHash, periodKind: 'billing_month', units: args.files.length * 2, limit: config.abuseProtection.quotas.monthlyCost.maximumCents },
+      ],
+      leaseScopeKind: 'user',
+      leaseScopeHash: userHash,
+      leaseTtlSeconds: config.k1Ingestion.uploadUrlTtlSeconds,
+      backlogLimit: config.abuseProtection.quotas.k1Upload.activeBatchesPerUser,
+    },
+  }))
   const batchId = randomUUID()
   const prefix = config.k1Ingestion.objectStore === 's3'
     ? `${config.k1Ingestion.s3.inputPrefix}/quarantine`

@@ -27,6 +27,7 @@ describe('Bedrock K-1 status checkbox verification', () => {
       modelId: 'us.amazon.nova-2-lite-v1:0',
     })
     expect(send).toHaveBeenCalledTimes(1)
+    expect(send.mock.calls[0][1].abortSignal).toBeInstanceOf(AbortSignal)
     expect(send.mock.calls[0][0].input.messages[0].content[0].document.source.bytes)
       .toEqual(Buffer.from('%PDF-test'))
   })

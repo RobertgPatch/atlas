@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify'
+import { defaultRouteProtectionPolicy } from '../abuse-protection/policy.defaults.js'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { requireK1Scope } from '../k1/k1Scope.plugin.js'
@@ -12,28 +13,86 @@ import { entityTypeaheadHandler, partnershipTypeaheadHandler } from './typeahead
 import { resolveK1MatchHandler } from '../k1/matching/k1Match.handler.js'
 
 export const registerReviewRoutes = async (app: FastifyInstance) => {
-  const gated = { preHandler: [withSession, requireAuthenticated, requireK1Scope] }
-  const authed = { preHandler: [withSession, requireAuthenticated] }
+  const gated = (method: 'GET' | 'POST' | 'PUT', routePattern: string) => ({
+    preHandler: [withSession, requireAuthenticated, requireK1Scope],
+    config: {
+      abuseProtection: defaultRouteProtectionPolicy(method, `/v1${routePattern}`),
+    },
+  })
+  const authed = (method: 'GET', routePattern: string) => ({
+    preHandler: [withSession, requireAuthenticated],
+    config: {
+      abuseProtection: defaultRouteProtectionPolicy(method, `/v1${routePattern}`),
+    },
+  })
 
   // Typeahead lookups (no K1 scope required, just authenticated)
-  app.get('/review/entities', authed, entityTypeaheadHandler)
-  app.get('/review/partnerships', authed, partnershipTypeaheadHandler)
+  app.get(
+    '/review/entities',
+    authed('GET', '/review/entities'),
+    entityTypeaheadHandler,
+  )
+  app.get(
+    '/review/partnerships',
+    authed('GET', '/review/partnerships'),
+    partnershipTypeaheadHandler,
+  )
 
   // Review session
-  app.get('/k1-documents/:k1DocumentId/review-session', gated, sessionHandler)
-  app.get('/k1-documents/:k1DocumentId/pdf', gated, pdfHandler)
+  app.get(
+    '/k1-documents/:k1DocumentId/review-session',
+    gated('GET', '/k1-documents/:k1DocumentId/review-session'),
+    sessionHandler,
+  )
+  app.get(
+    '/k1-documents/:k1DocumentId/pdf',
+    gated('GET', '/k1-documents/:k1DocumentId/pdf'),
+    pdfHandler,
+  )
 
   // Corrections / mapping
-  app.put('/k1-documents/:k1DocumentId/corrections', gated, correctionsHandler)
-  app.put('/k1-documents/:k1DocumentId/map-entity', gated, mapEntityHandler)
-  app.put('/k1-documents/:k1DocumentId/map-partnership', gated, mapPartnershipHandler)
-  app.put('/k1-documents/:k1DocumentId/match', gated, resolveK1MatchHandler)
+  app.put(
+    '/k1-documents/:k1DocumentId/corrections',
+    gated('PUT', '/k1-documents/:k1DocumentId/corrections'),
+    correctionsHandler,
+  )
+  app.put(
+    '/k1-documents/:k1DocumentId/map-entity',
+    gated('PUT', '/k1-documents/:k1DocumentId/map-entity'),
+    mapEntityHandler,
+  )
+  app.put(
+    '/k1-documents/:k1DocumentId/map-partnership',
+    gated('PUT', '/k1-documents/:k1DocumentId/map-partnership'),
+    mapPartnershipHandler,
+  )
+  app.put(
+    '/k1-documents/:k1DocumentId/match',
+    gated('PUT', '/k1-documents/:k1DocumentId/match'),
+    resolveK1MatchHandler,
+  )
 
   // Approve / finalize
-  app.post('/k1-documents/:k1DocumentId/approve', gated, approveHandler)
-  app.post('/k1-documents/:k1DocumentId/finalize', gated, finalizeHandler)
+  app.post(
+    '/k1-documents/:k1DocumentId/approve',
+    gated('POST', '/k1-documents/:k1DocumentId/approve'),
+    approveHandler,
+  )
+  app.post(
+    '/k1-documents/:k1DocumentId/finalize',
+    gated('POST', '/k1-documents/:k1DocumentId/finalize'),
+    finalizeHandler,
+  )
 
   // Issues
-  app.post('/k1-documents/:k1DocumentId/issues', gated, openIssueHandler)
-  app.post('/k1-documents/:k1DocumentId/issues/:issueId/resolve', gated, resolveIssueHandler)
+  app.post(
+    '/k1-documents/:k1DocumentId/issues',
+    gated('POST', '/k1-documents/:k1DocumentId/issues'),
+    openIssueHandler,
+  )
+  app.post(
+    '/k1-documents/:k1DocumentId/issues/:issueId/resolve',
+    gated('POST', '/k1-documents/:k1DocumentId/issues/:issueId/resolve'),
+    resolveIssueHandler,
+  )
 }

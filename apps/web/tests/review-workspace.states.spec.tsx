@@ -53,12 +53,12 @@ describe('K1ReviewWorkspace — states (T021)', () => {
     renderWorkspace()
     await waitFor(() => {
       expect(
-        screen.getByText('Failed to load review session.'),
+        screen.getByText('Failed to load the extracted K-1.'),
       ).toBeInTheDocument()
     })
   })
 
-  it('renders version badge when session is populated', async () => {
+  it('renders the one-review summary when the session is populated', async () => {
     const session = buildSession({ version: 3 })
     server.use(
       http.get('*/v1/k1-documents/*/review-session', () =>
@@ -68,7 +68,8 @@ describe('K1ReviewWorkspace — states (T021)', () => {
     )
     renderWorkspace()
     await waitFor(() => {
-      expect(screen.getByTestId('review-version')).toHaveTextContent('v3')
+      expect(screen.getByText('One review, one save')).toBeInTheDocument()
+      expect(screen.getByText('fields extracted').previousElementSibling).toHaveTextContent('3')
     })
   })
 
@@ -82,8 +83,7 @@ describe('K1ReviewWorkspace — states (T021)', () => {
     )
     renderWorkspace(MOCK_K1_ID)
     await waitFor(() => {
-      // SECTION_TITLE.entityMapping is 'Entity Mapping'
-      expect(screen.getByText('Entity Mapping')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Jackson supplemental workpaper' })).toBeInTheDocument()
       expect(screen.getByText('Box 1: Ordinary Income')).toBeInTheDocument()
     })
   })

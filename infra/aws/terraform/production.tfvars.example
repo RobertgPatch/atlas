@@ -20,14 +20,16 @@ private_subnet_cidrs = [
 
 enable_nat_gateway = true
 
-api_image_tag            = "latest"
-api_desired_count        = 1
-api_task_cpu             = "512"
-api_task_memory          = "1024"
+api_image_tag     = "latest"
+api_desired_count = 1
+api_task_cpu      = "512"
+api_task_memory   = "1024"
 # Set true only after staging validation; changing it requires an API restart/redeploy.
-mfa_login_enabled        = false
-ecr_force_delete         = false
-ecr_image_tag_mutability = "MUTABLE"
+mfa_login_enabled           = false
+ecr_force_delete            = false
+ecr_image_tag_mutability    = "MUTABLE"
+ecr_max_images              = 30
+ecr_untagged_retention_days = 7
 
 database_instance_class           = "db.t4g.micro"
 database_allocated_storage_gb     = 20
@@ -35,6 +37,10 @@ database_max_allocated_storage_gb = 100
 database_backup_retention_days    = 7
 database_deletion_protection      = true
 database_skip_final_snapshot      = false
+# For a migration, set the destination-account snapshot identifier and keep
+# password management false on the restore apply. Set it true on the next apply.
+database_snapshot_identifier          = null
+database_manage_master_user_password = true
 
 secret_recovery_window_days = 30
 
@@ -45,7 +51,7 @@ scheduler_enabled        = true
 # Populate the generated Alpaca Secrets Manager entries before deployment.
 market_data_provider               = "alpaca"
 alpaca_market_data_feed            = "sip"
-market_data_refresh_on_read        = true
+market_data_refresh_on_read        = false
 market_data_max_age_seconds        = 60
 market_price_refresh_time_local    = "16:20"
 market_price_refresh_timezone      = "America/New_York"
@@ -54,9 +60,21 @@ market_price_scheduler_enabled     = true
 log_retention_days     = 30
 waf_log_retention_days = 30
 
-waf_rate_limit_requests_per_5_minutes = 1000
-monthly_budget_limit_usd              = 100
-budget_notification_thresholds        = [50, 80, 100]
+waf_rate_limit_requests_per_5_minutes                           = 1000
+waf_api_general_rate_action                                     = "block"
+waf_auth_rate_limit_requests_per_5_minutes                      = 100
+waf_auth_rate_action                                            = "block"
+waf_paid_admission_rate_limit_requests_per_5_minutes            = 100
+waf_paid_admission_rate_action                                  = "block"
+waf_paid_admission_global_emergency_requests_per_5_minutes      = 500
+waf_paid_admission_global_emergency_action                      = "block"
+monthly_budget_limit_usd                                        = 100
+budget_notification_thresholds                                  = [50, 80, 100]
+budget_forecast_notification_thresholds                         = [80, 100]
+bedrock_monthly_budget_limit_usd                                = 25
+bedrock_budget_notification_thresholds                          = [50, 80, 100]
+bedrock_budget_forecast_notification_thresholds                 = [80, 100]
+cost_anomaly_threshold_usd                                      = 10
 
 cloudfront_price_class = "PriceClass_100"
 
@@ -65,6 +83,9 @@ additional_tags = {
   Tier     = "production"
 }
 
-# Optional notification destinations. Use real emails only in local tfvars.
-alarm_email        = null
-budget_alert_email = null
+# Production plans intentionally fail until real, monitored destinations replace
+# these nulls and both confirmations are explicitly set true in an ignored tfvars.
+alarm_email                  = null
+alarm_destination_confirmed  = false
+budget_alert_email           = null
+budget_destination_confirmed = false

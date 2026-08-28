@@ -18,10 +18,10 @@ describe('color-system governance CLI', () => {
     const result = run('tests/fixtures/color-system/prohibited.tsx')
 
     expect(result.status).toBe(1)
-    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:24 [competing-action-color]')
-    expect(result.stderr).toContain('[nonsemantic-focus]')
-    expect(result.stderr).toContain('[legacy-interaction-token]')
-    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:9:28 [raw-canonical-interaction]')
+    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:24 [competing-action-color] standard actions must use the shared button hierarchy: bg-blue-600')
+    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:36 [nonsemantic-focus] focus colors must use the shared focus role: focus-visible:ring-blue-500')
+    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:3:64 [legacy-interaction-token] legacy Jackson interaction aliases are prohibited: jackson-gold')
+    expect(result.stderr).toContain('tests/fixtures/color-system/prohibited.tsx:9:28 [raw-canonical-interaction] canonical interaction values must be referenced through semantic tokens: #14532D')
   })
 
   it('accepts canonical interaction roles and labeled semantic colors', () => {

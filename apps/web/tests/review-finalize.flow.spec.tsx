@@ -15,75 +15,67 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-describe('K1ReviewWorkspace — approve/finalize action bar (T058)', () => {
-  it('Approve button is enabled when canApprove=true', async () => {
-    const session = buildSession({ canApprove: true, canFinalize: false, canEdit: true })
-    server.use(
-      http.get('*/v1/k1-documents/*/review-session', () =>
-        HttpResponse.json(session, { headers: { ETag: '0' } }),
-      ),
-      http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
-    )
+const serveSession = (session: ReturnType<typeof buildSession>) => {
+  server.use(
+    http.get('*/v1/k1-documents/*/review-session', () =>
+      HttpResponse.json(session, { headers: { ETag: String(session.version) } }),
+    ),
+    http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
+  )
+}
+
+describe('K1ReviewWorkspace — single completion action', () => {
+  it('shows one enabled save action for a review-ready K-1', async () => {
+    serveSession(buildSession({ canApprove: true, canFinalize: false, canEdit: true }))
+
     renderWorkspace(MOCK_K1_ID)
-    await waitFor(() => screen.getByTestId('approve-button'))
-    expect(screen.getByTestId('approve-button')).not.toBeDisabled()
-    expect(screen.getByTestId('finalize-button')).toBeDisabled()
+
+    await waitFor(() => screen.getByTestId('save-verified-k1'))
+    expect(screen.getByTestId('save-verified-k1')).toBeEnabled()
+    expect(screen.queryByTestId('approve-button')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('finalize-button')).not.toBeInTheDocument()
   })
 
-  it('Finalize button is enabled when canFinalize=true', async () => {
-    const session = buildSession({
+  it('keeps the save action available for a review already ready for approval', async () => {
+    serveSession(buildSession({
       status: 'READY_FOR_APPROVAL',
       canApprove: false,
       canFinalize: true,
       canEdit: true,
-    })
-    server.use(
-      http.get('*/v1/k1-documents/*/review-session', () =>
-        HttpResponse.json(session, { headers: { ETag: '1' } }),
-      ),
-      http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
-    )
+    }))
+
     renderWorkspace(MOCK_K1_ID)
-    await waitFor(() => screen.getByTestId('finalize-button'))
-    expect(screen.getByTestId('finalize-button')).not.toBeDisabled()
-    expect(screen.getByTestId('approve-button')).toBeDisabled()
+
+    await waitFor(() => screen.getByTestId('save-verified-k1'))
+    expect(screen.getByTestId('save-verified-k1')).toBeEnabled()
   })
 
-  it('Finalize disabled when canFinalize=false (same actor two-person block)', async () => {
-    const session = buildSession({
-      status: 'READY_FOR_APPROVAL',
+  it('disables the save action when application requires an administrator', async () => {
+    serveSession(buildSession({
       canApprove: false,
       canFinalize: false,
-      canEdit: false,
-    })
-    server.use(
-      http.get('*/v1/k1-documents/*/review-session', () =>
-        HttpResponse.json(session, { headers: { ETag: '1' } }),
-      ),
-      http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
-    )
+      canEdit: true,
+      applyBlockingReasons: ['NOT_ADMIN'],
+    }))
+
     renderWorkspace(MOCK_K1_ID)
-    await waitFor(() => screen.getByTestId('finalize-button'))
-    expect(screen.getByTestId('finalize-button')).toBeDisabled()
-    expect(screen.getByTestId('approve-button')).toBeDisabled()
+
+    await waitFor(() => screen.getByTestId('save-verified-k1'))
+    expect(screen.getByTestId('save-verified-k1')).toBeDisabled()
   })
 
-  it('both buttons disabled when K-1 is FINALIZED', async () => {
-    const session = buildSession({
+  it('hides the save action after the K-1 has been applied', async () => {
+    serveSession(buildSession({
       status: 'FINALIZED',
       canApprove: false,
       canFinalize: false,
       canEdit: false,
-    })
-    server.use(
-      http.get('*/v1/k1-documents/*/review-session', () =>
-        HttpResponse.json(session, { headers: { ETag: '5' } }),
-      ),
-      http.head('*/v1/k1-documents/*/pdf', () => HttpResponse.text('', { status: 200 })),
-    )
+      appliedAt: '2024-01-02T00:00:00.000Z',
+    }))
+
     renderWorkspace(MOCK_K1_ID)
-    await waitFor(() => screen.getByTestId('finalize-button'))
-    expect(screen.getByTestId('approve-button')).toBeDisabled()
-    expect(screen.getByTestId('finalize-button')).toBeDisabled()
+
+    await waitFor(() => screen.getByRole('heading', { name: 'K-1 saved to tax basis' }))
+    expect(screen.queryByTestId('save-verified-k1')).not.toBeInTheDocument()
   })
 })

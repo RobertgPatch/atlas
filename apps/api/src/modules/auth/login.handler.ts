@@ -5,6 +5,7 @@ import { lockoutService } from './lockout.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
 import { totpService } from './totp.service.js'
+import { buildRateLimitedResponse } from '../abuse-protection/protection.errors.js'
 
 export const loginHandler = async (
   request: FastifyRequest,
@@ -17,6 +18,18 @@ export const loginHandler = async (
   }
 
   const { email, password } = payload.data
+  const admission = request.server.authCostAdmission.acquirePassword(email)
+  if (!admission.allowed) {
+    const response = buildRateLimitedResponse({
+      code: 'RATE_LIMITED',
+      requestId: request.id,
+      retryAfterSeconds: admission.retryAfterSeconds,
+    })
+    reply.status(response.statusCode).headers(response.headers).send(response.body)
+    return
+  }
+
+  try {
   const lockout = await lockoutService.getLockout(email, 'PASSWORD')
   if (lockout) {
     reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
@@ -112,4 +125,7 @@ export const loginHandler = async (
       absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
     },
   })
+  } finally {
+    admission.release()
+  }
 }

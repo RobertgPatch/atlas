@@ -7,6 +7,8 @@ import {
   importCommitBodySchema, signoffBodySchema, trackerImportParamsSchema, trackerListQuerySchema,
   trackerPartnershipParamsSchema, trackerYearParamsSchema, updateTrackerYearBodySchema,
 } from './k1-tracker.zod.js'
+import { config } from '../../config.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 
 const parse = <T>(schema: ZodType<T>, value: unknown, reply: FastifyReply): T | null => {
   try { return schema.parse(value) } catch (error) {
@@ -60,6 +62,19 @@ export const signoffK1TrackerYearHandler = async (request: FastifyRequest, reply
 }
 export const previewK1TrackerImportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return
+  await admitCostWorkload({
+    workloadKey: 'k1_workbook_import_preview',
+    method: 'POST',
+    routePattern: '/v1/k1-tracker/imports/preview',
+    principal: request.authUser!.userId,
+    canonicalInputs: { contentLength: request.headers['content-length'] ?? null },
+    globalDailyLimit: config.abuseProtection.quotas.workbookImport.globalPerDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser!.userId, limit: config.abuseProtection.quotas.workbookImport.userPerDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.workbookImport.globalPerDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.workbookImportMs / 1_000),
+  })
   await run(reply, async () => { const file = await request.file(); if (!file) return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'A workbook file is required.' }); if (!file.mimetype.includes('spreadsheet') && !file.filename.endsWith('.xlsx')) return reply.code(400).send({ error: 'VALIDATION_ERROR', message: 'Upload an .xlsx workbook.' }); const buffer = await file.toBuffer(); const targetField = file.fields.targetPartnershipId; const target = (Array.isArray(targetField) ? targetField[0] : targetField) as { value?: string } | undefined; return reply.send(await k1TrackerRepository.previewImport(buffer, file.filename, target?.value ?? null, request.authUser!.userId, request.partnershipScope!)) })
 }
 export const commitK1TrackerImportHandler = async (request: FastifyRequest, reply: FastifyReply) => {

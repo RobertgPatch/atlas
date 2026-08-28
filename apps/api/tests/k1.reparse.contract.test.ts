@@ -4,6 +4,7 @@ import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 import { k1Repository } from '../src/modules/k1/k1.repository.js'
 import { auditRepository } from '../src/modules/audit/audit.repository.js'
 import { stubExtractor } from '../src/modules/k1/extraction/stubExtractor.js'
+import { setExtractorForTests } from '../src/modules/k1/extraction/index.js'
 
 // T038 — Contract: POST /v1/k1-documents/:id/reparse
 // - Accepts only failed-parse rows (status PROCESSING with parseErrorCode set)
@@ -13,11 +14,13 @@ describe('POST /v1/k1-documents/:id/reparse — reparse contract', () => {
   let f: TestFixture
 
   beforeEach(async () => {
+    setExtractorForTests(stubExtractor)
     f = await createTestFixture()
   })
 
   afterEach(async () => {
     await f.app.close()
+    setExtractorForTests(undefined)
     vi.restoreAllMocks()
   })
 

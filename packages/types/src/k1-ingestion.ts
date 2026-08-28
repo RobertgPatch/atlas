@@ -258,6 +258,8 @@ export interface K1CreateBatchFile {
 
 export interface K1CreateIngestionBatchRequest {
   entityScopeId?: string | null
+  /** Unique user-initiated attempt; lets a deliberate re-upload create a new batch. */
+  uploadAttemptId?: string
   files: K1CreateBatchFile[]
 }
 

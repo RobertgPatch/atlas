@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
+import { defaultRouteProtectionPolicy } from '../abuse-protection/policy.defaults.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { auditRepository } from '../audit/audit.repository.js'
@@ -54,6 +56,7 @@ const ingestionErrorStatus = (code: string): number => {
   if (code === 'BATCH_NOT_FOUND' || code === 'ITEM_NOT_FOUND' || code === 'UPLOAD_NOT_FOUND') return 404
   if (code === 'FORBIDDEN_ENTITY' || code === 'FORBIDDEN_K1_DOCUMENT') return 403
   if (code === 'UNSUPPORTED_MEDIA_TYPE') return 415
+  if (code === 'WORKLOAD_DISABLED' || code === 'PROTECTION_UNAVAILABLE') return 503
   if (code === 'INVALID_FILE_COUNT' || code === 'INVALID_FILE_NAME' || code === 'INVALID_FILE_SIZE' || code === 'INVALID_CHECKSUM') return 400
   return 409
 }
@@ -69,6 +72,9 @@ const ingestionErrorMessage = (code: string): string => ({
   APPLIED_DOCUMENT_RETAINED: 'Applied K-1 source documents cannot be cancelled or deleted.',
   BATCH_NOT_FOUND: 'The upload batch was not found.',
   ITEM_NOT_FOUND: 'The upload item was not found.',
+  WORKLOAD_DISABLED: 'K-1 uploads are temporarily disabled by the application cost controls.',
+  PROTECTION_UNAVAILABLE: 'K-1 upload protection is temporarily unavailable. Try again shortly.',
+  IDEMPOTENT_REPLAY: 'This upload attempt is already being processed. Refresh the K-1 queue before retrying.',
 }[code] ?? 'The K-1 upload request could not be completed.')
 
 const sendIngestionError = (reply: FastifyReply, error: unknown) => {
@@ -626,6 +632,24 @@ const reparseHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     return reply.code(409).send({ error: 'NOT_RETRYABLE' })
   }
 
+  await admitCostWorkload({
+    workloadKey: 'k1_reparse',
+    method: 'POST',
+    routePattern: '/v1/k1-documents/:k1DocumentId/reparse',
+    principal: request.authUser!.userId,
+    canonicalInputs: {
+      k1DocumentId: k1.id,
+      parseErrorCode: k1.parseErrorCode,
+    },
+    globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
+    quotas: [
+      { scopeKind: 'user', scopeValue: request.authUser!.userId, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+      { scopeKind: 'entity', scopeValue: k1.id, limit: config.abuseProtection.quotas.paidExtraction.retriesPerDocumentPerDay },
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
+  })
+
   await auditRepository.record({
     eventName: 'k1.reparse_requested',
     objectType: 'k1_document',
@@ -648,6 +672,21 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!parsed.success) return sendZodError(reply, parsed.error)
   const q = parsed.data
   if (!assertEntityInScope(request, reply, q.entity_id)) return
+
+  await admitCostWorkload({
+    workloadKey: 'k1_csv_export',
+    method: 'GET',
+    routePattern: '/v1/k1-documents/export.csv',
+    principal: request.authUser!.userId,
+    canonicalInputs: {
+      taxYear: q.tax_year ?? null,
+      entityId: q.entity_id ?? null,
+      status: q.status ?? null,
+      search: q.q ?? null,
+    },
+    globalDailyLimit: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.exportMs / 1_000),
+  })
 
   const { items } = k1Repository.listK1s(request.authUser!.userId, {
     taxYear: q.tax_year,
@@ -689,6 +728,13 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
       .map((value) => csvEscape(value ?? ''))
       .join(','),
   )
+  if (items.length > config.abuseProtection.payloadLimits.exportRows) {
+    return reply.code(413).send({ error: 'EXPORT_ROW_LIMIT_EXCEEDED' })
+  }
+  const body = [header.join(','), ...rows].join('\r\n')
+  if (Buffer.byteLength(body, 'utf8') > config.abuseProtection.quotas.reportExport.userBytesPerDay) {
+    return reply.code(413).send({ error: 'EXPORT_BYTE_LIMIT_EXCEEDED' })
+  }
 
   await auditRepository.record({
     eventName: 'k1.export_generated',
@@ -703,7 +749,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   reply
     .header('Content-Type', 'text/csv; charset=utf-8')
     .header('Content-Disposition', `attachment; filename="k1-export-${Date.now()}.csv"`)
-    .send([header.join(','), ...rows].join('\r\n'))
+    .send(body)
 }
 
 const createBatchHandler = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -714,6 +760,7 @@ const createBatchHandler = async (request: FastifyRequest, reply: FastifyReply) 
     const batch = await createK1IngestionBatch({
       actorUserId: request.authUser!.userId,
       entityScopeId: parsed.data.entityScopeId ?? null,
+      uploadAttemptId: parsed.data.uploadAttemptId,
       files: parsed.data.files,
     })
     await auditRepository.record({
@@ -986,42 +1033,114 @@ const applyK1Handler = async (request: FastifyRequest, reply: FastifyReply) => {
 // --- Registration -------------------------------------------------------------
 
 export const registerK1Routes = async (app: FastifyInstance) => {
-  const gated = { preHandler: [withSession, requireAuthenticated, requireK1Scope] }
+  const gated = (
+    method: 'DELETE' | 'GET' | 'POST' | 'PUT',
+    routePattern: string,
+  ) => ({
+    preHandler: [withSession, requireAuthenticated, requireK1Scope],
+    config: {
+      abuseProtection: defaultRouteProtectionPolicy(method, `/v1${routePattern}`),
+    },
+  })
 
-  app.post('/k1-ingestion-batches', gated, createBatchHandler)
-  app.get('/k1-ingestion-batches', gated, listBatchesHandler)
-  app.get('/k1-ingestion-batches/:batchId', gated, getBatchHandler)
-  app.put('/k1-ingestion-items/:itemId/local-upload', gated, localUploadHandler)
-  app.post('/k1-ingestion-batches/:batchId/complete-uploads', gated, completeBatchUploadsHandler)
-  app.get('/k1-ingestion-items/:itemId/attempts', gated, getItemAttemptsHandler)
-  app.post('/k1-ingestion-items/:itemId/cancel', gated, cancelItemHandler)
-  app.delete('/k1-ingestion-items/:itemId', gated, deleteItemHandler)
+  app.post(
+    '/k1-ingestion-batches',
+    gated('POST', '/k1-ingestion-batches'),
+    createBatchHandler,
+  )
+  app.get(
+    '/k1-ingestion-batches',
+    gated('GET', '/k1-ingestion-batches'),
+    listBatchesHandler,
+  )
+  app.get(
+    '/k1-ingestion-batches/:batchId',
+    gated('GET', '/k1-ingestion-batches/:batchId'),
+    getBatchHandler,
+  )
+  app.put(
+    '/k1-ingestion-items/:itemId/local-upload',
+    gated('PUT', '/k1-ingestion-items/:itemId/local-upload'),
+    localUploadHandler,
+  )
+  app.post(
+    '/k1-ingestion-batches/:batchId/complete-uploads',
+    gated('POST', '/k1-ingestion-batches/:batchId/complete-uploads'),
+    completeBatchUploadsHandler,
+  )
+  app.get(
+    '/k1-ingestion-items/:itemId/attempts',
+    gated('GET', '/k1-ingestion-items/:itemId/attempts'),
+    getItemAttemptsHandler,
+  )
+  app.post(
+    '/k1-ingestion-items/:itemId/cancel',
+    gated('POST', '/k1-ingestion-items/:itemId/cancel'),
+    cancelItemHandler,
+  )
+  app.delete(
+    '/k1-ingestion-items/:itemId',
+    gated('DELETE', '/k1-ingestion-items/:itemId'),
+    deleteItemHandler,
+  )
 
-  app.get('/k1-documents', gated, listHandler)
-  app.get('/k1-documents/kpis', gated, kpiHandler)
-  app.get('/k1-documents/export.csv', gated, exportHandler)
-  app.get('/k1-documents/:k1DocumentId', gated, detailHandler)
-  app.post('/k1-documents', gated, uploadHandler)
-  app.post('/k1-documents/:k1DocumentId/reparse', gated, reparseHandler)
-  app.post('/k1-documents/:k1DocumentId/retry-extraction', gated, retryExtractionHandler)
-  app.post('/k1-documents/:k1DocumentId/apply-preview', gated, applyPreviewHandler)
-  app.post('/k1-documents/:k1DocumentId/apply', gated, applyK1Handler)
+  app.get('/k1-documents', gated('GET', '/k1-documents'), listHandler)
+  app.get('/k1-documents/kpis', gated('GET', '/k1-documents/kpis'), kpiHandler)
+  app.get(
+    '/k1-documents/export.csv',
+    gated('GET', '/k1-documents/export.csv'),
+    exportHandler,
+  )
+  app.get(
+    '/k1-documents/:k1DocumentId',
+    gated('GET', '/k1-documents/:k1DocumentId'),
+    detailHandler,
+  )
+  app.post('/k1-documents', gated('POST', '/k1-documents'), uploadHandler)
+  app.post(
+    '/k1-documents/:k1DocumentId/reparse',
+    gated('POST', '/k1-documents/:k1DocumentId/reparse'),
+    reparseHandler,
+  )
+  app.post(
+    '/k1-documents/:k1DocumentId/retry-extraction',
+    gated('POST', '/k1-documents/:k1DocumentId/retry-extraction'),
+    retryExtractionHandler,
+  )
+  app.post(
+    '/k1-documents/:k1DocumentId/apply-preview',
+    gated('POST', '/k1-documents/:k1DocumentId/apply-preview'),
+    applyPreviewHandler,
+  )
+  app.post(
+    '/k1-documents/:k1DocumentId/apply',
+    gated('POST', '/k1-documents/:k1DocumentId/apply'),
+    applyK1Handler,
+  )
 
   // Lookup endpoints for upload form
-  app.get('/k1/lookups/entities', gated, async (request, reply) => {
-    const ids = k1Repository.getUserEntityIds(request.authUser!.userId)
-    const entities = k1Repository
-      .listEntities()
-      .filter((e) => ids.includes(e.id))
-      .map((e) => ({ id: e.id, name: e.name }))
-    return reply.send({ items: entities })
-  })
-  app.get('/k1/lookups/partnerships', gated, async (request, reply) => {
-    const ids = k1Repository.getUserEntityIds(request.authUser!.userId)
-    const partnerships = k1Repository
-      .listPartnerships()
-      .filter((p) => ids.includes(p.entityId))
-      .map((p) => ({ id: p.id, name: p.name, entityId: p.entityId }))
-    return reply.send({ items: partnerships })
-  })
+  app.get(
+    '/k1/lookups/entities',
+    gated('GET', '/k1/lookups/entities'),
+    async (request, reply) => {
+      const ids = k1Repository.getUserEntityIds(request.authUser!.userId)
+      const entities = k1Repository
+        .listEntities()
+        .filter((e) => ids.includes(e.id))
+        .map((e) => ({ id: e.id, name: e.name }))
+      return reply.send({ items: entities })
+    },
+  )
+  app.get(
+    '/k1/lookups/partnerships',
+    gated('GET', '/k1/lookups/partnerships'),
+    async (request, reply) => {
+      const ids = k1Repository.getUserEntityIds(request.authUser!.userId)
+      const partnerships = k1Repository
+        .listPartnerships()
+        .filter((p) => ids.includes(p.entityId))
+        .map((p) => ({ id: p.id, name: p.name, entityId: p.entityId }))
+      return reply.send({ items: partnerships })
+    },
+  )
 }

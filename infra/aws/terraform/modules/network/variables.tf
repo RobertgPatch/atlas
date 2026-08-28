@@ -28,11 +28,6 @@ variable "api_container_port" {
   type        = number
 }
 
-variable "api_origin_ingress_cidr_blocks" {
-  description = "CIDR blocks allowed to reach the API origin load balancer."
-  type        = list(string)
-}
-
 variable "enable_nat_gateway" {
   description = "Create a single NAT gateway so private API tasks can reach ECR, Plaid, and AWS APIs."
   type        = bool

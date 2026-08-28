@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import ExcelJS from 'exceljs'
+import { config } from '../../config.js'
 import type { K1TrackerFieldKey, K1TrackerImportPreview, K1TrackerMoney } from './k1-tracker.contracts.js'
 import { moneyToCents, centsToMoney } from './k1-tracker.calculation.js'
 import { trackerFieldByK1Alias, trackerFieldByWorkbookLabel, trackerFields } from './k1-tracker.field-map.js'
@@ -33,8 +34,15 @@ export const hashTrackerWorkbook = (buffer: Buffer): string =>
   createHash('sha256').update(buffer).digest('hex')
 
 export const parseTrackerWorkbook = async (buffer: Buffer): Promise<ParsedTrackerWorkbook> => {
+  if (buffer.byteLength > config.abuseProtection.payloadLimits.workbookFileBytes) {
+    throw Object.assign(new Error('WORKBOOK_FILE_LIMIT_EXCEEDED'), { code: 'WORKBOOK_FILE_LIMIT_EXCEEDED' })
+  }
   const workbook = new ExcelJS.Workbook()
   await workbook.xlsx.load(buffer as never)
+  const totalRows = workbook.worksheets.reduce((sum, sheet) => sum + sheet.rowCount, 0)
+  if (totalRows > config.abuseProtection.payloadLimits.workbookRows) {
+    throw Object.assign(new Error('WORKBOOK_ROW_LIMIT_EXCEEDED'), { code: 'WORKBOOK_ROW_LIMIT_EXCEEDED' })
+  }
   const warnings: string[] = []
   const sheets: K1TrackerImportPreview['sheets'] = []
 

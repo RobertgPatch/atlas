@@ -4,7 +4,9 @@ param(
   [string]$AwsProfile = 'atlas-staging',
   [string]$AwsRegion = 'us-west-2',
   [string]$ExpectedAccountId,
-  [string]$StateBackupDirectory,
+  [string]$TerraformStateBucket,
+  [string]$TerraformStateKey = 'atlas/staging/terraform.tfstate',
+  [string]$TerraformStateKmsKeyArn,
   [switch]$Apply,
   [switch]$RunTests
 )
@@ -52,14 +54,28 @@ if (-not (Test-Path -LiteralPath (Join-Path $RepoPath '.git') -PathType Containe
   throw "Atlas Git repository not found at $RepoPath"
 }
 
+if ([string]::IsNullOrWhiteSpace($TerraformStateBucket)) {
+  $TerraformStateBucket = $env:ATLAS_TERRAFORM_STATE_BUCKET
+}
+if ([string]::IsNullOrWhiteSpace($TerraformStateKmsKeyArn)) {
+  $TerraformStateKmsKeyArn = $env:ATLAS_TERRAFORM_STATE_KMS_KEY_ARN
+}
+if ([string]::IsNullOrWhiteSpace($TerraformStateBucket)) {
+  throw 'Remote Terraform state is required. Pass -TerraformStateBucket or set ATLAS_TERRAFORM_STATE_BUCKET.'
+}
+if ([string]::IsNullOrWhiteSpace($TerraformStateKey) -or $TerraformStateKey.StartsWith('/') -or $TerraformStateKey -match '(^|/)\.\.(/|$)') {
+  throw 'TerraformStateKey must be a non-empty relative S3 object key without parent-directory segments.'
+}
+if ([string]::IsNullOrWhiteSpace($TerraformStateKmsKeyArn)) {
+  throw 'Remote Terraform state encryption is required. Pass -TerraformStateKmsKeyArn or set ATLAS_TERRAFORM_STATE_KMS_KEY_ARN.'
+}
+
 $terraformRoot = Join-Path $RepoPath 'infra\aws\terraform'
 $tfvarsPath = Join-Path $terraformRoot 'staging.tfvars'
-$statePath = Join-Path $terraformRoot 'terraform.tfstate'
-$stateBackupPath = Join-Path $terraformRoot 'terraform.tfstate.backup'
 $secretsModule = Join-Path $terraformRoot 'modules\secrets\main.tf'
-foreach ($required in @($tfvarsPath, $statePath, $secretsModule)) {
+foreach ($required in @($tfvarsPath, $secretsModule)) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-    throw "Required staging file is missing: $required. Restore the current laptop transfer kit first."
+    throw "Required staging file is missing: $required."
   }
 }
 
@@ -87,7 +103,15 @@ if ($Apply -and -not $ExpectedAccountId) {
 
 Push-Location $terraformRoot
 try {
-  & terraform init -input=false
+  $terraformInitArguments = @(
+    'init',
+    '-input=false',
+    "-backend-config=bucket=$TerraformStateBucket",
+    "-backend-config=key=$TerraformStateKey",
+    "-backend-config=region=$AwsRegion",
+    "-backend-config=kms_key_id=$TerraformStateKmsKeyArn"
+  )
+  & terraform @terraformInitArguments
   if ($LASTEXITCODE -ne 0) { throw 'terraform init failed.' }
 
   $workspace = (& terraform workspace show).Trim()
@@ -199,16 +223,6 @@ try {
     throw 'Deployment cancelled before Terraform apply.'
   }
 
-  if (-not $StateBackupDirectory) {
-    $StateBackupDirectory = Join-Path (Split-Path -Parent $RepoPath) 'atlas-staging-state-backups'
-  }
-  New-Item -ItemType Directory -Force -Path $StateBackupDirectory | Out-Null
-  $backupStamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  Copy-Item -LiteralPath $statePath -Destination (Join-Path $StateBackupDirectory "terraform-before-$backupStamp.tfstate") -Force
-  if (Test-Path -LiteralPath $stateBackupPath -PathType Leaf) {
-    Copy-Item -LiteralPath $stateBackupPath -Destination (Join-Path $StateBackupDirectory "terraform-before-$backupStamp.tfstate.backup") -Force
-  }
-
   $savedPreference = $ErrorActionPreference
   try {
     $ErrorActionPreference = 'Continue'
@@ -232,11 +246,6 @@ try {
     "api_image_tag = `"$releaseTag`""
   )
   [System.IO.File]::WriteAllText($tfvarsPath, $tfvarsText, [System.Text.UTF8Encoding]::new($false))
-
-  Copy-Item -LiteralPath $statePath -Destination (Join-Path $StateBackupDirectory "terraform-after-$backupStamp.tfstate") -Force
-  if (Test-Path -LiteralPath $stateBackupPath -PathType Leaf) {
-    Copy-Item -LiteralPath $stateBackupPath -Destination (Join-Path $StateBackupDirectory "terraform-after-$backupStamp.tfstate.backup") -Force
-  }
 
   $apiOutput = & terraform output -json api | ConvertFrom-Json
   $edgeOutput = & terraform output -json edge | ConvertFrom-Json
@@ -266,17 +275,17 @@ $serviceName = ($clusterName -replace '-cluster$', '-api')
 if ($LASTEXITCODE -ne 0) { throw 'ECS did not become stable.' }
 
 try {
-  $health = Invoke-WebRequest -UseBasicParsing -Uri "http://$($apiOutput.load_balancer_dns_name)/health" -TimeoutSec 30
+  $healthUrl = "$($edgeOutput.public_web_url.TrimEnd('/'))/health"
+  $health = Invoke-WebRequest -UseBasicParsing -Uri $healthUrl -TimeoutSec 30
   Write-Host "API health returned HTTP $($health.StatusCode)." -ForegroundColor Green
 }
 catch {
-  throw "ECS is stable, but the direct ALB health request did not succeed: $($_.Exception.Message)"
+  throw "ECS is stable, but the CloudFront health request did not succeed: $($_.Exception.Message)"
 }
 
 Write-Host ''
 Write-Host "Staging deployment completed with API image tag $releaseTag" -ForegroundColor Green
 Write-Host "Web URL: $($edgeOutput.public_web_url)"
-Write-Host "API health: http://$($apiOutput.load_balancer_dns_name)/health"
-Write-Host "Terraform state backups: $StateBackupDirectory" -ForegroundColor Yellow
-Write-Host 'Only this state copy should be used for the next apply until a remote backend is configured.' -ForegroundColor Yellow
+Write-Host "API health: $healthUrl"
+Write-Host "Terraform state: s3://$TerraformStateBucket/$TerraformStateKey (SSE-KMS with native S3 lockfile)" -ForegroundColor Yellow
 exit 0

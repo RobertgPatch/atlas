@@ -81,7 +81,10 @@ export class SqsK1WorkQueue implements K1WorkQueue {
   private readonly receiptQueues = new Map<string, string>()
 
   constructor(args?: { client?: SQSClient; workQueueUrl?: string; completionQueueUrl?: string }) {
-    this.client = args?.client ?? new SQSClient({ region: config.aws.region })
+    this.client = args?.client ?? new SQSClient({
+      region: config.aws.region,
+      maxAttempts: Math.min(3, config.abuseProtection.retryBudgets.sqsMaximumReceives),
+    })
     this.workQueueUrl = args?.workQueueUrl ?? config.k1Ingestion.sqs.workQueueUrl
     this.completionQueueUrl = args?.completionQueueUrl ?? config.k1Ingestion.sqs.completionQueueUrl
     if (!this.workQueueUrl || !this.completionQueueUrl) throw new Error('K1_SQS_QUEUE_URLS_REQUIRED')
@@ -125,6 +128,13 @@ export class SqsK1WorkQueue implements K1WorkQueue {
     for (const entry of response.Messages ?? []) {
       if (!entry.ReceiptHandle || !entry.Body) continue
       const parsedBody = JSON.parse(entry.Body) as unknown
+      const deliveryCount = Number(entry.Attributes?.ApproximateReceiveCount ?? 1)
+      if (deliveryCount > config.abuseProtection.retryBudgets.sqsMaximumReceives) {
+        throw Object.assign(new Error('K1_QUEUE_RECEIVE_LIMIT_EXCEEDED'), {
+          code: 'K1_QUEUE_RECEIVE_LIMIT_EXCEEDED',
+          deliveryCount,
+        })
+      }
       const message = (messageKind === 'COMPLETION'
         && (parsedBody as { source?: string }).source === 'aws.bedrock'
         ? await parseBdaEventBridgeCompletion(parsedBody)
@@ -133,7 +143,7 @@ export class SqsK1WorkQueue implements K1WorkQueue {
       received.push({
         receipt: entry.ReceiptHandle,
         message,
-        deliveryCount: Number(entry.Attributes?.ApproximateReceiveCount ?? 1),
+        deliveryCount,
       })
     }
     return received

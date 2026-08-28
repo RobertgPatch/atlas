@@ -1,3 +1,4 @@
+import { config } from '../../config.js'
 import {
   plaidRepository,
   type PlaidRefreshPolicy,
@@ -283,7 +284,8 @@ export const buildConsolidatedHoldingsResponse = async (
     })
   const { holdings: filteredSource, pricing } =
     await marketDataService.priceHoldingsForRead(filteredHoldings, {
-      refreshStale: query.pricingMode !== 'saved',
+      refreshStale:
+        config.nodeEnv !== 'production' && query.pricingMode !== 'saved',
       saveDailySnapshot:
         query.pricingMode === 'refresh' &&
         !query.search &&

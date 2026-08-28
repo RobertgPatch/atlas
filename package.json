@@ -10,6 +10,16 @@
     "apps/*",
     "packages/*"
   ],
+  "overrides": {
+    "axios": "^1.19.0",
+    "form-data": "^4.0.6",
+    "tmp": "^0.2.7",
+    "fast-uri": "^3.1.5",
+    "find-my-way": "^9.9.0",
+    "uuid": "^11.1.1",
+    "brace-expansion@<1.1.18": "1.1.18",
+    "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"
+  },
   "scripts": {
     "build:api": "npm run --workspace=api build",
     "start:api": "npm run --workspace=api start",
@@ -21,6 +31,10 @@
     "dev:local": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1",
     "dev:local:bda": "powershell -ExecutionPolicy Bypass -File scripts/dev-local.ps1 -K1Mode bda",
     "deploy:aws:staging": "powershell -ExecutionPolicy Bypass -File scripts/deploy-to-aws-staging.ps1",
+    "security:audit:runtime": "node scripts/security/audit-runtime-dependencies.mjs",
+    "security:route-policy": "npm run --workspace=api test -- abuse-protection/route-policy-coverage.contract.test.ts",
+    "security:cost-envelope": "node scripts/security/validate-cost-envelope.mjs",
+    "security:abuse:bounded": "node scripts/security/run-bounded-abuse-tests.mjs",
     "build:web": "npm run --workspace=web build",
     "test:api": "npm run --workspace=api test",
     "test:web": "npm run --workspace=web test"

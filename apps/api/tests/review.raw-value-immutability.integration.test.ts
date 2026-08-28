@@ -3,19 +3,41 @@ import { createReviewFixture, type ReviewFixture } from './helpers/reviewFixture
 import { reviewRepository } from '../src/modules/review/review.repository.js'
 import { pool } from '../src/infra/db/client.js'
 import { createDurableK1ReviewFixture, type DurableK1ReviewFixture } from './helpers/durableK1ReviewFixture.js'
+import { config } from '../src/config.js'
 
 // T018a — raw_value / original_value must NEVER be touched by any correction.
 // Fuzz ≥200 random corrections across the NEEDS_REVIEW fixture and confirm the
 // byte-for-byte immutability invariant holds (SC-003).
 describe('Review corrections — raw_value immutability fuzz (SC-003)', () => {
   let f: ReviewFixture
+  const originalLocalRate = { ...config.abuseProtection.localRates.authenticatedReadUser }
+  const originalExactRates = {
+    businessWriteUser: { ...config.abuseProtection.exactRates.businessWriteUser },
+    businessWriteSessionRequests: config.abuseProtection.exactRates.businessWriteSessionRequests,
+    businessWriteTenantRequests: config.abuseProtection.exactRates.businessWriteTenantRequests,
+    businessWriteGlobalRequests: config.abuseProtection.exactRates.businessWriteGlobalRequests,
+  }
 
   beforeEach(async () => {
+    Object.assign(config.abuseProtection.localRates.authenticatedReadUser, { requests: 250 })
+    Object.assign(config.abuseProtection.exactRates.businessWriteUser, { requests: 250 })
+    Object.assign(config.abuseProtection.exactRates, {
+      businessWriteSessionRequests: 250,
+      businessWriteTenantRequests: 250,
+      businessWriteGlobalRequests: 250,
+    })
     f = await createReviewFixture()
   })
 
   afterEach(async () => {
     await f.app.close()
+    Object.assign(config.abuseProtection.localRates.authenticatedReadUser, originalLocalRate)
+    Object.assign(config.abuseProtection.exactRates.businessWriteUser, originalExactRates.businessWriteUser)
+    Object.assign(config.abuseProtection.exactRates, {
+      businessWriteSessionRequests: originalExactRates.businessWriteSessionRequests,
+      businessWriteTenantRequests: originalExactRates.businessWriteTenantRequests,
+      businessWriteGlobalRequests: originalExactRates.businessWriteGlobalRequests,
+    })
   })
 
   it('200 random corrections never mutate raw_value or original_value', async () => {

@@ -93,3 +93,8 @@ export const k1MetricEnvelope = (args: {
   [args.metric]: Math.max(0, args.value),
   ...(args.status && SAFE_ENUM.test(args.status) ? { Status: args.status } : {}),
 })
+
+export const emitK1Metric = (
+  logger: { info: (record: object, message?: string) => unknown },
+  args: Parameters<typeof k1MetricEnvelope>[0],
+) => logger.info(k1MetricEnvelope(args), 'K-1 CloudWatch metric')

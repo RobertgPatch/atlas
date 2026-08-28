@@ -5,6 +5,8 @@
 #   cp production.tfvars.example production.tfvars
 #
 # Then replace placeholder domains, hosted zone ids, certificate ARNs, and emails locally.
+# Production additionally requires alarm_destination_confirmed=true and
+# budget_destination_confirmed=true after both destinations are monitored.
 # Real *.tfvars files are ignored by git. Do not commit account ids, emails, or secrets.
 #
 # Phase 8 expects separate plans:

@@ -5,6 +5,7 @@ import { lockoutService } from './lockout.service.js'
 import { totpService } from './totp.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
+import { buildRateLimitedResponse } from '../abuse-protection/protection.errors.js'
 
 export const mfaVerifyHandler = async (
   request: FastifyRequest,
@@ -30,6 +31,17 @@ export const mfaVerifyHandler = async (
 
   if (authRepository.isMfaEnrollmentRequired(user) || !user.mfaSecret) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
+
+  const admission = request.server.authCostAdmission.acquireMfa(user.email)
+  if (!admission.allowed) {
+    const response = buildRateLimitedResponse({
+      code: 'RATE_LIMITED',
+      requestId: request.id,
+      retryAfterSeconds: admission.retryAfterSeconds,
+    })
+    reply.status(response.statusCode).headers(response.headers).send(response.body)
     return
   }
 

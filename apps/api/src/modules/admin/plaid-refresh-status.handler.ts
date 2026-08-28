@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto'
+
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
 import { config } from '../../config.js'
@@ -9,13 +11,18 @@ import { RefreshAlreadyRunningError } from '../plaid/plaid.holdings-sync.js'
 import { plaidRepository } from '../plaid/plaid.repository.js'
 import { evaluateSnapshotFreshness } from '../plaid/plaid.refresh-policy.js'
 import { plaidRefreshScheduler } from '../plaid/plaid.refresh-scheduler.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
 
-const tokenMatches = (received: string) =>
-  Boolean(config.plaidRefresh.schedulerToken) &&
-  received === config.plaidRefresh.schedulerToken
+const tokenMatches = (received: string) => {
+  const expected = Buffer.from(config.plaidRefresh.schedulerToken, 'utf8')
+  const candidate = Buffer.from(received, 'utf8')
+  return expected.length > 0
+    && expected.length === candidate.length
+    && timingSafeEqual(expected, candidate)
+}
 
 const uniqueWarnings = (warnings: string[]) => [...new Set(warnings)]
 
@@ -45,6 +52,28 @@ export const runPlaidRefreshHandler = async (
     reply.status(401).send({ error: 'UNAUTHORIZED' })
     return
   }
+  if (body.force) {
+    reply.status(400).send({ error: 'SCHEDULER_FORCE_NOT_ALLOWED' })
+    return
+  }
+
+  await admitCostWorkload({
+    workloadKey: 'plaid_scheduled_refresh',
+    method: 'POST',
+    routePattern: '/v1/admin/plaid-refresh/run',
+    principal: 'scheduler:plaid-refresh',
+    canonicalInputs: { scheduledFor: body.scheduledFor ?? null },
+    globalDailyLimit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay,
+    quotas: [
+      ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
+        scopeKind: 'account' as const,
+        scopeValue: account.id,
+        limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesPerAccountDay,
+      })),
+      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
+  })
 
   try {
     const attempt = await plaidRefreshScheduler.runScheduledRefresh({

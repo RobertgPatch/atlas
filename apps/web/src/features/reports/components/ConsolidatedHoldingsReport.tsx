@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { LinkIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorState } from '../../../components/ErrorState'
@@ -37,13 +37,6 @@ export function ConsolidatedHoldingsReport() {
   const performance = useLiquidityPerformance()
   const plaidAccounts = usePlaidAccounts()
   const plaidLink = usePlaidLink()
-  const preparePlaidLink = plaidLink.prepare
-
-  useEffect(() => {
-    void preparePlaidLink().catch(() => {
-      // Surface token creation errors only when the user actively opens Link.
-    })
-  }, [preparePlaidLink])
 
   const data = holdings.query.data
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])

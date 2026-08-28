@@ -24,7 +24,9 @@ const DEFAULT_FILTERS: ConsolidatedHoldingsFilters = {
   sort: 'symbol',
   direction: 'asc',
   page: 1,
-  pageSize: 5000,
+  // Match the API's bounded report-page maximum. A larger value is rejected
+  // before the holdings query runs and leaves the Liquidity dashboard empty.
+  pageSize: 1000,
 }
 
 const toQuery = (filters: ConsolidatedHoldingsFilters): ConsolidatedHoldingsQuery => ({

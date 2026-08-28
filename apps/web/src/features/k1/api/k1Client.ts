@@ -286,7 +286,11 @@ export const k1Client = {
       sha256: await sha256File(file),
       mimeType: 'application/pdf' as const,
     })))
-    const batch = await k1Client.createBatch({ entityScopeId: args.entityScopeId, files: declared })
+    const batch = await k1Client.createBatch({
+      entityScopeId: args.entityScopeId,
+      uploadAttemptId: crypto.randomUUID(),
+      files: declared,
+    })
     const uploads = await Promise.all(batch.items.map(async (item, index) => {
       const file = args.files[index]
       if (!file || !item.upload) {

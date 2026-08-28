@@ -29,7 +29,7 @@ const defaultQuery = {
   sort: 'symbol',
   direction: 'asc',
   page: 1,
-  pageSize: 5_000,
+  pageSize: 1_000,
 } as const satisfies ConsolidatedHoldingsQuery
 
 const responseWithValue = (totalMarketValue: number): ConsolidatedHoldingsResponse => ({

@@ -10,6 +10,7 @@ import {
   hasAmbiguousK1StatusCheckbox,
   type K1StatusCheckboxVerifier,
 } from '../extraction/bedrockCheckboxVerifier.js'
+import { admitCostWorkload } from '../../abuse-protection/costWorkloadAdmission.js'
 import { k1ExtractionAttemptRepository } from '../extraction/k1ExtractionAttempt.repository.js'
 import { mapBdaResult } from '../extraction/mapBdaResult.js'
 import { durableK1BatchRepository, durableK1Repository } from '../k1.repository.js'
@@ -270,6 +271,19 @@ export const createK1CompletionHandler = (dependencies: K1CompletionHandlerDepen
           bucket: document.storageBucket,
           versionId: document.storageVersionId,
         }, config.k1Ingestion.bedrockReview.maxDocumentBytes)
+        await admitCostWorkload({
+          workloadKey: 'k1_bedrock_checkbox',
+          controlKey: 'k1_bedrock_checkbox',
+          method: 'POST',
+          routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
+          principal: message.k1DocumentId,
+          canonicalInputs: {
+            k1DocumentId: message.k1DocumentId,
+            extractionAttemptId: message.extractionAttemptId,
+          },
+          globalDailyLimit: config.abuseProtection.quotas.paidExtraction.checkboxCallsGlobalPerDay,
+          leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bedrockProviderMs / 1_000),
+        })
         const verifier = dependencies.checkboxVerifier ?? new BedrockK1StatusCheckboxVerifier({
           modelId: config.k1Ingestion.bedrockReview.modelId,
           region: config.aws.region,

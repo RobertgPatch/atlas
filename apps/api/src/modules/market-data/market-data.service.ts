@@ -16,6 +16,7 @@ import type {
   MarketPriceObservation,
   MarketPriceStore,
 } from './market-data.types.js'
+import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
 
 interface MarketDataServiceOptions {
   provider: MarketDataProvider | null
@@ -57,6 +58,15 @@ const normalizedSymbolFor = (holding: SourceHoldingRecord): string | null => {
 const latestIso = (values: string[]): string | null =>
   values.length === 0 ? null : [...values].sort((a, b) => b.localeCompare(a))[0]!
 
+const isNewerPrice = (
+  candidate: MarketPriceObservation,
+  current: MarketPriceObservation | undefined,
+): boolean =>
+  !current ||
+  candidate.providerTimestamp > current.providerTimestamp ||
+  (candidate.providerTimestamp === current.providerTimestamp &&
+    candidate.receivedAt > current.receivedAt)
+
 const latestPricesBySymbol = (
   prices: MarketPriceObservation[],
 ): Map<string, MarketPriceObservation> => {
@@ -64,12 +74,7 @@ const latestPricesBySymbol = (
   for (const price of prices) {
     const symbol = price.symbol.toUpperCase()
     const current = latest.get(symbol)
-    if (
-      !current ||
-      price.receivedAt > current.receivedAt ||
-      (price.receivedAt === current.receivedAt &&
-        price.providerTimestamp > current.providerTimestamp)
-    ) {
+    if (isNewerPrice(price, current)) {
       latest.set(symbol, price)
     }
   }
@@ -96,6 +101,7 @@ const roundCurrency = (value: number): number => Math.round(value * 100) / 100
 export const createMarketDataService = (options: MarketDataServiceOptions) => {
   const now = options.now ?? (() => new Date())
   const inFlightRefreshes = new Map<string, Promise<MarketPriceObservation[]>>()
+  const inFlightClosingRefreshes = new Map<string, Promise<ClosingPriceRefreshResult>>()
 
   const fetchLatestOnce = (symbols: string[]): Promise<MarketPriceObservation[]> => {
     if (!options.provider || symbols.length === 0) return Promise.resolve([])
@@ -163,7 +169,12 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     ) {
       try {
         const refreshed = await fetchLatestOnce(staleSymbols)
-        for (const price of refreshed) bySymbol.set(price.symbol.toUpperCase(), price)
+        for (const price of refreshed) {
+          const symbol = price.symbol.toUpperCase()
+          if (isNewerPrice(price, bySymbol.get(symbol))) {
+            bySymbol.set(symbol, price)
+          }
+        }
         try {
           await options.store.savePrices(refreshed)
         } catch (error) {
@@ -320,9 +331,18 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     }
   }
 
-  const refreshClosingPrices = async (
+  const performClosingPriceRefresh = async (
     tradingDate = easternTradingDate(now()),
   ): Promise<ClosingPriceRefreshResult> => {
+    await admitCostWorkload({
+      workloadKey: 'market_data_closing_prices',
+      method: 'POST',
+      routePattern: '/v1/reports/consolidated-holdings/refresh',
+      principal: 'system:market-data',
+      canonicalInputs: { tradingDate },
+      globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
+      leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.marketDataProviderMs / 1_000),
+    })
     if (!options.provider) {
       return {
         status: 'skipped',
@@ -463,6 +483,17 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       fallbackHoldingCount,
       warnings,
     }
+  }
+
+  const refreshClosingPrices = (
+    tradingDate = easternTradingDate(now()),
+  ): Promise<ClosingPriceRefreshResult> => {
+    const existing = inFlightClosingRefreshes.get(tradingDate)
+    if (existing) return existing
+    const refresh = performClosingPriceRefresh(tradingDate)
+      .finally(() => inFlightClosingRefreshes.delete(tradingDate))
+    inFlightClosingRefreshes.set(tradingDate, refresh)
+    return refresh
   }
 
   return { priceHoldingsForRead, refreshClosingPrices }

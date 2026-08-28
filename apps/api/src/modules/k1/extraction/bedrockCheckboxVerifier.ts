@@ -4,6 +4,8 @@ import {
   type ConverseCommandOutput,
 } from '@aws-sdk/client-bedrock-runtime'
 
+import { config } from '../../../config.js'
+
 import type { K1ExtractionDraft } from '../k1.types.js'
 import { validateK1DraftRelationships } from './k1DraftValidation.js'
 
@@ -61,13 +63,27 @@ const parseVerification = (raw: string, modelId: string): K1StatusCheckboxVerifi
 export class BedrockK1StatusCheckboxVerifier implements K1StatusCheckboxVerifier {
   private readonly client: BedrockClient
   private readonly modelId: string
+  private readonly timeoutMs: number
+  private readonly beforeProviderCall?: () => Promise<void>
 
-  constructor(options: { client?: BedrockClient; modelId?: string; region?: string } = {}) {
-    this.client = options.client ?? new BedrockRuntimeClient({ region: options.region })
+  constructor(options: {
+    client?: BedrockClient
+    modelId?: string
+    region?: string
+    timeoutMs?: number
+    beforeProviderCall?: () => Promise<void>
+  } = {}) {
+    this.client = options.client ?? new BedrockRuntimeClient({
+      region: options.region,
+      maxAttempts: config.abuseProtection.retryBudgets.bedrockCheckboxMaximumAttempts,
+    })
     this.modelId = options.modelId ?? 'us.amazon.nova-2-lite-v1:0'
+    this.timeoutMs = options.timeoutMs ?? config.abuseProtection.timeouts.bedrockProviderMs
+    this.beforeProviderCall = options.beforeProviderCall
   }
 
   async verify(pdfBytes: Uint8Array): Promise<K1StatusCheckboxVerification> {
+    await this.beforeProviderCall?.()
     const response = await this.client.send(new ConverseCommand({
       modelId: this.modelId,
       messages: [{
@@ -91,7 +107,7 @@ export class BedrockK1StatusCheckboxVerifier implements K1StatusCheckboxVerifier
         ],
       }],
       inferenceConfig: { maxTokens: 200, temperature: 0 },
-    })) as ConverseCommandOutput
+    }), { abortSignal: AbortSignal.timeout(this.timeoutMs) }) as ConverseCommandOutput
     return parseVerification(responseText(response), this.modelId)
   }
 }

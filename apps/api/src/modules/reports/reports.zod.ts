@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { config } from '../../config.js'
 
 const uuidSchema = z.string().uuid()
 
@@ -83,7 +84,7 @@ export const portfolioSummaryQuerySchema = z.object({
   sort: z.enum(portfolioSortFields).optional().default('entityName'),
   direction: z.enum(['asc', 'desc']).optional().default('asc'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).optional().default(50),
+  pageSize: z.coerce.number().int().min(1).max(config.abuseProtection.payloadLimits.reportPageSize).optional().default(50),
 })
 
 export const assetClassSummaryQuerySchema = z.object({
@@ -97,7 +98,7 @@ export const activityDetailQuerySchema = z.object({
   sort: z.enum(activityDetailSortFields).optional().default('taxYear'),
   direction: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).optional().default(50),
+  pageSize: z.coerce.number().int().min(1).max(config.abuseProtection.payloadLimits.reportPageSize).optional().default(50),
 })
 
 export const consolidatedHoldingsQuerySchema = z.object({
@@ -109,7 +110,7 @@ export const consolidatedHoldingsQuerySchema = z.object({
   sort: z.enum(consolidatedHoldingsSortFields).optional().default('marketValue'),
   direction: z.enum(['asc', 'desc']).optional().default('desc'),
   page: z.coerce.number().int().min(1).optional().default(1),
-  pageSize: z.coerce.number().int().min(1).max(5000).optional().default(50),
+  pageSize: z.coerce.number().int().min(1).max(config.abuseProtection.payloadLimits.reportPageSize).optional().default(50),
   pricingMode: z.enum(['saved', 'refresh']).optional(),
 })
 
