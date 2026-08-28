@@ -3,51 +3,28 @@ import { useCallback, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { MagicPatternCapitalActivityPortfolio } from '../../../partnership-tracker/components/magic-patterns/MagicPatternCapitalActivityPortfolio'
 import { MagicPatternPartnershipRecordDialog } from '../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipRecordDialog'
-import {
-  MagicPatternPartnershipWorkspace,
-  type MagicWorkspaceArea,
-} from '../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace'
+import { MagicPatternPartnershipWorkspace } from '../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace'
 import {
   MagicButton,
   MagicCard,
 } from '../../../partnership-tracker/components/magic-patterns/MagicPatternPrimitives'
 import { usePartnershipTrackerDetail } from '../../../partnership-tracker/hooks/usePartnershipTracker'
-
-const validAreas = new Set<MagicWorkspaceArea>([
-  'overview',
-  'capital-activity',
-  'valuations',
-  'k1-history',
-  'underlying-assets',
-])
-
-function selectedWorkspaceArea(rawArea: string | null): MagicWorkspaceArea {
-  if (rawArea && validAreas.has(rawArea as MagicWorkspaceArea)) return rawArea as MagicWorkspaceArea
-  if (rawArea === 'cash-activity') return 'capital-activity'
-  if (rawArea === 'k1') return 'k1-history'
-  if (rawArea === 'capital') return 'valuations'
-  if (rawArea === 'assets') return 'underlying-assets'
-  return 'overview'
-}
+import {
+  canonicalInvestmentTrackerArea,
+  selectedInvestmentTrackerYear,
+  updateInvestmentTrackerQuery,
+} from '../../investmentTrackerQueryState'
 
 export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit: boolean }) {
   const [params, setParams] = useSearchParams()
   const [adding, setAdding] = useState(false)
   const selectedId = params.get('partnership') ?? undefined
   const detail = usePartnershipTrackerDetail(selectedId)
-  const area = selectedWorkspaceArea(params.get('area'))
-  const rawYear = Number(params.get('year'))
-  const selectedYear = Number.isInteger(rawYear) && rawYear >= 1900 && rawYear <= 2100
-    ? rawYear
-    : undefined
+  const area = canonicalInvestmentTrackerArea(params.get('area'))
+  const selectedYear = selectedInvestmentTrackerYear(params.get('year'))
 
   const updateUrl = useCallback((changes: Record<string, string | undefined>) => {
-    const next = new URLSearchParams(params)
-    for (const [key, value] of Object.entries(changes)) {
-      if (value == null) next.delete(key)
-      else next.set(key, value)
-    }
-    setParams(next, { replace: true })
+    setParams(updateInvestmentTrackerQuery(params, changes), { replace: true })
   }, [params, setParams])
 
   const openPartnership = (partnershipId: string) => {

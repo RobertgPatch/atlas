@@ -294,31 +294,3 @@ export interface K1TrackerFieldChange {
   sourceType: Extract<K1TrackerSourceType, 'MANUAL_ENTRY' | 'MANUAL_OVERRIDE'>
   overrideReason?: string | null
 }
-
-export interface K1TrackerImportDecision {
-  sheetName: string
-  taxYear: number
-  action: 'SKIP' | 'MERGE' | 'REPLACE'
-  expectedRevision?: number | null
-}
-
-export interface K1TrackerImportPreview {
-  importBatchId: string
-  expiresAt: string
-  workbookHash: string
-  proposedPartnershipId: string | null
-  sheets: Array<{
-    sheetName: string
-    proposedPartnershipName: string
-    proposedPartnershipId: string | null
-    years: Array<{
-      taxYear: number
-      state: 'POPULATED' | 'FORMULA_ONLY' | 'BLANK' | 'INVALID'
-      mappedFieldCount: number
-      conflicts: Array<{ fieldKey: K1TrackerFieldKey; message: string }>
-      warnings: string[]
-      values: Array<{ fieldKey: K1TrackerFieldKey; amount: K1TrackerMoney | null; sourceCell: string }>
-    }>
-  }>
-  warnings: string[]
-}

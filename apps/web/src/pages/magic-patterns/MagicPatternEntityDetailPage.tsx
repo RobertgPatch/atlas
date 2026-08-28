@@ -290,7 +290,6 @@ export function MagicPatternEntityDetailPage() {
       void authClient.logout().finally(() => sessionStore.setUnauthenticated())
     },
     mainClassName: 'bg-[#E7EDF4]',
-    magicPatternDesigns: true,
   }
 
   if (detail.isLoading) {
@@ -569,7 +568,13 @@ export function MagicPatternEntityDetailPage() {
                         partnerships.map((partnership, index) => (
                           <tr key={partnership.id} className={`border-b border-[#DAE2EC] last:border-0 ${index % 2 ? 'bg-[#F4F7FA]' : ''}`}>
                             <td className="px-3 py-2.5">
-                              <p className="font-medium text-[#17263A]">{partnership.name}</p>
+                              <button
+                                type="button"
+                                className="text-left font-medium text-[#17263A] underline decoration-primary decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                                onClick={() => navigate(`/investment-tracker?partnership=${encodeURIComponent(partnership.id)}&area=overview`)}
+                              >
+                                {partnership.name}
+                              </button>
                               <p className="text-xs text-[#5F7185]">{partnership.assetClass ?? 'Asset class not on file'}</p>
                             </td>
                             <td className="px-3 py-2.5 text-right text-[#5F7185]">—</td>

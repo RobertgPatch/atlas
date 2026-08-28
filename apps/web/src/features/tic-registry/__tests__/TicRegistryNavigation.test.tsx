@@ -12,7 +12,6 @@ describe('TIC Registry navigation', () => {
           userRole="Admin"
           userEmail="admin@jackson.test"
           onSignOut={vi.fn()}
-          magicPatternDesigns={false}
         >
           <div>Registry content</div>
         </AppShell>

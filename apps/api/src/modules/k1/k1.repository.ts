@@ -1492,28 +1492,7 @@ export const k1Repository = {
     seed()
   },
 
-  /**
-   * Wipe the in-memory dataset back to a true "first login" state — no
-   * entities, partnerships, memberships, K-1 documents, issues, or document
-   * versions. Auth users persist so an Admin can still sign in; they will have
-   * an empty entity list and must create one before they can do anything.
-   */
-  _debugClearAll(): void {
-    entities.clear()
-    partnerships.clear()
-    documents.clear()
-    k1Documents.clear()
-    k1Issues.clear()
-    documentVersions.clear()
-    memberships.length = 0
-    seeded = true // prevent the auto-seed from re-running on next access
-  },
-
-  /** Force-run the full demo seed (wipes + re-seeds everything). */
-  _debugSeedAll(): void {
-    this._debugReset()
-  },
-
+  /** Seed a K-1 row for retained contract and review-flow tests. */
   _debugSeedK1(args: {
     partnershipName: string
     status: K1Status
@@ -1571,7 +1550,4 @@ export const k1Repository = {
     for (const entityId of entityIds) memberships.push({ userId, entityId })
   },
 
-  _debugListDocumentVersions(): DocumentVersionRecord[] {
-    return [...documentVersions.values()]
-  },
 }

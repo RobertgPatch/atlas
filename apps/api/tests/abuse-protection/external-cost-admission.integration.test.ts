@@ -20,7 +20,6 @@ import {
   plaidRepository,
   type SourceHoldingRecord,
 } from '../../src/modules/plaid/plaid.repository.js'
-import { k1TrackerRepository } from '../../src/modules/k1-tracker/k1-tracker.repository.js'
 import { reportsExport } from '../../src/modules/reports/reports.export.js'
 import { runBackfill } from '../../src/scripts/backfill-market-price-snapshots.js'
 import {
@@ -30,7 +29,6 @@ import {
   createSideEffectTracker,
   type SideEffectTracker,
 } from '../helpers/abuseProtectionTestHelpers.js'
-import { buildMultipart } from '../helpers/multipart.js'
 import { createTestFixture, type TestFixture } from '../helpers/testApp.js'
 
 type RejectionKind = 'deduplicated' | 'quota_rejected'
@@ -236,42 +234,6 @@ describe.each(decisionCases)(
           url: '/v1/admin/plaid-refresh/run',
           headers: { 'x-atlas-scheduler-token': config.plaidRefresh.schedulerToken },
           payload: { scheduledFor: '2026-08-25T12:00:00.000Z' },
-        }))
-    })
-
-    it('blocks workbook parsing and import database writes', async () => {
-      vi.spyOn(k1TrackerRepository, 'previewImport').mockImplementation(async () => {
-        sideEffects.increment('databaseWrites')
-        return {
-          importBatchId: randomUUID(),
-          expiresAt: '2026-08-25T13:00:00.000Z',
-          proposedPartnershipId: fixture.partnerships[0]!.id,
-          workbookHash: 'test-workbook-hash',
-          sheets: [],
-        } as never
-      })
-      const workbook = buildMultipart(
-        [{
-          name: 'targetPartnershipId',
-          value: fixture.partnerships[0]!.id,
-        }],
-        [{
-          name: 'file',
-          filename: 'basis.xlsx',
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          data: Buffer.from('test workbook bytes'),
-        }],
-      )
-
-      await expectAdmissionBeforeEffects('workbook import preview', async () =>
-        fixture.app.inject({
-          method: 'POST',
-          url: '/v1/k1-tracker/imports/preview',
-          headers: {
-            cookie: fixture.cookie,
-            'content-type': workbook.contentType,
-          },
-          payload: workbook.body,
         }))
     })
 

@@ -17,7 +17,11 @@ import type { PartnershipAssetRow } from '../../../../../../packages/types/src/p
 import type { EntityListItem } from '../../partnerships/api/entitiesClient'
 import { entityTypeLabel } from '../../partnerships/entityTypeLabels'
 import { MagicStatusBadge } from '../../partnership-tracker/components/magic-patterns/MagicPatternPrimitives'
-import { formatEstateMoney, type EstateMapPartnership } from '../estateMapModel'
+import {
+  estateMapSourceHref,
+  formatEstateMoney,
+  type EstateMapPartnership,
+} from '../estateMapModel'
 
 export interface EstateMapBranchView extends EstateMapPartnership {
   assets: PartnershipAssetRow[]
@@ -198,10 +202,12 @@ function NodeDetailPanel({
       : selected.kind === 'partnership'
         ? `${branch?.summary.partnership.partnershipType ?? 'Partnership'} Â· ${branch?.summary.partnership.status ?? ''}`
         : `${asset?.assetType ?? 'Asset'} Â· ${asset?.status ?? ''}`
-  const href =
-    selected.kind === 'root'
-      ? `/entities/${root.id}`
-      : `/partnership-tracker?partnership=${encodeURIComponent(branch?.summary.partnership.id ?? '')}${selected.kind === 'asset' ? '&area=assets' : ''}`
+  const href = selected.kind === 'root'
+    ? estateMapSourceHref({ kind: 'root', entityId: root.id })
+    : estateMapSourceHref({
+        kind: selected.kind,
+        partnershipId: branch?.summary.partnership.id ?? '',
+      })
 
   const details =
     selected.kind === 'root'
@@ -392,7 +398,7 @@ export function EstateMapCanvas({
                   Add an ownership or control relationship from {root.name} on a partnership's Relationships section. You can also assign each relationship to specific estate maps there.
                 </p>
                 <Link
-                  to="/partnership-tracker"
+                  to="/investment-tracker"
                   className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 shadow-sm hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                 >
                   Open partnerships

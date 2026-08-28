@@ -805,9 +805,6 @@ export const reviewRepository = {
     partnershipAnnualActivity.clear()
   },
 
-  _debugAllFieldValues(): K1FieldValueRecord[] {
-    return [...fieldValues.values()]
-  },
   _debugAllAnnualActivity(): PartnershipAnnualActivityRecord[] {
     return [...partnershipAnnualActivity.values()]
   },

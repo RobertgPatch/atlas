@@ -15,6 +15,19 @@ export interface EstateMapAssetBranch extends EstateMapPartnership {
   assets: PartnershipAssetRow[]
 }
 
+export type EstateMapSourceSelection =
+  | { kind: 'root'; entityId: string }
+  | { kind: 'partnership'; partnershipId: string }
+  | { kind: 'asset'; partnershipId: string }
+
+export function estateMapSourceHref(selection: EstateMapSourceSelection): string {
+  if (selection.kind === 'root') return `/entities/${encodeURIComponent(selection.entityId)}`
+
+  const params = new URLSearchParams({ partnership: selection.partnershipId })
+  if (selection.kind === 'asset') params.set('area', 'underlying-assets')
+  return `/investment-tracker?${params.toString()}`
+}
+
 export const ESTATE_ASSET_CATEGORY_ORDER: PartnershipAssetCategory[] = [
   'real_estate',
   'marketable_securities',

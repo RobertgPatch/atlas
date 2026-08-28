@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFile } from 'node:fs/promises'
 import { calculateTrackerYear, moneyToCents } from '../src/modules/k1-tracker/k1-tracker.calculation.js'
-import { parseTrackerWorkbook } from '../src/modules/k1-tracker/k1-tracker.import.js'
-import type { K1TrackerFieldKey } from '../src/modules/k1-tracker/k1-tracker.contracts.js'
 
 const values = (entries: Record<string, string>) => Object.fromEntries(
   Object.entries(entries).map(([key, value]) => [key, moneyToCents(value)]),
@@ -227,34 +224,4 @@ describe('K1 tracker calculation', () => {
     expect(zero.checks.find((check) => check.key === 'required-source-data')?.status).toBe('PASS')
   })
 
-  it('matches the CPA workbook ending-basis regression values and corrects its inception-year net-income defect', async () => {
-    const workbook = await parseTrackerWorkbook(await readFile(new URL('./fixtures/k1-tracker-basis-template.xlsx', import.meta.url)))
-    const importedYears = workbook.preview.sheets[0]!.years.slice(0, 5)
-    const expectedEndingBasis = ['1932344.00', '1684727.00', '1376978.00', '1144214.00', '695823.00']
-    let previous: { endingOutsideBasis: bigint; cumulativeSuspendedLoss: bigint; sectionLEndingCapital: bigint | null; liabilities: { nonrecourse: bigint; qualifiedNonrecourse: bigint; recourse: bigint } } | undefined
-
-    for (const [index, importedYear] of importedYears.entries()) {
-      const importedValues = Object.fromEntries(importedYear.values
-        .filter((value) => value.amount != null)
-        .map((value) => [value.fieldKey, moneyToCents(value.amount)!])) as Partial<Record<K1TrackerFieldKey, bigint | null>>
-      const result = calculateTrackerYear({ id: `workbook-${importedYear.taxYear}`, taxYear: importedYear.taxYear, revision: 1, status: 'IMPORTED', values: importedValues }, previous)
-
-      expect(result.basis.endingOutsideBasis).toBe(expectedEndingBasis[index])
-      expect(result.calculationVersion).toBe('irs-k1-basis-v8-split-line-13-signed-section-l-withdrawals')
-      if (importedYear.taxYear === 2021) {
-        expect(result.sectionL.calculatedNetIncome).toBe('-1067656.00')
-        expect(result.checks.find((check) => check.key === 'section-l-net-income')?.status).toBe('PASS')
-      }
-      previous = {
-        endingOutsideBasis: moneyToCents(result.basis.endingOutsideBasis as string)!,
-        cumulativeSuspendedLoss: moneyToCents(result.lossLimitation.cumulativeSuspendedLoss as string)!,
-        sectionLEndingCapital: moneyToCents(result.sectionL.reportedEnding as string | null),
-        liabilities: {
-          nonrecourse: moneyToCents(result.liabilities.nonrecourseEnding as string)!,
-          qualifiedNonrecourse: moneyToCents(result.liabilities.qualifiedNonrecourseEnding as string)!,
-          recourse: moneyToCents(result.liabilities.recourseEnding as string)!,
-        },
-      }
-    }
-  })
 })

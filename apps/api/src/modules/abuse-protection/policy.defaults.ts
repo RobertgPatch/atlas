@@ -17,19 +17,6 @@ import type {
 const routeContains = (routePattern: string, fragments: readonly string[]): boolean =>
   fragments.some((fragment) => routePattern.includes(fragment))
 
-const isK1TrackerAdminRoute = (
-  method: HttpMethod,
-  routePattern: string,
-): boolean => {
-  if (!routePattern.startsWith('/v1/k1-tracker/')) return false
-  if (routePattern.includes('/imports/')) return true
-  if (method === 'POST') {
-    return routePattern.endsWith('/years') || routePattern.endsWith('/signoffs')
-  }
-  return ['DELETE', 'PATCH'].includes(method)
-    && routePattern.endsWith('/years/:taxYear')
-}
-
 const isReviewFinalizationRoute = (routePattern: string): boolean =>
   routePattern.startsWith('/v1/k1-documents/:k1DocumentId/')
   && (routePattern.endsWith('/approve') || routePattern.endsWith('/finalize'))
@@ -62,7 +49,6 @@ const authenticationFor = (
   if (routePattern.startsWith('/v1/admin/')) return 'admin'
   if (isReviewFinalizationRoute(routePattern)) return 'admin'
   if (isK1ApplicationAdminRoute(routePattern)) return 'admin'
-  if (isK1TrackerAdminRoute(method, routePattern)) return 'admin'
   if (isAdminManagedMutation(method, routePattern)) return 'admin'
   return 'session'
 }
@@ -82,12 +68,8 @@ const classFor = (
     || routePattern === '/v1/auth/logout'
   ) return 'AUTHENTICATED_READ'
   if (routePattern === '/v1/admin/plaid-refresh/run') return 'INTERNAL_SCHEDULER'
-  if (routeContains(routePattern, ['/imports/preview', '/imports/:importBatchId/commit'])) {
-    return 'WORKBOOK_IMPORT'
-  }
   if (isReviewFinalizationRoute(routePattern)) return 'ADMIN_WRITE'
   if (routePattern === '/v1/k1-documents/:k1DocumentId/apply') return 'ADMIN_WRITE'
-  if (isK1TrackerAdminRoute(method, routePattern)) return 'ADMIN_WRITE'
   if (isAdminManagedMutation(method, routePattern)) return 'ADMIN_WRITE'
   if (
     method === 'POST'
@@ -305,15 +287,6 @@ const ordinarySettings = (
     costDrivers: ['object_read', 'response_stream'],
     durableRates: [],
   }
-  if (routeClass === 'WORKBOOK_IMPORT') return {
-    killSwitch: null,
-    idempotency: 'server_content',
-    concurrencyLimit: config.abuseProtection.quotas.workbookImport.globalConcurrency,
-    backlogLimit: config.abuseProtection.quotas.workbookImport.globalConcurrency * 4,
-    costUnits: ['byte', 'request'],
-    costDrivers: ['workbook_parse', 'database_write'],
-    durableRates: [],
-  }
   if (routeClass === 'BUSINESS_WRITE' || routeClass === 'ADMIN_WRITE') return {
     killSwitch: null,
     idempotency: 'optional',
@@ -428,13 +401,6 @@ export const defaultRouteProtectionPolicy = (
       maxJsonDepth: config.abuseProtection.payloadLimits.maximumJsonDepth,
       maxProperties: config.abuseProtection.payloadLimits.maximumJsonProperties,
       responseBytes: config.abuseProtection.payloadLimits.responseBodyBytes,
-      ...(routeClass === 'WORKBOOK_IMPORT' ? {
-        files: 1,
-        fileBytes: config.abuseProtection.payloadLimits.workbookFileBytes,
-        multipartFields: config.abuseProtection.payloadLimits.multipartFields,
-        multipartParts: config.abuseProtection.payloadLimits.multipartParts,
-        rows: config.abuseProtection.payloadLimits.workbookRows,
-      } : {}),
       ...(routeClass === 'K1_UPLOAD_ADMISSION' ? {
         files: config.abuseProtection.payloadLimits.k1FilesPerBatch,
         fileBytes: config.abuseProtection.payloadLimits.k1FileBytes,

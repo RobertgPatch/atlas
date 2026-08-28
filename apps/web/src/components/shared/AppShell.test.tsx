@@ -4,10 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AppShell } from './AppShell'
 
-describe('AppShell design flag', () => {
+describe('AppShell current navigation', () => {
   beforeEach(() => window.localStorage.clear())
 
-  it('renders the grouped Magic Patterns navigation when the flag is on', () => {
+  it('renders the exact current dashboard navigation', () => {
     const onSignOut = vi.fn()
 
     render(
@@ -18,7 +18,6 @@ describe('AppShell design flag', () => {
           userRole="Admin"
           workspaceName="Morgan Family Office"
           onSignOut={onSignOut}
-          magicPatternDesigns
         >
           <div>Dashboard content</div>
         </AppShell>
@@ -46,6 +45,19 @@ describe('AppShell design flag', () => {
       'href',
       '/reports',
     )
+    expect(
+      within(navigation)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual([
+      '/dashboard',
+      '/investment-tracker',
+      '/liquidity',
+      '/entities',
+      '/estate-maps',
+      '/tic-registry',
+      '/reports',
+    ])
     expect(within(navigation).getByRole('link', { name: 'Liquidity' })).toHaveClass(
       'bg-primary-subtle',
       'text-primary',
@@ -71,7 +83,7 @@ describe('AppShell design flag', () => {
   it('collapses the Magic Patterns navigation to a persistent 64px icon rail', () => {
     render(
       <MemoryRouter>
-        <AppShell currentPath="/investment-tracker" magicPatternDesigns>
+        <AppShell currentPath="/investment-tracker">
           <div>Aggregate content</div>
         </AppShell>
       </MemoryRouter>,
@@ -94,27 +106,7 @@ describe('AppShell design flag', () => {
     expect(window.localStorage.getItem('atlas-sidebar-collapsed')).toBe('true')
   })
 
-  it('preserves the legacy navigation when the flag is off', () => {
-    render(
-      <MemoryRouter>
-        <AppShell currentPath="/liquidity" magicPatternDesigns={false}>
-          <div>Liquidity content</div>
-        </AppShell>
-      </MemoryRouter>,
-    )
-
-    const panel = screen.getByTestId('app-sidebar-panel')
-    expect(panel).toHaveAttribute('data-design-variant', 'legacy')
-    expect(panel).toHaveClass('border-gray-800', 'bg-black')
-    expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Overview' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Collapse navigation' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }))
-    expect(screen.getByTestId('app-sidebar-frame')).toHaveClass('lg:w-20')
-  })
-
-  it('shows the User role, opens mobile navigation, and signs out from the Magic shell', () => {
+  it('shows the User role, opens mobile navigation, and signs out', () => {
     const onSignOut = vi.fn()
     render(
       <MemoryRouter>
@@ -123,7 +115,6 @@ describe('AppShell design flag', () => {
           userEmail="member@jackson.test"
           userRole="User"
           onSignOut={onSignOut}
-          magicPatternDesigns
         >
           <div>Entities content</div>
         </AppShell>

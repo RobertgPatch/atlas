@@ -18,16 +18,10 @@ vi.mock('../features/investment-tracker', () => ({
   MagicPatternInvestmentTrackerPageContent: () => <div>Magic Patterns investment tracker</div>,
 }))
 
-describe('InvestmentTrackerPage feature flag', () => {
-  it('renders the Magic Patterns tracker when enabled', () => {
-    render(<MemoryRouter><InvestmentTrackerPage magicPatternDesigns /></MemoryRouter>)
+describe('InvestmentTrackerPage', () => {
+  it('renders the current investment tracker', () => {
+    render(<MemoryRouter><InvestmentTrackerPage /></MemoryRouter>)
     expect(screen.getByText('Magic Patterns investment tracker')).toBeTruthy()
     expect(screen.queryByText('Coming Soon')).toBeNull()
-  })
-
-  it('keeps the legacy placeholder when disabled', () => {
-    render(<MemoryRouter><InvestmentTrackerPage magicPatternDesigns={false} /></MemoryRouter>)
-    expect(screen.getByText('Coming Soon')).toBeTruthy()
-    expect(screen.queryByText('Magic Patterns investment tracker')).toBeNull()
   })
 })

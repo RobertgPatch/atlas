@@ -187,8 +187,8 @@ export const K1ReviewWorkspace = () => {
     const params = new URLSearchParams()
     if (sessionData.partnership.id) params.set('partnership', sessionData.partnership.id)
     if (sessionData.taxYear) params.set('year', String(sessionData.taxYear))
-    params.set('area', 'k1')
-    navigate(`/partnership-tracker?${params.toString()}`)
+    params.set('area', 'k1-history')
+    navigate(`/investment-tracker?${params.toString()}`)
   }
 
   const handleComplete = async () => {

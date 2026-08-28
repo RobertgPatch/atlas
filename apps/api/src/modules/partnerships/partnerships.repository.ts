@@ -991,26 +991,8 @@ export const partnershipsRepository = {
     }
   },
 
-  /**
-   * Test/dev helper: clear the in-memory partnership overlays
-   * (assetClass / status / notes). Called from the Admin "Clear all data" flow.
-   */
+  /** Test helper: clear the in-memory partnership overlays. */
   _debugReset(): void {
     inMemoryOverlays.clear()
-  },
-
-  /**
-   * Test/dev helper: seed the in-memory overlay for a partnership so demo
-   * data exposes asset class / status / notes alongside the K-1 fixtures.
-   */
-  _debugSetOverlay(
-    partnershipId: string,
-    patch: { assetClass?: string | null; status?: Partnership['status']; notes?: string | null },
-  ): void {
-    const overlay = getOrCreateOverlay(partnershipId)
-    if (patch.assetClass !== undefined) overlay.assetClass = patch.assetClass
-    if (patch.status !== undefined) overlay.status = patch.status
-    if (patch.notes !== undefined) overlay.notes = patch.notes
-    overlay.updatedAt = new Date().toISOString()
   },
 }

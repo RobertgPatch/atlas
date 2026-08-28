@@ -357,7 +357,7 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     const Location = () => <div data-testid="location">{useLocation().search}</div>
     render(<MemoryRouter initialEntries={[`/k1/${documentId}/review`]}><Routes>
       <Route path="/k1/:id/review" element={<K1ReviewWorkspace />} />
-      <Route path="/partnership-tracker" element={<Location />} />
+      <Route path="/investment-tracker" element={<Location />} />
     </Routes></MemoryRouter>)
 
     const historyButtons = await screen.findAllByRole('button', { name: /Open K-1 history/i })
@@ -368,7 +368,7 @@ describe('K1ReviewWorkspace simplified scan flow', () => {
     const params = new URLSearchParams(screen.getByTestId('location').textContent ?? '')
     expect(params.get('partnership')).toBe(partnershipId)
     expect(params.get('year')).toBe('2025')
-    expect(params.get('area')).toBe('k1')
+    expect(params.get('area')).toBe('k1-history')
   })
 
   it('explains a stale tax-basis revision instead of exposing an internal code', async () => {

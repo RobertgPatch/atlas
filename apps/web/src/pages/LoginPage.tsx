@@ -1,43 +1,23 @@
-import React, { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
-import { featureFlags } from '../config/featureFlags'
-import { Button } from '../components/shared/Button'
 import { MagicPatternLoginPage } from './magic-patterns/MagicPatternLoginPage'
 
 const getLoginErrorMessage = (error: unknown) => {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'error' in error &&
-    (error as ApiError).error === 'ACCOUNT_LOCKED'
-  ) {
-    return 'Your account is temporarily locked. Please wait and try again.'
+  if (error && typeof error === 'object' && 'error' in error) {
+    if ((error as ApiError).error === 'ACCOUNT_LOCKED') {
+      return 'Your account is temporarily locked. Please wait and try again.'
+    }
+    if ((error as ApiError).error === 'NETWORK_ERROR') {
+      return 'Authentication service is unavailable. Start the API server and try again.'
+    }
   }
-
-  if (
-    error &&
-    typeof error === 'object' &&
-    'error' in error &&
-    (error as ApiError).error === 'NETWORK_ERROR'
-  ) {
-    return 'Authentication service is unavailable. Start the API server and try again.'
-  }
-
   return 'Invalid email or password. Please try again.'
 }
 
-interface LoginPageProps {
-  magicPatternDesigns?: boolean
-}
-
-export function LoginPage({
-  magicPatternDesigns = featureFlags.magicPatternDesigns,
-}: LoginPageProps = {}) {
+export function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -46,10 +26,9 @@ export function LoginPage({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
     setError(null)
-
     if (!email || !password) {
       setError('Please enter your email and password.')
       return
@@ -58,13 +37,11 @@ export function LoginPage({
     setIsLoading(true)
     try {
       const result = await authClient.login(email, password)
-
       if ('status' in result && result.status === 'MFA_ENROLL_REQUIRED') {
         authFlowStore.setEnrollment(result)
         navigate('/mfa/setup')
         return
       }
-
       if ('status' in result && result.status === 'MFA_REQUIRED') {
         authFlowStore.setChallenge(result)
         navigate('/mfa')
@@ -73,166 +50,27 @@ export function LoginPage({
 
       authFlowStore.clear()
       sessionStore.setAuthenticated(result)
-      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
-    } catch (err) {
-      setError(getLoginErrorMessage(err))
+      navigate('/dashboard')
+    } catch (caught) {
+      setError(getLoginErrorMessage(caught))
     } finally {
       setIsLoading(false)
     }
   }
 
-  if (magicPatternDesigns) {
-    return (
-      <MagicPatternLoginPage
-        email={email}
-        password={password}
-        rememberMe={rememberMe}
-        showPassword={showPassword}
-        isLoading={isLoading}
-        error={error}
-        onEmailChange={setEmail}
-        onPasswordChange={setPassword}
-        onRememberMeChange={setRememberMe}
-        onTogglePassword={() => setShowPassword((visible) => !visible)}
-        onSubmit={handleSubmit}
-      />
-    )
-  }
-
   return (
-    <div className="min-h-screen flex">
-      {/* Left Branding Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-black flex-col justify-between p-12">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-decorative-brand-accent rounded-lg flex items-center justify-center">
-            <span className="text-black font-serif font-bold text-xl">J</span>
-          </div>
-          <span className="text-2xl font-serif font-bold text-white tracking-widest uppercase">
-            Jackson
-          </span>
-        </div>
-
-        <div className="max-w-md">
-          <h1 className="text-4xl font-serif text-white leading-tight mb-6">
-            Institutional-grade K-1 processing, built for family offices.
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Manage your partnership investments, tax documents, and reporting from a single unified platform.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-decorative-brand-accent" />
-          <span className="text-gray-400 text-sm">SOC 2 Type II Certified</span>
-          <div className="w-1.5 h-1.5 rounded-full bg-gray-600 ml-4" />
-          <span className="text-gray-400 text-sm">256-bit AES Encryption</span>
-        </div>
-      </div>
-
-      {/* Right Form Panel */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-md"
-        >
-          {/* Mobile logo */}
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-              <span className="text-decorative-brand-accent font-serif font-bold text-lg">J</span>
-            </div>
-            <span className="text-xl font-serif font-bold text-gray-900 tracking-widest uppercase">
-              Jackson
-            </span>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-1">Welcome back</h2>
-            <p className="text-gray-500 text-sm mb-8">Sign in to your Jackson account</p>
-
-            {error && (
-              <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Email address
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus transition-colors"
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-sm font-medium text-gray-700">Password</label>
-                  <a href="#" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
-                    Forgot password?
-                  </a>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-focus focus:border-focus transition-colors"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 accent-primary border-gray-300 rounded focus:ring-focus"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                  Remember me for 30 days
-                </label>
-              </div>
-
-              <Button
-                type="submit"
-                pending={isLoading}
-                className="w-full"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign in'
-                )}
-              </Button>
-            </form>
-          </div>
-
-          <p className="text-center text-xs text-gray-400 mt-6">
-            &copy; {new Date().getFullYear()} Jackson Capital Management. All rights reserved.
-          </p>
-        </motion.div>
-      </div>
-    </div>
+    <MagicPatternLoginPage
+      email={email}
+      password={password}
+      rememberMe={rememberMe}
+      showPassword={showPassword}
+      isLoading={isLoading}
+      error={error}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      onRememberMeChange={setRememberMe}
+      onTogglePassword={() => setShowPassword((visible) => !visible)}
+      onSubmit={handleSubmit}
+    />
   )
 }

@@ -26,7 +26,7 @@ Staging must keep the same core shape as production: CloudFront, `/v1/*` API rou
   - long random `PERSISTENCE_SECRET_KEY`
   - long random `SESSION_SECRET`
   - long random `ATLAS_SCHEDULER_TOKEN`
-  - admin bootstrap password or invitation path
+  - admin bootstrap password
 
 Environment evidence:
 
@@ -90,7 +90,7 @@ Create Secrets Manager entries for:
 - `PLAID_SECRET`
 - `PLAID_ENV`
 - `ATLAS_SCHEDULER_TOKEN`
-- `ADMIN_PASSWORD` or invitation bootstrap equivalent
+- `ADMIN_PASSWORD`
 - `USER_PASSWORD` only if the deployment still uses the local bootstrap user flow
 
 Use an environment-qualified namespace such as `atlas-staging/...` or `atlas-production/...`. Do not reuse production secrets, Plaid production credentials, scheduler tokens, admin bootstrap credentials, or databases in staging.
@@ -153,7 +153,7 @@ PLAID_CLIENT_ID
 PLAID_SECRET
 PLAID_ENV
 ATLAS_SCHEDULER_TOKEN
-ADMIN_PASSWORD or invitation bootstrap equivalent
+ADMIN_PASSWORD
 USER_PASSWORD only if local bootstrap users are still enabled
 ```
 

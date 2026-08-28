@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { EntityDetail } from './EntityDetail'
 
 const remove = vi.fn()
+const authState = vi.hoisted(() => ({ role: 'Admin' as 'Admin' | 'User' }))
 
 vi.mock('../features/partnerships/hooks/useEntityQueries', () => ({
   useEntityDetail: () => ({
@@ -72,25 +73,33 @@ vi.mock('../features/partnerships/hooks/useEntityQueries', () => ({
 }))
 
 vi.mock('../auth/sessionStore', () => ({
-  useSession: () => ({ session: { role: 'Admin', user: { email: 'admin@jackson.test' } } }),
+  useSession: () => ({ session: { role: authState.role, user: { email: 'admin@jackson.test' } } }),
   sessionStore: { setUnauthenticated: vi.fn() },
 }))
 
 vi.mock('../auth/authClient', () => ({ authClient: { logout: vi.fn() } }))
 
-function renderDetail(magicPatternDesigns = true) {
+function renderDetail() {
+  const InvestmentLocation = () => {
+    const location = useLocation()
+    return <output aria-label="Investment Tracker location">{location.pathname}{location.search}</output>
+  }
   return render(
     <MemoryRouter initialEntries={['/entities/e-1']}>
       <Routes>
-        <Route path="/entities/:id" element={<EntityDetail magicPatternDesigns={magicPatternDesigns} />} />
+        <Route path="/entities/:id" element={<EntityDetail />} />
         <Route path="/entities" element={<div>Entity directory</div>} />
+        <Route path="/investment-tracker" element={<InvestmentLocation />} />
       </Routes>
     </MemoryRouter>,
   )
 }
 
 describe('Magic Patterns entity detail', () => {
-  beforeEach(() => remove.mockReset())
+  beforeEach(() => {
+    remove.mockReset()
+    authState.role = 'Admin'
+  })
 
   it('matches the prototype overview hierarchy with real entity data', () => {
     renderDetail()
@@ -127,12 +136,25 @@ describe('Magic Patterns entity detail', () => {
     ).toBeTruthy()
   })
 
-  it('preserves the legacy detail experience when the flag is disabled', () => {
-    renderDetail(false)
+  it('opens a selected partnership directly in the canonical Investment Tracker workspace', () => {
+    renderDetail()
 
-    expect(screen.getByTestId('app-sidebar-panel')).toHaveAttribute('data-design-variant', 'legacy')
+    fireEvent.click(screen.getByRole('tab', { name: /Partnerships/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cascade Ridge Fund I' }))
+
+    const destination = screen.getByRole('status', { name: 'Investment Tracker location' })
+    expect(destination).toHaveTextContent(
+      '/investment-tracker?partnership=p-1&area=overview',
+    )
+  })
+
+  it('keeps entity detail readable for Users while hiding Admin-only removal', () => {
+    authState.role = 'User'
+    renderDetail()
+
     expect(screen.getByRole('heading', { name: 'Jackson Family Trust' })).toBeTruthy()
-    expect(screen.getAllByText('Partnerships').length).toBeGreaterThan(0)
     expect(screen.queryByRole('button', { name: 'Remove entity' })).toBeNull()
+    fireEvent.click(screen.getByRole('tab', { name: /Partnerships/ }))
+    expect(screen.getByRole('button', { name: 'Cascade Ridge Fund I' })).toBeTruthy()
   })
 })

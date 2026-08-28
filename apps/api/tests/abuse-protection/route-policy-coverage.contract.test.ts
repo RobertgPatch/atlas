@@ -12,7 +12,7 @@ import {
   canonicalRoutePattern,
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 144
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 125
 
 const routeLabel = (route: ExternalRouteRegistration): string =>
   `${route.method} ${route.routePattern}`
@@ -31,7 +31,7 @@ describe('external route protection policy coverage', () => {
     return app
   }
 
-  it('inventories all 141 declared routes without double-counting Fastify auto-HEAD siblings', async () => {
+  it('inventories all 125 declared routes without double-counting Fastify auto-HEAD siblings', async () => {
     const app = await readyApp()
     const inventory = app.abuseProtectionRouteInventory
     const routeKeys = inventory.map((route) =>
@@ -52,6 +52,32 @@ describe('external route protection policy coverage', () => {
     expect(duplicateAutoHeads).toEqual([])
     expect(app.hasRoute({ method: 'GET', url: '/health' })).toBe(true)
     expect(app.hasRoute({ method: 'HEAD', url: '/health' })).toBe(true)
+  })
+
+  it('registers the retained operational surface without retired direct-management APIs', async () => {
+    const app = await readyApp()
+    const routeKeys = new Set(app.abuseProtectionRouteInventory.map((route) =>
+      canonicalRouteKey(route.method, route.routePattern)))
+
+    for (const retained of [
+      { method: 'POST' as const, routePattern: '/v1/k1-documents/:k1DocumentId/apply' },
+      { method: 'PATCH' as const, routePattern: '/v1/partnership-tracker/partnerships/:partnershipId/years/:taxYear' },
+      { method: 'GET' as const, routePattern: '/v1/admin/production-readiness' },
+      { method: 'GET' as const, routePattern: '/v1/admin/protection-controls' },
+      { method: 'POST' as const, routePattern: '/v1/admin/plaid-refresh/run' },
+    ]) {
+      expect(routeKeys.has(canonicalRouteKey(retained.method, retained.routePattern))).toBe(true)
+    }
+
+    for (const retired of [
+      { method: 'GET' as const, routePattern: '/v1/k1-tracker/partnerships' },
+      { method: 'POST' as const, routePattern: '/v1/k1-tracker/imports/preview' },
+      { method: 'GET' as const, routePattern: '/v1/admin/users' },
+      { method: 'GET' as const, routePattern: '/v1/admin/users/:userId' },
+      { method: 'POST' as const, routePattern: '/v1/admin/dev/seed' },
+    ]) {
+      expect(routeKeys.has(canonicalRouteKey(retired.method, retired.routePattern))).toBe(false)
+    }
   })
 
   it('requires complete canonical policy metadata on every declared external route', async () => {

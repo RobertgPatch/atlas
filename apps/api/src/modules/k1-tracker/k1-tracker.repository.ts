@@ -5,8 +5,6 @@ import { PARTNERSHIP_TRACKER_AUDIT_EVENTS } from '../audit/audit.events.js'
 import type {
   K1TrackerFieldChange,
   K1TrackerCashFlowEvent,
-  K1TrackerImportDecision,
-  K1TrackerImportPreview,
   K1TrackerOfficialFormData,
   K1TrackerPartnershipDetail,
   K1TrackerPartnershipSummary,
@@ -17,7 +15,6 @@ import type {
 } from './k1-tracker.contracts.js'
 import { calculateTrackerYear, centsToMoney, moneyToCents } from './k1-tracker.calculation.js'
 import { K1_TRACKER_CALCULATION_VERSION } from './k1-tracker.field-map.js'
-import { hashTrackerWorkbook, parseTrackerWorkbook } from './k1-tracker.import.js'
 import { upsertTrackerAnnualActivity } from './k1-tracker.projection.js'
 import { isInScope, K1TrackerError, type Queryable, type TrackerScope, type TrackerValueRow, type TrackerYearInput, type TrackerYearRow } from './k1-tracker.types.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
@@ -25,7 +22,6 @@ import { transitionK1IngestionItem } from '../k1/ingestion/k1BatchStatus.service
 import { k1OfficialRevisionRepository } from './k1OfficialRevision.repository.js'
 
 type PartnershipRow = { id: string; entity_id: string; partnership_name: string; entity_name: string }
-type ImportRow = { id: string; entity_id: string; target_partnership_id: string | null; preview_payload: K1TrackerImportPreview; expires_at: Date | string; status: string; commit_decisions: K1TrackerImportDecision[] | null }
 type SignoffRow = { signoff_type: 'PREPARED' | 'REVIEWED' | 'INVALIDATED'; signed_by_email: string | null; created_at: Date | string; reason: string | null }
 type CashFlowRow = { id: string; partnership_id: string; activity_date: Date | string; event_type: 'funded_contribution' | 'distribution' | 'recallable_distribution'; settlement_status: 'ANNOUNCED' | 'SETTLED'; announced_date: Date | string | null; amount: string; notes: string | null; created_at: Date | string; updated_at: Date | string }
 type CashFlowWrite = { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
@@ -33,9 +29,6 @@ type CashFlowWrite = { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTR
 const db = (): NonNullable<typeof pool> => {
   if (!pool) throw new K1TrackerError('DATABASE_REQUIRED')
   return pool
-}
-const expireStalePreviews = async (client: Queryable): Promise<void> => {
-  await client.query(`update k1_tracker_import_batches set status = 'EXPIRED', preview_payload = '{}'::jsonb where status = 'PREVIEWED' and expires_at <= now()`)
 }
 const iso = (value: Date | string | null | undefined): string | null => value == null ? null : new Date(value).toISOString()
 const cents = (value: string | null) => moneyToCents(value) ?? 0n
@@ -379,42 +372,21 @@ const refreshAfterCashFlowChange = async (client: Queryable, partnershipId: stri
   await persistProjection(client, await yearRowsFor(partnershipId, client), actorUserId)
 }
 
-const reviseValues = async (client: Queryable, yearId: string, changes: K1TrackerFieldChange[], actorUserId: string | null, source: 'MANUAL' | 'IMPORT' | 'FINALIZED' = 'MANUAL', importBatchId?: string, sourceSheet?: string, sourceDocumentId?: string, sourceFieldValueIds?: Map<K1TrackerFieldChange['fieldKey'], string>) : Promise<{ conflicts: K1TrackerFieldChange['fieldKey'][]; changed: boolean }> => {
+const reviseValues = async (client: Queryable, yearId: string, changes: K1TrackerFieldChange[], actorUserId: string | null) : Promise<{ conflicts: K1TrackerFieldChange['fieldKey'][]; changed: boolean }> => {
   const conflicts: K1TrackerFieldChange['fieldKey'][] = []
   let changed = false
   for (const rawChange of changes) {
     const change = canonicalChange(rawChange)
     const current = (await client.query<TrackerValueRow>('select * from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and is_active', [yearId, change.fieldKey])).rows[0]
-    if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount === change.amount) continue
-    if ((source === 'IMPORT' || source === 'FINALIZED') && current && current.amount !== change.amount) {
-      const priorCandidate = (await client.query<{ id: string }>(`select id from k1_tracker_value_revisions where tracker_year_id = $1 and field_key = $2 and not is_active and source_type = $3 and amount is not distinct from $4 and import_batch_id is not distinct from $5 and source_k1_document_id is not distinct from $6 and source_k1_field_value_id is not distinct from $7 limit 1`, [
-        yearId, change.fieldKey, source === 'FINALIZED' ? 'FINALIZED_K1' : 'WORKBOOK_IMPORT', change.amount, importBatchId ?? null,
-        sourceDocumentId ?? null, sourceFieldValueIds?.get(change.fieldKey) ?? null,
-      ])).rows[0]
-      if (priorCandidate) { conflicts.push(change.fieldKey); continue }
-      await client.query(`insert into k1_tracker_value_revisions (
-        id, tracker_year_id, field_key, amount, source_type, import_batch_id, source_sheet, source_cell,
-        source_k1_document_id, source_k1_field_value_id, is_active, created_by_user_id
-      ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false,$11)`, [
-        randomUUID(), yearId, change.fieldKey, change.amount,
-        source === 'FINALIZED' ? 'FINALIZED_K1' : 'WORKBOOK_IMPORT', importBatchId ?? null,
-        source === 'IMPORT' ? sourceSheet ?? 'Imported workbook' : null,
-        source === 'IMPORT' ? 'mapped' : null, sourceDocumentId ?? null,
-        sourceFieldValueIds?.get(change.fieldKey) ?? null, actorUserId,
-      ])
-      conflicts.push(change.fieldKey)
-      changed = true
-      continue
-    }
     await client.query('update k1_tracker_value_revisions set is_active = false where tracker_year_id = $1 and field_key = $2 and is_active', [yearId, change.fieldKey])
     await client.query(`insert into k1_tracker_value_revisions (
       id, tracker_year_id, field_key, amount, source_type, import_batch_id, source_sheet, source_cell,
       override_reason, supersedes_value_revision_id, is_active, created_by_user_id, source_k1_document_id, source_k1_field_value_id
     ) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,$12,$13)`, [
-      randomUUID(), yearId, change.fieldKey, change.amount, source === 'IMPORT' ? 'WORKBOOK_IMPORT' : source === 'FINALIZED' ? 'FINALIZED_K1' : change.sourceType,
-      importBatchId ?? null, source === 'IMPORT' ? sourceSheet ?? 'Imported workbook' : null, source === 'IMPORT' ? 'mapped' : null,
+      randomUUID(), yearId, change.fieldKey, change.amount, change.sourceType,
+      null, null, null,
       change.overrideReason?.trim() ?? null, current?.id ?? null, actorUserId,
-      sourceDocumentId ?? null, sourceFieldValueIds?.get(change.fieldKey) ?? null,
+      null, null,
     ])
     changed = true
   }
@@ -895,62 +867,4 @@ export const k1TrackerRepository = {
       return signoffFor(year, client) })
   },
 
-  async previewImport(buffer: Buffer, filename: string, targetPartnershipId: string | null, actorUserId: string, scope: TrackerScope): Promise<K1TrackerImportPreview> {
-    db(); const target = targetPartnershipId ? await assertPartnership(targetPartnershipId, scope, db()) : null
-    if (!target && !scope.isAdmin) throw new K1TrackerError('FORBIDDEN_TRACKER_ENTITY')
-    if (!target) throw new K1TrackerError('INVALID_IMPORT', 'Choose a target partnership before previewing a workbook.')
-    await expireStalePreviews(db())
-    const hash = hashTrackerWorkbook(buffer)
-    const existing = (await db().query<ImportRow>(`
-      select * from k1_tracker_import_batches
-      where target_partnership_id = $1 and workbook_sha256 = $2 and status = 'PREVIEWED' and expires_at > now()
-      order by created_at desc limit 1
-    `, [targetPartnershipId, hash])).rows[0]
-    if (existing) return existing.preview_payload
-    const parsed = await parseTrackerWorkbook(buffer); const id = randomUUID(); const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
-    const preview: K1TrackerImportPreview = { importBatchId: id, expiresAt, proposedPartnershipId: targetPartnershipId, ...parsed.preview, sheets: parsed.preview.sheets.map((sheet) => ({ ...sheet, proposedPartnershipId: targetPartnershipId })) }
-    const serialized = JSON.stringify(preview)
-    if (Buffer.byteLength(serialized) > 1_000_000) throw new K1TrackerError('INVALID_IMPORT', 'The import preview is too large to stage safely.')
-    const safeFilename = filename.replace(/[\\/\x00-\x1f]/g, '_').slice(0, 250)
-    await db().query(`insert into k1_tracker_import_batches (id, entity_id, target_partnership_id, original_file_name, workbook_sha256, status, preview_payload, expires_at, created_by_user_id) values ($1,$2,$3,$4,$5,'PREVIEWED',$6::jsonb,$7,$8)`, [id, target.entity_id, targetPartnershipId, safeFilename || 'workbook.xlsx', preview.workbookHash, serialized, expiresAt, actorUserId])
-    return preview
-  },
-
-  async commitImport(importBatchId: string, partnershipId: string, decisions: K1TrackerImportDecision[], actorUserId: string, scope: TrackerScope) {
-    await expireStalePreviews(db())
-    return withTransaction(async (client) => {
-      const partnership = await assertPartnership(partnershipId, scope, client)
-      const batch = (await client.query<ImportRow>('select * from k1_tracker_import_batches where id = $1 for update', [importBatchId])).rows[0]
-      if (!batch) throw new K1TrackerError('IMPORT_NOT_FOUND')
-      if (batch.status === 'COMMITTED' && batch.target_partnership_id === partnershipId) {
-        return { importBatchId, partnershipId, importedTaxYears: decisions.filter((decision) => decision.action !== 'SKIP').map((decision) => decision.taxYear), skippedTaxYears: decisions.filter((decision) => decision.action === 'SKIP').map((decision) => decision.taxYear) }
-      }
-      if (batch.status !== 'PREVIEWED' || new Date(batch.expires_at) < new Date()) throw new K1TrackerError('IMPORT_EXPIRED')
-      if (batch.entity_id !== partnership.entity_id) throw new K1TrackerError('FORBIDDEN_TRACKER_ENTITY')
-      const importedTaxYears: number[] = []
-      const skippedTaxYears: number[] = []
-      for (const decision of decisions) {
-        if (decision.action === 'SKIP') { skippedTaxYears.push(decision.taxYear); continue }
-        const source = batch.preview_payload.sheets.find((sheet) => sheet.sheetName === decision.sheetName)?.years.find((item) => item.taxYear === decision.taxYear)
-        if (!source) throw new K1TrackerError('IMPORT_NOT_FOUND', 'Selected preview year is absent')
-        const years = await yearRowsFor(partnershipId, client, true)
-        let year = years.find((item) => item.tax_year === decision.taxYear)
-        if (!year) {
-          year = (await client.query<TrackerYearRow>(`insert into k1_tracker_years (id, entity_id, partnership_id, tax_year, workflow_status, created_by_user_id, updated_by_user_id) values ($1,$2,$3,$4,'IMPORTED',$5,$5) returning *`, [randomUUID(), partnership.entity_id, partnershipId, decision.taxYear, actorUserId])).rows[0]!
-        } else if (decision.expectedRevision != null && year.revision !== decision.expectedRevision) throw new K1TrackerError('STALE_TRACKER_REVISION')
-        if (decision.action === 'REPLACE') await client.query('update k1_tracker_value_revisions set is_active = false where tracker_year_id = $1 and is_active', [year.id])
-        await reviseValues(client, year.id, source.values.map((value) => ({ fieldKey: value.fieldKey, amount: value.amount, sourceType: 'MANUAL_ENTRY' })), actorUserId, 'IMPORT', importBatchId, decision.sheetName)
-        await refreshConflictCount(client, year.id)
-        for (const value of source.values) {
-          await client.query('update k1_tracker_value_revisions set source_cell = $3 where tracker_year_id = $1 and field_key = $2 and is_active and import_batch_id = $4', [year.id, value.fieldKey, value.sourceCell, importBatchId])
-        }
-        importedTaxYears.push(decision.taxYear)
-      }
-      const years = await yearRowsFor(partnershipId, client)
-      await persistProjection(client, years, actorUserId)
-      await client.query(`update k1_tracker_import_batches set status = 'COMMITTED', target_partnership_id = $2, commit_decisions = $3::jsonb, committed_at = now() where id = $1`, [importBatchId, partnershipId, JSON.stringify(decisions)])
-      await auditRepository.record({ actorUserId, eventName: 'k1_tracker.import_committed', objectType: 'k1_tracker_import', objectId: importBatchId, after: { partnershipId, importedTaxYears, skippedTaxYears } }, client as never)
-      return { importBatchId, partnershipId, importedTaxYears, skippedTaxYears }
-    })
-  },
 }

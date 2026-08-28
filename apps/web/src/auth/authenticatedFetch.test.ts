@@ -56,7 +56,7 @@ describe('authenticatedFetch', () => {
   it('does not treat a forbidden response as an expired login', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
 
-    await authenticatedFetch('/v1/admin/users')
+    await authenticatedFetch('/v1/entities')
 
     expect(sessionStore.getSnapshot().status).toBe('authenticated')
   })
