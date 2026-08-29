@@ -1,92 +1,88 @@
 # Atlas Environment Strategy
 
-Atlas uses separate databases per environment and keeps them in sync through migrations, not by sharing data.
+Atlas has exactly two active runtime classes: developer-owned `local` and the
+sole remote runtime, AWS `production`. There is no long-lived AWS development
+or staging environment.
 
-## Environments
-
-| Environment | Branch source | App runtime | Database | Purpose |
+| Runtime | Application | Database | Provider behavior | Durability |
 |---|---|---|---|---|
-| Local development | Feature branch from `main` | npm and Vite dev servers | Docker Postgres on localhost | Fast development with hot reload |
-| Staging | `staging` branch or selected release commit | AWS managed stack | Staging RDS PostgreSQL | Pre-production testing and sign-off |
-| Production | `main` branch or promoted tested commit | AWS managed stack | Production RDS PostgreSQL | Real users and durable data |
+| Local | npm/Vite/Fastify processes | Docker PostgreSQL on loopback | Deterministic stub/local adapters | Disposable developer data |
+| Production | Managed AWS stack | Private encrypted RDS PostgreSQL | Explicit production adapters | Backups, deletion protection, immutable releases |
 
-## Local Development
+Historical specifications can retain earlier environment names as records, but
+current commands, Terraform examples, CI gates, and runbooks must expose only
+these two runtime classes.
 
-Start only Postgres in Docker:
+## Local development
 
-```powershell
-npm run dev:db
-```
-
-Run the API and web app with hot reload:
+From the repository root, run:
 
 ```powershell
-npm run dev:api
-npm run --workspace=web dev
+npm run dev:local
 ```
 
-Default local API database:
+The launcher validates the local boundary before starting Docker or a child
+process. It then performs this sequence:
 
-```text
-postgres://postgres:postgres@127.0.0.1:15432/atlas
-```
+1. Start the PostgreSQL 16 container and require its health check.
+2. Run every ordered SQL migration synchronously under the migration advisory lock.
+3. Start the API and require `GET /internal/readiness` to report a reachable database.
+4. Start the local K-1 worker and web server.
 
-The API runs SQL migrations on startup when `DATABASE_URL` is configured. Local data is disposable and can be reset with:
+Database unavailability, a failed migration, or readiness timeout stops the
+sequence. The web app is never opened against a partially initialized API.
+Repeated startup is safe because the migration ledger and advisory lock are the
+same ones used by API startup.
+
+Local defaults are `K1_EXTRACTOR=stub`, `K1_OBJECT_STORE=local`,
+`K1_QUEUE=local`, `MARKET_DATA_PROVIDER=none`, and a loopback `DATABASE_URL`.
+The launcher refuses production databases, active AWS adapters/resources,
+production AWS profiles/accounts, production Terraform markers, and AWS
+mutation flags before any child process or provider call. Merely having unused
+AWS credentials in the shell does not make the local flow depend on AWS.
+
+Local data can be reset deliberately with:
 
 ```powershell
 npm run dev:db:reset
 ```
 
-### K-1 extraction modes
+This removes only the named Docker development volume. It does not interact
+with AWS or any production resource.
 
-The K-1 workflow is provider-neutral. Uploads, durable attempts, matching,
-review, conflict preview, and atomic application always use the same API,
-PostgreSQL schema, and web components; only object storage, queue delivery, and
-the extraction provider change.
+## AWS production
 
-| Mode | Required settings | Network use | Intended use |
-|---|---|---|---|
-| Fully local | `K1_EXTRACTOR=stub`, `K1_OBJECT_STORE=local`, `K1_QUEUE=local`, `K1_AWS_INGESTION_ENABLED=false` | None for K-1 processing | Default development and CI; deterministic synthetic extraction |
-| Hybrid local/AWS | `K1_EXTRACTOR=aws_bda`, `K1_OBJECT_STORE=s3`, `K1_QUEUE=sqs`, plus staging ARNs/URLs and an approved AWS profile | Local API/worker call staging S3, SQS, KMS, and BDA | Explicit real-provider development against sanitized K-1s |
-| AWS staging/production | AWS settings supplied by ECS/Secrets Manager; immutable LIVE blueprint in production | Private AWS service calls | Staging smoke tests and controlled production cohorts |
+Production is always available and retains the managed boundaries: private
+RDS, Fargate, Application Load Balancer, NAT gateway, CloudFront, WAF, encrypted
+storage, Secrets Manager, schedulers, and observability. Deployments are
+operator-run from an immutable, clean source commit; merging a branch does not
+apply infrastructure automatically.
 
-`npm run dev:local` explicitly starts the fully local mode. It does not discover
-or call AWS implicitly. To use hybrid mode, start the API and worker separately
-with the complete staging configuration and credentials; never point a local
-process at production buckets, queues, BDA projects, or databases. Keep real
-TINs and private K-1 PDFs out of source-controlled fixtures and local logs.
+The production workflow uses the committed target descriptor, the preserved
+remote backend, ignored operator-supplied production variables, live secret
+version attestation, a cost/policy-approved saved Terraform plan, immutable API
+and web artifacts, and an exact production confirmation. Routine production
+keeps one API task and the database running continuously. Bootstrap capacity
+zero is allowed only for the single-use create-only bootstrap before first
+activation.
 
-## Staging And Production
+Production schema changes use the same versioned migration files as local
+development. Routine migrations must be backward compatible with the prior
+application artifact because rollback restores application artifacts only; it
+never rewinds production data or Terraform state.
 
-Staging and production must use different AWS resources:
+## Provider and data policy
 
-- separate RDS PostgreSQL databases
-- separate Secrets Manager secrets
-- separate ECS services
-- separate S3 buckets and CloudFront distributions
-- separate private K-1 document/evidence buckets, KMS keys, queues, and BDA projects
-- separate EventBridge schedules
-- separate WAF/logging/budget evidence
+- Local and CI use stubs, mocks, recorded fixtures, or isolated local services.
+- Real-provider, destructive, reset, load, and bounded-abuse tools must refuse production.
+- Local processes must never point to production databases, buckets, queues, provider projects, or endpoints.
+- Production values live in ignored operator inputs or AWS secret/configuration services, not committed `.env` files.
+- Production data is not copied to local development. Use synthetic fixtures.
+- Production recovery uses RDS backups and tested artifact rollback; local volume reset is unrelated.
 
-Keep schema aligned by deploying the same migration files to each environment. Do not point local or staging code at the production database.
+## Bootstrap identities
 
-## Database Sync Policy
-
-- Schema sync: handled by versioned SQL migrations in `apps/api/src/infra/db/migrations`.
-- Reference/bootstrap auth: handled by API startup bootstrap after migrations.
-- Data sync: local, staging, and production data stay separate.
-- Production-like test data: create sanitized staging fixtures or restore sanitized snapshots only.
-- Production backups: use RDS snapshots/backups; do not use production as a development database.
-
-## Bootstrap Logins
-
-The API inserts bootstrap users into each durable database on startup:
-
-```text
-ADMIN_EMAIL
-ADMIN_PASSWORD
-USER_EMAIL
-USER_PASSWORD
-```
-
-Use the same email addresses across environments if you want the same login identity everywhere, but use environment-specific passwords stored in local `.env` or AWS Secrets Manager. The bootstrap password is used when the user is first created; do not rely on it as a long-term production password rotation mechanism.
+Local PostgreSQL may create the documented disposable bootstrap users. AWS
+production obtains credentials through its release and secret contracts. Do not
+reuse local passwords in production or treat a bootstrap password as a rotation
+mechanism.

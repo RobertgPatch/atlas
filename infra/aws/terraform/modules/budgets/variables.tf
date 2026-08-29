@@ -8,13 +8,13 @@ variable "environment_name" {
   type        = string
 
   validation {
-    condition     = contains(["staging", "production"], var.environment_name)
-    error_message = "environment_name must be staging or production."
+    condition     = var.environment_name == "production"
+    error_message = "environment_name must be production."
   }
 }
 
 variable "monthly_limit_usd" {
-  description = "Monthly budget limit in USD."
+  description = "Monthly notification-only budget limit in USD; production is fixed at $125."
   type        = number
 
   validation {

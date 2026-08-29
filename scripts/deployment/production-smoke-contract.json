@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0.0",
+  "routeDecisions": [
+    { "route": "/", "decision": "edge-home" },
+    { "route": "/mfa/setup", "decision": "auth-login" },
+    { "route": "/mfa", "decision": "auth-login" },
+    { "route": "/dashboard", "decision": "dashboard-read" },
+    { "route": "/investment-tracker", "decision": "investment-aggregation-read" },
+    { "route": "/liquidity", "decision": "liquidity-holdings-read" },
+    { "route": "/entities", "decision": "entities-list-read" },
+    { "route": "/entities/:id", "decision": "entity-detail-read" },
+    { "route": "/estate-maps", "decision": "current-surface-contract" },
+    { "route": "/tic-registry", "decision": "tic-properties-read" },
+    { "route": "/reports", "decision": "current-surface-contract" },
+    { "route": "/k1", "decision": "current-surface-contract" },
+    { "route": "/k1/:id/review", "decision": "current-surface-contract" }
+  ],
+  "requests": [
+    { "name": "edge-home", "method": "GET", "path": "/" },
+    { "name": "edge-assets", "method": "GET", "path": "/assets/{hashed-file}" },
+    { "name": "auth-anonymous", "method": "GET", "path": "/v1/auth/session" },
+    { "name": "auth-login", "method": "POST", "path": "/v1/auth/login", "sessionOnlyMutation": true },
+    { "name": "auth-session", "method": "GET", "path": "/v1/auth/session" },
+    { "name": "dashboard-read", "method": "GET", "path": "/v1/dashboard" },
+    { "name": "liquidity-holdings-read", "method": "GET", "path": "/v1/reports/consolidated-holdings?pricingMode=saved&page=1&pageSize=1" },
+    { "name": "liquidity-performance-read", "method": "GET", "path": "/v1/reports/consolidated-holdings/performance" },
+    { "name": "investment-aggregation-read", "method": "GET", "path": "/v1/partnership-tracker/aggregation?page=1&pageSize=25" },
+    { "name": "tic-properties-read", "method": "GET", "path": "/v1/tic-registry/properties" },
+    { "name": "entities-list-read", "method": "GET", "path": "/v1/entities" },
+    { "name": "entity-detail-read", "method": "GET", "path": "/v1/entities/{id}" },
+    { "name": "auth-logout", "method": "POST", "path": "/v1/auth/logout", "sessionOnlyMutation": true },
+    { "name": "auth-post-logout", "method": "GET", "path": "/v1/auth/session" }
+  ]
+}

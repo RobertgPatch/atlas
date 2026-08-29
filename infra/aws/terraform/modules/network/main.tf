@@ -140,7 +140,7 @@ resource "aws_security_group" "alb" {
 
 resource "aws_security_group" "api" {
   name        = "${var.name_prefix}-api-sg"
-  description = "Atlas API tasks; inbound only from the API load balancer."
+  description = "Project Jackson API tasks; inbound only from the API load balancer."
   vpc_id      = aws_vpc.this.id
 
   ingress {
@@ -165,7 +165,7 @@ resource "aws_security_group" "api" {
 
 resource "aws_security_group" "rds" {
   name        = "${var.name_prefix}-rds-sg"
-  description = "Private PostgreSQL access from Atlas API tasks only."
+  description = "Private PostgreSQL access from Project Jackson API tasks only."
   vpc_id      = aws_vpc.this.id
 
   ingress {

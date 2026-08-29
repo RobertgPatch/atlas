@@ -18,6 +18,32 @@ export const buildProductionReadinessDiagnosticFixture = (
     mode: 'durable',
   },
   schedulerConfigured: true,
+  operationalReadiness: {
+    databaseReachable: true,
+    schedulers: {
+      plaidEnabled: true,
+      marketPriceEnabled: true,
+    },
+    worker: {
+      enabled: false,
+      desiredCount: 0,
+    },
+    logs: {
+      configured: true,
+      retentionDays: 30,
+    },
+    alarms: {
+      configured: true,
+    },
+  },
+  retainedFlowChecks: [
+    'dashboard-read',
+    'liquidity-holdings-read',
+    'liquidity-performance-read',
+    'investment-aggregation-read',
+    'tic-properties-read',
+    'entities-list-read',
+  ],
   secretsConfigured: {
     persistenceSecretKey: true,
     sessionSecret: true,

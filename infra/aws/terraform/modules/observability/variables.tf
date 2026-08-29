@@ -8,8 +8,8 @@ variable "environment_name" {
   type        = string
 
   validation {
-    condition     = contains(["staging", "production"], var.environment_name)
-    error_message = "environment_name must be staging or production."
+    condition     = var.environment_name == "production"
+    error_message = "environment_name must be production."
   }
 }
 
@@ -83,6 +83,12 @@ variable "api_ecs_service_name" {
 variable "k1_worker_ecs_service_name" {
   description = "K-1 worker ECS service name."
   type        = string
+}
+
+variable "k1_aws_ingestion_enabled" {
+  description = "Whether K-1 AWS ingestion resources and their paid-service alarms are active."
+  type        = bool
+  default     = true
 }
 
 variable "ecs_cpu_threshold_percent" {
@@ -227,9 +233,9 @@ output "alarm_names" {
       aws_cloudwatch_metric_alarm.scheduler_target_errors.alarm_name,
       aws_cloudwatch_metric_alarm.market_price_scheduler_target_errors.alarm_name,
       aws_cloudwatch_metric_alarm.waf_blocked_requests.alarm_name,
-      aws_cloudwatch_metric_alarm.s3_put_requests.alarm_name,
     ],
     [for alarm in aws_cloudwatch_metric_alarm.ecs_utilization : alarm.alarm_name],
+    [for alarm in aws_cloudwatch_metric_alarm.s3_put_requests : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_queue_age : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_queue_depth : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_dlq_depth : alarm.alarm_name],

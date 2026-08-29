@@ -1,22 +1,22 @@
 variable "environment_name" {
-  description = "Deployment environment name used in tags and resource names. Use staging or production for the Atlas AWS environments."
+  description = "Sole remote deployment environment. Local development does not use Terraform."
   type        = string
   default     = "production"
 
   validation {
-    condition     = contains(["staging", "production"], var.environment_name)
-    error_message = "environment_name must be staging or production."
+    condition     = var.environment_name == "production"
+    error_message = "environment_name must be production."
   }
 }
 
 variable "environment_cost_profile" {
-  description = "Cost profile for environment-specific sizing and review notes. Staging may use cheaper settings while preserving topology."
+  description = "Sole remote cost profile."
   type        = string
   default     = "production"
 
   validation {
-    condition     = contains(["staging", "production"], var.environment_cost_profile)
-    error_message = "environment_cost_profile must be staging or production."
+    condition     = var.environment_cost_profile == "production"
+    error_message = "environment_cost_profile must be production."
   }
 }
 
@@ -24,22 +24,37 @@ variable "project_name" {
   description = "Project name used in tags and resource names."
   type        = string
   default     = "atlas"
+
+  validation {
+    condition     = var.project_name == "atlas"
+    error_message = "project_name must preserve the existing atlas physical-name prefix."
+  }
 }
 
 variable "aws_region" {
   description = "Primary AWS region for regional services such as ECS, RDS, ECR, and Secrets Manager."
   type        = string
   default     = "us-west-2"
+
+  validation {
+    condition     = var.aws_region == "us-west-2"
+    error_message = "aws_region must match infra/aws/production-target.json (us-west-2)."
+  }
 }
 
 variable "availability_zones" {
   description = "Availability zones for public and private subnets."
   type        = list(string)
   default     = ["us-west-2a", "us-west-2b"]
+
+  validation {
+    condition     = length(var.availability_zones) == 2 && alltrue([for zone in var.availability_zones : startswith(zone, "us-west-2")])
+    error_message = "availability_zones must contain two us-west-2 zones."
+  }
 }
 
 variable "app_domain" {
-  description = "Optional public app domain served by CloudFront for this environment, for example staging.example.com or app.example.com. Set null to use the generated CloudFront domain for early staging smoke tests."
+  description = "Optional public app domain served by CloudFront for this environment, for example dev.example.com or app.example.com. Set null to use the generated CloudFront domain for early development smoke tests."
   type        = string
   default     = null
 }
@@ -57,7 +72,7 @@ variable "acm_certificate_arn" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the Atlas VPC."
+  description = "CIDR block for the Project Jackson VPC."
   type        = string
   default     = "10.42.0.0/16"
 }
@@ -75,51 +90,76 @@ variable "private_subnet_cidrs" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Create a NAT gateway so private API tasks can reach ECR, Plaid, and AWS APIs."
+  description = "Create the retained managed NAT gateway required by private production workloads."
   type        = bool
   default     = true
+
+  validation {
+    condition     = var.enable_nat_gateway
+    error_message = "Production must retain the managed NAT gateway."
+  }
 }
 
 variable "api_container_port" {
-  description = "Container port exposed by the Atlas API."
+  description = "Container port exposed by the Project Jackson API."
   type        = number
   default     = 3000
 }
 
 variable "api_container_name" {
-  description = "Atlas API ECS container name."
+  description = "Project Jackson API ECS container name."
   type        = string
-  default     = "atlas-api"
+  default     = "project-jackson-api"
 }
 
 variable "api_image_tag" {
   description = "API image tag to deploy from ECR."
   type        = string
-  default     = "latest"
+  default     = "0000000000000000000000000000000000000000"
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{40}$", var.api_image_tag))
+    error_message = "api_image_tag must be the immutable 40-character lowercase source commit."
+  }
 }
 
 variable "api_task_cpu" {
-  description = "Fargate CPU units for the API task. Staging can use smaller values when the app remains healthy."
+  description = "Validated Fargate CPU units for the always-on single-user API task."
   type        = string
-  default     = "512"
+  default     = "256"
+
+  validation {
+    condition     = var.api_task_cpu == "256"
+    error_message = "api_task_cpu must remain at the validated 256 CPU production shape."
+  }
 }
 
 variable "api_task_memory" {
-  description = "Fargate memory for the API task. Staging can use smaller values when the app remains healthy."
+  description = "Validated Fargate memory for the always-on single-user API task."
   type        = string
-  default     = "1024"
+  default     = "512"
+
+  validation {
+    condition     = var.api_task_memory == "512"
+    error_message = "api_task_memory must remain at the validated 512 MiB production shape."
+  }
 }
 
 variable "api_desired_count" {
   description = "Desired number of API tasks for this environment."
   type        = number
   default     = 1
+
+  validation {
+    condition     = contains([0, 1], var.api_desired_count)
+    error_message = "api_desired_count may be zero only for guarded Bootstrap and must otherwise be one."
+  }
 }
 
 variable "mfa_login_enabled" {
-  description = "Require the existing MFA enrollment or verification flow after password validation. Evaluated when the API process starts."
+  description = "Require the existing MFA enrollment or verification flow after password validation in production."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "api_health_check_path" {
@@ -131,7 +171,12 @@ variable "api_health_check_path" {
 variable "ecr_image_tag_mutability" {
   description = "ECR image tag mutability."
   type        = string
-  default     = "MUTABLE"
+  default     = "IMMUTABLE"
+
+  validation {
+    condition     = var.ecr_image_tag_mutability == "IMMUTABLE"
+    error_message = "Production ECR tags must be immutable."
+  }
 }
 
 variable "ecr_force_delete" {
@@ -149,7 +194,7 @@ variable "database_name" {
 variable "database_master_username" {
   description = "RDS master username. Password is generated and stored by AWS."
   type        = string
-  default     = "atlas_admin"
+  default     = "project_jackson_admin"
 }
 
 variable "database_snapshot_identifier" {
@@ -177,6 +222,17 @@ variable "database_instance_class" {
   default     = "db.t4g.micro"
 }
 
+variable "database_multi_az" {
+  description = "Single-AZ is accepted for the initial one-user managed production database."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.database_multi_az
+    error_message = "database_multi_az must remain false for the approved cost profile."
+  }
+}
+
 variable "database_allocated_storage_gb" {
   description = "Initial RDS storage in GiB for this environment."
   type        = number
@@ -190,9 +246,14 @@ variable "database_max_allocated_storage_gb" {
 }
 
 variable "database_backup_retention_days" {
-  description = "RDS backup retention period."
+  description = "RDS point-in-time recovery retention period; production uses the RDS maximum of 35 days."
   type        = number
-  default     = 7
+  default     = 35
+
+  validation {
+    condition     = var.database_backup_retention_days == 35
+    error_message = "Production database_backup_retention_days must remain 35."
+  }
 }
 
 variable "database_deletion_protection" {
@@ -344,7 +405,7 @@ variable "waf_rate_limit_requests_per_5_minutes" {
 variable "ecr_max_images" {
   description = "Maximum recent API/worker images retained in ECR."
   type        = number
-  default     = 30
+  default     = 10
 
   validation {
     condition     = var.ecr_max_images >= 2 && floor(var.ecr_max_images) == var.ecr_max_images
@@ -355,7 +416,7 @@ variable "ecr_max_images" {
 variable "ecr_untagged_retention_days" {
   description = "Days to retain untagged API/worker images in ECR."
   type        = number
-  default     = 7
+  default     = 3
 
   validation {
     condition     = var.ecr_untagged_retention_days >= 1 && floor(var.ecr_untagged_retention_days) == var.ecr_untagged_retention_days
@@ -580,7 +641,12 @@ variable "budget_destination_confirmed" {
 variable "monthly_budget_limit_usd" {
   description = "Monthly AWS budget limit for this environment."
   type        = number
-  default     = 100
+  default     = 125
+
+  validation {
+    condition     = var.monthly_budget_limit_usd == 125
+    error_message = "monthly_budget_limit_usd must be the notification-only $125 production threshold."
+  }
 }
 
 variable "bedrock_monthly_budget_limit_usd" {

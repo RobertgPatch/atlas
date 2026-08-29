@@ -51,9 +51,11 @@ resource "aws_budgets_budget" "monthly" {
   lifecycle {
     precondition {
       condition = var.environment_name != "production" || (
-        local.alert_email_configured && var.budget_destination_confirmed
+        var.monthly_limit_usd == 125 &&
+        local.alert_email_configured &&
+        var.budget_destination_confirmed
       )
-      error_message = "Production requires a non-empty budget alert_email and budget_destination_confirmed=true for a monitored destination."
+      error_message = "Production requires an exact $125 notification-only Budget, a non-empty alert_email, and budget_destination_confirmed=true."
     }
   }
 }

@@ -108,7 +108,7 @@ SESSION_SECRET
 PLAID_CLIENT_ID
 PLAID_SECRET
 PLAID_ENV
-ATLAS_SCHEDULER_TOKEN
+PROJECT_JACKSON_SCHEDULER_TOKEN
 ADMIN_BOOTSTRAP_PASSWORD or invitation bootstrap equivalent
 ```
 
@@ -170,7 +170,7 @@ Document rotation expectations:
 
 1. Create an EventBridge Scheduler rule for daily `05:00` `America/Los_Angeles`.
 2. Trigger the protected scheduler endpoint or a Fargate task that runs the same refresh code.
-3. Pass `ATLAS_SCHEDULER_TOKEN` securely.
+3. Pass `PROJECT_JACKSON_SCHEDULER_TOKEN` securely.
 4. Confirm duplicate refreshes are prevented by database locks.
 
 ### 7. Logs, Alarms, Security, And Cost

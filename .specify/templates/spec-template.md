@@ -75,6 +75,39 @@
 - What happens when [boundary condition]?
 - How does system handle [error scenario]?
 
+## Security, Privacy & Operational Requirements *(mandatory)*
+
+<!--
+  Describe facts and testable requirements. Do not guess about identity,
+  authorization, tenancy, data ownership, financial semantics, retention,
+  recovery, providers, or legal applicability. Mark unknowns NEEDS CLARIFICATION.
+-->
+
+### Actors, Tenancy & Authorization
+
+- **Actors**: [physical people, service identities, and system actors]
+- **Tenant/Entity Scope**: [single-tenant boundary and entity/resource scope]
+- **Authorization**: [server-side roles, actions, least privilege, MFA impact,
+  and explicit denied or cross-scope cases]
+
+### Data Protection & Audit
+
+- **Classification**: [Public/Internal/Confidential/Restricted data]
+- **Data Flow**: [collection, storage, transmission, exports, caches, logs,
+  backups, deletion, and every third-party processor]
+- **Source of Truth**: [provenance, approval, reconciliation, calculation,
+  correction history, and audit requirements]
+- **Retention/Deletion**: [approved record class and schedule or NEEDS CLARIFICATION]
+
+### Threats, Failure & Recovery
+
+- **Threat/Abuse Cases**: [unauthorized access, tenant escape, malicious upload,
+  automation abuse, bulk export, corruption, and cost exhaustion as applicable]
+- **Failure Behavior**: [fail-closed behavior and degraded-mode boundaries]
+- **Recovery Impact**: [RPO/RTO, backup, restore, migration, and rollback needs]
+- **Incident/Compliance Impact**: [WISP, incident response, breach assessment,
+  applicable-law register, provider review, or professional review changes]
+
 ## Requirements *(mandatory)*
 
 <!--
@@ -117,9 +150,11 @@
 ## Assumptions
 
 <!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right assumptions based on reasonable defaults
-  chosen when the feature description did not specify certain details.
+  Assumptions are permitted only for low-risk product context and must be
+  explicit, testable, and validated before release. Never use an assumption for
+  security, privacy, legal applicability, identity, authorization, tenancy, data
+  ownership, financial semantics, retention, RPO, or RTO. Mark those facts
+  NEEDS CLARIFICATION instead.
 -->
 
 - [Assumption about target users, e.g., "Users have stable internet connectivity"]

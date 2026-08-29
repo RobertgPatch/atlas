@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "region": "us-west-2",
+  "retrievedAt": "2026-08-29T00:00:00Z",
+  "sources": [
+    "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonECS/current/us-west-2/index.json",
+    "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AmazonRDS/current/us-west-2/index.json",
+    "https://pricing.us-east-1.amazonaws.com/offers/v1.0/aws/AWSELB/current/us-west-2/index.json",
+    "https://aws.amazon.com/vpc/pricing/",
+    "https://aws.amazon.com/waf/pricing/",
+    "https://aws.amazon.com/secrets-manager/pricing/",
+    "https://aws.amazon.com/kms/pricing/",
+    "https://aws.amazon.com/cloudwatch/pricing/",
+    "https://aws.amazon.com/cloudfront/pricing/",
+    "https://aws.amazon.com/rds/postgresql/pricing/"
+  ],
+  "rates": {
+    "nat_gateway_hours": 0.045,
+    "public_ipv4_hours": 0.005,
+    "alb_hours": 0.0225,
+    "rds_t4g_micro_hours": 0.016,
+    "rds_gp3_gib_months": 0.115,
+    "fargate_vcpu_hours": 0.04048,
+    "fargate_gib_hours": 0.004445,
+    "waf_fixed_months": 13,
+    "secrets_months": 0.4,
+    "kms_key_months": 1,
+    "alarm_months": 0.1
+  }
+}

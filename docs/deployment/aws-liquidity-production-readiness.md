@@ -1,140 +1,88 @@
-# AWS Liquidity Production Readiness
+# AWS production readiness
 
-This checklist defines the launch guardrails for the AWS Liquidity deployment. It complements the manual runbook in `infra/aws/manual-liquidity-deployment.md` and the Terraform comparison scaffold in `infra/aws/terraform`. Validate staging first, then production.
+This checklist covers the sole AWS application target, production. Development
+runs locally. A release is not authorized merely because repository tests pass.
 
-## Launch Gates
+## Required launch evidence
 
-| Area | Required Evidence | Status |
-|---|---|---|
-| Durable data | `/health` reports durable persistence with PostgreSQL reachable | Not checked |
-| Secret storage | Production secrets live in Secrets Manager, not committed files | Not checked |
-| Stable encryption key | `PERSISTENCE_SECRET_KEY` is configured and retained | Not checked |
-| Cookie security | `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_SAMESITE=lax` for same-site subdomains | Not checked |
-| Allowed origin | `WEB_ORIGIN` matches the public app domain | Not checked |
-| API cache boundary | `/v1/*` responses are not shared-CDN cached | Not checked |
-| Static caching | S3/CloudFront caches static web assets only | Not checked |
-| Plaid token minimization | Ordinary Liquidity reads use saved snapshots and do not call Plaid | Not checked |
-| Scheduler | EventBridge Scheduler or accepted manual fallback is documented | Not checked |
-| Refresh locking | Duplicate refreshes are prevented for selected account sets | Not checked |
-| User/account scoping | API and repository scoping tests pass before launch | Not checked |
-| Postgres RLS follow-up | RLS is tracked as deferred hardening after the access model stabilizes | Not checked |
-| Logs | API, scheduler, and WAF logs are enabled with retention | Not checked |
-| Alarms | Health, error, scheduler, RDS, WAF, and budget alerts are configured | Not checked |
-| WAF | Managed rules and rate-based rules are attached to CloudFront | Not checked |
-| Cost controls | AWS Budget actual and forecast alerts are confirmed | Not checked |
-| Environment isolation | Staging and production use separate domains, databases, secrets, scheduler tokens, Plaid credentials, logs, alarms, and budgets | Not checked |
-| Staging parity | Staging preserves production topology while documenting only cost-safe allowances | Not checked |
+| Area | Required result |
+|---|---|
+| Identity | Expected production account and `us-west-2`; operator MFA active |
+| State | Preserved backend fingerprint; default workspace; native lock healthy |
+| Source | Clean immutable commit and feature 028 included |
+| Plan | Exact saved plan; no protected deletion/replacement or naming drift |
+| Runtime | One 256/512 x86 API task; durable PostgreSQL readiness |
+| Database | Private encrypted Single-AZ `db.t4g.micro`, 20 GiB gp3, deletion protection, 35-day PITR, final snapshot |
+| Secrets | Exact contract, one nonempty `AWSCURRENT`, VersionId bound, least-privilege consumers |
+| Edge | Private versioned web bucket, CloudFront, WAF, no shared API cache |
+| Operations | Scheduler/worker configuration, logs, active-component alarms, alert subscriptions confirmed |
+| Cost | Current `us-west-2` estimate at or below $110; $125 Budget notification only |
+| Users | Unique Tony and Robert identities, correct roles, MFA, and no shared credentials |
+| Governance | WISP, incident process, K-1 inventory, and recovery evidence approved |
 
-## Required Runtime Values
+Required production runtime values are injected through reviewed Terraform and
+Secrets Manager. Non-secret configuration includes `NODE_ENV=production`,
+`REQUIRE_DURABLE_PERSISTENCE=true`, secure same-site cookies,
+`API_SHARED_CACHE_POLICY=no_shared_cache`, `AWS_REGION=us-west-2`, and
+`AWS_ENVIRONMENT_NAME=production`. Secrets include the database URL,
+persistence key, session/admin material, scheduler token, and enabled provider
+credentials. Never place their values in documentation, Terraform outputs,
+logs, commits, or release evidence.
 
-API tasks in each AWS environment must receive these as environment variables or Secrets Manager injections:
+## Activation and smoke behavior
+
+ECS deployment circuit breaker and automatic rollback remain enabled. Stop
+activation if Terraform, ECS stability, CloudFront deployment, readiness,
+scheduler/worker configuration, logs/alarms, or any named smoke result fails.
+
+The production smoke contract covers every current browser route and the
+retained read flows: home/assets, session boundaries, dashboard, saved
+liquidity, investment aggregation, TIC properties, entities list/detail,
+readiness, and logout. Only reads and session login/logout are permitted. A
+provider refresh, upload, export, backfill, or business-data mutation is a
+contract failure. Evidence records names and outcomes only; bodies, cookies,
+MFA values, and credentials are redacted.
+
+## Recovery readiness
+
+Artifact rollback restores the prior immutable API task definition and
+versioned web bundle only. It validates checkpoint integrity and migration-set
+compatibility, retains desired count one, waits for ECS and CloudFront, and
+reruns the full smoke contract. It never rewinds Terraform state or production
+data and never runs a down migration.
+
+Single-AZ recovery can include downtime. Maintain a 15-minute RPO and eight-hour
+RTO objective using 35 days of point-in-time recovery, final snapshots, and a
+quarterly encrypted restore into an isolated network. Record backup success,
+restore timings, integrity checks, and retained-read results before removing the
+exercise copy.
+
+## Security review
+
+- Admin diagnostics remain authorized and redacted; SQL stays parameterized.
+- `MFA_LOGIN_ENABLED` is the sole login-enforcement switch and must be enabled
+  for the named production users before approval.
+- Production reads use durable saved Plaid and market data; they never refresh
+  a paid provider on read.
+- Local destructive/reset/bounded-abuse tools target loopback fixtures only and
+  refuse production.
+- WAF, application rate limits, cost admission controls, kill switches, and the
+  incident runbook are validated before activation.
+- Production values and data are never copied into local development.
+
+## Evidence record
+
+Record only non-sensitive identifiers and outcomes:
 
 ```text
-NODE_ENV=production
-PORT=3000
-DATABASE_URL=<Secrets Manager>
-PERSISTENCE_SECRET_KEY=<Secrets Manager>
-REQUIRE_DURABLE_PERSISTENCE=true
-WEB_ORIGIN=https://<environment-app-domain>
-SESSION_COOKIE_SECURE=true
-SESSION_COOKIE_SAMESITE=lax
-MFA_LOGIN_ENABLED=false
-PLAID_CLIENT_ID=<Secrets Manager>
-PLAID_SECRET=<Secrets Manager>
-PLAID_ENV=<sandbox-or-production>
-PLAID_REFRESH_TIME_LOCAL=05:00
-PLAID_REFRESH_TIMEZONE=America/Los_Angeles
-PLAID_REFRESH_SCHEDULER_ENABLED=true
-PLAID_REFRESH_SCHEDULER_MODE=eventbridge
-ATLAS_SCHEDULER_TOKEN=<Secrets Manager>
-RATE_LIMIT_ENABLED=true
-API_SHARED_CACHE_POLICY=no_shared_cache
-AWS_REGION=<aws-region>
-AWS_APP_DOMAIN=<environment-app-domain>
-AWS_ENVIRONMENT_NAME=<staging-or-production>
-AWS_ENVIRONMENT_PROFILE=<staging-or-production>
-```
-
-## Security Notes
-
-- Do not place Plaid access tokens, database URLs with credentials, scheduler tokens, or `PERSISTENCE_SECRET_KEY` in docs, logs, browser responses, Terraform outputs, or committed env files.
-- Use parameterized SQL only.
-- Keep admin diagnostics behind existing auth/RBAC.
-- `MFA_LOGIN_ENABLED` is the single login-enforcement switch. It defaults to `false`; set it through Terraform and restart/redeploy the API to apply a change. The web application does not need a rebuild and must not have a separate MFA flag.
-- When MFA login is enabled, password validation returns enrollment or challenge state without issuing the authenticated session cookie. The cookie is issued only after successful TOTP completion.
-- Use WAF and app-level rate limits for abusive request volume.
-- Treat `PERSISTENCE_SECRET_KEY` as long-lived key material. Rotation requires a migration or re-encryption plan.
-- Use Plaid sandbox until the deployment path, refresh behavior, and persistence checks are proven.
-- Use separate staging and production Secrets Manager entries. Staging must not reuse production database URLs, Plaid production credentials, scheduler tokens, session secrets, admin bootstrap credentials, or persistence keys.
-
-## Staging Parity
-
-Staging is allowed to be cheaper than production only in ways that preserve the production rehearsal:
-
-| Control | Staging expectation |
-|---|---|
-| Domain | Use a real staging domain for parity validation. CloudFront generated domains are only for early smoke testing. |
-| API sizing | One desired API task and smaller CPU/memory are acceptable if health checks, auth, and Liquidity flows pass. |
-| Database | Smallest suitable private RDS PostgreSQL class is acceptable; public access remains disabled. |
-| Retention | Shorter API/scheduler/WAF log retention is acceptable; logs must still exist for validation. |
-| Backups | Lower non-production backup retention is acceptable; production keeps production-safe retention. |
-| Destruction | Staging may disable deletion protection and skip final snapshots when teardown is intentional. |
-| Secrets | Staging uses sandbox Plaid and environment-isolated Secrets Manager values. |
-| Budget | Staging uses a lower AWS Budget and confirmed notifications. |
-| Routing/security | CloudFront, `/v1/*` no-shared-cache behavior, WAF/rate limiting, private RDS, Scheduler, IAM, and CloudWatch alarms remain enabled. |
-
-## Access Scoping And RLS
-
-PostgreSQL row-level security is deferred hardening for the first Liquidity AWS launch. Launch approval requires API and repository scoping evidence first: run the consolidated holdings identity/scoping tests plus the Plaid refresh policy and production-readiness diagnostics tests before promoting the API image.
-
-Track RLS as a follow-up once the user, entity, Plaid connection, and account access model is stable. Until then, the app-visible production-readiness endpoint must continue to report `apiRepositoryScoping=required_passed` and `postgresRls=deferred_hardening`.
-
-## Production Validation
-
-Run these checks before launch and after each infrastructure change:
-
-| Control | Validation |
-|---|---|
-| Logs | API service, Plaid refresh task, WAF, and scheduler logs exist with retention configured. |
-| Alarms | Health, API 5xx, scheduler failure, RDS CPU/storage/connections, WAF blocked requests, and budget alerts are configured. |
-| WAF and DDoS baseline | CloudFront has WAF managed rules, a rate-based rule, and AWS Shield Standard coverage through CloudFront. |
-| App rate limiting | `RATE_LIMIT_ENABLED=true` and production-readiness diagnostics report `rateLimitConfigured=true`. |
-| Budget alerts | AWS Budget actual thresholds are configured and notification subscription is confirmed. |
-| Secret storage | Runtime secrets are injected from Secrets Manager. No production `.env`, tfvars, state, or copied secret files are committed. |
-| Environment isolation | Staging and production resource names, domains, databases, secret namespaces, scheduler tokens, logs, and budgets are distinct. |
-| Staging parity | Staging evidence proves the same routing, scheduler, private database, WAF, logs, alarms, and diagnostics before production promotion. |
-| Secret rotation | RDS rotation is enabled or scheduled; Plaid/session/scheduler rotation runbooks exist; `PERSISTENCE_SECRET_KEY` rotation is emergency-only with a re-encryption plan. |
-| CSRF and cookies | Cookie-authenticated write paths use same-site secure cookies and origin controls. |
-| MFA login | The deployed `mfa_login_enabled` value reaches API-derived tasks as `MFA_LOGIN_ENABLED`; false preserves direct password sessions, while true requires enrollment/challenge completion before the session cookie is issued. |
-| XSS | React-rendered user data remains escaped; no unsafe HTML rendering is introduced. |
-| SQL injection | Database access uses parameterized SQL and repository-scoped queries. |
-| Token minimization | Ordinary Liquidity reads use saved snapshots and do not call Plaid; diagnostics and exports do not include Plaid access tokens. |
-
-## No-Secret Verification
-
-Before committing deployment changes, run local secret scans and review the diff:
-
-```powershell
-git diff --check
-git grep -n -I -E "AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|postgres://[^[:space:]]+:[^[:space:]]+@" -- .
-```
-
-Expected result: no real credentials. Placeholder strings such as `<Secrets Manager>` or `app.example.com` are acceptable.
-
-Latest local result on 2026-07-04: scan matched only local-development Postgres placeholders, the documented scan command, and no production credentials.
-
-## Evidence Log
-
-```text
-Date:
-Reviewer:
-Environment:
-App domain:
-Cost profile:
-API image tag:
-RDS instance:
-CloudFront distribution:
-WAF web ACL:
-Budget:
-Open risks:
+Date and reviewers:
+Source commit and release id:
+Account/region/workspace verified:
+Plan/policy/cost evidence passed:
+Secret VersionId attestation passed:
+API/ECS/edge stability passed:
+Named smoke checks passed:
+Backup/restore evidence current:
+Identity/MFA/WISP/K-1 inventory evidence current:
+Open risks and explicit operator decision:
 ```

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-jackson.local/schemas/production-target.schema.json",
+  "title": "Project Jackson Production Target",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "environment",
+    "awsRegion",
+    "terraformWorkspace",
+    "cloudFrontCertificateRegion"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "environment": {
+      "const": "production"
+    },
+    "awsRegion": {
+      "const": "us-west-2"
+    },
+    "terraformWorkspace": {
+      "const": "default"
+    },
+    "cloudFrontCertificateRegion": {
+      "const": "us-east-1"
+    }
+  }
+}

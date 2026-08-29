@@ -165,6 +165,13 @@ Thumbs.db
 *.tfvars
 *.tfvars.json
 *.tfplan
+*.tfplan.json
+*.terraform-plan.json
+
+# Production release evidence (saved plans and provider output may contain secrets)
+/.artifacts/
+/scripts/deployment/.credentials/
+/scripts/security/.price-cache/
 
 # Production secret/key artifacts
 *.pem

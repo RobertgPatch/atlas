@@ -141,6 +141,25 @@ export interface ProductionReadinessDiagnostic {
   environment: string
   durablePersistence: ProductionReadinessDurablePersistence
   schedulerConfigured: boolean
+  operationalReadiness: {
+    databaseReachable: boolean
+    schedulers: {
+      plaidEnabled: boolean
+      marketPriceEnabled: boolean
+    }
+    worker: {
+      enabled: boolean
+      desiredCount: number
+    }
+    logs: {
+      configured: boolean
+      retentionDays: number
+    }
+    alarms: {
+      configured: boolean
+    }
+  }
+  retainedFlowChecks: string[]
   secretsConfigured: ProductionReadinessSecretsConfigured
   secureCookies: ProductionReadinessSecureCookies
   allowedOrigin: string

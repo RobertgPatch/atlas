@@ -18,7 +18,7 @@ terraform {
 #
 #      terraform init -migrate-state `
 #        -backend-config="bucket=<state-bucket>" `
-#        -backend-config="key=atlas/<environment>/terraform.tfstate" `
+#        -backend-config="key=project-jackson/<environment>/terraform.tfstate" `
 #        -backend-config="region=<aws-region>" `
 #        -backend-config="kms_key_id=<state-kms-key-arn>"
 #
@@ -30,6 +30,8 @@ terraform {
 #    local state.
 
 provider "aws" {
+  # main.tf binds this variable-driven provider to the committed us-west-2
+  # production descriptor before any plan can pass policy validation.
   region = var.aws_region
 
   default_tags {
@@ -42,7 +44,9 @@ provider "awscc" {
 }
 
 provider "aws" {
-  alias  = "us_east_1"
+  alias = "us_east_1"
+  # This narrowly scoped alias exists only for CloudFront certificate/WAF
+  # resources and is also fixed by the production target descriptor.
   region = "us-east-1"
 
   default_tags {

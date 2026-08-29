@@ -70,6 +70,32 @@ describe('Production readiness diagnostics contract', () => {
         mode: expect.any(String),
       },
       schedulerConfigured: expect.any(Boolean),
+      operationalReadiness: {
+        databaseReachable: expect.any(Boolean),
+        schedulers: {
+          plaidEnabled: expect.any(Boolean),
+          marketPriceEnabled: expect.any(Boolean),
+        },
+        worker: {
+          enabled: expect.any(Boolean),
+          desiredCount: expect.any(Number),
+        },
+        logs: {
+          configured: expect.any(Boolean),
+          retentionDays: expect.any(Number),
+        },
+        alarms: {
+          configured: expect.any(Boolean),
+        },
+      },
+      retainedFlowChecks: [
+        'dashboard-read',
+        'liquidity-holdings-read',
+        'liquidity-performance-read',
+        'investment-aggregation-read',
+        'tic-properties-read',
+        'entities-list-read',
+      ],
       secretsConfigured: {
         persistenceSecretKey: expect.any(Boolean),
         sessionSecret: expect.any(Boolean),

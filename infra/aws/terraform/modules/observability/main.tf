@@ -173,12 +173,18 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
 }
 
 locals {
-  ecs_utilization_alarms = {
-    api-cpu       = { metric = "CPUUtilization", service = var.api_ecs_service_name, threshold = var.ecs_cpu_threshold_percent }
-    api-memory    = { metric = "MemoryUtilization", service = var.api_ecs_service_name, threshold = var.ecs_memory_threshold_percent }
+  api_ecs_utilization_alarms = {
+    api-cpu    = { metric = "CPUUtilization", service = var.api_ecs_service_name, threshold = var.ecs_cpu_threshold_percent }
+    api-memory = { metric = "MemoryUtilization", service = var.api_ecs_service_name, threshold = var.ecs_memory_threshold_percent }
+  }
+  worker_ecs_utilization_alarms = {
     worker-cpu    = { metric = "CPUUtilization", service = var.k1_worker_ecs_service_name, threshold = var.ecs_cpu_threshold_percent }
     worker-memory = { metric = "MemoryUtilization", service = var.k1_worker_ecs_service_name, threshold = var.ecs_memory_threshold_percent }
   }
+  ecs_utilization_alarms = merge(
+    local.api_ecs_utilization_alarms,
+    var.k1_aws_ingestion_enabled ? local.worker_ecs_utilization_alarms : {},
+  )
 }
 
 resource "aws_cloudwatch_metric_alarm" "ecs_utilization" {
@@ -254,8 +260,8 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
 }
 
 locals {
-  k1_queues = { start = var.k1_start_queue_name, completion = var.k1_completion_queue_name }
-  k1_dlqs   = { start = "${var.k1_start_queue_name}-dlq", completion = "${var.k1_completion_queue_name}-dlq" }
+  k1_queues = var.k1_aws_ingestion_enabled ? { start = var.k1_start_queue_name, completion = var.k1_completion_queue_name } : {}
+  k1_dlqs   = var.k1_aws_ingestion_enabled ? { start = "${var.k1_start_queue_name}-dlq", completion = "${var.k1_completion_queue_name}-dlq" } : {}
 }
 
 resource "aws_cloudwatch_metric_alarm" "k1_queue_age" {
@@ -301,11 +307,13 @@ resource "aws_cloudwatch_metric_alarm" "k1_dlq_depth" {
 }
 
 resource "aws_s3_bucket_metric" "k1_requests" {
+  count  = var.k1_aws_ingestion_enabled ? 1 : 0
   bucket = var.k1_document_bucket_name
   name   = "EntireBucket"
 }
 
 resource "aws_cloudwatch_metric_alarm" "s3_put_requests" {
+  count               = var.k1_aws_ingestion_enabled ? 1 : 0
   alarm_name          = "${var.name_prefix}-s3-put-requests"
   alarm_description   = "K-1 object-write volume exceeded the five-minute storage-growth envelope."
   comparison_operator = "GreaterThanOrEqualToThreshold"
@@ -320,23 +328,23 @@ resource "aws_cloudwatch_metric_alarm" "s3_put_requests" {
 
   dimensions = {
     BucketName = var.k1_document_bucket_name
-    FilterId   = aws_s3_bucket_metric.k1_requests.name
+    FilterId   = aws_s3_bucket_metric.k1_requests[0].name
   }
 }
 
 resource "aws_cloudwatch_metric_alarm" "k1_workflow" {
-  for_each = {
+  for_each = var.k1_aws_ingestion_enabled ? {
     worker-errors       = { metric = "WorkerErrors", threshold = 1, statistic = "Sum" }
     extraction-failures = { metric = "ExtractionFailures", threshold = 1, statistic = "Sum" }
     apply-failures      = { metric = "ApplyFailures", threshold = 1, statistic = "Sum" }
     reconciliation-lag  = { metric = "ReconciliationLagSeconds", threshold = var.k1_reconciliation_lag_threshold_seconds, statistic = "Maximum" }
     page-count          = { metric = "PagesProcessed", threshold = var.k1_page_count_threshold, statistic = "Sum" }
-  }
+  } : {}
   alarm_name          = "${var.name_prefix}-k1-${each.key}"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = each.value.metric
-  namespace           = "Atlas/K1Ingestion"
+  namespace           = "ProjectJackson/K1Ingestion"
   period              = 300
   statistic           = each.value.statistic
   threshold           = each.value.threshold
@@ -385,7 +393,7 @@ resource "aws_cloudwatch_metric_alarm" "abuse_protection" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = each.value.metric
-  namespace           = "Atlas/AbuseProtection"
+  namespace           = "ProjectJackson/AbuseProtection"
   period              = 300
   statistic           = "Sum"
   threshold           = each.value.threshold
@@ -434,8 +442,8 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
       properties = {
         title = "Application throttles, admissions, and authentication protection", region = data.aws_region.current.name, period = 300
         metrics = [
-          ["Atlas/AbuseProtection", "AbuseProtectionDecision", "Environment", var.environment_name, { stat = "Sum" }],
-          [{ expression = "SEARCH('{Atlas/AbuseProtection} MetricName=\"AbuseProtectionDecision\" Environment=\"${var.environment_name}\"', 'Sum', 300)", id = "decision_detail", label = "Decision detail", region = data.aws_region.current.name }],
+          ["ProjectJackson/AbuseProtection", "AbuseProtectionDecision", "Environment", var.environment_name, { stat = "Sum" }],
+          [{ expression = "SEARCH('{ProjectJackson/AbuseProtection} MetricName=\"AbuseProtectionDecision\" Environment=\"${var.environment_name}\"', 'Sum', 300)", id = "decision_detail", label = "Decision detail", region = data.aws_region.current.name }],
         ]
       }
     },
@@ -444,10 +452,10 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
       properties = {
         title = "Provider calls, retries, cost units, and cleanup", region = data.aws_region.current.name, period = 300, stat = "Sum"
         metrics = [
-          ["Atlas/AbuseProtection", "ProviderCalls", "Environment", var.environment_name],
-          ["Atlas/AbuseProtection", "RetryAttempts", "Environment", var.environment_name],
-          ["Atlas/AbuseProtection", "CostUnits", "Environment", var.environment_name],
-          ["Atlas/AbuseProtection", "CleanupFailures", "Environment", var.environment_name],
+          ["ProjectJackson/AbuseProtection", "ProviderCalls", "Environment", var.environment_name],
+          ["ProjectJackson/AbuseProtection", "RetryAttempts", "Environment", var.environment_name],
+          ["ProjectJackson/AbuseProtection", "CostUnits", "Environment", var.environment_name],
+          ["ProjectJackson/AbuseProtection", "CleanupFailures", "Environment", var.environment_name],
         ]
       }
     },
@@ -494,7 +502,7 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
       properties = {
         title = "S3 writes (5m) and retained bytes/objects (daily)", region = data.aws_region.current.name
         metrics = [
-          ["AWS/S3", "PutRequests", "BucketName", var.k1_document_bucket_name, "FilterId", aws_s3_bucket_metric.k1_requests.name, { period = 300, stat = "Sum" }],
+          ["AWS/S3", "PutRequests", "BucketName", var.k1_document_bucket_name, "FilterId", var.k1_aws_ingestion_enabled ? aws_s3_bucket_metric.k1_requests[0].name : "disabled", { period = 300, stat = "Sum" }],
           ["AWS/S3", "BucketSizeBytes", "BucketName", var.k1_document_bucket_name, "StorageType", "StandardStorage", { period = 86400, stat = "Average" }],
           ["AWS/S3", "NumberOfObjects", "BucketName", var.k1_document_bucket_name, "StorageType", "AllStorageTypes", { period = 86400, stat = "Average" }],
         ]
@@ -505,14 +513,14 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
       properties = {
         title = "BDA/Bedrock extraction jobs, throughput, retries, and failures", region = data.aws_region.current.name, period = 300
         metrics = [
-          ["Atlas/K1Ingestion", "DocumentsProcessed", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/K1Ingestion", "PagesProcessed", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/K1Ingestion", "ExtractionFailures", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/K1Ingestion", "WorkerErrors", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/K1Ingestion", "ApplyFailures", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/K1Ingestion", "ReconciliationLagSeconds", "Environment", var.environment_name, { stat = "Maximum" }],
-          ["Atlas/AbuseProtection", "RetryAttempts", "Environment", var.environment_name, { stat = "Sum" }],
-          ["Atlas/AbuseProtection", "ProviderCalls", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "DocumentsProcessed", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "PagesProcessed", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "ExtractionFailures", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "WorkerErrors", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "ApplyFailures", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/K1Ingestion", "ReconciliationLagSeconds", "Environment", var.environment_name, { stat = "Maximum" }],
+          ["ProjectJackson/AbuseProtection", "RetryAttempts", "Environment", var.environment_name, { stat = "Sum" }],
+          ["ProjectJackson/AbuseProtection", "ProviderCalls", "Environment", var.environment_name, { stat = "Sum" }],
         ]
       }
     },

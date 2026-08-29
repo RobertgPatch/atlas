@@ -58,17 +58,17 @@ run "api_alb_ecr_and_fixed_capacity" {
     container_name              = "atlas-api"
     container_port              = 3000
     health_check_path           = "/health"
-    api_image_tag               = "test"
-    task_cpu                    = "512"
-    task_memory                 = "1024"
-    desired_count               = 2
+    api_image_tag               = "0000000000000000000000000000000000000000"
+    task_cpu                    = "256"
+    task_memory                 = "512"
+    desired_count               = 1
     environment_variables       = {}
     secret_arns                 = {}
     log_retention_days          = 30
-    ecr_image_tag_mutability    = "MUTABLE"
+    ecr_image_tag_mutability    = "IMMUTABLE"
     ecr_force_delete            = false
-    ecr_max_images              = 30
-    ecr_untagged_retention_days = 7
+    ecr_max_images              = 10
+    ecr_untagged_retention_days = 3
     runtime_capacity_guardrails = {
       alb_deletion_protection    = true
       alb_drop_invalid_headers   = true
@@ -103,13 +103,13 @@ run "api_alb_ecr_and_fixed_capacity" {
         for rule in jsondecode(aws_ecr_lifecycle_policy.api.policy).rules :
         rule.selection.tagStatus == "untagged" &&
         rule.selection.countType == "sinceImagePushed" &&
-        rule.selection.countNumber == 7
+        rule.selection.countNumber == 3
       ]) &&
       anytrue([
         for rule in jsondecode(aws_ecr_lifecycle_policy.api.policy).rules :
         rule.selection.tagStatus == "any" &&
         rule.selection.countType == "imageCountMoreThan" &&
-        rule.selection.countNumber == 30
+        rule.selection.countNumber == 10
       ])
     )
     error_message = "ECR must expire stale untagged images and cap the total retained image count."

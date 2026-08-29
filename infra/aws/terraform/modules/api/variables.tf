@@ -44,23 +44,43 @@ variable "health_check_path" {
 }
 
 variable "api_image_tag" {
-  description = "API image tag to deploy."
+  description = "Immutable API image tag equal to the full source commit."
   type        = string
+
+  validation {
+    condition     = can(regex("^[a-f0-9]{40}$", var.api_image_tag))
+    error_message = "api_image_tag must be the immutable 40-character lowercase source commit."
+  }
 }
 
 variable "task_cpu" {
   description = "Fargate task CPU units."
   type        = string
+
+  validation {
+    condition     = var.task_cpu == "256"
+    error_message = "The validated production API shape requires task_cpu=256."
+  }
 }
 
 variable "task_memory" {
   description = "Fargate task memory."
   type        = string
+
+  validation {
+    condition     = var.task_memory == "512"
+    error_message = "The validated production API shape requires task_memory=512."
+  }
 }
 
 variable "desired_count" {
   description = "Desired API task count."
   type        = number
+
+  validation {
+    condition     = contains([0, 1], var.desired_count)
+    error_message = "desired_count may be zero only during guarded Bootstrap and must otherwise be one."
+  }
 
   validation {
     condition     = var.desired_count >= 0 && var.desired_count <= 4 && floor(var.desired_count) == var.desired_count
@@ -126,11 +146,21 @@ variable "log_retention_days" {
 variable "ecr_image_tag_mutability" {
   description = "ECR image tag mutability."
   type        = string
+
+  validation {
+    condition     = var.ecr_image_tag_mutability == "IMMUTABLE"
+    error_message = "Production ECR tags must be immutable."
+  }
 }
 
 variable "ecr_force_delete" {
   description = "Whether ECR can be deleted with images present."
   type        = bool
+
+  validation {
+    condition     = !var.ecr_force_delete
+    error_message = "Production ECR force deletion is prohibited."
+  }
 }
 
 output "ecr_repository_url" {
@@ -176,22 +206,22 @@ output "api_load_balancer_dns_name" {
 variable "ecr_max_images" {
   description = "Maximum recent ECR images retained after lifecycle expiration."
   type        = number
-  default     = 30
+  default     = 10
 
   validation {
-    condition     = var.ecr_max_images >= 2 && floor(var.ecr_max_images) == var.ecr_max_images
-    error_message = "ecr_max_images must be an integer of at least 2."
+    condition     = var.ecr_max_images == 10
+    error_message = "Production ECR must retain exactly ten recent immutable releases."
   }
 }
 
 variable "ecr_untagged_retention_days" {
   description = "Days to retain untagged ECR images before lifecycle expiration."
   type        = number
-  default     = 7
+  default     = 3
 
   validation {
-    condition     = var.ecr_untagged_retention_days >= 1 && floor(var.ecr_untagged_retention_days) == var.ecr_untagged_retention_days
-    error_message = "ecr_untagged_retention_days must be a positive integer."
+    condition     = var.ecr_untagged_retention_days == 3
+    error_message = "Production ECR must expire untagged images after three days."
   }
 }
 

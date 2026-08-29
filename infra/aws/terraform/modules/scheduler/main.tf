@@ -6,8 +6,15 @@ locals {
     }
   ]
 
-  container_secrets = [
-    for key, arn in var.secret_arns : {
+  plaid_container_secrets = [
+    for key, arn in var.plaid_secret_arns : {
+      name      = key
+      valueFrom = arn
+    }
+  ]
+
+  market_price_container_secrets = [
+    for key, arn in var.market_price_secret_arns : {
       name      = key
       valueFrom = arn
     }
@@ -45,7 +52,7 @@ resource "aws_ecs_task_definition" "refresh" {
       essential   = true
       command     = ["node", "dist/scripts/run-plaid-refresh.js"]
       environment = local.container_environment
-      secrets     = local.container_secrets
+      secrets     = local.plaid_container_secrets
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -79,7 +86,7 @@ resource "aws_ecs_task_definition" "market_price_refresh" {
       essential   = true
       command     = ["node", "dist/scripts/run-market-price-refresh.js"]
       environment = local.container_environment
-      secrets     = local.container_secrets
+      secrets     = local.market_price_container_secrets
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -140,7 +147,7 @@ resource "aws_iam_role_policy" "scheduler" {
 
 resource "aws_scheduler_schedule" "plaid_refresh" {
   name                         = "${var.name_prefix}-plaid-refresh"
-  description                  = "Daily Atlas Plaid holdings refresh."
+  description                  = "Daily Project Jackson Plaid holdings refresh."
   schedule_expression          = var.schedule_expression
   schedule_expression_timezone = var.schedule_timezone
   state                        = var.scheduler_enabled ? "ENABLED" : "DISABLED"
@@ -174,7 +181,7 @@ resource "aws_scheduler_schedule" "plaid_refresh" {
 
 resource "aws_scheduler_schedule" "market_price_refresh" {
   name                         = "${var.name_prefix}-market-price-refresh"
-  description                  = "Weekday Atlas closing-price refresh and Liquidity valuation snapshot."
+  description                  = "Weekday Project Jackson closing-price refresh and liquidity valuation snapshot."
   schedule_expression          = var.market_price_schedule_expression
   schedule_expression_timezone = var.market_price_schedule_timezone
   state                        = var.market_price_scheduler_enabled ? "ENABLED" : "DISABLED"

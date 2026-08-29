@@ -1,0 +1,446 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://project-jackson.local/schemas/production-release-manifest.schema.json",
+  "title": "Project Jackson Production Release Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "releaseId",
+    "preparedAt",
+    "source",
+    "target",
+    "apiArtifact",
+    "webArtifact",
+    "terraformArtifact",
+    "secretAttestation",
+    "costEstimate",
+    "migrationSet",
+    "previousCheckpoint"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "releaseId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}-[0-9]{8}T[0-9]{6}Z$"
+    },
+    "preparedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "branch", "cleanWorktree"],
+      "properties": {
+        "commit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cleanWorktree": {
+          "const": true
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environment",
+        "accountId",
+        "callerArn",
+        "region",
+        "certificateRegion",
+        "regionAuthorityPath",
+        "targetDescriptorSha256",
+        "terraformWorkspace",
+        "stateBucket",
+        "stateKey",
+        "stateKmsKeyArn",
+        "backendFingerprint"
+      ],
+      "properties": {
+        "environment": {
+          "const": "production"
+        },
+        "accountId": {
+          "type": "string",
+          "pattern": "^[0-9]{12}$"
+        },
+        "callerArn": {
+          "type": "string",
+          "pattern": "^arn:aws[a-zA-Z-]*:"
+        },
+        "region": {
+          "const": "us-west-2"
+        },
+        "certificateRegion": {
+          "const": "us-east-1"
+        },
+        "regionAuthorityPath": {
+          "const": "infra/aws/production-target.json"
+        },
+        "targetDescriptorSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "terraformWorkspace": {
+          "const": "default"
+        },
+        "stateBucket": {
+          "type": "string",
+          "minLength": 3
+        },
+        "stateKey": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "pattern": "(^/|(^|/)\\.\\.(/|$))"
+          }
+        },
+        "stateKmsKeyArn": {
+          "type": "string",
+          "pattern": "^arn:aws[a-zA-Z-]*:kms:"
+        },
+        "backendFingerprint": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      }
+    },
+    "apiArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryUri", "tag", "digest", "platform", "dockerfileSha256"],
+      "properties": {
+        "repositoryUri": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "platform": {
+          "const": "linux/amd64"
+        },
+        "dockerfileSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      }
+    },
+    "webArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archivePath", "sha256", "fileManifestPath", "fileCount", "totalBytes"],
+      "properties": {
+        "archivePath": {
+          "$ref": "#/$defs/relativeArtifactPath"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "fileManifestPath": {
+          "$ref": "#/$defs/relativeArtifactPath"
+        },
+        "fileCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "terraformArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planPath",
+        "planSha256",
+        "redactedSummaryPath",
+        "policyResultPath",
+        "terraformVersion",
+        "sourceCommit",
+        "backendFingerprint",
+        "variableFileSha256"
+      ],
+      "properties": {
+        "planPath": {
+          "$ref": "#/$defs/relativeArtifactPath"
+        },
+        "planSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "redactedSummaryPath": {
+          "$ref": "#/$defs/relativeArtifactPath"
+        },
+        "policyResultPath": {
+          "$ref": "#/$defs/relativeArtifactPath"
+        },
+        "terraformVersion": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+"
+        },
+        "sourceCommit": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "backendFingerprint": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "variableFileSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        }
+      }
+    },
+    "secretAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractSha256", "verifiedAt", "secrets"],
+      "properties": {
+        "contractSha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "verifiedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "secrets": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "secretArn",
+              "versionId",
+              "consumers",
+              "exists",
+              "currentVersionUnique",
+              "nonempty",
+              "wiringVerified"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]+$"
+              },
+              "secretArn": {
+                "type": "string",
+                "pattern": "^arn:aws[a-zA-Z-]*:secretsmanager:us-west-2:[0-9]{12}:secret:"
+              },
+              "versionId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "consumers": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "enum": ["api", "plaid-scheduler", "market-scheduler", "k1-worker"]
+                }
+              },
+              "exists": {
+                "const": true
+              },
+              "currentVersionUnique": {
+                "const": true
+              },
+              "nonempty": {
+                "const": true
+              },
+              "wiringVerified": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "costEstimate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "region",
+        "pricingRetrievedAt",
+        "hoursPerMonth",
+        "fixedMonthlyUsd",
+        "usageUpperBoundMonthlyUsd",
+        "estimatedMonthlyUsd",
+        "targetMonthlyUsd",
+        "budgetThresholdUsd",
+        "budgetActionCount",
+        "workloadProfileMatched",
+        "unpricedRecurringResources"
+      ],
+      "properties": {
+        "region": {
+          "const": "us-west-2"
+        },
+        "pricingRetrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "hoursPerMonth": {
+          "const": 730
+        },
+        "fixedMonthlyUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "usageUpperBoundMonthlyUsd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "estimatedMonthlyUsd": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 110
+        },
+        "targetMonthlyUsd": {
+          "const": 110
+        },
+        "budgetThresholdUsd": {
+          "const": 125
+        },
+        "budgetActionCount": {
+          "const": 0
+        },
+        "workloadProfileMatched": {
+          "const": true
+        },
+        "unpricedRecurringResources": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "migrationSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["files", "sha256", "backwardCompatible", "requiresSnapshot", "snapshotIdentifier", "approvalReference"],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^apps/api/src/infra/db/migrations/"
+          },
+          "uniqueItems": true
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256Hex"
+        },
+        "backwardCompatible": {
+          "const": true
+        },
+        "requiresSnapshot": {
+          "type": "boolean"
+        },
+        "snapshotIdentifier": {
+          "type": ["string", "null"]
+        },
+        "approvalReference": {
+          "type": ["string", "null"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "requiresSnapshot": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "snapshotIdentifier": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "previousCheckpoint": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "releaseId",
+            "apiImageTag",
+            "apiImageDigest",
+            "taskDefinitionArn",
+            "webArchivePath",
+            "webArchiveSha256",
+            "migrationSha256",
+            "activatedAt"
+          ],
+          "properties": {
+            "releaseId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "apiImageTag": {
+              "type": "string",
+              "minLength": 1
+            },
+            "apiImageDigest": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "taskDefinitionArn": {
+              "type": "string",
+              "pattern": "^arn:aws[a-zA-Z-]*:ecs:"
+            },
+            "webArchivePath": {
+              "$ref": "#/$defs/relativeArtifactPath"
+            },
+            "webArchiveSha256": {
+              "$ref": "#/$defs/sha256Hex"
+            },
+            "migrationSha256": {
+              "$ref": "#/$defs/sha256Hex"
+            },
+            "activatedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "sha256Hex": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relativeArtifactPath": {
+      "type": "string",
+      "minLength": 1,
+      "not": {
+        "pattern": "(^[A-Za-z]:|^/|(^|[\\\\/])\\.\\.([\\\\/]|$))"
+      }
+    }
+  }
+}

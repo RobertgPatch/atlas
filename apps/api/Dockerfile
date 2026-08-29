@@ -35,6 +35,12 @@ COPY --from=build --chown=node:node /app/apps/api/src/infra/db/migrations apps/a
 
 WORKDIR /app/apps/api
 
+ADD --checksum=sha256:e5bb2084ccf45087bda1c9bffdea0eb15ee67f0b91646106e466714f9de3c7e3 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem /etc/ssl/certs/aws-rds-global-bundle.pem
+
+RUN chmod 0444 /etc/ssl/certs/aws-rds-global-bundle.pem
+
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/aws-rds-global-bundle.pem
+
 EXPOSE 3000
 
 USER node

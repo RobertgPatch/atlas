@@ -2,7 +2,7 @@ resource "aws_secretsmanager_secret" "runtime" {
   for_each = var.secret_names
 
   name                    = each.value
-  description             = "Atlas runtime secret for ${each.key}. Value is set manually or by deployment automation."
+  description             = "Project Jackson runtime secret for ${each.key}. Value is set manually or by deployment automation."
   recovery_window_in_days = var.recovery_window_in_days
 
   tags = {

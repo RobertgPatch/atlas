@@ -26,12 +26,32 @@
 **Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
 **Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Data Classification**: [Public/Internal/Confidential/Restricted data handled, flows, and retention or NEEDS CLARIFICATION]
+**Identity/Tenancy**: [physical actors, tenant/entity boundaries, roles, and authorization model or NEEDS CLARIFICATION]
+**Recovery Objectives**: [RPO, RTO, backup, restore-test, migration, and rollback impact or NEEDS CLARIFICATION]
+**Compliance/Providers**: [applicable-law review, external processors, data region/retention/training use, or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- **Security and privacy**: [PASS/FAIL - data classification, flow, threat model,
+  encryption, minimization, retention, providers, and fail-closed behavior]
+- **Identity and least privilege**: [PASS/FAIL - unique actors, MFA impact,
+  server-side authorization, tenant/entity scope, and AWS/application permissions]
+- **Financial integrity and audit**: [PASS/FAIL - source, exact calculations,
+  reconciliation, approval, history, and audit evidence]
+- **Architecture and scale**: [PASS/FAIL - boundaries, ADR need, capacity, cost,
+  rate limits, single-tenant status, and safe evolution path]
+- **Verification and recovery**: [PASS/FAIL - test strategy, negative tests,
+  migrations, observability, RPO/RTO, backup, restore, and rollback evidence]
+- **Legal and incident readiness**: [PASS/FAIL - applicability register impact,
+  WISP/incident procedure, breach assessment, and required professional review]
+
+Any failed non-negotiable gate stops planning. Record unresolved facts as
+`NEEDS CLARIFICATION`; do not convert security, identity, tenancy, data,
+financial, recovery, or legal uncertainty into an assumption. Re-run every gate
+after Phase 1 design and cite the evidence that changed or confirmed the result.
 
 ## Project Structure
 
@@ -97,6 +117,10 @@ directories captured above]
 ## Complexity Tracking
 
 > **Fill ONLY if Constitution Check has violations that must be justified**
+>
+> Complexity may be justified only when it is the smallest safe response to a
+> documented requirement. This table cannot waive a non-negotiable principle or
+> serve as a security deferral.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|

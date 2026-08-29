@@ -1628,7 +1628,7 @@ export const plaidRepository = {
         safe_value: Boolean(config.plaidRefresh.schedulerToken),
         warning: config.plaidRefresh.schedulerToken
           ? null
-          : 'ATLAS_SCHEDULER_TOKEN is not configured.',
+          : 'PROJECT_JACKSON_SCHEDULER_TOKEN is not configured.',
         checked_at: checkedAt,
       },
       {

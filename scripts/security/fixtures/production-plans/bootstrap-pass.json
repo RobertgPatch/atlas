@@ -1,0 +1,33 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.11.4",
+  "errored": false,
+  "variables": {
+    "environment_name": { "value": "production" },
+    "environment_cost_profile": { "value": "production" },
+    "aws_region": { "value": "us-west-2" },
+    "api_desired_count": { "value": 0 },
+    "api_task_cpu": { "value": "256" },
+    "api_task_memory": { "value": "512" },
+    "api_image_tag": { "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    "mfa_login_enabled": { "value": true },
+    "monthly_budget_limit_usd": { "value": 125 },
+    "k1_aws_ingestion_enabled": { "value": false }
+  },
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        { "address": "module.database.aws_db_instance.postgres", "type": "aws_db_instance", "values": { "instance_class": "db.t4g.micro", "multi_az": false, "allocated_storage": 20, "storage_encrypted": true, "publicly_accessible": false, "deletion_protection": true, "skip_final_snapshot": false, "backup_retention_period": 35 } },
+        { "address": "module.api.aws_ecs_service.api", "type": "aws_ecs_service", "values": { "desired_count": 0, "deployment_circuit_breaker": [{ "enable": true, "rollback": true }] } },
+        { "address": "module.api.aws_ecr_repository.api", "type": "aws_ecr_repository", "values": { "image_tag_mutability": "IMMUTABLE", "force_delete": false } },
+        { "address": "module.api.aws_lb.api", "type": "aws_lb", "values": { "internal": true, "enable_deletion_protection": true } },
+        { "address": "module.edge.aws_cloudfront_distribution.this", "type": "aws_cloudfront_distribution", "values": { "enabled": true, "web_acl_id": "arn:aws:wafv2:us-east-1:111122223333:global/webacl/example" } },
+        { "address": "module.security.aws_wafv2_web_acl.this", "type": "aws_wafv2_web_acl", "values": { "scope": "CLOUDFRONT", "rule": [{ "name": "api_general_per_ip" }, { "name": "auth_per_ip" }, { "name": "paid_admission_per_ip" }, { "name": "paid_admission_global_emergency" }] } },
+        { "address": "module.budgets.aws_budgets_budget.monthly", "type": "aws_budgets_budget", "values": { "limit_amount": "125", "notification": [{ "subscriber_email_addresses": ["ops@example.com"] }] } }
+      ]
+    }
+  },
+  "resource_changes": [
+    { "address": "module.api.aws_ecs_service.api", "type": "aws_ecs_service", "change": { "actions": ["create"], "before": null, "after": { "desired_count": 0 } } }
+  ]
+}

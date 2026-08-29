@@ -85,7 +85,7 @@ export const k1MetricEnvelope = (args: {
   _aws: {
     Timestamp: Date.now(),
     CloudWatchMetrics: [{
-      Namespace: 'Atlas/K1Ingestion', Dimensions: [['Environment']],
+      Namespace: 'ProjectJackson/K1Ingestion', Dimensions: [['Environment']],
       Metrics: [{ Name: args.metric, Unit: args.unit }],
     }],
   },
