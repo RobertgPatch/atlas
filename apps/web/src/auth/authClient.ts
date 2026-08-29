@@ -10,27 +10,6 @@ export interface UserSummary {
   status: UserStatus
 }
 
-export interface UserDetailResponse {
-  user: {
-    id: string
-    email: string
-    role: JacksonRole
-    status: UserStatus
-    mfaEnabled: boolean
-    createdAt: string
-    lastLoginAt: string | null
-    loginCount: number
-  }
-  assignedEntities: Array<{ id: string; name: string }>
-  activity: Array<{
-    id: string
-    date: string
-    action: string
-    detail: string
-    eventName: string
-  }>
-}
-
 export interface SessionResponse {
   user: UserSummary
   role: JacksonRole
@@ -136,57 +115,4 @@ export const authClient = {
     return request<void>('/auth/logout', { method: 'POST' })
   },
 
-  listUsers() {
-    return request<{ items: UserSummary[] }>('/admin/users', { method: 'GET' })
-  },
-
-  getUserDetail(userId: string) {
-    return request<UserDetailResponse>(`/admin/users/${userId}`, { method: 'GET' })
-  },
-
-  inviteUser(email: string, role: JacksonRole) {
-    return request<{
-      id: string
-      email: string
-      role: JacksonRole
-      expiresAt: string
-      status: 'Invited'
-    }>('/admin/users/invitations', {
-      method: 'POST',
-      body: JSON.stringify({ email, role }),
-    })
-  },
-
-  changeRole(userId: string, role: JacksonRole) {
-    return request<UserSummary>(`/admin/users/${userId}/role`, {
-      method: 'PATCH',
-      body: JSON.stringify({ role }),
-    })
-  },
-
-  deactivateUser(userId: string) {
-    return request<UserSummary>(`/admin/users/${userId}/deactivate`, {
-      method: 'POST',
-    })
-  },
-
-  reactivateUser(userId: string) {
-    return request<UserSummary>(`/admin/users/${userId}/reactivate`, {
-      method: 'POST',
-    })
-  },
-
-  resetMfa(userId: string) {
-    return request<UserSummary>(`/admin/users/${userId}/mfa-reset`, {
-      method: 'POST',
-    })
-  },
-
-  devClearData() {
-    return request<{ ok: true; action: 'cleared' }>('/admin/dev/clear', { method: 'POST' })
-  },
-
-  devSeedData() {
-    return request<{ ok: true; action: 'seeded' }>('/admin/dev/seed', { method: 'POST' })
-  },
 }

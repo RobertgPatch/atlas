@@ -61,39 +61,6 @@ export const auditRepository = {
     inMemoryAudit.push({ ...input, createdAt: new Date() })
   },
 
-  async listRecentForUser(userId: string, limit = 10): Promise<AuditEventRecord[]> {
-    if (pool) {
-      try {
-        const result = await pool.query<AuditEventRecord>(
-          `select actor_user_id as "actorUserId",
-                  event_name as "eventName",
-                  object_type as "objectType",
-                  object_id as "objectId",
-                  before_json as "before",
-                  after_json as "after",
-                  created_at as "createdAt"
-             from audit_events
-            where actor_user_id = $1
-               or (object_type = 'user' and object_id = $1)
-            order by created_at desc
-            limit $2`,
-          [userId, limit],
-        )
-        return result.rows.map((row) => ({
-          ...row,
-          createdAt: new Date(row.createdAt),
-        }))
-      } catch {
-        // Fall back to in-memory events when Postgres is unavailable in local dev.
-      }
-    }
-
-    return inMemoryAudit
-      .filter((event) => event.actorUserId === userId || (event.objectType === 'user' && event.objectId === userId))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, limit)
-  },
-
   getInMemoryEvents() {
     return inMemoryAudit
   },

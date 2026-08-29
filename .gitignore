@@ -186,3 +186,6 @@ cdk.context.json
 /apps/api/tmp-live-k1-check.mjs
 /design-qa.md
 /tic-registry.html
+
+# CodeBoarding local visualization and generated analysis
+/.codeboarding/

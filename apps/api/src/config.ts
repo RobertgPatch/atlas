@@ -326,11 +326,6 @@ export const buildAbuseProtectionConfig = (
           { max: Number.MAX_SAFE_INTEGER },
         ),
       },
-      workbookImport: {
-        userPerDay: strictInteger(env, environment, 'ABUSE_WORKBOOK_USER_PER_DAY', 5, productionPaidLimit),
-        globalPerDay: strictInteger(env, environment, 'ABUSE_WORKBOOK_GLOBAL_PER_DAY', 25, productionPaidLimit),
-        globalConcurrency: strictInteger(env, environment, 'ABUSE_WORKBOOK_GLOBAL_CONCURRENCY', 2, productionPaidLimit),
-      },
       k1Upload: {
         userBatchesPerHour: strictInteger(env, environment, 'ABUSE_K1_USER_BATCHES_PER_HOUR', 5, productionPaidLimit),
         userFilesPerDay: strictInteger(env, environment, 'ABUSE_K1_USER_FILES_PER_DAY', 100, productionPaidLimit),
@@ -414,8 +409,6 @@ export const buildAbuseProtectionConfig = (
       multipartFiles: strictInteger(env, environment, 'ABUSE_MULTIPART_MAX_FILES', 1, { max: 100 }),
       multipartFields: strictInteger(env, environment, 'ABUSE_MULTIPART_MAX_FIELDS', 10, { max: 1_000 }),
       multipartParts: strictInteger(env, environment, 'ABUSE_MULTIPART_MAX_PARTS', 12, { max: 1_000 }),
-      workbookFileBytes: strictInteger(env, environment, 'ABUSE_WORKBOOK_MAX_FILE_BYTES', 25 * 1024 * 1024, { max: 100 * 1024 * 1024 }),
-      workbookRows: strictInteger(env, environment, 'ABUSE_WORKBOOK_MAX_ROWS', 100_000, { max: 1_000_000 }),
       k1FilesPerBatch: strictInteger(env, environment, 'ABUSE_K1_MAX_FILES_PER_BATCH', 25, { max: 100 }),
       k1FileBytes: strictInteger(env, environment, 'ABUSE_K1_MAX_FILE_BYTES', 25 * 1024 * 1024, { max: 100 * 1024 * 1024 }),
       k1PagesPerFile: strictInteger(env, environment, 'ABUSE_K1_MAX_PAGES_PER_FILE', 100, { max: 10_000 }),
@@ -436,7 +429,6 @@ export const buildAbuseProtectionConfig = (
       keepAliveMs: strictInteger(env, environment, 'ABUSE_KEEP_ALIVE_TIMEOUT_MS', 5_000, { max: 120_000 }),
       databaseHeavyHandlerMs: strictInteger(env, environment, 'ABUSE_HEAVY_HANDLER_TIMEOUT_MS', 15_000, { max: 120_000 }),
       documentDownloadMs: strictInteger(env, environment, 'ABUSE_DOWNLOAD_TIMEOUT_MS', 30_000, { max: 300_000 }),
-      workbookImportMs: strictInteger(env, environment, 'ABUSE_WORKBOOK_TIMEOUT_MS', 30_000, { max: 300_000 }),
       bdaProviderMs: strictInteger(env, environment, 'ABUSE_BDA_TIMEOUT_MS', 60_000, { ...productionPaidLimit, max: 300_000 }),
       bedrockProviderMs: strictInteger(env, environment, 'ABUSE_BEDROCK_TIMEOUT_MS', 30_000, { ...productionPaidLimit, max: 300_000 }),
       plaidProviderMs: strictInteger(env, environment, 'ABUSE_PLAID_TIMEOUT_MS', 10_000, { ...productionPaidLimit, max: 300_000 }),
@@ -459,9 +451,6 @@ export const buildAbuseProtectionConfig = (
     },
   }
 
-  if (config.quotas.workbookImport.userPerDay > config.quotas.workbookImport.globalPerDay) {
-    throw configurationError('ABUSE_WORKBOOK_USER_PER_DAY', 'must not exceed the global daily ceiling')
-  }
   if (config.quotas.k1Upload.userFilesPerDay > config.quotas.k1Upload.globalFilesPerDay) {
     throw configurationError('ABUSE_K1_USER_FILES_PER_DAY', 'must not exceed the global daily ceiling')
   }

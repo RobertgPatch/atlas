@@ -37,6 +37,9 @@
     "security:abuse:bounded": "node scripts/security/run-bounded-abuse-tests.mjs",
     "build:web": "npm run --workspace=web build",
     "test:api": "npm run --workspace=api test",
-    "test:web": "npm run --workspace=web test"
+    "test:web": "npm run --workspace=web test",
+    "test:current-surface": "npm run --workspace=web check:current-surface",
+    "test:pruning": "node --test scripts/pruning/find-unreachable-web.test.mjs",
+    "check:web-reachability": "node scripts/pruning/find-unreachable-web.mjs --check"
   }
 }

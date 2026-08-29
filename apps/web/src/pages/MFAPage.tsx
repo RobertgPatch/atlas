@@ -6,7 +6,6 @@ import { authClient, type ApiError } from '../auth/authClient'
 import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { Button } from '../components/shared/Button'
-import { featureFlags } from '../config/featureFlags'
 
 const getMfaErrorMessage = (error: unknown) => {
   if (
@@ -30,13 +29,7 @@ const getMfaErrorMessage = (error: unknown) => {
   return 'Invalid verification code. Please try again.'
 }
 
-interface MFAPageProps {
-  magicPatternDesigns?: boolean
-}
-
-export function MFAPage({
-  magicPatternDesigns = featureFlags.magicPatternDesigns,
-}: MFAPageProps = {}) {
+export function MFAPage() {
   const navigate = useNavigate()
   const [challenge] = useState(() => authFlowStore.getChallenge())
   const [code, setCode] = useState(['', '', '', '', '', ''])
@@ -97,7 +90,7 @@ export function MFAPage({
       const session = await authClient.verifyMfa(challenge.challengeId, fullCode)
       authFlowStore.clear()
       sessionStore.setAuthenticated(session)
-      navigate(magicPatternDesigns ? '/dashboard' : '/liquidity')
+      navigate('/dashboard')
     } catch (err) {
       setError(getMfaErrorMessage(err))
       setCode(['', '', '', '', '', ''])

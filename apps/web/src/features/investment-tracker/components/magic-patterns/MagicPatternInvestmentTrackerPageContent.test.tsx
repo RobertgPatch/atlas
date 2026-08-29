@@ -22,10 +22,19 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
 }))
 
 vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace', () => ({
-  MagicPatternPartnershipWorkspace: ({ detail, area, selectedYear, onBack }: {
+  MagicPatternPartnershipWorkspace: ({
+    detail,
+    area,
+    selectedYear,
+    onAreaChange,
+    onYearChange,
+    onBack,
+  }: {
     detail: { id: string }
     area: string
     selectedYear?: number
+    onAreaChange: (area: 'valuations' | 'k1-history') => void
+    onYearChange: (year: number) => void
     onBack: () => void
   }) => (
     <section
@@ -34,6 +43,9 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
       data-year={selectedYear === undefined ? 'unset' : String(selectedYear)}
     >
       Workspace {detail.id}
+      <button type="button" onClick={() => onAreaChange('valuations')}>Open valuations</button>
+      <button type="button" onClick={() => onAreaChange('k1-history')}>Open K-1 history</button>
+      <button type="button" onClick={() => onYearChange(2024)}>Choose 2024</button>
       <button type="button" onClick={onBack}>Investment tracker</button>
     </section>
   ),
@@ -123,5 +135,32 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
       'data-year',
       expectedYear,
     )
+  })
+
+  it('preserves the partnership while canonical workspace changes update area and year state', async () => {
+    const user = userEvent.setup()
+    renderTracker(true, '/investment-tracker?partnership=p-1&area=k1&year=2025')
+
+    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
+      'data-area',
+      'k1-history',
+    )
+    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
+      'data-year',
+      '2025',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open valuations' }))
+    let location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
+    expect(location.pathname).toBe('/investment-tracker')
+    expect(location.searchParams.get('partnership')).toBe('p-1')
+    expect(location.searchParams.get('area')).toBe('valuations')
+    expect(location.searchParams.has('year')).toBe(false)
+
+    await user.click(screen.getByRole('button', { name: 'Choose 2024' }))
+    location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
+    expect(location.searchParams.get('partnership')).toBe('p-1')
+    expect(location.searchParams.get('area')).toBe('k1-history')
+    expect(location.searchParams.get('year')).toBe('2024')
   })
 })

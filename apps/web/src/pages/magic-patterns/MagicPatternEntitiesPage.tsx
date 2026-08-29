@@ -716,7 +716,6 @@ export function MagicPatternEntitiesPage() {
       }}
       mainClassName="bg-[#E7EDF4]"
       topBarBreadcrumbs={[{ label: 'Records' }, { label: 'Entities & Owners' }]}
-      magicPatternDesigns
     >
       <div className="w-full min-w-0" data-design-variant="magic-patterns-entities">
         <header className="border-b border-[#BFCBD9] pb-5">

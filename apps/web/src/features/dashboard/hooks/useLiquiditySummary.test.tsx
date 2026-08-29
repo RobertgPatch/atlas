@@ -4,7 +4,6 @@ import type { PropsWithChildren } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsolidatedHoldingsResponse } from '../../../../../../packages/types/src/reports'
 import { consolidatedHoldingsFixture } from '../../reports/fixtures/consolidatedHoldingsFixture'
-import { reportsClient } from '../../reports/api/reportsClient'
 import { LIQUIDITY_SUMMARY_QUERY, useLiquiditySummary } from './useLiquiditySummary'
 
 const mocks = vi.hoisted(() => ({

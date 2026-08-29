@@ -57,12 +57,6 @@ describe('sensitive and expensive route security', () => {
       },
     },
     {
-      routeClass: 'workbook import',
-      method: 'POST' as const,
-      url: '/v1/k1-tracker/imports/preview',
-      payload: {},
-    },
-    {
       routeClass: 'external provider',
       method: 'POST' as const,
       url: '/v1/plaid/link-token',

@@ -129,7 +129,6 @@ const timeoutFor = (routeClass: RouteClass): number => {
   const timeouts = config.abuseProtection.timeouts
   if (routeClass === 'DATABASE_HEAVY_READ') return timeouts.databaseHeavyHandlerMs
   if (routeClass === 'DOCUMENT_DOWNLOAD') return timeouts.documentDownloadMs
-  if (routeClass === 'WORKBOOK_IMPORT') return timeouts.workbookImportMs
   if (routeClass === 'EXPORT_DOWNLOAD') return timeouts.exportMs
   return timeouts.requestMs
 }

@@ -42,13 +42,12 @@ function LocationProbe() {
   return <output data-testid="current-location">{location.pathname}</output>
 }
 
-const renderPage = (magicPatternDesigns = false) => render(
+const renderPage = () => render(
   <MemoryRouter initialEntries={['/mfa/setup']}>
     <Routes>
       <Route path="/" element={<div>Login route</div>} />
-      <Route path="/liquidity" element={<div>Liquidity route</div>} />
       <Route path="/dashboard" element={<div>Dashboard route</div>} />
-      <Route path="/mfa/setup" element={<MFASetupPage magicPatternDesigns={magicPatternDesigns} />} />
+      <Route path="/mfa/setup" element={<MFASetupPage />} />
     </Routes>
     <LocationProbe />
   </MemoryRouter>,
@@ -67,14 +66,11 @@ describe('MFASetupPage', () => {
     expect(screen.getByTestId('current-location')).toHaveTextContent('/')
   })
 
-  it.each([
-    [false, '/liquidity'],
-    [true, '/dashboard'],
-  ])('renders enrollment and routes to the expected destination with Magic=%s', async (magicPatternDesigns, destination) => {
+  it('renders enrollment and routes to Dashboard', async () => {
     authFlowStore.setEnrollment(enrollment)
     vi.mocked(authClient.completeMfaEnrollment).mockResolvedValue(session)
     const user = userEvent.setup()
-    renderPage(magicPatternDesigns)
+    renderPage()
 
     expect(screen.getByAltText('Scan this QR code with your authenticator app')).toHaveAttribute(
       'src',
@@ -86,7 +82,7 @@ describe('MFASetupPage', () => {
     await user.click(screen.getByRole('button', { name: 'Activate MFA' }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('current-location')).toHaveTextContent(destination)
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/dashboard')
     })
     expect(authClient.completeMfaEnrollment).toHaveBeenCalledWith('enrollment-token', '123456')
     expect(sessionStore.setAuthenticated).toHaveBeenCalledWith(session)

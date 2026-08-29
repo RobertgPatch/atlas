@@ -271,4 +271,26 @@ describe('MagicPatternDashboardPage', () => {
 
     expect(screen.getByTestId('current-location').textContent).toBe('/liquidity')
   })
+
+  it('keeps every dashboard card, action, and K-1 destination inside the retained route contract', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <MagicPatternDashboardPage />
+      </MemoryRouter>,
+    )
+
+    const destinations = new Set(
+      Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'))
+        .map((link) => link.getAttribute('href'))
+        .filter((href): href is string => Boolean(href)),
+    )
+
+    for (const retained of ['/reports', '/investment-tracker', '/k1', '/entities', '/liquidity']) {
+      expect(destinations).toContain(retained)
+    }
+    expect([...destinations].some((destination) =>
+      ['/partnership-tracker', '/partnership-aggregation', '/k1-tracker', '/upload'].some(
+        (retired) => destination.startsWith(retired),
+      ))).toBe(false)
+  })
 })

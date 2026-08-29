@@ -3,6 +3,7 @@ import type { PartnershipTrackerSummary } from '../../../../../packages/types/sr
 import type { EntityListItem } from '../partnerships/api/entitiesClient'
 import {
   deriveEstateMapPartnerships,
+  estateMapSourceHref,
   formatEstateMoney,
   selectDefaultRootEntity,
 } from './estateMapModel'
@@ -147,5 +148,15 @@ describe('estate map derivation', () => {
   it('formats recorded valuations for compact map nodes', () => {
     expect(formatEstateMoney('1420000000')).toBe('$1.4B')
     expect(formatEstateMoney(null)).toBe('Not valued')
+  })
+
+  it('builds canonical entity, partnership, and underlying-asset source links', () => {
+    expect(estateMapSourceHref({ kind: 'root', entityId: 'trust/1' })).toBe('/entities/trust%2F1')
+    expect(estateMapSourceHref({ kind: 'partnership', partnershipId: 'partnership-1' })).toBe(
+      '/investment-tracker?partnership=partnership-1',
+    )
+    expect(estateMapSourceHref({ kind: 'asset', partnershipId: 'partnership-1' })).toBe(
+      '/investment-tracker?partnership=partnership-1&area=underlying-assets',
+    )
   })
 })

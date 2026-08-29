@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "check:colors": "node scripts/check-color-system.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:current-surface": "vitest run tests/current-surface-governance.spec.ts",
+    "check:reachability": "node ../../scripts/pruning/find-unreachable-web.mjs --check"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",
@@ -35,7 +37,6 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
-    "@vitest/coverage-v8": "^4.1.11",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",

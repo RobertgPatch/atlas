@@ -33,13 +33,12 @@ function LocationProbe() {
   return <output data-testid="current-location">{location.pathname}</output>
 }
 
-const renderPage = (magicPatternDesigns = false) => render(
+const renderPage = () => render(
   <MemoryRouter initialEntries={['/mfa']}>
     <Routes>
       <Route path="/" element={<div>Login route</div>} />
-      <Route path="/liquidity" element={<div>Liquidity route</div>} />
       <Route path="/dashboard" element={<div>Dashboard route</div>} />
-      <Route path="/mfa" element={<MFAPage magicPatternDesigns={magicPatternDesigns} />} />
+      <Route path="/mfa" element={<MFAPage />} />
     </Routes>
     <LocationProbe />
   </MemoryRouter>,
@@ -64,18 +63,15 @@ describe('MFAPage', () => {
     expect(screen.getByTestId('current-location')).toHaveTextContent('/')
   })
 
-  it.each([
-    [false, '/liquidity'],
-    [true, '/dashboard'],
-  ])('verifies TOTP and routes to %s destination', async (magicPatternDesigns, destination) => {
+  it('verifies TOTP and routes to Dashboard', async () => {
     authFlowStore.setChallenge({ status: 'MFA_REQUIRED', challengeId: 'challenge-token' })
     vi.mocked(authClient.verifyMfa).mockResolvedValue(session)
-    renderPage(magicPatternDesigns)
+    renderPage()
 
     submitCode()
 
     await waitFor(() => {
-      expect(screen.getByTestId('current-location')).toHaveTextContent(destination)
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/dashboard')
     })
     expect(authClient.verifyMfa).toHaveBeenCalledWith('challenge-token', '123456')
     expect(sessionStore.setAuthenticated).toHaveBeenCalledWith(session)

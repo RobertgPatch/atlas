@@ -49,7 +49,6 @@ const failClosedClasses = new Set<RouteProtectionPolicy['routeClass']>([
   'BUSINESS_WRITE',
   'ADMIN_WRITE',
   'DOCUMENT_DOWNLOAD',
-  'WORKBOOK_IMPORT',
   'K1_UPLOAD_ADMISSION',
   'PAID_EXTRACTION',
   'EXTERNAL_PROVIDER',

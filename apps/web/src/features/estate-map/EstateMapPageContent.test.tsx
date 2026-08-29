@@ -154,4 +154,27 @@ describe('EstateMapPageContent', () => {
     expect(screen.getByText('Jackson Dynasty Trust')).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'No linked partnerships on this map' })).toBeTruthy()
   })
+
+  it('links partnership and asset nodes directly to canonical Investment Tracker state', async () => {
+    render(<MemoryRouter><EstateMapPageContent /></MemoryRouter>)
+    await waitFor(() => expect(screen.getByText('Jackson Real Estate Partners')).toBeTruthy())
+
+    const partnershipNode = screen
+      .getAllByRole('button', { name: /Jackson Real Estate Partners/ })
+      .find((button) => button.hasAttribute('aria-pressed'))!
+    fireEvent.click(partnershipNode)
+    expect(screen.getByRole('link', { name: /Open source record/ })).toHaveAttribute(
+      'href',
+      '/investment-tracker?partnership=partnership-1',
+    )
+
+    const assetNode = screen
+      .getAllByRole('button', { name: /Park Avenue Residence/ })
+      .find((button) => button.hasAttribute('aria-pressed'))!
+    fireEvent.click(assetNode)
+    expect(screen.getByRole('link', { name: /Open source record/ })).toHaveAttribute(
+      'href',
+      '/investment-tracker?partnership=partnership-1&area=underlying-assets',
+    )
+  })
 })

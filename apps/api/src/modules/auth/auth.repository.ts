@@ -709,8 +709,4 @@ export const authRepository = {
     await dbWriteQueue
   },
 
-  _debugMfaArtifactCounts(): { challenges: number; enrollments: number } {
-    cleanupMfaArtifacts()
-    return { challenges: challenges.size, enrollments: enrollments.size }
-  },
 }

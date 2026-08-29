@@ -71,8 +71,6 @@ export class K1TrackerError extends Error {
       | 'STALE_TRACKER_REVISION'
       | 'FORBIDDEN_TRACKER_ENTITY'
       | 'SOURCE_CONFLICT'
-      | 'IMPORT_NOT_FOUND'
-      | 'IMPORT_EXPIRED'
       | 'SIGNOFF_GATE_FAILED'
       | 'INVALID_IMPORT',
     message: string = code,

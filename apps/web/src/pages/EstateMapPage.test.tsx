@@ -11,15 +11,15 @@ vi.mock('../features/estate-map/EstateMapPageContent', () => ({
   EstateMapPageContent: () => <div>Estate map content</div>,
 }))
 vi.mock('../components/shared/AppShell', () => ({
-  AppShell: ({ magicPatternDesigns, children }: { magicPatternDesigns?: boolean; children: React.ReactNode }) => (
-    <div data-testid="estate-shell" data-magic-patterns={String(magicPatternDesigns)}>{children}</div>
+  AppShell: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="estate-shell">{children}</div>
   ),
 }))
 
-describe('EstateMapPage appearance', () => {
-  it('retains its explicit Magic Patterns appearance exception', () => {
+describe('EstateMapPage', () => {
+  it('renders the current estate map content inside the application shell', () => {
     render(<EstateMapPage />)
-    expect(screen.getByTestId('estate-shell')).toHaveAttribute('data-magic-patterns', 'true')
+    expect(screen.getByTestId('estate-shell')).toBeInTheDocument()
     expect(screen.getByText('Estate map content')).toBeInTheDocument()
   })
 })

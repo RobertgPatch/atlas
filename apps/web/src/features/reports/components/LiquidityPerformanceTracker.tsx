@@ -1,4 +1,4 @@
-import { useMemo, useState, type PointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { CalendarRangeIcon, RotateCcwIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react'
 import type { LiquidityPerformancePoint } from '../../../../../../packages/types/src/reports'
 import { focusRingClassName } from '../../../components/shared/colorRecipes'
@@ -72,9 +72,51 @@ function PerformancePlot({
   activeDate: string | null
   onActiveDateChange: (date: string | null) => void
 }) {
-  const width = 800
-  const height = 260
-  const margin = { top: 18, right: 20, bottom: 38, left: 72 }
+  const plotRef = useRef<SVGSVGElement>(null)
+  const [viewport, setViewport] = useState({ width: 800, height: 260 })
+
+  useEffect(() => {
+    const plot = plotRef.current
+    if (!plot) return
+
+    const updateViewport = () => {
+      const bounds = plot.getBoundingClientRect()
+      if (bounds.width <= 0 || bounds.height <= 0) return
+
+      const nextViewport = {
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+      }
+      setViewport((current) =>
+        current.width === nextViewport.width && current.height === nextViewport.height
+          ? current
+          : nextViewport,
+      )
+    }
+
+    const frame = window.requestAnimationFrame(updateViewport)
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updateViewport)
+
+    observer?.observe(plot)
+    window.addEventListener('resize', updateViewport)
+
+    return () => {
+      window.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      window.removeEventListener('resize', updateViewport)
+    }
+  }, [])
+
+  const { width, height } = viewport
+  const compactLayout = width < 520
+  const margin = {
+    top: 18,
+    right: compactLayout ? 12 : 20,
+    bottom: compactLayout ? 34 : 38,
+    left: compactLayout ? 58 : 72,
+  }
   const plotWidth = width - margin.left - margin.right
   const plotHeight = height - margin.top - margin.bottom
   const values = points.map((point) => point.totalMarketValue)
@@ -108,15 +150,19 @@ function PerformancePlot({
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect()
-    const ratio = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1)
+    if (bounds.width <= 0) return
+
+    const pointerX = ((event.clientX - bounds.left) / bounds.width) * width
+    const ratio = Math.min(Math.max((pointerX - margin.left) / plotWidth, 0), 1)
     const index = Math.round(ratio * (points.length - 1))
     onActiveDateChange(points[index]?.date ?? null)
   }
 
   return (
     <svg
+      ref={plotRef}
       viewBox={`0 0 ${width} ${height}`}
-      className="h-56 w-full touch-none sm:h-64"
+      className="h-56 w-full cursor-crosshair touch-none sm:h-64"
       role="img"
       aria-label={`Portfolio value from ${dateFormatter.format(parseDate(points[0]!.date))} to ${dateFormatter.format(parseDate(points.at(-1)!.date))}`}
       onPointerMove={handlePointerMove}
@@ -146,7 +192,7 @@ function PerformancePlot({
               x={margin.left - 12}
               y={y + 4}
               textAnchor="end"
-              className="fill-gray-400 text-[20px] sm:text-[11px]"
+              className="fill-gray-400 text-[10px] sm:text-[11px]"
             >
               {compactCurrency.format(tick)}
             </text>
@@ -190,7 +236,7 @@ function PerformancePlot({
           x={scaleX(index)}
           y={height - 10}
           textAnchor={index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
-          className="fill-gray-400 text-[20px] sm:text-[11px]"
+          className="fill-gray-400 text-[10px] sm:text-[11px]"
         >
           {shortDateFormatter.format(parseDate(points[index]!.date))}
         </text>

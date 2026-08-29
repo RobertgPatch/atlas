@@ -1,89 +1,49 @@
 import React, { useEffect } from 'react'
 import {
   BrowserRouter as Router,
-  Routes,
-  Route,
   Navigate,
-  useLocation,
-  useParams,
+  Route,
+  Routes,
 } from 'react-router-dom'
 import { authClient } from './auth/authClient'
-import { sessionStore, useSession } from './auth/sessionStore'
 import { SessionExpiryDialog } from './auth/SessionExpiryDialog'
+import { sessionStore, useSession } from './auth/sessionStore'
+import { GlobalLoadingBar } from './components/GlobalLoadingBar'
+import { EntitiesPage } from './pages/EntitiesPage'
+import { EntityDetail } from './pages/EntityDetail'
+import { EstateMapPage } from './pages/EstateMapPage'
+import { InvestmentTrackerPage } from './pages/InvestmentTrackerPage'
+import { K1Dashboard } from './pages/K1Dashboard'
+import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
+import { LiquidityPage } from './pages/LiquidityPage'
 import { LoginPage } from './pages/LoginPage'
 import { MFAPage } from './pages/MFAPage'
 import { MFASetupPage } from './pages/MFASetupPage'
-import { PermissionDeniedPage } from './pages/PermissionDeniedPage'
-import { UserManagementPage } from './pages/UserManagementPage'
-import { UserDetailPage } from './pages/UserDetailPage'
-import { K1Dashboard } from './pages/K1Dashboard'
-import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
-import { EntityDetail } from './pages/EntityDetail'
-import { EntitiesPage } from './pages/EntitiesPage'
-import { ReportsPage } from './pages/ReportsPage'
-import { LiquidityPage } from './pages/LiquidityPage'
-import { TicRegistryPage } from './pages/TicRegistryPage'
-import { PartnershipTrackerPage } from './pages/PartnershipTrackerPage'
-import { PartnershipAggregationPage } from './pages/PartnershipAggregationPage'
-import { EstateMapPage } from './pages/EstateMapPage'
-import { InvestmentTrackerPage } from './pages/InvestmentTrackerPage'
 import { MagicPatternDashboardPage } from './pages/magic-patterns/MagicPatternDashboardPage'
-import { AppShell } from './components/shared/AppShell'
-import { PageHeader } from './components/shared/PageHeader'
-import { GlobalLoadingBar } from './components/GlobalLoadingBar'
-import { featureFlags } from './config/featureFlags'
+import { ReportsPage } from './pages/ReportsPage'
+import { TicRegistryPage } from './pages/TicRegistryPage'
+import {
+  CURRENT_PROTECTED_ROUTE_PATTERNS,
+  type CurrentProtectedRoutePattern,
+} from './routeContract'
 
-const PlaceholderPage = ({ title }: { title: string }) => {
-  const { session } = useSession()
-  const location = useLocation()
-  return (
-    <AppShell
-      currentPath={location.pathname}
-      userRole={session?.role ?? 'User'}
-      userEmail={session?.user.email}
-      onSignOut={() => {
-        void authClient.logout().finally(() => sessionStore.setUnauthenticated())
-      }}
-    >
-      <PageHeader title={title} />
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-12 text-center">
-        <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-          <span className="text-gray-400 text-2xl">🚧</span>
-        </div>
-        <h2 className="text-xl font-medium text-gray-900 mb-2">Coming Soon</h2>
-        <p className="text-gray-500 max-w-md mx-auto">
-          The {title} module is currently under development. Please check back
-          later.
-        </p>
-      </div>
-    </AppShell>
-  )
+const protectedRouteElements: Record<CurrentProtectedRoutePattern, React.ReactElement> = {
+  '/dashboard': <MagicPatternDashboardPage />,
+  '/investment-tracker': <InvestmentTrackerPage />,
+  '/liquidity': <LiquidityPage />,
+  '/entities': <EntitiesPage />,
+  '/entities/:id': <EntityDetail />,
+  '/estate-maps': <EstateMapPage />,
+  '/tic-registry': <TicRegistryPage />,
+  '/reports': <ReportsPage />,
+  '/k1': <K1Dashboard />,
+  '/k1/:id/review': <K1ReviewWorkspace />,
 }
 
 const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
   const { status } = useSession()
   if (status === 'unknown') return null
   if (status !== 'authenticated') return <Navigate to="/" replace />
-  return children
-}
-
-export const LegacyPartnershipRedirect = ({ detail = false }: { detail?: boolean }) => {
-  const { id } = useParams()
-  const location = useLocation()
-  const query = new URLSearchParams(location.search)
-  if (detail && id) query.set('partnership', id)
-  if (!query.has('partnership') && query.has('partnershipId')) query.set('partnership', query.get('partnershipId')!)
-  if (!query.has('year') && query.has('taxYear')) query.set('year', query.get('taxYear')!)
-  query.delete('partnershipId')
-  query.delete('taxYear')
-  return <Navigate to={`/partnership-tracker${query.size ? `?${query}` : ''}`} replace />
-}
-
-const AdminRoute = ({ children }: { children: React.ReactElement }) => {
-  const { status, session } = useSession()
-  if (status === 'unknown') return null
-  if (status !== 'authenticated') return <Navigate to="/" replace />
-  if (session?.role !== 'Admin') return <PermissionDeniedPage />
   return children
 }
 
@@ -94,17 +54,14 @@ const SessionBootstrap = ({ children }: { children: React.ReactNode }) => {
     if (status !== 'unknown') return
 
     let cancelled = false
-
     authClient
       .getSession()
       .then((session) => {
-        if (cancelled) return
-        if (sessionStore.getSnapshot().status !== 'unknown') return
+        if (cancelled || sessionStore.getSnapshot().status !== 'unknown') return
         sessionStore.setAuthenticated(session)
       })
       .catch(() => {
-        if (cancelled) return
-        if (sessionStore.getSnapshot().status !== 'unknown') return
+        if (cancelled || sessionStore.getSnapshot().status !== 'unknown') return
         sessionStore.setUnauthenticated()
       })
 
@@ -126,166 +83,13 @@ export function App() {
           <Route path="/" element={<LoginPage />} />
           <Route path="/mfa/setup" element={<MFASetupPage />} />
           <Route path="/mfa" element={<MFAPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                {featureFlags.magicPatternDesigns ? (
-                  <MagicPatternDashboardPage />
-                ) : (
-                  <Navigate to="/liquidity" replace />
-                )}
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Placeholder Routes */}
-          <Route
-            path="/k1"
-            element={
-              <ProtectedRoute>
-                <K1Dashboard />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/k1/:id/review"
-            element={
-              <ProtectedRoute>
-                <K1ReviewWorkspace />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/upload"
-            element={
-              <ProtectedRoute>
-                <PlaceholderPage title="Upload Center" />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/partnerships"
-            element={
-              <ProtectedRoute>
-                <LegacyPartnershipRedirect />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/partnerships/:id"
-            element={
-              <ProtectedRoute>
-                <LegacyPartnershipRedirect detail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/entities/:id"
-            element={
-              <ProtectedRoute>
-                <EntityDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/entities"
-            element={
-              <ProtectedRoute>
-                <EntitiesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/reports"
-            element={
-              <ProtectedRoute>
-                <ReportsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/liquidity"
-            element={
-              <ProtectedRoute>
-                <LiquidityPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tic-registry"
-            element={
-              <ProtectedRoute>
-                <TicRegistryPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/partnership-aggregation"
-            element={
-              <ProtectedRoute>
-                <PartnershipAggregationPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/partnership-tracker"
-            element={
-              <ProtectedRoute>
-                <PartnershipTrackerPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/estate-maps"
-            element={
-              <ProtectedRoute>
-                <EstateMapPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/investment-tracker"
-            element={
-              <ProtectedRoute>
-                <InvestmentTrackerPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/k1-tracker"
-            element={
-              <ProtectedRoute>
-                <LegacyPartnershipRedirect />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/admin/users"
-            element={
-              <AdminRoute>
-                <UserManagementPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/admin/users/:id"
-            element={
-              <AdminRoute>
-                <UserDetailPage />
-              </AdminRoute>
-            }
-          />
-          <Route
-            path="/forbidden"
-            element={
-              <ProtectedRoute>
-                <PermissionDeniedPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Fallback */}
+          {CURRENT_PROTECTED_ROUTE_PATTERNS.map((path) => (
+            <Route
+              key={path}
+              path={path}
+              element={<ProtectedRoute>{protectedRouteElements[path]}</ProtectedRoute>}
+            />
+          ))}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </SessionBootstrap>

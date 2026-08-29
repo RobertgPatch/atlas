@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { LiquidityPerformancePoint } from '../../../../../../packages/types/src/reports'
 import {
   LiquidityPerformanceTracker,
@@ -30,6 +30,10 @@ const points: LiquidityPerformancePoint[] = [
 ]
 
 describe('LiquidityPerformanceTracker', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('selects the nearest baseline at the start of a preset range', () => {
     const selected = selectPerformancePoints(points, '1w')
 
@@ -65,6 +69,34 @@ describe('LiquidityPerformanceTracker', () => {
 
     expect(screen.getByLabelText('Start date')).toHaveValue('2026-07-31')
     expect(screen.getByLabelText('End date')).toHaveValue('2026-08-20')
+  })
+
+  it('fills a wide card and maps pointer movement within the plotted margins', async () => {
+    vi.spyOn(SVGSVGElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 1_600,
+      bottom: 256,
+      left: 0,
+      width: 1_600,
+      height: 256,
+      toJSON: () => ({}),
+    })
+
+    render(<LiquidityPerformanceTracker points={points} />)
+
+    const plot = screen.getByRole('img', { name: /portfolio value from/i })
+    await waitFor(() => expect(plot).toHaveAttribute('viewBox', '0 0 1600 256'))
+
+    fireEvent(plot, new MouseEvent('pointermove', {
+      bubbles: true,
+      clientX: 300,
+      clientY: 120,
+    }))
+
+    expect(screen.getByText('$90,000')).toBeInTheDocument()
+    expect(screen.getAllByText(/jul 31, 2026/i)).not.toHaveLength(0)
   })
 
   it('keeps the graph on saved closing values when a newer live valuation exists', () => {

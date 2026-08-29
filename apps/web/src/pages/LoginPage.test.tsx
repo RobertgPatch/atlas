@@ -12,18 +12,8 @@ import { authFlowStore } from '../auth/authFlowStore'
 import { sessionStore } from '../auth/sessionStore'
 import { LoginPage } from './LoginPage'
 
-vi.mock('../auth/authClient', () => ({
-  authClient: {
-    login: vi.fn(),
-  },
-}))
-
-vi.mock('../auth/sessionStore', () => ({
-  sessionStore: {
-    setAuthenticated: vi.fn(),
-  },
-}))
-
+vi.mock('../auth/authClient', () => ({ authClient: { login: vi.fn() } }))
+vi.mock('../auth/sessionStore', () => ({ sessionStore: { setAuthenticated: vi.fn() } }))
 vi.mock('../auth/authFlowStore', () => ({
   authFlowStore: {
     setChallenge: vi.fn(),
@@ -33,12 +23,7 @@ vi.mock('../auth/authFlowStore', () => ({
 }))
 
 const session: SessionResponse = {
-  user: {
-    id: 'user-1',
-    email: 'advisor@example.com',
-    role: 'User',
-    status: 'Active',
-  },
+  user: { id: 'user-1', email: 'advisor@example.com', role: 'User', status: 'Active' },
   role: 'User',
   session: {
     issuedAt: '2026-08-12T12:00:00.000Z',
@@ -65,109 +50,64 @@ function LocationProbe() {
   return <output data-testid="current-location">{location.pathname}</output>
 }
 
-const renderLogin = (magicPatternDesigns: boolean) =>
-  render(
-    <MemoryRouter>
-      <LoginPage magicPatternDesigns={magicPatternDesigns} />
-      <LocationProbe />
-    </MemoryRouter>,
-  )
+const renderLogin = () => render(
+  <MemoryRouter>
+    <LoginPage />
+    <LocationProbe />
+  </MemoryRouter>,
+)
 
-describe('LoginPage design flag', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+const signIn = async () => {
+  const user = userEvent.setup()
+  await user.type(screen.getByLabelText('Email'), 'advisor@example.com')
+  await user.type(screen.getByLabelText('Password'), 'Password123!')
+  await user.click(screen.getByRole('button', { name: 'Sign in' }))
+}
 
-  it('renders the legacy design when magicPatternDesigns is false', () => {
-    renderLogin(false)
+describe('LoginPage current flow', () => {
+  beforeEach(() => vi.clearAllMocks())
 
-    expect(screen.getByRole('heading', { name: 'Welcome back' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('bg-primary')
-    expect(screen.queryByText('The record of truth for your family office.')).toBeNull()
-  })
-
-  it('renders the Magic Patterns design when magicPatternDesigns is true', () => {
-    renderLogin(true)
-
+  it('renders only the current login design', () => {
+    renderLogin()
     expect(screen.getByRole('heading', { name: 'Sign in' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass(
-      'bg-primary',
-      'hover:bg-primary-hover',
-      'focus-visible:ring-focus',
-    )
-    expect(screen.getByLabelText('Email')).toHaveClass('focus:border-focus', 'focus:ring-focus/10')
     expect(screen.getByText('The record of truth for your family office.')).toBeTruthy()
     expect(screen.queryByRole('heading', { name: 'Welcome back' })).toBeNull()
   })
 
-  it('keeps the existing authentication and session flow in the Magic Patterns design', async () => {
+  it('authenticates a direct session and always opens Dashboard', async () => {
     vi.mocked(authClient.login).mockResolvedValue(session)
-    const user = userEvent.setup()
-    renderLogin(true)
+    renderLogin()
+    await signIn()
 
-    await user.type(screen.getByLabelText('Email'), 'advisor@example.com')
-    await user.type(screen.getByLabelText('Password'), 'Password123!')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => {
-      expect(authClient.login).toHaveBeenCalledWith('advisor@example.com', 'Password123!')
-    })
+    await waitFor(() => expect(authClient.login).toHaveBeenCalledWith('advisor@example.com', 'Password123!'))
     expect(sessionStore.setAuthenticated).toHaveBeenCalledWith(session)
-    expect(screen.getByTestId('current-location').textContent).toBe('/dashboard')
-  })
-
-  it('preserves the existing liquidity landing page when the flag is off', async () => {
-    vi.mocked(authClient.login).mockResolvedValue(session)
-    const user = userEvent.setup()
-    renderLogin(false)
-
-    await user.type(screen.getByPlaceholderText('you@example.com'), 'advisor@example.com')
-    await user.type(document.querySelector('input[type="password"]')!, 'Password123!')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('current-location').textContent).toBe('/liquidity')
-    })
+    expect(screen.getByTestId('current-location')).toHaveTextContent('/dashboard')
   })
 
   it('stores enrollment state and opens MFA setup without authenticating', async () => {
     vi.mocked(authClient.login).mockResolvedValue(enrollment)
-    const user = userEvent.setup()
-    renderLogin(false)
+    renderLogin()
+    await signIn()
 
-    await user.type(screen.getByPlaceholderText('you@example.com'), 'advisor@example.com')
-    await user.type(document.querySelector('input[type="password"]')!, 'Password123!')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('current-location').textContent).toBe('/mfa/setup')
-    })
+    await waitFor(() => expect(screen.getByTestId('current-location')).toHaveTextContent('/mfa/setup'))
     expect(authFlowStore.setEnrollment).toHaveBeenCalledWith(enrollment)
     expect(sessionStore.setAuthenticated).not.toHaveBeenCalled()
   })
 
   it('stores challenge state and opens MFA verification without authenticating', async () => {
     vi.mocked(authClient.login).mockResolvedValue(challenge)
-    const user = userEvent.setup()
-    renderLogin(true)
+    renderLogin()
+    await signIn()
 
-    await user.type(screen.getByLabelText('Email'), 'advisor@example.com')
-    await user.type(screen.getByLabelText('Password'), 'Password123!')
-    await user.click(screen.getByRole('button', { name: 'Sign in' }))
-
-    await waitFor(() => {
-      expect(screen.getByTestId('current-location').textContent).toBe('/mfa')
-    })
+    await waitFor(() => expect(screen.getByTestId('current-location')).toHaveTextContent('/mfa'))
     expect(authFlowStore.setChallenge).toHaveBeenCalledWith(challenge)
     expect(sessionStore.setAuthenticated).not.toHaveBeenCalled()
   })
 
-  it('uses the existing required-credentials validation before calling the API', () => {
-    renderLogin(true)
-
+  it('validates required credentials before calling the API', () => {
+    renderLogin()
     fireEvent.submit(screen.getByRole('button', { name: 'Sign in' }).closest('form')!)
-
-    expect(screen.getByRole('alert').textContent).toContain('Please enter your email and password.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Please enter your email and password.')
     expect(authClient.login).not.toHaveBeenCalled()
   })
 })
