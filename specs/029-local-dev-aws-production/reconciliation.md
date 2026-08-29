@@ -41,9 +41,21 @@ This record classifies the staged infrastructure recovery without reading, print
 
 ## Final branch-base check (2026-08-29)
 
-`origin/main` ends at merged feature 027 (`f6391c5`). Feature 028 remains at
-`a4385c1` on `origin/028-prune-unreachable-flows` and is not an ancestor of
-`origin/main`; feature 029 is intentionally based on that commit. Therefore the
-T078 rebase is pending and must occur only after feature 028 merges and after
-the feature-029 worktree is safely committed or stashed. The original two
-infrastructure stashes remain present and were not read, applied, or dropped.
+Feature 028 merged into `origin/main` at merge commit `06b5c75`. The committed
+feature-029 implementation was rebased without conflicts and is exactly one
+feature commit above that merge, isolating the merge request from feature 028.
+
+The rebased commit passed a clean `npm ci`, dependency and cost audits, route
+policy coverage, API and web builds, 552 API tests, 317 web tests, current
+surface and reachability checks, production deployment/policy/cost fixtures,
+all 19 Terraform tests, and the constrained linux/amd64 production-shape test.
+The shape test again proved migrations, readiness, the pinned RDS CA bundle,
+and seven retained reads at 0.25 vCPU/0.5 GiB. The live workspace's running
+Vite process kept its Rolldown binary locked, so clean-install validation ran
+in a detached worktree at the exact rebased commit without copying ignored
+files.
+
+Both original infrastructure stashes remain present and were not read,
+applied, or dropped. The only remaining feature task is the operator-input
+speculative production Plan; no AWS call, plan, or mutation was made during
+the rebase verification.
