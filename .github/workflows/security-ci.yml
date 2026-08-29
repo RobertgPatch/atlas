@@ -41,13 +41,13 @@ jobs:
       - name: Shared production plan policy and deployment fixtures
         shell: pwsh
         run: |
-          ./scripts/security/production-plan-policy.test.ps1
-          ./scripts/security/validate-production-plan.test.ps1
-          ./scripts/security/validate-terraform-guardrails.test.ps1
-          ./scripts/deployment/production-release.test.ps1
-          ./scripts/deployment/production-secret-preflight.test.ps1
-          ./scripts/deployment/production-smoke.test.ps1
-          ./scripts/deployment/production-deployment-flow.test.ps1
+          pwsh -NoProfile -File ./scripts/security/production-plan-policy.test.ps1
+          pwsh -NoProfile -File ./scripts/security/validate-production-plan.test.ps1
+          pwsh -NoProfile -File ./scripts/security/validate-terraform-guardrails.test.ps1
+          pwsh -NoProfile -File ./scripts/deployment/production-release.test.ps1
+          pwsh -NoProfile -File ./scripts/deployment/production-secret-preflight.test.ps1
+          pwsh -NoProfile -File ./scripts/deployment/production-smoke.test.ps1
+          pwsh -NoProfile -File ./scripts/deployment/production-deployment-flow.test.ps1
       - name: Build API and web
         run: |
           npm run build:api
