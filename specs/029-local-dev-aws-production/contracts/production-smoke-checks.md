@@ -75,4 +75,3 @@ Any required failure:
 5. leaves the release outcome failed or rolled back.
 
 An empty liquidity, TIC, or entity collection is a valid application state when the response shape is correct. A missing route, unauthorized authenticated request, provider call, schema mismatch, or edge asset failure is not.
-

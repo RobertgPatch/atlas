@@ -89,4 +89,3 @@ Shared logs may record only the logical key, consumer, pass/fail rule ID, and re
 - disabled feature incorrectly requiring or provisioning a secret.
 
 There is no arbitrary age-based failure for long-lived persistence keys. Rotation policy may be added later; for this feature, stale means unavailable, lacks one current version, or changed since Prepare.
-

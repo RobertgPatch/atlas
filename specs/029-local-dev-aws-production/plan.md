@@ -11,14 +11,21 @@ The deployment path becomes an operator-run, production-only Plan/Bootstrap/Prep
 
 ## Technical Context
 
-**Language/Version**: Node.js 22; API TypeScript 5.7/ES2022/NodeNext; web TypeScript 6.0; PowerShell 7-compatible deployment and policy tooling; Terraform 1.11.4 in CI (`>=1.11` constraint)  
-**Primary Dependencies**: Fastify 5.12, React 19.2, React Router 7.18, Vite 8.2, PostgreSQL client 8.23, Zod 3.25, AWS SDK v3, AWS provider `>=5.82,<6`, AWSCC `~>1.92`  
-**Storage**: Local PostgreSQL 16; production private encrypted Single-AZ RDS PostgreSQL `db.t4g.micro` with at least 35 days of point-in-time recovery; encrypted versioned S3 backend/web/K-1 buckets; isolated encrypted recovery copies; immutable ECR images; ignored local release bundles  
-**Testing**: Vitest 4.1, Node test runner, PowerShell fixture tests, Terraform native tests, Docker Linux image build, route/current-surface governance, read-only deployment simulations  
-**Target Platform**: Windows/PowerShell plus Docker for local development; Linux `amd64` ECS/Fargate behind ALB, CloudFront, and WAF for AWS production in committed target region `us-west-2`  
-**Project Type**: npm-workspaces web application with Fastify API, React/Vite web client, shared TypeScript packages, Terraform infrastructure, and operator deployment tooling  
-**Performance Goals**: One continuously available API task at 0.25 vCPU/0.5 GiB only after production-shaped validation; retained read flows remain usable for one concurrent interactive user; ECS reaches steady state and every required smoke check completes within documented deployment timeouts  
-**Constraints**: No AWS staging/development environment; no scheduled shutdown or scale-to-zero in normal production; retain private RDS, Fargate, ALB, NAT, CloudFront, and WAF; estimated recurring cost `<= $110/month` for the declared workload; $125 notification-only budget; 15-minute RPO; eight-hour RTO; quarterly isolated restore evidence; unique physical-person production identities and MFA; no unrelated tenant until isolation is proven; no silent region/backend/name migration; no committed secrets, Restricted data, tfvars, state, plans, or raw plan JSON  
+**Language/Version**: Node.js 22; API TypeScript 5.7/ES2022/NodeNext; web TypeScript 6.0; PowerShell 7-compatible deployment and policy tooling; Terraform 1.11.4 in CI (`>=1.11` constraint)
+
+**Primary Dependencies**: Fastify 5.12, React 19.2, React Router 7.18, Vite 8.2, PostgreSQL client 8.23, Zod 3.25, AWS SDK v3, AWS provider `>=5.82,<6`, AWSCC `~>1.92`
+
+**Storage**: Local PostgreSQL 16; production private encrypted Single-AZ RDS PostgreSQL `db.t4g.micro` with at least 35 days of point-in-time recovery; encrypted versioned S3 backend/web/K-1 buckets; isolated encrypted recovery copies; immutable ECR images; ignored local release bundles
+
+**Testing**: Vitest 4.1, Node test runner, PowerShell fixture tests, Terraform native tests, Docker Linux image build, route/current-surface governance, read-only deployment simulations
+
+**Target Platform**: Windows/PowerShell plus Docker for local development; Linux `amd64` ECS/Fargate behind ALB, CloudFront, and WAF for AWS production in committed target region `us-west-2`
+
+**Project Type**: npm-workspaces web application with Fastify API, React/Vite web client, shared TypeScript packages, Terraform infrastructure, and operator deployment tooling
+
+**Performance Goals**: One continuously available API task at 0.25 vCPU/0.5 GiB only after production-shaped validation; retained read flows remain usable for one concurrent interactive user; ECS reaches steady state and every required smoke check completes within documented deployment timeouts
+
+**Constraints**: No AWS staging/development environment; no scheduled shutdown or scale-to-zero in normal production; retain private RDS, Fargate, ALB, NAT, CloudFront, and WAF; estimated recurring cost `<= $110/month` for the declared workload; $125 notification-only budget; 15-minute RPO; eight-hour RTO; quarterly isolated restore evidence; unique physical-person production identities and MFA; no unrelated tenant until isolation is proven; no silent region/backend/name migration; no committed secrets, Restricted data, tfvars, state, plans, or raw plan JSON
 **Scale/Scope**: One human user, one concurrent browser session, at most 10,000 application requests/month, 20 GiB initial database storage, no more than 1 GiB/month through NAT, 1 GiB/month of logs, 2 GiB ECR, 5 GiB S3, one daily Plaid refresh and weekday market-close scheduling totaling under five Fargate task-hours/month, K-1 AWS ingestion disabled, and no paid BDA/Bedrock calls in the baseline
 
 ## Constitution Check
