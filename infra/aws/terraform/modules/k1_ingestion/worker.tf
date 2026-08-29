@@ -12,9 +12,9 @@ locals {
     K1_COMPLETION_QUEUE_URL       = aws_sqs_queue.completion.url
     K1_WORKER_CONCURRENCY         = tostring(var.worker_concurrency)
     K1_BDA_PROFILE_ARN            = var.bda_profile_arn
-    K1_BDA_PROJECT_ARN            = awscc_bedrock_data_automation_project.k1.project_arn
-    K1_BDA_PROJECT_STAGE          = awscc_bedrock_data_automation_project.k1.project_stage
-    K1_BDA_BLUEPRINT_ARN          = awscc_bedrock_blueprint.k1.blueprint_arn
+    K1_BDA_PROJECT_ARN            = var.enabled ? awscc_bedrock_data_automation_project.k1[0].project_arn : ""
+    K1_BDA_PROJECT_STAGE          = var.enabled ? awscc_bedrock_data_automation_project.k1[0].project_stage : ""
+    K1_BDA_BLUEPRINT_ARN          = var.enabled ? awscc_bedrock_blueprint.k1[0].blueprint_arn : ""
     K1_BDA_BLUEPRINT_VERSION      = var.bda_blueprint_version
     K1_MAPPING_SCHEMA_VERSION     = var.mapping_schema_version
     K1_BEDROCK_CHECKBOX_MODEL_ID  = "us.amazon.nova-2-lite-v1:0"

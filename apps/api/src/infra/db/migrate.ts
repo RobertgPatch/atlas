@@ -8,6 +8,20 @@ import { pool } from './client.js'
 const here = dirname(fileURLToPath(import.meta.url))
 const migrationsDir = join(here, 'migrations')
 
+export interface MigrationClient {
+  query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }>
+  release: () => void
+}
+
+export interface MigrationPool {
+  connect: () => Promise<MigrationClient>
+}
+
+export interface MigrationFileSource {
+  listMigrationFiles: () => Promise<string[]>
+  readMigrationFile: (filename: string) => Promise<string>
+}
+
 const ensureMigrationsTable = async (client: pg.PoolClient): Promise<void> => {
   await client.query(`
     create table if not exists schema_migrations (
@@ -29,24 +43,25 @@ const listMigrationFiles = async (): Promise<string[]> => {
   return entries.filter((name) => name.endsWith('.sql')).sort()
 }
 
-export const runMigrations = async (
+const defaultMigrationFileSource: MigrationFileSource = {
+  listMigrationFiles,
+  readMigrationFile: (filename) => readFile(join(migrationsDir, filename), 'utf8'),
+}
+
+export const runMigrationsWithClient = async (
+  client: MigrationClient,
+  source: MigrationFileSource = defaultMigrationFileSource,
   log: (msg: string) => void = () => {},
 ): Promise<void> => {
-  if (!pool) return
-
-  const client = await pool.connect()
   try {
-    // Test workers and horizontally started API instances can reach this code at
-    // the same time. Serialize the migration ledger check and apply sequence.
     await client.query(`select pg_advisory_lock(hashtext('atlas-schema-migrations'))`)
-    await ensureMigrationsTable(client)
-    const applied = await listAppliedMigrations(client)
-    const files = await listMigrationFiles()
+    await ensureMigrationsTable(client as unknown as pg.PoolClient)
+    const applied = await listAppliedMigrations(client as unknown as pg.PoolClient)
+    const files = (await source.listMigrationFiles()).filter((name) => name.endsWith('.sql')).sort()
 
     for (const file of files) {
       if (applied.has(file)) continue
-      const raw = await readFile(join(migrationsDir, file), 'utf8')
-      // Strip BOM if present (some Windows tools write UTF-8 with BOM, which Postgres rejects).
+      const raw = await source.readMigrationFile(file)
       const sql = raw.charCodeAt(0) === 0xfeff ? raw.slice(1) : raw
       log(`[migrate] applying ${file}`)
       await client.query('BEGIN')
@@ -66,6 +81,25 @@ export const runMigrations = async (
     }
   } finally {
     await client.query(`select pg_advisory_unlock(hashtext('atlas-schema-migrations'))`).catch(() => undefined)
+  }
+}
+
+export const runMigrationsWithPool = async (
+  databasePool: MigrationPool,
+  source: MigrationFileSource = defaultMigrationFileSource,
+  log: (msg: string) => void = () => {},
+): Promise<void> => {
+  const client = await databasePool.connect()
+  try {
+    await runMigrationsWithClient(client, source, log)
+  } finally {
     client.release()
   }
+}
+
+export const runMigrations = async (
+  log: (msg: string) => void = () => {},
+): Promise<void> => {
+  if (!pool) return
+  await runMigrationsWithPool(pool as unknown as MigrationPool, defaultMigrationFileSource, log)
 }

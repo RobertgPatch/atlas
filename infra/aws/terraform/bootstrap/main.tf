@@ -14,7 +14,7 @@ provider "aws" {
 
   default_tags {
     tags = merge({
-      Project   = "atlas"
+      Project   = var.project_name
       Component = "terraform-state"
       ManagedBy = "terraform-bootstrap"
     }, var.additional_tags)
@@ -84,14 +84,14 @@ data "aws_iam_policy_document" "state_kms" {
 }
 
 resource "aws_kms_key" "terraform_state" {
-  description             = "Atlas Terraform state encryption"
+  description             = "Project Jackson Terraform state encryption"
   deletion_window_in_days = var.kms_deletion_window_days
   enable_key_rotation     = true
   policy                  = data.aws_iam_policy_document.state_kms.json
 }
 
 resource "aws_kms_alias" "terraform_state" {
-  name          = "alias/atlas-terraform-state"
+  name          = "alias/${var.project_name}-terraform-state"
   target_key_id = aws_kms_key.terraform_state.key_id
 }
 

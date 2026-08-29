@@ -43,7 +43,7 @@ const schedulerWarnings = () => {
     warnings.push('PLAID_REFRESH_SCHEDULER_MODE is not configured.')
   }
   if (!config.plaidRefresh.schedulerToken) {
-    warnings.push('ATLAS_SCHEDULER_TOKEN is not configured.')
+    warnings.push('PROJECT_JACKSON_SCHEDULER_TOKEN is not configured.')
   }
   return warnings
 }

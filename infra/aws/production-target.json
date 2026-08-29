@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "1.0.0",
+  "environment": "production",
+  "awsRegion": "us-west-2",
+  "terraformWorkspace": "default",
+  "cloudFrontCertificateRegion": "us-east-1"
+}

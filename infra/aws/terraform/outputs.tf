@@ -9,7 +9,7 @@ output "common_tags" {
 }
 
 output "environment_review" {
-  description = "Non-secret environment identifiers used for staging/production comparison."
+  description = "Non-secret environment identifiers used for development/production comparison."
   value = {
     environment_name         = var.environment_name
     environment_cost_profile = var.environment_cost_profile

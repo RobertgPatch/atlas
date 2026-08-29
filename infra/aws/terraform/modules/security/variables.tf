@@ -6,11 +6,11 @@ variable "name_prefix" {
 variable "environment_name" {
   description = "Deployment environment used to select mandatory runtime infrastructure guardrails."
   type        = string
-  default     = "staging"
+  default     = "production"
 
   validation {
-    condition     = contains(["staging", "production"], var.environment_name)
-    error_message = "environment_name must be staging or production."
+    condition     = var.environment_name == "production"
+    error_message = "environment_name must be production."
   }
 }
 

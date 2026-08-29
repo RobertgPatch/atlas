@@ -4,7 +4,7 @@ variable "name_prefix" {
 }
 
 variable "vpc_cidr" {
-  description = "CIDR block for the Atlas VPC."
+  description = "CIDR block for the Project Jackson VPC."
   type        = string
 }
 
@@ -24,7 +24,7 @@ variable "private_subnet_cidrs" {
 }
 
 variable "api_container_port" {
-  description = "Atlas API container port."
+  description = "Project Jackson API container port."
   type        = number
 }
 

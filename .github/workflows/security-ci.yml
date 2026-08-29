@@ -31,6 +31,23 @@ jobs:
         run: npm run security:cost-envelope
       - name: Route-policy coverage
         run: npm run security:route-policy
+      - name: Environment and smoke-contract governance
+        run: |
+          npm run security:environment-topology
+          npm run security:production-smoke-contract
+          node --test scripts/security/validate-environment-topology.test.mjs scripts/security/validate-production-smoke-contract.test.mjs scripts/security/run-bounded-abuse-tests.test.mjs
+      - name: Production cost policy
+        run: npm run test:production:cost
+      - name: Shared production plan policy and deployment fixtures
+        shell: pwsh
+        run: |
+          ./scripts/security/production-plan-policy.test.ps1
+          ./scripts/security/validate-production-plan.test.ps1
+          ./scripts/security/validate-terraform-guardrails.test.ps1
+          ./scripts/deployment/production-release.test.ps1
+          ./scripts/deployment/production-secret-preflight.test.ps1
+          ./scripts/deployment/production-smoke.test.ps1
+          ./scripts/deployment/production-deployment-flow.test.ps1
       - name: Build API and web
         run: |
           npm run build:api
@@ -39,6 +56,11 @@ jobs:
         run: |
           npm run test:api
           npm run test:web
+      - name: Current surface and reachability
+        run: |
+          npm run test:current-surface
+          npm run test:pruning
+          npm run check:web-reachability
 
   terraform:
     name: Terraform security gates

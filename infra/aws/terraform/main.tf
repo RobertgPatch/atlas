@@ -1,16 +1,18 @@
 locals {
-  name_prefix              = "${var.project_name}-${var.environment_name}"
-  configured_app_domain    = var.app_domain == null ? null : trimspace(var.app_domain)
-  custom_domain_enabled    = local.configured_app_domain == null ? false : local.configured_app_domain != ""
-  web_origin               = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
-  k1_document_bucket_name  = "${local.name_prefix}-k1-documents-${data.aws_caller_identity.current.account_id}"
-  k1_kms_alias_name        = "alias/${local.name_prefix}-k1-documents"
-  k1_kms_alias_arn         = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.k1_kms_alias_name}"
-  k1_start_queue_name      = "${local.name_prefix}-k1-start"
-  k1_completion_queue_name = "${local.name_prefix}-k1-completion"
-  k1_start_queue_url       = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_start_queue_name}"
-  k1_completion_queue_url  = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_completion_queue_name}"
-  k1_bda_profile_arn       = var.k1_bda_profile_arn == null ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:data-automation-profile/us.data-automation-v1" : var.k1_bda_profile_arn
+  production_target          = jsondecode(file("${path.module}/../production-target.json"))
+  production_secret_contract = jsondecode(file("${path.module}/production-secrets.contract.json"))
+  name_prefix                = "${var.project_name}-${var.environment_name}"
+  configured_app_domain      = var.app_domain == null ? null : trimspace(var.app_domain)
+  custom_domain_enabled      = local.configured_app_domain == null ? false : local.configured_app_domain != ""
+  web_origin                 = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
+  k1_document_bucket_name    = "${local.name_prefix}-k1-documents-${data.aws_caller_identity.current.account_id}"
+  k1_kms_alias_name          = "alias/${local.name_prefix}-k1-documents"
+  k1_kms_alias_arn           = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.k1_kms_alias_name}"
+  k1_start_queue_name        = "${local.name_prefix}-k1-start"
+  k1_completion_queue_name   = "${local.name_prefix}-k1-completion"
+  k1_start_queue_url         = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_start_queue_name}"
+  k1_completion_queue_url    = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_completion_queue_name}"
+  k1_bda_profile_arn         = var.k1_bda_profile_arn == null ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:data-automation-profile/us.data-automation-v1" : var.k1_bda_profile_arn
 
   common_tags = merge(
     {
@@ -24,20 +26,46 @@ locals {
     var.additional_tags,
   )
 
-  runtime_secret_names = {
-    DATABASE_URL              = "${local.name_prefix}/DATABASE_URL"
-    PERSISTENCE_SECRET_KEY    = "${local.name_prefix}/PERSISTENCE_SECRET_KEY"
-    SESSION_SECRET            = "${local.name_prefix}/SESSION_SECRET"
-    ABUSE_HMAC_ACTIVE_KEY     = "${local.name_prefix}/ABUSE_HMAC_ACTIVE_KEY"
-    PLAID_CLIENT_ID           = "${local.name_prefix}/PLAID_CLIENT_ID"
-    PLAID_SECRET              = "${local.name_prefix}/PLAID_SECRET"
-    PLAID_ENV                 = "${local.name_prefix}/PLAID_ENV"
-    ATLAS_SCHEDULER_TOKEN     = "${local.name_prefix}/ATLAS_SCHEDULER_TOKEN"
-    ALPACA_MARKET_DATA_KEY_ID = "${local.name_prefix}/ALPACA_MARKET_DATA_KEY_ID"
-    ALPACA_MARKET_DATA_SECRET = "${local.name_prefix}/ALPACA_MARKET_DATA_SECRET"
-    ADMIN_PASSWORD            = "${local.name_prefix}/ADMIN_PASSWORD"
-    USER_PASSWORD             = "${local.name_prefix}/USER_PASSWORD"
+  contracted_runtime_secret_names = {
+    for secret in local.production_secret_contract.secrets :
+    secret.key => "${local.name_prefix}/${secret.nameSuffix}"
   }
+  retained_legacy_secret_names = {
+    for key in local.production_secret_contract.retainedLegacyMetadata :
+    key => "${local.name_prefix}/${key}"
+  }
+  runtime_secret_names = merge(
+    local.contracted_runtime_secret_names,
+    local.retained_legacy_secret_names,
+  )
+
+  secret_requirement_enabled = {
+    always                  = true
+    plaidEnabled            = true
+    plaidSchedulerEnabled   = var.scheduler_enabled
+    marketDataAlpacaEnabled = var.market_data_provider == "alpaca"
+    k1AwsIngestionEnabled   = var.k1_aws_ingestion_enabled
+  }
+  active_secret_contract_rows = [
+    for secret in local.production_secret_contract.secrets : secret
+    if lookup(local.secret_requirement_enabled, secret.requiredWhen, false)
+  ]
+  api_secret_keys = toset([
+    for secret in local.active_secret_contract_rows : secret.key
+    if contains(secret.consumers, "api")
+  ])
+  plaid_scheduler_secret_keys = toset([
+    for secret in local.active_secret_contract_rows : secret.key
+    if contains(secret.consumers, "plaid-scheduler")
+  ])
+  market_scheduler_secret_keys = toset([
+    for secret in local.active_secret_contract_rows : secret.key
+    if contains(secret.consumers, "market-scheduler")
+  ])
+  k1_worker_secret_keys = toset([
+    for secret in local.active_secret_contract_rows : secret.key
+    if contains(secret.consumers, "k1-worker")
+  ])
 
   abuse_protection_environment_variables = {
     ABUSE_HMAC_KEY_ID                          = "terraform-v1"
@@ -106,6 +134,7 @@ locals {
 
   api_environment_variables = merge({
     NODE_ENV                        = "production"
+    ATLAS_RUNTIME                   = "production"
     PORT                            = tostring(var.api_container_port)
     REQUIRE_DURABLE_PERSISTENCE     = "true"
     TRUSTED_PROXY_CIDRS             = var.vpc_cidr
@@ -113,11 +142,13 @@ locals {
     SESSION_COOKIE_SECURE           = "true"
     SESSION_COOKIE_SAMESITE         = "lax"
     MFA_LOGIN_ENABLED               = tostring(var.mfa_login_enabled)
+    PLAID_ENV                       = "production"
     PLAID_REFRESH_TIME_LOCAL        = var.plaid_refresh_time_local
     PLAID_REFRESH_TIMEZONE          = var.plaid_refresh_timezone
     PLAID_REFRESH_SCHEDULER_ENABLED = "true"
     PLAID_REFRESH_SCHEDULER_MODE    = "eventbridge"
     MARKET_DATA_PROVIDER            = var.market_data_provider
+    MARKET_PRICE_SCHEDULER_ENABLED  = tostring(var.market_price_scheduler_enabled)
     MARKET_DATA_REFRESH_ON_READ     = tostring(var.market_data_refresh_on_read)
     MARKET_DATA_MAX_AGE_SECONDS     = tostring(var.market_data_max_age_seconds)
     MARKET_DATA_REQUEST_TIMEOUT_MS  = tostring(var.market_data_request_timeout_ms)
@@ -130,6 +161,7 @@ locals {
     AWS_ENVIRONMENT_NAME            = var.environment_name
     AWS_ENVIRONMENT_PROFILE         = var.environment_cost_profile
     K1_AWS_INGESTION_ENABLED        = tostring(var.k1_aws_ingestion_enabled)
+    K1_WORKER_DESIRED_COUNT         = tostring(var.k1_worker_desired_count)
     K1_EXTRACTOR                    = "aws_bda"
     K1_OBJECT_STORE                 = "s3"
     K1_QUEUE                        = "sqs"
@@ -140,6 +172,8 @@ locals {
     K1_WORK_QUEUE_URL               = local.k1_start_queue_url
     K1_COMPLETION_QUEUE_URL         = local.k1_completion_queue_url
     K1_MAPPING_SCHEMA_VERSION       = var.k1_mapping_schema_version
+    PRODUCTION_LOG_RETENTION_DAYS   = tostring(var.log_retention_days)
+    PRODUCTION_ALARMS_CONFIGURED    = tostring(var.alarm_destination_confirmed)
   }, local.abuse_protection_environment_variables)
 
   refresh_time_parts         = split(":", var.plaid_refresh_time_local)
@@ -204,11 +238,25 @@ module "database" {
   manage_master_user_password = var.database_manage_master_user_password
   postgres_engine_version     = var.postgres_engine_version
   instance_class              = var.database_instance_class
+  multi_az                    = var.database_multi_az
   allocated_storage_gb        = var.database_allocated_storage_gb
   max_allocated_storage_gb    = var.database_max_allocated_storage_gb
   backup_retention_days       = var.database_backup_retention_days
   deletion_protection         = var.database_deletion_protection
   skip_final_snapshot         = var.database_skip_final_snapshot
+}
+
+check "committed_production_target" {
+  assert {
+    condition = (
+      var.environment_name == local.production_target.environment &&
+      var.aws_region == local.production_target.awsRegion &&
+      local.production_target.terraformWorkspace == "default" &&
+      local.production_target.cloudFrontCertificateRegion == "us-east-1" &&
+      alltrue([for zone in var.availability_zones : startswith(zone, local.production_target.awsRegion)])
+    )
+    error_message = "Terraform inputs must match the committed production target descriptor."
+  }
 }
 
 module "secrets" {
@@ -242,9 +290,16 @@ module "api" {
   create_task_execution_secrets_policy = true
   secret_arns = {
     for key, arn in module.secrets.secret_arns : key => arn
-    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+    if contains(local.api_secret_keys, key)
   }
-  additional_secret_arns      = compact([module.database.master_user_secret_arn])
+  additional_secret_arns = distinct(concat(
+    compact([module.database.master_user_secret_arn]),
+    [for key, arn in module.secrets.secret_arns : arn if contains(toset(concat(
+      tolist(local.plaid_scheduler_secret_keys),
+      tolist(local.market_scheduler_secret_keys),
+      tolist(local.k1_worker_secret_keys),
+    )), key)],
+  ))
   log_retention_days          = var.log_retention_days
   ecr_image_tag_mutability    = var.ecr_image_tag_mutability
   ecr_force_delete            = var.ecr_force_delete
@@ -282,7 +337,7 @@ module "k1_ingestion" {
   environment_variables     = local.api_environment_variables
   secret_arns = var.k1_aws_ingestion_enabled ? {
     for key, arn in module.secrets.secret_arns : key => arn
-    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+    if contains(local.k1_worker_secret_keys, key)
   } : {}
   worker_cpu                         = var.k1_worker_cpu
   worker_memory                      = var.k1_worker_memory
@@ -362,9 +417,13 @@ module "scheduler" {
   private_subnet_ids      = module.network.private_subnet_ids
   security_group_ids      = [module.network.api_security_group_id]
   environment_variables   = local.api_environment_variables
-  secret_arns = {
+  plaid_secret_arns = {
     for key, arn in module.secrets.secret_arns : key => arn
-    if var.market_data_provider == "alpaca" || !startswith(key, "ALPACA_MARKET_DATA_")
+    if contains(local.plaid_scheduler_secret_keys, key)
+  }
+  market_price_secret_arns = {
+    for key, arn in module.secrets.secret_arns : key => arn
+    if contains(local.market_scheduler_secret_keys, key)
   }
   schedule_expression              = local.refresh_schedule_cron
   schedule_timezone                = var.plaid_refresh_timezone
@@ -393,6 +452,7 @@ module "observability" {
   ecs_cluster_name                         = "${local.name_prefix}-cluster"
   api_ecs_service_name                     = "${local.name_prefix}-api"
   k1_worker_ecs_service_name               = module.k1_ingestion.worker_service_name
+  k1_aws_ingestion_enabled                 = var.k1_aws_ingestion_enabled
   ecs_cpu_threshold_percent                = var.ecs_cpu_threshold_percent
   ecs_memory_threshold_percent             = var.ecs_memory_threshold_percent
   db_instance_identifier                   = module.database.db_instance_identifier

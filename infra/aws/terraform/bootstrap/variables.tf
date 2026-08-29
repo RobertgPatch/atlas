@@ -1,11 +1,27 @@
+variable "project_name" {
+  description = "Project name used in bootstrap tags, descriptions, and the Terraform-state KMS alias."
+  type        = string
+  default     = "atlas"
+
+  validation {
+    condition     = can(regex("^[a-z0-9][a-z0-9-]*[a-z0-9]$", var.project_name))
+    error_message = "project_name must use lowercase letters, numbers, and hyphens."
+  }
+}
+
 variable "aws_region" {
-  description = "AWS region that stores Atlas Terraform state. Keep this aligned with the deployment backend configuration."
+  description = "AWS region that stores Project Jackson Terraform state. Keep this aligned with the deployment backend configuration."
   type        = string
   default     = "us-west-2"
+
+  validation {
+    condition     = var.aws_region == "us-west-2"
+    error_message = "aws_region must preserve the approved us-west-2 state backend."
+  }
 }
 
 variable "state_bucket_name" {
-  description = "Globally unique, DNS-compatible name for the Atlas Terraform state bucket."
+  description = "Globally unique, DNS-compatible name for the Project Jackson Terraform state bucket."
   type        = string
 
   validation {
@@ -19,7 +35,7 @@ variable "state_bucket_name" {
 }
 
 variable "state_key_prefix" {
-  description = "Bucket key prefix reserved for Atlas state and .tflock objects."
+  description = "Bucket key prefix reserved for Project Jackson state and .tflock objects."
   type        = string
   default     = "atlas"
 
@@ -33,7 +49,7 @@ variable "state_key_prefix" {
 }
 
 variable "terraform_principal_arns" {
-  description = "Existing IAM role or user ARNs allowed to read/write Atlas state and use its KMS key. Do not supply STS assumed-role session ARNs."
+  description = "Existing IAM role or user ARNs allowed to read/write Project Jackson state and use its KMS key. Do not supply STS assumed-role session ARNs."
   type        = set(string)
 
   validation {

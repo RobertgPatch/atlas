@@ -58,8 +58,13 @@ variable "environment_variables" {
   type        = map(string)
 }
 
-variable "secret_arns" {
-  description = "Secret environment variables mapped to Secrets Manager ARNs."
+variable "plaid_secret_arns" {
+  description = "Plaid scheduler secret environment variables mapped to exact Secrets Manager ARNs."
+  type        = map(string)
+}
+
+variable "market_price_secret_arns" {
+  description = "Market-price scheduler secret environment variables mapped to exact Secrets Manager ARNs."
   type        = map(string)
 }
 

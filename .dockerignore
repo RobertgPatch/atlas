@@ -21,10 +21,14 @@ apps/web/dist
 .github
 .terraform
 **/.terraform
+.artifacts
 *.tfstate
 *.tfstate.*
 *.tfvars
 *.tfvars.json
+*.tfplan
+*.tfplan.json
+*.terraform-plan.json
 Dockerfile*
 .dockerignore
 

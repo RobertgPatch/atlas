@@ -6,18 +6,25 @@ import {
   runBoundedAbuseTest,
 } from './run-bounded-abuse-tests.mjs'
 
-test('refuses production environments and known production hosts', () => {
+test('refuses every remote environment and non-loopback host', () => {
   assert.throws(
     () => buildBoundedAbuseSettings(['--environment=production', '--fake-providers=true']),
-    /production is refused/,
+    /only in the local environment/,
   )
   assert.throws(
     () => buildBoundedAbuseSettings([
       '--environment=staging',
+      '--fake-providers=true',
+    ]),
+    /only in the local environment/,
+  )
+  assert.throws(
+    () => buildBoundedAbuseSettings([
+      '--environment=local',
       '--base-url=https://api.example.com',
       '--fake-providers=true',
-    ], { ATLAS_PRODUCTION_HOSTS: 'api.example.com' }),
-    /Refusing production host/,
+    ]),
+    /only a loopback host/,
   )
 })
 

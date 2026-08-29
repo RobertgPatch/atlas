@@ -18,7 +18,7 @@ resource "aws_wafv2_web_acl" "this" {
   provider = aws.us_east_1
 
   name        = "${var.name_prefix}-web-acl"
-  description = "Atlas CloudFront WAF for managed rules and abusive request volume."
+  description = "Project Jackson CloudFront WAF for managed rules and abusive request volume."
   scope       = "CLOUDFRONT"
 
   default_action {

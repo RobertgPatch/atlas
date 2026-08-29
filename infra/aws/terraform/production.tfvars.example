@@ -20,21 +20,23 @@ private_subnet_cidrs = [
 
 enable_nat_gateway = true
 
-api_image_tag     = "latest"
+# Prepare overrides this placeholder in the saved plan with the exact source commit.
+api_image_tag     = "0000000000000000000000000000000000000000"
 api_desired_count = 1
-api_task_cpu      = "512"
-api_task_memory   = "1024"
-# Set true only after staging validation; changing it requires an API restart/redeploy.
-mfa_login_enabled           = false
+api_task_cpu      = "256"
+api_task_memory   = "512"
+# Production activation requires MFA; local development tests the same flow separately.
+mfa_login_enabled           = true
 ecr_force_delete            = false
-ecr_image_tag_mutability    = "MUTABLE"
-ecr_max_images              = 30
-ecr_untagged_retention_days = 7
+ecr_image_tag_mutability    = "IMMUTABLE"
+ecr_max_images              = 10
+ecr_untagged_retention_days = 3
 
 database_instance_class           = "db.t4g.micro"
+database_multi_az                  = false
 database_allocated_storage_gb     = 20
 database_max_allocated_storage_gb = 100
-database_backup_retention_days    = 7
+database_backup_retention_days    = 35
 database_deletion_protection      = true
 database_skip_final_snapshot      = false
 # For a migration, set the destination-account snapshot identifier and keep
@@ -68,7 +70,7 @@ waf_paid_admission_rate_limit_requests_per_5_minutes            = 100
 waf_paid_admission_rate_action                                  = "block"
 waf_paid_admission_global_emergency_requests_per_5_minutes      = 500
 waf_paid_admission_global_emergency_action                      = "block"
-monthly_budget_limit_usd                                        = 100
+monthly_budget_limit_usd                                        = 125
 budget_notification_thresholds                                  = [50, 80, 100]
 budget_forecast_notification_thresholds                         = [80, 100]
 bedrock_monthly_budget_limit_usd                                = 25
@@ -77,6 +79,11 @@ bedrock_budget_forecast_notification_thresholds                 = [80, 100]
 cost_anomaly_threshold_usd                                      = 10
 
 cloudfront_price_class = "PriceClass_100"
+
+# Paid K-1 ingestion starts disabled for the one-user baseline. Enabling it
+# requires a refreshed cost estimate and active-component alarms.
+k1_aws_ingestion_enabled = false
+k1_worker_desired_count  = 0
 
 additional_tags = {
   Workload = "liquidity"

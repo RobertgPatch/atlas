@@ -92,7 +92,7 @@ export const abuseMetricEnvelope = (metric: AbuseMetric, timestamp = Date.now())
   _aws: {
     Timestamp: timestamp,
     CloudWatchMetrics: [{
-      Namespace: 'Atlas/AbuseProtection',
+      Namespace: 'ProjectJackson/AbuseProtection',
       Dimensions: [[
         'Environment',
         'Decision',
@@ -107,7 +107,7 @@ export const abuseMetricEnvelope = (metric: AbuseMetric, timestamp = Date.now())
         { Name: 'DecisionLatency', Unit: 'Milliseconds' },
       ],
     }, {
-      Namespace: 'Atlas/AbuseProtection',
+      Namespace: 'ProjectJackson/AbuseProtection',
       Dimensions: [['Environment']],
       Metrics: [
         { Name: metric.name, Unit: 'Count' },
@@ -147,7 +147,7 @@ export const abuseRetentionHealthEnvelope = (input: {
   _aws: {
     Timestamp: input.timestamp ?? Date.now(),
     CloudWatchMetrics: [{
-      Namespace: 'Atlas/AbuseProtection',
+      Namespace: 'ProjectJackson/AbuseProtection',
       Dimensions: [['Environment', 'Store']],
       Metrics: [
         { Name: 'CleanupDeletedRows', Unit: 'Count' },
@@ -156,7 +156,7 @@ export const abuseRetentionHealthEnvelope = (input: {
         { Name: 'CleanupFailures', Unit: 'Count' },
       ],
     }, {
-      Namespace: 'Atlas/AbuseProtection',
+      Namespace: 'ProjectJackson/AbuseProtection',
       Dimensions: [['Environment']],
       Metrics: [{ Name: 'CleanupFailures', Unit: 'Count' }],
     }],

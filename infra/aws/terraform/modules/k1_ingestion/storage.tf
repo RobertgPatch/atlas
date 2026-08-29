@@ -12,7 +12,7 @@ data "aws_iam_policy_document" "kms" {
 }
 
 resource "aws_kms_key" "documents" {
-  description             = "Atlas K-1 originals, extraction evidence, and BDA results"
+  description             = "Project Jackson K-1 originals, extraction evidence, and BDA results"
   enable_key_rotation     = true
   deletion_window_in_days = 30
   policy                  = data.aws_iam_policy_document.kms.json

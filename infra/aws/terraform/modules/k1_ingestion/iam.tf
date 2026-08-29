@@ -35,28 +35,37 @@ data "aws_iam_policy_document" "worker" {
     ]
     resources = [aws_sqs_queue.start.arn, aws_sqs_queue.completion.arn]
   }
-  statement {
-    sid     = "InvokePinnedK1BDA"
-    actions = ["bedrock:InvokeDataAutomationAsync"]
-    resources = [
-      awscc_bedrock_data_automation_project.k1.project_arn,
-      awscc_bedrock_blueprint.k1.blueprint_arn,
-      awscc_bedrock_blueprint.fallback.blueprint_arn,
-      var.bda_profile_arn
-    ]
+  dynamic "statement" {
+    for_each = var.enabled ? [1] : []
+    content {
+      sid     = "InvokePinnedK1BDA"
+      actions = ["bedrock:InvokeDataAutomationAsync"]
+      resources = compact([
+        awscc_bedrock_data_automation_project.k1[0].project_arn,
+        awscc_bedrock_blueprint.k1[0].blueprint_arn,
+        awscc_bedrock_blueprint.fallback[0].blueprint_arn,
+        var.bda_profile_arn,
+      ])
+    }
   }
-  statement {
-    sid       = "ReadK1BDAStatus"
-    actions   = ["bedrock:GetDataAutomationStatus"]
-    resources = ["arn:aws:bedrock:${var.aws_region}::data-automation-invocation/*"]
+  dynamic "statement" {
+    for_each = var.enabled ? [1] : []
+    content {
+      sid       = "ReadK1BDAStatus"
+      actions   = ["bedrock:GetDataAutomationStatus"]
+      resources = ["arn:aws:bedrock:${var.aws_region}::data-automation-invocation/*"]
+    }
   }
-  statement {
-    sid     = "VerifyK1CheckboxesWithBedrock"
-    actions = ["bedrock:InvokeModel"]
-    resources = [
-      "arn:aws:bedrock:${var.aws_region}:${var.aws_account_id}:inference-profile/us.amazon.nova-2-lite-v1:0",
-      "arn:aws:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0"
-    ]
+  dynamic "statement" {
+    for_each = var.enabled ? [1] : []
+    content {
+      sid     = "VerifyK1CheckboxesWithBedrock"
+      actions = ["bedrock:InvokeModel"]
+      resources = [
+        "arn:aws:bedrock:${var.aws_region}:${var.aws_account_id}:inference-profile/us.amazon.nova-2-lite-v1:0",
+        "arn:aws:bedrock:*::foundation-model/amazon.nova-2-lite-v1:0",
+      ]
+    }
   }
   statement {
     sid = "K1Kms"

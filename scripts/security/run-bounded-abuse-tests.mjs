@@ -25,8 +25,8 @@ const finiteInteger = (value, fallback, name, maximum) => {
 export const buildBoundedAbuseSettings = (argv, environment = process.env) => {
   const args = parseArguments(argv)
   const environmentName = (args.environment ?? environment.ATLAS_ABUSE_TEST_ENVIRONMENT ?? 'local').toLowerCase()
-  if (!['local', 'staging'].includes(environmentName)) {
-    throw new Error('Bounded abuse tests run only against local or staging environments; production is refused.')
+  if (environmentName !== 'local') {
+    throw new Error('Bounded abuse tests run only in the local environment; every remote environment is refused.')
   }
 
   const baseUrl = new URL(args['base-url'] ?? environment.ATLAS_ABUSE_TEST_BASE_URL ?? 'http://127.0.0.1:3000')
@@ -37,8 +37,8 @@ export const buildBoundedAbuseSettings = (argv, environment = process.env) => {
   if (productionHosts.has(baseUrl.hostname.toLowerCase()) || /(^|\.)prod(?:uction)?\./i.test(baseUrl.hostname)) {
     throw new Error(`Refusing production host ${baseUrl.hostname}.`)
   }
-  if (environmentName === 'local' && !['127.0.0.1', 'localhost', '::1'].includes(baseUrl.hostname)) {
-    throw new Error('The local abuse-test environment may target only a loopback host.')
+  if (!['127.0.0.1', 'localhost', '::1'].includes(baseUrl.hostname)) {
+    throw new Error('Bounded abuse tests may target only a loopback host.')
   }
 
   const fakeProviders = (args['fake-providers'] ?? environment.ATLAS_ABUSE_TEST_FAKE_PROVIDERS ?? '').toLowerCase() === 'true'

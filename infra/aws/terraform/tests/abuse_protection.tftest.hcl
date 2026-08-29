@@ -33,24 +33,26 @@ run "private_api_origin" {
   }
 
   variables {
-    name_prefix              = "atlas-test"
-    aws_region               = "us-west-2"
-    vpc_id                   = "vpc-0123456789abcdef0"
-    private_subnet_ids       = ["subnet-private-a", "subnet-private-b"]
-    alb_security_group_id    = "sg-0123456789abcdef0"
-    api_security_group_id    = "sg-0123456789abcdef1"
-    container_name           = "atlas-api"
-    container_port           = 3000
-    health_check_path        = "/health"
-    api_image_tag            = "test"
-    task_cpu                 = "512"
-    task_memory              = "1024"
-    desired_count            = 1
-    environment_variables    = {}
-    secret_arns              = {}
-    log_retention_days       = 7
-    ecr_image_tag_mutability = "MUTABLE"
-    ecr_force_delete         = false
+    name_prefix                 = "atlas-test"
+    aws_region                  = "us-west-2"
+    vpc_id                      = "vpc-0123456789abcdef0"
+    private_subnet_ids          = ["subnet-private-a", "subnet-private-b"]
+    alb_security_group_id       = "sg-0123456789abcdef0"
+    api_security_group_id       = "sg-0123456789abcdef1"
+    container_name              = "atlas-api"
+    container_port              = 3000
+    health_check_path           = "/health"
+    api_image_tag               = "0000000000000000000000000000000000000000"
+    task_cpu                    = "256"
+    task_memory                 = "512"
+    desired_count               = 1
+    environment_variables       = {}
+    secret_arns                 = {}
+    log_retention_days          = 30
+    ecr_image_tag_mutability    = "IMMUTABLE"
+    ecr_force_delete            = false
+    ecr_max_images              = 10
+    ecr_untagged_retention_days = 3
   }
 
   assert {
@@ -94,10 +96,15 @@ run "no_public_origin_output" {
   command = plan
 
   variables {
-    environment_name         = "staging"
-    environment_cost_profile = "staging"
-    enable_nat_gateway       = false
-    k1_aws_ingestion_enabled = false
+    environment_name             = "production"
+    environment_cost_profile     = "production"
+    enable_nat_gateway           = true
+    k1_aws_ingestion_enabled     = false
+    api_image_tag                = "0000000000000000000000000000000000000000"
+    alarm_email                  = "ops@example.com"
+    alarm_destination_confirmed  = true
+    budget_alert_email           = "ops@example.com"
+    budget_destination_confirmed = true
   }
 
   assert {

@@ -9,7 +9,7 @@ run "five_minute_operational_alarms" {
 
   variables {
     name_prefix                          = "atlas-test"
-    environment_name                     = "staging"
+    environment_name                     = "production"
     cloudfront_distribution_id           = "E1234567890"
     api_load_balancer_arn_suffix         = "app/atlas-test/0000000000000000"
     api_target_group_arn_suffix          = "targetgroup/atlas-test/0000000000000000"
@@ -28,6 +28,8 @@ run "five_minute_operational_alarms" {
     k1_start_queue_name                  = "atlas-test-k1-start"
     k1_completion_queue_name             = "atlas-test-k1-completion"
     k1_document_bucket_name              = "atlas-test-k1-documents"
+    alarm_email                          = "ops@example.com"
+    alarm_destination_confirmed          = true
   }
 
   assert {
@@ -43,7 +45,7 @@ run "five_minute_operational_alarms" {
         aws_cloudwatch_metric_alarm.rds_free_storage.period * aws_cloudwatch_metric_alarm.rds_free_storage.evaluation_periods <= 300,
         aws_cloudwatch_metric_alarm.rds_connections.period * aws_cloudwatch_metric_alarm.rds_connections.evaluation_periods <= 300,
         aws_cloudwatch_metric_alarm.waf_blocked_requests.period * aws_cloudwatch_metric_alarm.waf_blocked_requests.evaluation_periods <= 300,
-        aws_cloudwatch_metric_alarm.s3_put_requests.period * aws_cloudwatch_metric_alarm.s3_put_requests.evaluation_periods <= 300,
+        aws_cloudwatch_metric_alarm.s3_put_requests[0].period * aws_cloudwatch_metric_alarm.s3_put_requests[0].evaluation_periods <= 300,
       ],
       [for alarm in aws_cloudwatch_metric_alarm.ecs_utilization : alarm.period * alarm.evaluation_periods <= 300],
       [for alarm in aws_cloudwatch_metric_alarm.k1_queue_age : alarm.period * alarm.evaluation_periods <= 300],
@@ -65,7 +67,7 @@ run "five_minute_operational_alarms" {
       "CostUnits",
       "CleanupFailures",
     ])
-    error_message = "The aggregate application alarms must use the exact Atlas/AbuseProtection metric contract."
+    error_message = "The aggregate application alarms must use the exact ProjectJackson/AbuseProtection metric contract."
   }
 }
 
@@ -113,8 +115,8 @@ run "actual_forecast_budgets_and_anomaly_detection" {
 
   variables {
     name_prefix                              = "atlas-test"
-    environment_name                         = "staging"
-    monthly_limit_usd                        = 100
+    environment_name                         = "production"
+    monthly_limit_usd                        = 125
     bedrock_monthly_limit_usd                = 25
     alert_email                              = "ops@example.com"
     notification_thresholds                  = [50, 80, 100]
@@ -122,6 +124,7 @@ run "actual_forecast_budgets_and_anomaly_detection" {
     bedrock_notification_thresholds          = [50, 80, 100]
     bedrock_forecast_notification_thresholds = [80, 100]
     cost_anomaly_threshold_usd               = 10
+    budget_destination_confirmed             = true
   }
 
   assert {

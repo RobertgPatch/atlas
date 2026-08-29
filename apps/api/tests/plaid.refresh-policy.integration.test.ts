@@ -308,7 +308,7 @@ describe('Plaid refresh policy integration', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.json().schedulerConfigured).toBe(false)
-    expect(response.json().warnings.join(' ')).toMatch(/scheduler|ATLAS_SCHEDULER_TOKEN/i)
+    expect(response.json().warnings.join(' ')).toMatch(/scheduler|PROJECT_JACKSON_SCHEDULER_TOKEN/i)
   })
 
   it('does not expose secret runtime values in refresh diagnostics', async () => {

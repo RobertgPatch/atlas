@@ -20,6 +20,123 @@ const asList = (value: string | undefined, fallback: string): string[] =>
 
 type EnvironmentSource = Readonly<Record<string, string | undefined>>
 
+export type RuntimeClass = 'local' | 'production'
+
+export interface RuntimeBoundaryConfig {
+  runtimeClass: RuntimeClass
+  databaseUrl: string
+  k1ExtractorBackend: 'stub' | 'aws_bda'
+  k1ObjectStore: 'local' | 's3'
+  k1Queue: 'local' | 'sqs'
+  awsMutationAllowed: false
+}
+
+const localDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:15432/atlas'
+
+const isLoopbackDatabaseUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value)
+    if (!['postgres:', 'postgresql:'].includes(url.protocol)) return false
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+    return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Establishes the hard boundary between developer-owned local processes and
+ * the sole remote runtime. This function is intentionally pure so launchers
+ * and tests can fail before creating a process or contacting a provider.
+ */
+export const buildRuntimeBoundaryConfig = (
+  env: EnvironmentSource,
+): RuntimeBoundaryConfig => {
+  if (env.ATLAS_SCHEDULER_TOKEN !== undefined) {
+    throw configurationError(
+      'ATLAS_SCHEDULER_TOKEN',
+      'the retired alias is prohibited; use PROJECT_JACKSON_SCHEDULER_TOKEN',
+    )
+  }
+
+  const nodeEnvironment = env.NODE_ENV ?? 'development'
+  const runtimeClass = env.ATLAS_RUNTIME
+    ?? (nodeEnvironment === 'production' ? '' : 'local')
+
+  if (runtimeClass !== 'local' && runtimeClass !== 'production') {
+    if (nodeEnvironment === 'production') {
+      throw configurationError('ATLAS_RUNTIME', 'set ATLAS_RUNTIME=production explicitly')
+    }
+    throw configurationError('ATLAS_RUNTIME', 'expected local or production')
+  }
+
+  const databaseUrl = nodeEnvironment === 'test'
+    ? (env.ATLAS_TEST_DATABASE_URL ?? '')
+    : (env.DATABASE_URL ?? (runtimeClass === 'local' ? localDatabaseUrl : ''))
+  const testRuntime = nodeEnvironment === 'test'
+  const k1ExtractorBackend = (testRuntime ? 'stub' : (env.K1_EXTRACTOR ?? 'stub')) as 'stub' | 'aws_bda'
+  const k1ObjectStore = (testRuntime ? 'local' : (env.K1_OBJECT_STORE ?? 'local')) as 'local' | 's3'
+  const k1Queue = (testRuntime ? 'local' : (env.K1_QUEUE ?? 'local')) as 'local' | 'sqs'
+
+  if (runtimeClass === 'local') {
+    if (nodeEnvironment === 'production') {
+      throw configurationError('ATLAS_RUNTIME', 'production NODE_ENV cannot use the local runtime')
+    }
+    if (nodeEnvironment !== 'test' && !isLoopbackDatabaseUrl(databaseUrl)) {
+      throw configurationError('DATABASE_URL', 'the local runtime requires loopback PostgreSQL')
+    }
+
+    const unsafeProviderSettings: Array<[string, boolean]> = [
+      ['K1_EXTRACTOR', k1ExtractorBackend !== 'stub'],
+      ['K1_OBJECT_STORE', k1ObjectStore !== 'local'],
+      ['K1_QUEUE', k1Queue !== 'local'],
+      ['K1_AWS_INGESTION_ENABLED', env.K1_AWS_INGESTION_ENABLED === 'true'],
+      ['MARKET_DATA_PROVIDER', (env.MARKET_DATA_PROVIDER ?? 'none') !== 'none'],
+      ['PLAID_ENV', !['', 'sandbox'].includes(env.PLAID_ENV ?? '')],
+    ]
+    const remoteResourceKeys = [
+      'K1_S3_BUCKET',
+      'K1_KMS_KEY_ARN',
+      'K1_WORK_QUEUE_URL',
+      'K1_COMPLETION_QUEUE_URL',
+      'K1_BDA_PROFILE_ARN',
+      'K1_BDA_PROJECT_ARN',
+      'AWS_APP_DOMAIN',
+      'AWS_CLOUDFRONT_DISTRIBUTION_ID',
+      'AWS_WEB_ASSETS_BUCKET',
+    ]
+    const unsafe = testRuntime
+      ? undefined
+      : (unsafeProviderSettings.find(([, active]) => active)?.[0]
+        ?? remoteResourceKeys.find((key) => Boolean(env[key]?.trim())))
+    if (unsafe) {
+      throw configurationError(unsafe, 'remote providers/resources are prohibited in the local runtime')
+    }
+  } else {
+    if (nodeEnvironment !== 'production') {
+      throw configurationError('NODE_ENV', 'ATLAS_RUNTIME=production requires NODE_ENV=production')
+    }
+    if (!databaseUrl || isLoopbackDatabaseUrl(databaseUrl)) {
+      throw configurationError('DATABASE_URL', 'production requires an explicit non-loopback PostgreSQL endpoint')
+    }
+    if (env.REQUIRE_DURABLE_PERSISTENCE !== 'true') {
+      throw configurationError('REQUIRE_DURABLE_PERSISTENCE', 'production requires exactly true')
+    }
+    if ((env.AWS_REGION ?? env.AWS_DEFAULT_REGION) !== 'us-west-2') {
+      throw configurationError('AWS_REGION', 'production requires the committed us-west-2 target')
+    }
+  }
+
+  return {
+    runtimeClass,
+    databaseUrl,
+    k1ExtractorBackend,
+    k1ObjectStore,
+    k1Queue,
+    awsMutationAllowed: false,
+  }
+}
+
 interface IntegerSettingOptions {
   min?: number
   max?: number
@@ -477,6 +594,7 @@ export const buildAbuseProtectionConfig = (
 }
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
+const runtimeBoundary = buildRuntimeBoundaryConfig(process.env)
 const sessionCookieSecure = nodeEnv === 'production'
   ? strictBoolean(process.env, nodeEnv, 'SESSION_COOKIE_SECURE', false, true)
   : asBoolean(process.env.SESSION_COOKIE_SECURE)
@@ -500,12 +618,7 @@ if (nodeEnv === 'production' && trustedProxyCidrs.length === 0) {
     'at least one exact internal proxy CIDR is required in production',
   )
 }
-const defaultDevelopmentDatabaseUrl = 'postgres://postgres:postgres@127.0.0.1:15432/atlas'
-const databaseUrl =
-  nodeEnv === 'test'
-    ? (process.env.ATLAS_TEST_DATABASE_URL ?? '')
-    : (process.env.DATABASE_URL ??
-      (nodeEnv === 'development' ? defaultDevelopmentDatabaseUrl : ''))
+const databaseUrl = runtimeBoundary.databaseUrl
 const plaidClientId =
   nodeEnv === 'test'
     ? (process.env.ATLAS_TEST_PLAID_CLIENT_ID ?? '')
@@ -529,6 +642,7 @@ const massiveMarketDataApiKey =
 
 export const config = {
   nodeEnv,
+  runtimeClass: runtimeBoundary.runtimeClass,
   port: asNumber(process.env.PORT, 3000),
   trustedProxyCidrs,
   databaseUrl,
@@ -560,17 +674,15 @@ export const config = {
   totpIssuer: process.env.TOTP_ISSUER ?? 'Jackson',
   storageRoot: process.env.STORAGE_ROOT ?? './.storage',
   k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
-  k1ExtractorBackend: (process.env.K1_EXTRACTOR ?? 'stub') as
-    | 'stub'
-    | 'aws_bda',
+  k1ExtractorBackend: runtimeBoundary.k1ExtractorBackend,
   k1Ingestion: {
     awsEnabled: asBoolean(process.env.K1_AWS_INGESTION_ENABLED),
     batchMaxFiles: asNumber(process.env.K1_BATCH_MAX_FILES, 25),
     uploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
     uploadMaxPages: asNumber(process.env.K1_UPLOAD_MAX_PAGES, 100),
     uploadUrlTtlSeconds: asNumber(process.env.K1_UPLOAD_URL_TTL_SECONDS, 900),
-    objectStore: (process.env.K1_OBJECT_STORE ?? 'local') as 'local' | 's3',
-    queue: (process.env.K1_QUEUE ?? 'local') as 'local' | 'sqs',
+    objectStore: runtimeBoundary.k1ObjectStore,
+    queue: runtimeBoundary.k1Queue,
     workerConcurrency: asNumber(process.env.K1_WORKER_CONCURRENCY, 10),
     reconciliationStaleSeconds: asNumber(
       process.env.K1_RECONCILIATION_STALE_SECONDS,
@@ -614,7 +726,7 @@ export const config = {
       | 'none'
       | 'eventbridge'
       | 'manual',
-    schedulerToken: process.env.ATLAS_SCHEDULER_TOKEN ?? '',
+    schedulerToken: process.env.PROJECT_JACKSON_SCHEDULER_TOKEN ?? '',
   },
   marketData: {
     provider: (process.env.MARKET_DATA_PROVIDER ?? 'none') as 'none' | 'alpaca',
@@ -663,6 +775,10 @@ export const config = {
     appDomain: process.env.AWS_APP_DOMAIN ?? '',
     cloudFrontDistributionId: process.env.AWS_CLOUDFRONT_DISTRIBUTION_ID ?? '',
     webAssetsBucket: process.env.AWS_WEB_ASSETS_BUCKET ?? '',
+    marketPriceSchedulerEnabled: asBoolean(process.env.MARKET_PRICE_SCHEDULER_ENABLED),
+    k1WorkerDesiredCount: asNumber(process.env.K1_WORKER_DESIRED_COUNT, 0),
+    logRetentionDays: asNumber(process.env.PRODUCTION_LOG_RETENTION_DAYS, 30),
+    alarmsConfigured: asBoolean(process.env.PRODUCTION_ALARMS_CONFIGURED),
   },
   plaid: {
     clientId: plaidClientId,

@@ -44,6 +44,32 @@ export const getProductionReadinessHandler = async (
     secure: config.sessionCookieSecure,
     sameSite: config.sessionCookieSameSite,
   }
+  const operationalReadiness = {
+    databaseReachable: persistence.databaseReachable,
+    schedulers: {
+      plaidEnabled: config.plaidRefresh.schedulerEnabled,
+      marketPriceEnabled: config.aws.marketPriceSchedulerEnabled,
+    },
+    worker: {
+      enabled: config.k1Ingestion.awsEnabled,
+      desiredCount: config.aws.k1WorkerDesiredCount,
+    },
+    logs: {
+      configured: config.aws.logRetentionDays === 30,
+      retentionDays: config.aws.logRetentionDays,
+    },
+    alarms: {
+      configured: config.aws.alarmsConfigured,
+    },
+  }
+  const retainedFlowChecks = [
+    'dashboard-read',
+    'liquidity-holdings-read',
+    'liquidity-performance-read',
+    'investment-aggregation-read',
+    'tic-properties-read',
+    'entities-list-read',
+  ] as const
   const warnings = uniqueWarnings([
     ...persistence.warnings,
     ...plaidRefreshScheduler.getSchedulerWarnings(),
@@ -78,6 +104,15 @@ export const getProductionReadinessHandler = async (
     config.security.rateLimitEnabled
       ? null
       : 'RATE_LIMIT_ENABLED is not configured.',
+    config.nodeEnv === 'production' && !operationalReadiness.logs.configured
+      ? 'Production log retention must be configured for 30 days.'
+      : null,
+    config.nodeEnv === 'production' && !operationalReadiness.alarms.configured
+      ? 'Production alarm destinations were not attested by deployment configuration.'
+      : null,
+    operationalReadiness.worker.enabled && operationalReadiness.worker.desiredCount < 1
+      ? 'K-1 ingestion is enabled without an active worker.'
+      : null,
     config.nodeEnv === 'production'
       ? 'Secret rotation evidence is app-unverified; confirm Secrets Manager rotation in the deployment runbook.'
       : null,
@@ -93,6 +128,8 @@ export const getProductionReadinessHandler = async (
       }),
     },
     schedulerConfigured,
+    operationalReadiness,
+    retainedFlowChecks,
     secretsConfigured,
     secureCookies,
     allowedOrigin: config.webOrigin,

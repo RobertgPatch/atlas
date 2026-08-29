@@ -11,13 +11,26 @@ Fastify-based REST API for the Jackson platform. Provides authentication, K-1 do
 
 ```powershell
 # from repo root
-npm run dev:db
-npm run dev --workspace=api
+npm run dev:local
 ```
 
-The server starts on port `3000` by default. Copy `apps/api/.env.example` to `apps/api/.env` and fill in the required values before starting.
+This is the canonical development command. It validates the environment before
+starting anything, starts Docker PostgreSQL, runs the ordered migrations under
+the PostgreSQL advisory lock, starts the API, and waits for
+`/internal/readiness`. The worker and web server start only after the database
+is reachable. A database, migration, or readiness failure is fatal.
 
-By default, development mode targets the local Docker Postgres database at `postgres://postgres:postgres@127.0.0.1:15432/atlas`. The API runs migrations on startup when `DATABASE_URL` is set.
+Local development uses the Docker database at
+`postgres://postgres:postgres@127.0.0.1:15432/atlas`, the deterministic K-1
+stub, local object storage, and the PostgreSQL-backed local queue. It needs no
+AWS credentials and refuses non-loopback databases, AWS-backed adapters,
+production profiles/resources, and mutation flags before starting a child
+process. AWS credentials may remain in the shell only when no AWS adapter or
+production target is activated.
+
+Copy `apps/api/.env.example` to `apps/api/.env` only for local overrides. Keep
+the production-only variables blank. Production values are supplied through
+the production release and secret contracts, never copied into the local file.
 
 Useful local database commands from the repo root:
 
@@ -30,13 +43,8 @@ npm run dev:db:reset
 
 `dev:db:reset` removes the local Docker volume and deletes local database data.
 
-To start the local database plus API and web dev servers from one command:
-
-```powershell
-npm run dev:local
-```
-
-This opens the API and web dev servers in separate PowerShell windows so their logs remain visible.
+The API still runs the idempotent migration check on startup, so repeated
+starts and concurrent startup remain safe under the same advisory lock.
 
 ## Running tests
 
@@ -98,7 +106,7 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `PLAID_REFRESH_TIMEZONE` | `America/Los_Angeles` | IANA timezone for the Liquidity refresh policy |
 | `PLAID_REFRESH_SCHEDULER_ENABLED` | `false` | Whether production automatic refresh infrastructure is expected |
 | `PLAID_REFRESH_SCHEDULER_MODE` | `none` | Scheduler mode: `none`, `eventbridge`, or `manual` |
-| `ATLAS_SCHEDULER_TOKEN` | _(empty)_ | Shared token for the protected scheduler trigger |
+| `PROJECT_JACKSON_SCHEDULER_TOKEN` | _(empty)_ | Shared token for the protected scheduler trigger |
 | `MARKET_DATA_PROVIDER` | `none` | Public-market provider: `none` or `alpaca` |
 | `MARKET_DATA_REFRESH_ON_READ` | `true` | Refresh stale public-market quotes while serving the Liquidity report |
 | `MARKET_DATA_MAX_AGE_SECONDS` | `60` | Server-side quote cache lifetime |
@@ -163,19 +171,8 @@ K-1 extraction supports only the offline stub and AWS Bedrock Data Automation:
 | `stub` | Deterministic offline extractor for unit tests and development without AWS. |
 | `aws_bda` | Durable S3 worker flow using the configured BDA project and K-1 blueprint. |
 
-For a local app connected to real AWS services, set `K1_EXTRACTOR=aws_bda`,
-`K1_AWS_INGESTION_ENABLED=true`, `K1_OBJECT_STORE=s3`, and `K1_QUEUE=local`,
-then configure the bucket, KMS key, BDA profile, and BDA project values. Start
-the complete local stack with:
-
-```powershell
-npm run dev:local:bda
-```
-
-The browser uploads each PDF directly to a checksum-bound, KMS-encrypted
-presigned S3 URL. The local worker reads its durable Postgres queue, invokes BDA
-asynchronously, polls BDA for completion, and persists normalized values for
-review. Keeping the queue local is required because local uploads are stored in
-local Postgres; a shared AWS SQS worker cannot access those records. No
-extracted tax values are applied to a partnership tracker until a reviewer
-confirms the entity, partnership, tax year, issues, and revision-bound preview.
+Real AWS BDA is production-only in the supported environment model. The former
+local BDA launcher has been removed because it could inherit production
+credentials or resource identifiers. Provider development must use a separately
+authorized sandbox workflow that proves the account and every resource are not
+production; no such workflow is activated by `dev:local`.

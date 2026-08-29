@@ -14,6 +14,7 @@ resource "aws_db_instance" "postgres" {
   engine              = var.snapshot_identifier == null ? "postgres" : null
   engine_version      = var.snapshot_identifier == null ? var.postgres_engine_version : null
   instance_class      = var.instance_class
+  multi_az            = var.multi_az
 
   allocated_storage     = var.snapshot_identifier == null ? var.allocated_storage_gb : null
   max_allocated_storage = var.max_allocated_storage_gb

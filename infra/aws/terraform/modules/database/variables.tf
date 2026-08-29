@@ -44,11 +44,32 @@ variable "postgres_engine_version" {
 variable "instance_class" {
   description = "RDS instance class."
   type        = string
+
+  validation {
+    condition     = var.instance_class == "db.t4g.micro"
+    error_message = "Production database instance_class must be db.t4g.micro."
+  }
+}
+
+variable "multi_az" {
+  description = "Whether the initial database uses Multi-AZ. The approved one-user profile is explicitly Single-AZ."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.multi_az
+    error_message = "The approved production database profile is Single-AZ."
+  }
 }
 
 variable "allocated_storage_gb" {
   description = "Initial RDS storage in GiB."
   type        = number
+
+  validation {
+    condition     = var.allocated_storage_gb == 20
+    error_message = "Production allocated storage must start at 20 GiB."
+  }
 }
 
 variable "max_allocated_storage_gb" {
@@ -57,8 +78,13 @@ variable "max_allocated_storage_gb" {
 }
 
 variable "backup_retention_days" {
-  description = "RDS backup retention period in days."
+  description = "RDS point-in-time recovery retention period in days."
   type        = number
+
+  validation {
+    condition     = var.backup_retention_days == 35
+    error_message = "Production RDS backup retention must remain at the 35-day maximum."
+  }
 }
 
 variable "deletion_protection" {

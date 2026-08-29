@@ -5,6 +5,8 @@ locals {
 }
 
 resource "awscc_bedrock_blueprint" "k1" {
+  count = var.enabled ? 1 : 0
+
   blueprint_name = "${replace(var.name_prefix, "-", "_")}_k1_1065"
   type           = "DOCUMENT"
   schema         = local.k1_blueprint_schema
@@ -16,6 +18,8 @@ resource "awscc_bedrock_blueprint" "k1" {
 }
 
 resource "awscc_bedrock_blueprint" "fallback" {
+  count = var.enabled ? 1 : 0
+
   blueprint_name = "${replace(var.name_prefix, "-", "_")}_k1_fallback"
   type           = "DOCUMENT"
   schema         = local.fallback_blueprint_schema
@@ -27,6 +31,8 @@ resource "awscc_bedrock_blueprint" "fallback" {
 }
 
 resource "awscc_bedrock_data_automation_project" "k1" {
+  count = var.enabled ? 1 : 0
+
   project_name        = "${replace(var.name_prefix, "-", "_")}_k1_ingestion"
   project_description = "Schedule K-1 Form 1065 extraction with grounded document evidence"
   project_type        = "ASYNC"
@@ -49,14 +55,14 @@ resource "awscc_bedrock_data_automation_project" "k1" {
   }
   custom_output_configuration = {
     blueprints = [{
-      blueprint_arn     = awscc_bedrock_blueprint.k1.blueprint_arn
-      blueprint_stage   = awscc_bedrock_blueprint.k1.blueprint_stage
+      blueprint_arn     = awscc_bedrock_blueprint.k1[0].blueprint_arn
+      blueprint_stage   = awscc_bedrock_blueprint.k1[0].blueprint_stage
       blueprint_version = local.blueprint_version
     }]
     document = {
       fallback_blueprints = [{
-        blueprint_arn     = awscc_bedrock_blueprint.fallback.blueprint_arn
-        blueprint_stage   = awscc_bedrock_blueprint.fallback.blueprint_stage
+        blueprint_arn     = awscc_bedrock_blueprint.fallback[0].blueprint_arn
+        blueprint_stage   = awscc_bedrock_blueprint.fallback[0].blueprint_stage
         blueprint_version = local.blueprint_version
       }]
     }

@@ -21,6 +21,32 @@ resource "aws_s3_bucket" "web" {
   bucket = var.web_assets_bucket_name
 }
 
+resource "aws_s3_bucket_versioning" "web" {
+  bucket = aws_s3_bucket.web.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "web_recovery" {
+  bucket = aws_s3_bucket.web.id
+
+  rule {
+    id     = "bounded-noncurrent-release-recovery"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      newer_noncurrent_versions = 10
+      noncurrent_days           = 30
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.web]
+}
+
 resource "aws_s3_bucket_public_access_block" "web" {
   bucket = aws_s3_bucket.web.id
 
@@ -40,7 +66,7 @@ resource "aws_s3_bucket_ownership_controls" "web" {
 
 resource "aws_cloudfront_origin_access_control" "web" {
   name                              = "${var.name_prefix}-web-oac"
-  description                       = "Restrict Atlas web assets to CloudFront."
+  description                       = "Restrict Project Jackson web assets to CloudFront."
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
@@ -99,7 +125,7 @@ resource "aws_acm_certificate_validation" "viewer" {
 
 resource "aws_cloudfront_distribution" "this" {
   enabled             = true
-  comment             = "Atlas Liquidity web and API edge"
+  comment             = "Project Jackson web and API edge"
   aliases             = local.custom_domain_enabled ? [local.configured_app_domain] : []
   default_root_object = "index.html"
   price_class         = var.cloudfront_price_class

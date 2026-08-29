@@ -8,7 +8,7 @@ Only an authenticated Atlas `Admin` may change runtime controls. Use an approved
 
 ## First five minutes
 
-1. Confirm the AWS account, Region, environment, and incident ID before changing anything.
+1. Confirm the production AWS account, `us-west-2` Region, and incident ID before changing anything. Local development is not an AWS target.
 
    ```powershell
    $AwsProfile = 'atlas-production'
@@ -131,21 +131,16 @@ If workload attribution is not yet safe, disable all cost-producing controls:
 }
 ```
 
-Environment variables with the same hard-stop authority are `K1_UPLOADS_ENABLED`, `K1_EXTRACTION_ENABLED`, `K1_BEDROCK_CHECKBOX_ENABLED`, `PLAID_REFRESH_ENABLED`, `MARKET_DATA_REFRESH_ENABLED`, `REPORT_EXPORTS_ENABLED`, and `BACKFILLS_ENABLED`. Setting one to `false` in the approved ECS task-definition/IaC configuration and redeploying is a durable hard disable. A runtime override cannot bypass it. Do not make an untracked console-only task definition the long-term source of truth.
+Environment variables with the same hard-stop authority are `K1_UPLOADS_ENABLED`, `K1_EXTRACTION_ENABLED`, `K1_BEDROCK_CHECKBOX_ENABLED`, `PLAID_REFRESH_ENABLED`, `MARKET_DATA_REFRESH_ENABLED`, `REPORT_EXPORTS_ENABLED`, and `BACKFILLS_ENABLED`. Setting one to `false` in the reviewed production Terraform inputs and deploying the exact saved plan is a durable hard disable. A runtime override cannot bypass it. Do not make an untracked console-only task definition the long-term source of truth.
 
 ## Edge emergency circuit breaker
 
 If paid-admission paths are flooding across rotating sources, ensure the global paid WAF rule is in `block` mode. This is broad and should accompany, not replace, workload controls.
 
-```powershell
-$PlanPath = Join-Path $env:TEMP "$IncidentId-paid-waf.tfplan"
-terraform -chdir=infra/aws/terraform plan `
-  -var-file=production.tfvars `
-  -var='waf_paid_admission_global_emergency_action=block' `
-  -out=$PlanPath `
-  -input=false
-terraform -chdir=infra/aws/terraform apply -input=false $PlanPath
-```
+Set `waf_paid_admission_global_emergency_action=block` in the ignored production
+operator input, then use `npm run deploy:aws:production -- -Mode Prepare` and
+the separately confirmed `-Mode Apply` flow. The shared plan policy, immutable
+manifest, and execution evidence remain mandatory during an incident.
 
 Verify the rule action and CloudFront/WAF metrics after propagation. Never change managed reputation/input rules to count or allow during an active cost-abuse event.
 

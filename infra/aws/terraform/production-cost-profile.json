@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "1.0.0",
+  "region": "us-west-2",
+  "hoursPerMonth": 730,
+  "apiDesiredCount": 1,
+  "apiCpu": 256,
+  "apiMemoryMiB": 512,
+  "k1AwsIngestionEnabled": false,
+  "paidInferenceCalls": 0,
+  "usageUpperBoundMonthlyUsd": 5.98,
+  "targetMonthlyUsd": 110,
+  "budgetThresholdUsd": 125,
+  "budgetActionCount": 0,
+  "recurringResources": [
+    { "key": "nat", "rateKey": "nat_gateway_hours", "quantity": 730 },
+    { "key": "nat-ipv4", "rateKey": "public_ipv4_hours", "quantity": 730 },
+    { "key": "alb", "rateKey": "alb_hours", "quantity": 730 },
+    { "key": "rds-compute", "rateKey": "rds_t4g_micro_hours", "quantity": 730 },
+    { "key": "rds-storage", "rateKey": "rds_gp3_gib_months", "quantity": 20 },
+    { "key": "api-cpu", "rateKey": "fargate_vcpu_hours", "quantity": 182.5 },
+    { "key": "api-memory", "rateKey": "fargate_gib_hours", "quantity": 365 },
+    { "key": "waf", "rateKey": "waf_fixed_months", "quantity": 1 },
+    { "key": "secrets", "rateKey": "secrets_months", "quantity": 13 },
+    { "key": "kms", "rateKey": "kms_key_months", "quantity": 2 },
+    { "key": "alarms", "rateKey": "alarm_months", "quantity": 19 }
+  ]
+}
