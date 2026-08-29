@@ -188,7 +188,7 @@ variable "ecr_force_delete" {
 variable "database_name" {
   description = "Initial RDS database name."
   type        = string
-  default     = "project_jackson"
+  default     = "atlas"
 }
 
 variable "database_master_username" {

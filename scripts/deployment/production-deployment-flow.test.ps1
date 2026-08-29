@@ -15,6 +15,9 @@ $hash = 'b' * 64
 $cost = [pscustomobject]@{ region = 'us-west-2'; estimatedMonthlyUsd = 104; targetMonthlyUsd = 110; budgetThresholdUsd = 125; budgetActionCount = 0; workloadProfileMatched = $true; unpricedRecurringResources = @() }
 $secrets = [pscustomobject]@{ schemaVersion = '1.0.0'; secrets = @([pscustomobject]@{ key = 'SESSION_SECRET'; consumers = @('api') }) }
 $fixtureRoot = Join-Path $repoPath 'scripts\security\fixtures\production-plans'
+$deploymentScript = Get-Content -LiteralPath (Join-Path $repoPath 'scripts\deploy-to-aws-production.ps1') -Raw
+Assert-True ($deploymentScript -match 'SkipHttpErrorCheck\s*=\s*\$true') 'Live smoke HTTP requests must return expected non-2xx responses in PowerShell 7.'
+Assert-True ($deploymentScript -notmatch 'GetResponseStream') 'Live smoke handling must not use the legacy WebResponse stream API.'
 
 $planCapabilities = Get-ProductionModeCapabilities Plan
 $routine = Get-Content -LiteralPath (Join-Path $fixtureRoot 'routine-pass.json') -Raw | ConvertFrom-Json

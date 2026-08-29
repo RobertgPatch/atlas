@@ -406,7 +406,7 @@ function Invoke-LiveProductionSmoke {
   $invokeHttp = {
     param($Method, $Uri, $Body)
     try {
-      $arguments = @{ Uri = $Uri; Method = $Method; WebSession = $session; UseBasicParsing = $true }
+      $arguments = @{ Uri = $Uri; Method = $Method; WebSession = $session; UseBasicParsing = $true; SkipHttpErrorCheck = $true }
       if ($null -ne $Body) {
         $arguments.ContentType = 'application/json'
         $arguments.Body = ($Body | ConvertTo-Json -Compress -Depth 10)
@@ -416,15 +416,7 @@ function Invoke-LiveProductionSmoke {
       $contentType = [string]$response.Headers['Content-Type']
       $content = [string]$response.Content
     }
-    catch {
-      $webResponse = $_.Exception.Response
-      if ($null -eq $webResponse) { return [pscustomobject]@{ statusCode = 0; contentType = ''; body = $null } }
-      $statusCode = [int]$webResponse.StatusCode
-      $contentType = [string]$webResponse.ContentType
-      $reader = [System.IO.StreamReader]::new($webResponse.GetResponseStream())
-      try { $content = $reader.ReadToEnd() }
-      finally { $reader.Dispose() }
-    }
+    catch { return [pscustomobject]@{ statusCode = 0; contentType = ''; body = $null } }
     $bodyValue = $content
     if ($contentType -match 'json' -and -not [string]::IsNullOrWhiteSpace($content)) {
       try { $bodyValue = $content | ConvertFrom-Json } catch { $bodyValue = $null }
