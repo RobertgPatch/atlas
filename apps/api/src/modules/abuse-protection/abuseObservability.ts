@@ -88,52 +88,71 @@ export interface AbuseObservability {
   }>
 }
 
-export const abuseMetricEnvelope = (metric: AbuseMetric, timestamp = Date.now()) => ({
-  _aws: {
-    Timestamp: timestamp,
-    CloudWatchMetrics: [{
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [[
-        'Environment',
-        'Decision',
-        'RouteClass',
-        'WorkloadKey',
-      ]],
-      Metrics: [
-        { Name: metric.name, Unit: 'Count' },
-        { Name: 'ProviderCalls', Unit: 'Count' },
-        { Name: 'RetryAttempts', Unit: 'Count' },
-        { Name: 'CostUnits', Unit: 'Count' },
-        { Name: 'DecisionLatency', Unit: 'Milliseconds' },
-      ],
-    }, {
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment']],
-      Metrics: [
-        { Name: metric.name, Unit: 'Count' },
-        { Name: 'ProviderCalls', Unit: 'Count' },
-        { Name: 'RetryAttempts', Unit: 'Count' },
-        { Name: 'CostUnits', Unit: 'Count' },
-      ],
-    }],
-  },
-  Environment: metric.dimensions.environment,
-  Decision: metric.dimensions.decision,
-  RouteClass: metric.dimensions.routeClass,
-  WorkloadKey: metric.dimensions.workloadKey,
-  PolicyKey: metric.dimensions.policyKey,
-  ScopeKind: metric.dimensions.scopeKind,
-  ReasonCode: metric.dimensions.reasonCode,
-  [metric.name]: metric.value,
-  ProviderCalls: metric.dimensions.workloadKey !== 'none'
+type AbuseCloudWatchMetricName =
+  | 'AbuseProtectionCritical'
+  | 'ProviderCalls'
+  | 'RetryAttempts'
+  | 'CostUnits'
+
+interface AbuseCloudWatchMeasurement {
+  readonly name: AbuseCloudWatchMetricName
+  readonly value: number
+}
+
+const criticalReason =
+  /(?:SATURATED|STORE_UNAVAILABLE|EVICTION|HMAC|CAPABILITY_REPLAY|BACKLOG|QUOTA|DISABLED)/
+const providerRouteClasses = new Set<RouteClass>([
+  'PAID_EXTRACTION',
+  'EXTERNAL_PROVIDER',
+  'INTERNAL_SCHEDULER',
+])
+
+/**
+ * Emit only the environment-level signals that drive an operator alarm.
+ * Routine decisions remain available as sampled structured logs. Publishing
+ * zero-valued placeholders or request-category dimensions would create paid
+ * custom metric series even when no actionable event occurred.
+ */
+export const abuseMetricEnvelope = (
+  metric: AbuseMetric,
+  timestamp = Date.now(),
+): Readonly<Record<string, unknown>> | null => {
+  const measurements: AbuseCloudWatchMeasurement[] = []
+  if (criticalReason.test(metric.dimensions.reasonCode)) {
+    measurements.push({ name: 'AbuseProtectionCritical', value: metric.value })
+  }
+  if (
+    metric.dimensions.workloadKey !== 'none'
     && metric.dimensions.decision === 'allowed'
-    && ['PAID_EXTRACTION', 'EXTERNAL_PROVIDER', 'INTERNAL_SCHEDULER'].includes(metric.dimensions.routeClass)
-    ? metric.units
-    : 0,
-  RetryAttempts: metric.dimensions.decision === 'retried' ? metric.value : 0,
-  CostUnits: metric.units,
-  DecisionLatency: metric.latencyMs ?? 0,
-})
+    && providerRouteClasses.has(metric.dimensions.routeClass)
+  ) {
+    measurements.push({ name: 'ProviderCalls', value: metric.units })
+  }
+  if (metric.dimensions.decision === 'retried') {
+    measurements.push({ name: 'RetryAttempts', value: metric.value })
+  }
+  if (
+    metric.dimensions.workloadKey !== 'none'
+    && metric.dimensions.decision === 'allowed'
+  ) {
+    measurements.push({ name: 'CostUnits', value: metric.units })
+  }
+  const actionableMeasurements = measurements.filter(({ value }) => value > 0)
+  if (actionableMeasurements.length === 0) return null
+
+  return {
+    _aws: {
+      Timestamp: timestamp,
+      CloudWatchMetrics: [{
+        Namespace: 'ProjectJackson/AbuseProtection',
+        Dimensions: [['Environment']],
+        Metrics: actionableMeasurements.map(({ name }) => ({ Name: name, Unit: 'Count' })),
+      }],
+    },
+    Environment: metric.dimensions.environment,
+    ...Object.fromEntries(actionableMeasurements.map(({ name, value }) => [name, value])),
+  }
+}
 
 export const abuseRetentionHealthEnvelope = (input: {
   readonly environment: string
@@ -143,31 +162,32 @@ export const abuseRetentionHealthEnvelope = (input: {
   readonly storageBytes?: number
   readonly failures?: number
   readonly timestamp?: number
-}) => ({
-  _aws: {
-    Timestamp: input.timestamp ?? Date.now(),
-    CloudWatchMetrics: [{
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment', 'Store']],
-      Metrics: [
-        { Name: 'CleanupDeletedRows', Unit: 'Count' },
-        { Name: 'RetainedRows', Unit: 'Count' },
-        { Name: 'RetentionStorageBytes', Unit: 'Bytes' },
-        { Name: 'CleanupFailures', Unit: 'Count' },
-      ],
-    }, {
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment']],
-      Metrics: [{ Name: 'CleanupFailures', Unit: 'Count' }],
-    }],
-  },
-  Environment: boundedDimension(input.environment, 'ENVIRONMENT'),
-  Store: input.store,
-  CleanupDeletedRows: boundedNonNegative(input.deletedRows, 0),
-  RetainedRows: boundedNonNegative(input.retainedRows, 0),
-  RetentionStorageBytes: boundedNonNegative(input.storageBytes, 0),
-  CleanupFailures: boundedNonNegative(input.failures, 0),
-})
+}): Readonly<Record<string, unknown>> => {
+  const environment = boundedDimension(input.environment, 'ENVIRONMENT')
+  const failures = boundedNonNegative(input.failures, 0)
+  const record = {
+    event: 'abuse_protection_retention_cleanup',
+    Environment: environment,
+    Store: input.store,
+    CleanupDeletedRows: boundedNonNegative(input.deletedRows, 0),
+    RetainedRows: boundedNonNegative(input.retainedRows, 0),
+    RetentionStorageBytes: boundedNonNegative(input.storageBytes, 0),
+    CleanupFailures: failures,
+  }
+  if (failures === 0) return record
+
+  return {
+    _aws: {
+      Timestamp: input.timestamp ?? Date.now(),
+      CloudWatchMetrics: [{
+        Namespace: 'ProjectJackson/AbuseProtection',
+        Dimensions: [['Environment']],
+        Metrics: [{ Name: 'CleanupFailures', Unit: 'Count' }],
+      }],
+    },
+    ...record,
+  }
+}
 
 const decisions = new Set<string>(ABUSE_EVENT_DECISIONS)
 const routeClasses = new Set<string>(ROUTE_CLASSES)
@@ -313,7 +333,10 @@ export const cloudWatchAbuseObservability = createAbuseObservability({
   maximumLogsPerWindow: 100,
   emitMetric: config.nodeEnv === 'test'
     ? () => undefined
-    : (metric) => console.info(JSON.stringify(abuseMetricEnvelope(metric))),
+    : (metric) => {
+        const envelope = abuseMetricEnvelope(metric)
+        if (envelope) console.info(JSON.stringify(envelope))
+      },
   emitLog: config.nodeEnv === 'test'
     ? () => undefined
     : (event) => console.info(JSON.stringify(event)),
