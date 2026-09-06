@@ -43,9 +43,10 @@ Revision 8 was compared with revision 7 before service update; the image digest 
 
 Before deployment, `ProjectJackson/AbuseProtection` had 21 recently active custom series, all produced by the cleanup envelope. CloudWatch can continue listing inactive historical series for up to two weeks; the important billing change is that successful cleanup runs no longer publish new datapoints to them.
 
-The account has zero CloudWatch metric alarms and zero custom dashboards in the checked regions. The ECS cluster still has classic Container Insights enabled, with 63 recently active `ECS/ContainerInsights` series. That setting was not changed by this application hotfix.
+The account has zero CloudWatch metric alarms and zero custom dashboards in the checked regions. The initial audit found classic Container Insights enabled with 63 recently active `ECS/ContainerInsights` series. After explicit operator approval, the production cluster setting was changed from `enabled` to `disabled`. Both services remained stable at one running task, the API target remained healthy, and no task was replaced or restarted.
 
 Cost Explorer reports `10.0944444433` metric-months for `USW1-CW:MetricMonitorUsage` from September 1 through September 5. The free allowance is 10 metric-months, so the account has effectively crossed it even though the earlier Free Tier alert showed 85%; billing and alert views can lag. With classic Container Insights left enabled, its 63 current series alone project to roughly $15.90/month after the 10-metric allowance, before minor Container Insights log ingestion and any event-driven application metrics.
+Disabling Container Insights stops new datapoints for those 63 series and avoids that projected recurring metric-storage charge. Historical series can remain visible temporarily, and billing views can lag the setting change.
 
 ## Rollback
 
