@@ -45,6 +45,8 @@ Before deployment, `ProjectJackson/AbuseProtection` had 21 recently active custo
 
 The account has zero CloudWatch metric alarms and zero custom dashboards in the checked regions. The ECS cluster still has classic Container Insights enabled, with 63 recently active `ECS/ContainerInsights` series. That setting was not changed by this application hotfix.
 
+Cost Explorer reports `10.0944444433` metric-months for `USW1-CW:MetricMonitorUsage` from September 1 through September 5. The free allowance is 10 metric-months, so the account has effectively crossed it even though the earlier Free Tier alert showed 85%; billing and alert views can lag. With classic Container Insights left enabled, its 63 current series alone project to roughly $15.90/month after the 10-metric allowance, before minor Container Insights log ingestion and any event-driven application metrics.
+
 ## Rollback
 
 If revision 8 shows a regression, update `project-jackson-production-api` in `project-jackson-production-cluster` back to task definition `project-jackson-production-api:7` in `us-west-1`, wait for service stability, then re-run the public health checks.
