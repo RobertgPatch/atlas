@@ -10,8 +10,8 @@ import {
 
 const accountId = 'history-account-1'
 
-const connectHistoryAccount = (fixture: TestFixture) => {
-  plaidRepository.createConnectionFromPublicToken({
+const connectHistoryAccount = async (fixture: TestFixture) => {
+  await plaidRepository.createConnectionFromPublicToken({
     ownerUserId: fixture.admin.id,
     plaidItemId: 'history-item-1',
     accessToken: 'history-access-token',
@@ -102,7 +102,7 @@ describe('Consolidated holdings history integration', () => {
 
   beforeEach(async () => {
     fixture = await createTestFixture()
-    connectHistoryAccount(fixture)
+    await connectHistoryAccount(fixture)
   })
 
   afterEach(async () => {

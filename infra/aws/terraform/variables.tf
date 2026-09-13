@@ -160,6 +160,11 @@ variable "mfa_login_enabled" {
   description = "Require the existing MFA enrollment or verification flow after password validation in production."
   type        = bool
   default     = true
+
+  validation {
+    condition     = var.mfa_login_enabled
+    error_message = "mfa_login_enabled must remain true in production."
+  }
 }
 
 variable "api_health_check_path" {

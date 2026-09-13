@@ -16,6 +16,7 @@
     "tmp": "^0.2.7",
     "fast-uri": "^3.1.5",
     "find-my-way": "^9.9.0",
+    "js-yaml": "^4.3.2",
     "uuid": "^11.1.1",
     "brace-expansion@<1.1.18": "1.1.18",
     "brace-expansion@>=2.0.0 <2.1.4": "2.1.4"

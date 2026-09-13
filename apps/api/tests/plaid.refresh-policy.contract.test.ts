@@ -11,8 +11,8 @@ import { config } from '../src/config.js'
 
 const schedulerToken = 'test-scheduler-token-123'
 
-const createSelectedPlaidAccount = (fixture: TestFixture) => {
-  plaidRepository.createConnectionFromPublicToken({
+const createSelectedPlaidAccount = async (fixture: TestFixture) => {
+  await plaidRepository.createConnectionFromPublicToken({
     ownerUserId: fixture.admin.id,
     plaidItemId: 'item-refresh-contract',
     accessToken: 'access-refresh-contract',
@@ -131,7 +131,7 @@ describe('Plaid refresh policy contract', () => {
     config.plaidRefresh.schedulerToken = schedulerToken
     config.plaidRefresh.schedulerEnabled = true
     fixture = await createTestFixture()
-    createSelectedPlaidAccount(fixture)
+    await createSelectedPlaidAccount(fixture)
     const pending = await plaidRepository.createRefreshAttempt({
       triggerSource: 'manual',
       refreshReason: 'manual',
@@ -156,7 +156,7 @@ describe('Plaid refresh policy contract', () => {
     config.plaidRefresh.schedulerEnabled = true
     config.plaidRefresh.schedulerMode = 'eventbridge'
     fixture = await createTestFixture()
-    createSelectedPlaidAccount(fixture)
+    await createSelectedPlaidAccount(fixture)
     const attempt = await plaidRepository.createRefreshAttempt({
       triggerSource: 'scheduled',
       refreshReason: 'daily_cutoff',

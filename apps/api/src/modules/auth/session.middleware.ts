@@ -60,7 +60,7 @@ export const withSession = async (
   if (!session || !authRepository.isSessionValid(session)) return
 
   const user = authRepository.getUserById(session.userId)
-  if (!user) return
+  if (!user || user.status !== 'Active') return
 
   request.authSession = session
   request.authUser = {

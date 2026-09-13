@@ -156,6 +156,9 @@ describe('abuse-protection configuration', () => {
 
   it('rejects unsafe or unbounded production session settings', () => {
     const safe = {
+      persistenceSecretKey: 'production-persistence-secret-material-0001',
+      adminPassword: 'production-admin-password-0001',
+      userPassword: 'production-user-password-0001',
       sessionSecret: 'production-session-secret-material-0001',
       sessionCookieSecure: true,
       sessionCookieName: 'atlas_session',
@@ -163,6 +166,7 @@ describe('abuse-protection configuration', () => {
       sessionIdleTimeoutSeconds: 1_800,
       sessionActivityWriteIntervalSeconds: 60,
       sessionAbsoluteTimeoutSeconds: 28_800,
+      mfaLoginEnabled: true,
     }
 
     expect(() => validateProductionSessionSettings(safe)).not.toThrow()
@@ -174,6 +178,22 @@ describe('abuse-protection configuration', () => {
       ...safe,
       sessionCookieSameSite: 'invalid',
     })).toThrow(/SESSION_COOKIE_SAMESITE/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      mfaLoginEnabled: false,
+    })).toThrow(/MFA_LOGIN_ENABLED/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      persistenceSecretKey: '',
+    })).toThrow(/PERSISTENCE_SECRET_KEY/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      adminPassword: 'password123',
+    })).toThrow(/ADMIN_PASSWORD/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      userPassword: safe.adminPassword,
+    })).toThrow(/must be distinct/)
     expect(() => validateProductionSessionSettings({
       ...safe,
       sessionActivityWriteIntervalSeconds: 1_801,

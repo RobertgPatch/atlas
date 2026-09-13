@@ -71,7 +71,7 @@ describe('GET /v1/reports/consolidated-holdings freshness contract', () => {
   it('honors manual refresh force mode when saved data is already fresh', async () => {
     config.plaid.clientId = 'test-client-id'
     config.plaid.secret = 'test-secret'
-    plaidRepository.createConnectionFromPublicToken({
+    await plaidRepository.createConnectionFromPublicToken({
       ownerUserId: fixture.admin.id,
       plaidItemId: 'item-manual-force',
       accessToken: 'access-manual-force',

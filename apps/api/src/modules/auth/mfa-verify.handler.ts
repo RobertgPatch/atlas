@@ -24,7 +24,7 @@ export const mfaVerifyHandler = async (
   }
 
   const user = authRepository.getUserById(challenge.userId)
-  if (!user || user.status === 'Inactive') {
+  if (!user || user.status !== 'Active') {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }

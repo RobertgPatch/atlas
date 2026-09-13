@@ -594,6 +594,7 @@ export const buildAbuseProtectionConfig = (
 }
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
+const isProduction = nodeEnv === 'production'
 const runtimeBoundary = buildRuntimeBoundaryConfig(process.env)
 const sessionCookieSecure = nodeEnv === 'production'
   ? strictBoolean(process.env, nodeEnv, 'SESSION_COOKIE_SECURE', false, true)
@@ -649,9 +650,9 @@ export const config = {
   persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
   requireDurablePersistence: asBoolean(process.env.REQUIRE_DURABLE_PERSISTENCE),
   adminEmail: process.env.ADMIN_EMAIL ?? 'admin@jackson.com',
-  adminPassword: process.env.ADMIN_PASSWORD ?? 'password123',
+  adminPassword: process.env.ADMIN_PASSWORD ?? (isProduction ? '' : 'password123'),
   userEmail: process.env.USER_EMAIL ?? 'user@jackson.com',
-  userPassword: process.env.USER_PASSWORD ?? 'password123',
+  userPassword: process.env.USER_PASSWORD ?? (isProduction ? '' : 'password123'),
   passwordHash: {
     memoryCostKiB: Math.max(
       19 * 1024,
@@ -791,6 +792,9 @@ export const config = {
 }
 
 export interface ProductionSessionSettings {
+  persistenceSecretKey: string
+  adminPassword: string
+  userPassword: string
   sessionSecret: string
   sessionCookieSecure: boolean
   sessionCookieName: string
@@ -798,11 +802,26 @@ export interface ProductionSessionSettings {
   sessionIdleTimeoutSeconds: number
   sessionActivityWriteIntervalSeconds: number
   sessionAbsoluteTimeoutSeconds: number
+  mfaLoginEnabled: boolean
 }
 
 export const validateProductionSessionSettings = (
   settings: ProductionSessionSettings,
 ): void => {
+  if (settings.persistenceSecretKey.length < 32 || settings.persistenceSecretKey.length > 4_096) {
+    throw new Error('PERSISTENCE_SECRET_KEY must contain 32 through 4096 characters in production.')
+  }
+  for (const [name, password] of [
+    ['ADMIN_PASSWORD', settings.adminPassword],
+    ['USER_PASSWORD', settings.userPassword],
+  ] as const) {
+    if (password.length < 12 || password.length > 1_024 || password === 'password123') {
+      throw new Error(`${name} must contain 12 through 1024 non-default characters in production.`)
+    }
+  }
+  if (settings.adminPassword === settings.userPassword) {
+    throw new Error('ADMIN_PASSWORD and USER_PASSWORD must be distinct in production.')
+  }
   if (settings.sessionSecret.length < 32 || settings.sessionSecret.length > 4_096) {
     throw new Error('SESSION_SECRET must contain 32 through 4096 characters in production.')
   }
@@ -814,6 +833,9 @@ export const validateProductionSessionSettings = (
   }
   if (!['lax', 'strict', 'none'].includes(settings.sessionCookieSameSite)) {
     throw new Error('SESSION_COOKIE_SAMESITE must be lax, strict, or none in production.')
+  }
+  if (!settings.mfaLoginEnabled) {
+    throw new Error('MFA_LOGIN_ENABLED must be true in production.')
   }
   if (
     !Number.isSafeInteger(settings.sessionIdleTimeoutSeconds)

@@ -127,4 +127,20 @@ describe('investment tracker model', () => {
     expect(csv).toContain('"Owner One, LLC"')
     expect(csv).toContain('1.4')
   })
+
+  it('neutralizes spreadsheet formulas in exported text without changing numbers', () => {
+    const records = recordsFromAggregation(aggregation)
+    records[0] = {
+      ...records[0]!,
+      fundName: '=HYPERLINK("https://attacker.invalid")',
+      ownerName: '  +cmd|\'/C calc\'!A0',
+      currentValue: -1250.5,
+    }
+
+    const csv = buildInvestmentCsv(records)
+
+    expect(csv).toContain('"\'=HYPERLINK(""https://attacker.invalid"")"')
+    expect(csv).toContain("'  +cmd|'/C calc'!A0")
+    expect(csv).toContain('-1250.5')
+  })
 })

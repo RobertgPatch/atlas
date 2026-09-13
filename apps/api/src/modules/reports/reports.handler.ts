@@ -264,6 +264,10 @@ export const refreshConsolidatedHoldingsHandler = async (
   }
 
   const userId = request.authUser.userId;
+  const accountVisibility = {
+    actorUserId: userId,
+    isAdmin: request.authUser.role === "Admin",
+  };
   try {
     const attempt = await runCostWorkload(
       {
@@ -284,7 +288,7 @@ export const refreshConsolidatedHoldingsHandler = async (
               config.abuseProtection.quotas.externalProvider
                 .plaidRefreshesGlobalDay,
           },
-          ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
+          ...plaidRepository.getSelectedInvestmentAccounts(accountVisibility).map((account) => ({
             scopeKind: "account" as const,
             scopeValue: account.id,
             limit:
@@ -308,6 +312,7 @@ export const refreshConsolidatedHoldingsHandler = async (
           requestedByUserId: userId,
           triggerSource: "manual",
           force: forced,
+          accountVisibility,
         }),
     );
     reply.status(202).send(attempt);

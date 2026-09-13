@@ -63,6 +63,25 @@ describe('MFA challenge verification', () => {
     expect(response.headers['set-cookie']).toBeUndefined()
   })
 
+  it('rejects a challenge after the account leaves Active status', async () => {
+    const challenge = authRepository.createMfaChallenge(fixture.admin.id)
+    authRepository.updateUserStatus(fixture.admin.id, 'Invited')
+    vi.spyOn(totpService, 'verify').mockReturnValue(true)
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: '/v1/auth/mfa/verify',
+        payload: { challengeId: challenge.id, code: '123456' },
+      })
+
+      expect(response.statusCode).toBe(401)
+      expect(response.headers['set-cookie']).toBeUndefined()
+    } finally {
+      authRepository.updateUserStatus(fixture.admin.id, 'Active')
+    }
+  })
+
   it('records an invalid TOTP and keeps the challenge available for retry', async () => {
     const challenge = authRepository.createMfaChallenge(fixture.admin.id)
     vi.spyOn(totpService, 'verify').mockReturnValue(false)

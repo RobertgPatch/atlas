@@ -206,6 +206,48 @@ describe('feature-flagged login', () => {
     expect(invited.passwordHash).toMatch(/^\$argon2id\$v=19\$/)
   })
 
+  it('does not allow invited accounts to use the shared bootstrap password', async () => {
+    const invited = await authRepository.upsertInvitedUser(
+      `security-audit-${randomUUID()}@example.com`,
+      'User',
+    )
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: {
+        email: invited.email,
+        password: config.userPassword,
+      },
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(response.headers['set-cookie']).toBeUndefined()
+  })
+
+  it('rejects an otherwise valid session when the user is not active', async () => {
+    authRepository.updateUserStatus(fixture.user.id, 'Inactive')
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: fixture.userCookie },
+      })
+      expect(response.statusCode).toBe(401)
+      expect(response.headers['set-cookie']).toContain(`${config.sessionCookieName}=;`)
+    } finally {
+      authRepository.updateUserStatus(fixture.user.id, 'Active')
+    }
+
+    const reactivatedResponse = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/auth/session',
+      headers: { cookie: fixture.userCookie },
+    })
+    expect(reactivatedResponse.statusCode).toBe(401)
+  })
+
   it('rejects a session extension without a valid session cookie', async () => {
     const response = await fixture.app.inject({
       method: 'POST',
