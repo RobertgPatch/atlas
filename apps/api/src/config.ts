@@ -825,6 +825,9 @@ export const validateProductionSessionSettings = (
   if (settings.sessionSecret.length < 32 || settings.sessionSecret.length > 4_096) {
     throw new Error('SESSION_SECRET must contain 32 through 4096 characters in production.')
   }
+  if (settings.persistenceSecretKey === settings.sessionSecret) {
+    throw new Error('PERSISTENCE_SECRET_KEY and SESSION_SECRET must be distinct in production.')
+  }
   if (!settings.sessionCookieSecure) {
     throw new Error('SESSION_COOKIE_SECURE must be true in production.')
   }

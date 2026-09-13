@@ -188,6 +188,10 @@ describe('abuse-protection configuration', () => {
     })).toThrow(/PERSISTENCE_SECRET_KEY/)
     expect(() => validateProductionSessionSettings({
       ...safe,
+      persistenceSecretKey: safe.sessionSecret,
+    })).toThrow(/must be distinct/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
       adminPassword: 'password123',
     })).toThrow(/ADMIN_PASSWORD/)
     expect(() => validateProductionSessionSettings({

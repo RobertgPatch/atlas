@@ -42,14 +42,17 @@ An orphan account also passed the visibility check.
 The repository now scopes connections and accounts to the requesting owner, fails
 closed on orphaned records, preserves administrator-wide behavior explicitly, limits
 clears and refreshes to visible accounts, and rejects Plaid Item owner reassignment.
+The database upsert also preserves the original owner atomically, so a second API
+process cannot race the in-memory ownership check and transfer an Item.
 
 ### High — account lifecycle state was not enforced consistently
 
 Password login accepted `Invited` users, allowing the shared bootstrap password to
 enter the MFA enrollment path. Existing sessions and MFA challenges also remained
-usable after a user left the active state. Login, session creation/hydration, and MFA
-completion now require `Active` status; lifecycle changes revoke sessions and
-invalidate MFA artifacts. Tests cover invitation, deactivation, challenge, and
+usable after a user left the active state, and reactivation could make an old session
+token usable again. Login, session creation/hydration, and MFA completion now require
+`Active` status; lifecycle changes and MFA resets revoke sessions and invalidate MFA
+artifacts. Tests cover invitation, deactivation, reactivation, challenge, reset, and
 enrollment cases.
 
 ### High — production credentials and encryption configuration failed open
@@ -57,9 +60,9 @@ enrollment cases.
 When production credential variables were absent, the API fell back to the public
 development password `password123`. The Plaid-secret encryption codec could also use
 the database connection string as key material when `PERSISTENCE_SECRET_KEY` was
-missing. Production startup now requires an independent persistence secret, distinct
-non-default admin/user passwords, secure cookies, valid bounded session lifetimes, and
-MFA. Terraform independently refuses to disable MFA.
+missing. Production startup now requires a dedicated persistence secret distinct from
+the session secret, distinct non-default admin/user passwords, secure cookies, valid
+bounded session lifetimes, and MFA. Terraform independently refuses to disable MFA.
 
 ### High — unhandled errors could expose internal exception details
 
@@ -69,19 +72,21 @@ return only a stable error code and request ID. Server logging records bounded e
 metadata without serializing the exception message or stack into the response, and a
 financial-value debug log was removed.
 
-### High (development tooling) â€” js-yaml CPU denial-of-service advisory
+### High advisory, development scope — `js-yaml` CPU denial of service
 
-The web lint toolchain resolved `js-yaml` 4.3.1, which is affected by the
-merge-source CPU exhaustion advisory fixed in 4.3.2. A root override and regenerated
-lockfile now force 4.3.2. This dependency is build/test tooling rather than deployable
-runtime code, but malicious repository content can reach developer and CI tooling.
+The web lint toolchain resolved `js-yaml` 4.3.1, affected by
+GHSA-2883-xcg3-v3hh. A root override and regenerated lockfile now force 4.3.2. This
+dependency is build/test tooling rather than deployable runtime code, but malicious
+repository content can reach developer and CI tooling. Both full and production-only
+npm audits now report zero advisories.
 
 ### Medium — exported CSV content allowed spreadsheet formula execution
 
-K-1, partnership, report, and client-side investment CSV exporters escaped delimiters
-but did not neutralize cells beginning with spreadsheet formula prefixes. A shared CSV
-encoder now prefixes dangerous string cells while preserving legitimate numeric
-values, including negative amounts.
+K-1, partnership, report, and browser-side investment CSV exporters escaped delimiters
+but did not neutralize cells beginning with spreadsheet formula prefixes. The server
+uses a shared CSV encoder and the browser exporter applies the same rule. Both prefix
+dangerous string cells while preserving legitimate numeric values, including negative
+amounts.
 
 ### Medium — legacy K-1 upload trusted a spoofable MIME type
 
@@ -101,12 +106,14 @@ repository-admin history rewrite and exposure review are complete. Coordinate th
 rewrite because commit hashes will change and all collaborators must replace old
 clones; do not perform it as part of a routine application PR.
 
-### High — database peer identity is not explicitly verified by application config
+### High — internal transport peer identity is not fully verified
 
 The production image installs the AWS RDS trust bundle, and the database is private,
 but the application creates `pg.Pool` from `DATABASE_URL` without requiring
-`sslmode=verify-full`. Confirm `rds.force_ssl=1`, require certificate and hostname
-verification in production startup, and add a production-shaped TLS integration test.
+`sslmode=verify-full`. CloudFront also reaches the private ALB using HTTP. Confirm
+`rds.force_ssl=1`, require database certificate and hostname verification in production
+startup, terminate authenticated TLS on the ALB origin, and add production-shaped TLS
+integration tests for both paths.
 
 ## Architectural recommendations
 
@@ -122,9 +129,9 @@ verification in production startup, and add a production-shaped TLS integration 
    user/entity context, least-privilege application roles, and integration tests proving
    cross-tenant denial even when a repository query omits a filter.
 3. **Replace bootstrap passwords with one-time identity provisioning.** Use unique,
-   expiring invite/reset tokens, require password creation before activation, revoke all
-   sessions on lifecycle changes, and make credential rotation update the database rather
-   than only the Secrets Manager value.
+   expiring invite/reset tokens, require password creation before activation, preserve
+   the new session-revocation invariant on every lifecycle change, and make credential
+   rotation update the database rather than only the Secrets Manager value.
 4. **Consolidate document ingestion.** Remove the legacy multipart path after client
    migration so all uploads use one hardened batch flow. Run parsing in an isolated,
    resource-bounded worker and apply structural validation, encryption rejection,
@@ -135,6 +142,9 @@ verification in production startup, and add a production-shaped TLS integration 
 6. **Create a sensitive-file prevention control.** Add a pre-commit/CI rule for tax
    documents and large binaries, secret scanning with push protection, and a documented
    incident runbook for history rewrites and credential rotation.
+7. **Encrypt and authenticate every production hop.** Require verified TLS from the
+   application to RDS and from CloudFront to the private ALB; fail production startup or
+   deployment policy checks when either transport is downgraded.
 
 ## Verification record
 
@@ -143,16 +153,22 @@ verification in production startup, and add a production-shaped TLS integration 
 - Current-tree credential scan: no matching plaintext credential or private-key
   signature; only examples and secret/password implementation files matched filename
   review.
-- `npm run build:api`: passed.
-- Full API suite: 569 passed, 103 skipped.
-- Full web suite: 318 passed; the stale compact-currency assertion was corrected to
-  match the unchanged `$2M` formatter output.
-- API and web production builds: passed.
+- API and web production builds: passed (existing web large-chunk warning only).
+- Security-focused regression sets: passed across authentication, authorization, error
+  redaction, upload validation, CSV handling, and route policy.
+- Full API suite, serialized: 569 passed, 103 database/environment-dependent tests
+  skipped. A parallel run's two timing-only failures passed in isolation and in the
+  serialized full run.
+- Full web suite, serialized: 318 passed.
 - `terraform fmt -check -recursive infra/aws/terraform`: passed.
 - Terraform configuration validation (excluding its separately executed test fixtures):
   passed; `terraform test`: 19 passed.
 - Dependency, environment-topology, production smoke-contract, route-policy,
   production-plan policy, and production-cost gates: passed.
+- Database-backed integration tests were not run because Docker Desktop was unavailable
+  on the audit host. `gitleaks`, `semgrep`, and `trivy` were also unavailable; the audit
+  used repository-native gates, npm advisory data, targeted source review, and regex
+  secret scanning instead.
 
 ## Residual-risk note
 
