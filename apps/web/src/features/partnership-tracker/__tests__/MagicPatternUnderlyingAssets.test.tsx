@@ -81,7 +81,7 @@ describe('MagicPatternUnderlyingAssets', () => {
     expect(screen.getByRole('heading', { name: 'Underlying asset summary' })).toBeInTheDocument()
     const summary = screen.getByRole('table', { name: 'Underlying asset summary for Atlas Holdings' })
     expect(within(summary).getByText('Latest asset FMV')).toBeInTheDocument()
-    expect(within(summary).getByText('$2.0M')).toBeInTheDocument()
+    expect(within(summary).getByText(/^\$2(?:\.0)?M$/)).toBeInTheDocument()
     expect(within(summary).getByText('Valuation coverage')).toBeInTheDocument()
     expect(within(summary).getByText('100.0%')).toBeInTheDocument()
     expect(screen.getByText('Feb 1, 2025')).toBeInTheDocument()

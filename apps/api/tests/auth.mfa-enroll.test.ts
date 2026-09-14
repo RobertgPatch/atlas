@@ -67,6 +67,26 @@ describe('MFA enrollment completion', () => {
     expect(response.headers['set-cookie']).toBeUndefined()
   })
 
+  it('rejects enrollment completion after the account leaves Active status', async () => {
+    const secret = totpService.generateSecret()
+    const enrollment = authRepository.createMfaEnrollment(fixture.admin.id, secret)
+    authRepository.updateUserStatus(fixture.admin.id, 'Invited')
+    vi.spyOn(totpService, 'verify').mockReturnValue(true)
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: '/v1/auth/mfa/enroll/complete',
+        payload: { enrollmentToken: enrollment.id, code: '123456' },
+      })
+
+      expect(response.statusCode).toBe(401)
+      expect(response.headers['set-cookie']).toBeUndefined()
+    } finally {
+      authRepository.updateUserStatus(fixture.admin.id, 'Active')
+    }
+  })
+
   it('records an invalid TOTP and keeps the enrollment available for retry', async () => {
     const enrollment = authRepository.createMfaEnrollment(
       fixture.admin.id,

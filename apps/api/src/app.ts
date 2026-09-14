@@ -122,6 +122,17 @@ export const buildApp = () => {
     const statusCode = typeof httpError.statusCode === 'number' && httpError.statusCode >= 400
       ? httpError.statusCode
       : 500
+    if (statusCode >= 500) {
+      request.log.error({
+        requestId: request.id,
+        errorName: error instanceof Error ? error.name : 'UnknownError',
+        errorCode: httpError.code,
+      }, 'Unhandled request error')
+      return reply.status(statusCode).send({
+        error: 'INTERNAL_SERVER_ERROR',
+        requestId: request.id,
+      })
+    }
     return reply.status(statusCode).send(error)
   })
 

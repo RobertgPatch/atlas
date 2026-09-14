@@ -48,8 +48,8 @@ const restoreRuntime = () => {
   config.sessionSecret = originalReadinessConfig.sessionSecret
 }
 
-const connectSelectedAccount = (fixture: TestFixture) => {
-  plaidRepository.createConnectionFromPublicToken({
+const connectSelectedAccount = async (fixture: TestFixture) => {
+  await plaidRepository.createConnectionFromPublicToken({
     ownerUserId: fixture.admin.id,
     plaidItemId: 'item-policy-refresh',
     accessToken: 'access-policy-refresh',
@@ -184,7 +184,7 @@ describe('Plaid refresh policy integration', () => {
   beforeEach(async () => {
     configureRuntime()
     fixture = await createTestFixture()
-    connectSelectedAccount(fixture)
+    await connectSelectedAccount(fixture)
   })
 
   afterEach(async () => {

@@ -24,7 +24,7 @@ export const mfaEnrollCompleteHandler = async (
   }
 
   const user = authRepository.getUserById(enrollment.userId)
-  if (!user || user.status === 'Inactive') {
+  if (!user || user.status !== 'Active') {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
@@ -74,10 +74,6 @@ export const mfaEnrollCompleteHandler = async (
   }
   authRepository.consumeMfaEnrollment(payload.data.enrollmentToken)
 
-  if (enrolledUser.status === 'Invited') {
-    authRepository.updateUserStatus(enrolledUser.id, 'Active')
-  }
-
   const { token, session } = authRepository.createSession(user.id)
 
   await auditRepository.record({
@@ -100,7 +96,7 @@ export const mfaEnrollCompleteHandler = async (
       id: enrolledUser.id,
       email: enrolledUser.email,
       role: enrolledUser.role,
-      status: enrolledUser.status === 'Invited' ? 'Active' : enrolledUser.status,
+      status: enrolledUser.status,
     },
     role: enrolledUser.role,
     session: {
