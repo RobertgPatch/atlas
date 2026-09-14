@@ -165,10 +165,14 @@ integration tests for both paths.
   passed; `terraform test`: 19 passed.
 - Dependency, environment-topology, production smoke-contract, route-policy,
   production-plan policy, and production-cost gates: passed.
-- Database-backed integration tests were not run because Docker Desktop was unavailable
-  on the audit host. `gitleaks`, `semgrep`, and `trivy` were also unavailable; the audit
-  used repository-native gates, npm advisory data, targeted source review, and regex
-  secret scanning instead.
+- Database-backed integration tests and the production-shape image build were not run
+  because Docker Desktop was unavailable on the audit host. `gitleaks`, `semgrep`, and
+  `trivy` were also unavailable; the audit used repository-native gates, npm advisory
+  data, targeted source review, and regex secret scanning instead.
+- Standalone web lint and project-reference typecheck are not clean on this branch:
+  they report React effect-rule, shared-type import, and strict typing failures in files
+  unchanged by this security work. The production web build and all 318 web tests pass;
+  that pre-existing static-analysis debt should be handled separately.
 
 ## Residual-risk note
 
