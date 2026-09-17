@@ -1,8 +1,11 @@
 # Atlas AWS production infrastructure
 
-Atlas development runs on the developer machine. AWS contains one active
-application target, `production`, in `us-west-2`; CloudFront certificates are
-managed in `us-east-1`. There is no remote development or rehearsal target.
+Atlas development runs on the developer machine. The live application and
+database are in `us-west-1`, with K-1 S3/BDA in `us-west-2` and CloudFront
+certificates in `us-east-1`. Use `npm run deploy:aws:production` and the
+[live release guide](../../docs/deployment/live-aws-production.md).
+The Terraform files below describe a planned `us-west-2` topology, not an
+already-completed migration of the live site.
 
 ## Retained managed architecture
 

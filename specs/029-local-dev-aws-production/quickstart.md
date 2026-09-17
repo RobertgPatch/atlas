@@ -1,5 +1,10 @@
 # Quickstart: Local Development to AWS Production
 
+**Routine production releases now use [the live AWS release guide](../../docs/deployment/live-aws-production.md).**
+The historical Terraform commands below describe the planned Oregon topology.
+Their former script is now `scripts/deployment/deploy-planned-terraform.ps1`;
+they must not be used as a routine deploy to the existing California stack.
+
 This guide describes the target workflow after feature 029 is implemented. Development runs locally. AWS has one active application environment: production.
 
 ## 1. Protect current local infrastructure files

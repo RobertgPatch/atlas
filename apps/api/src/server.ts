@@ -1,5 +1,5 @@
 import { buildApp } from './app.js'
-import { config } from './config.js'
+import { config, requireProcessRole } from './config.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { authRepository } from './modules/auth/auth.repository.js'
 import { plaidRepository } from './modules/plaid/plaid.repository.js'
@@ -52,6 +52,7 @@ const logStartupDiagnostics = (app: ReturnType<typeof buildApp>) => {
 }
 
 const start = async () => {
+  requireProcessRole(config.processRole, 'api')
   const app = buildApp()
 
   try {

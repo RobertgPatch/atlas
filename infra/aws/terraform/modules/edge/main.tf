@@ -87,8 +87,6 @@ resource "aws_cloudfront_origin_request_policy" "api" {
     header_behavior = "whitelist"
     headers {
       items = [
-        "Accept",
-        "Accept-Language",
         "Access-Control-Request-Headers",
         "Access-Control-Request-Method",
         "CloudFront-Viewer-Address",
@@ -99,8 +97,6 @@ resource "aws_cloudfront_origin_request_policy" "api" {
         "Range",
         "Referer",
         "User-Agent",
-        "X-Amz-Checksum-Sha256",
-        "X-Request-Id",
       ]
     }
   }

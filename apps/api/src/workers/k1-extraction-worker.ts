@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url'
 
 import pino from 'pino'
 
-import { config } from '../config.js'
+import { config, requireProcessRole } from '../config.js'
 import { pool } from '../infra/db/client.js'
 import { runMigrations } from '../infra/db/migrate.js'
 import { getExtractor, listExtractorProviders } from '../modules/k1/extraction/index.js'
@@ -159,6 +159,7 @@ export const runK1ExtractionWorker = async (
 }
 
 const main = async (): Promise<void> => {
+  if (config.nodeEnv === 'production') requireProcessRole(config.processRole, 'k1-worker')
   if (!pool) throw new Error('DATABASE_URL is required for the K-1 extraction worker')
   await runMigrations((message) => log.info(message))
   const abortController = new AbortController()
