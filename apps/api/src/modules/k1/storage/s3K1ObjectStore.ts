@@ -9,6 +9,7 @@ import {
 import { Readable } from 'node:stream'
 
 import { config } from '../../../config.js'
+import { localBdaCredentials } from '../../../infra/aws/localBdaCredentials.js'
 import {
   assertSafeObjectKey,
   type K1ObjectIdentity,
@@ -43,7 +44,11 @@ export class S3K1ObjectStore implements K1ObjectStore {
   private readonly kmsKeyArn: string
 
   constructor(args?: { client?: S3Client; bucket?: string; kmsKeyArn?: string }) {
-    this.client = args?.client ?? new S3Client({ region: config.aws.region })
+    this.client = args?.client ?? new S3Client({
+      region: config.k1Ingestion.s3.region,
+      credentials: localBdaCredentials(),
+      followRegionRedirects: true,
+    })
     this.bucket = args?.bucket ?? config.k1Ingestion.s3.bucket
     this.kmsKeyArn = args?.kmsKeyArn ?? config.k1Ingestion.s3.kmsKeyArn
     if (!this.bucket) throw new Error('K1_S3_BUCKET_REQUIRED')
@@ -59,6 +64,7 @@ export class S3K1ObjectStore implements K1ObjectStore {
       ContentLength: input.sizeBytes,
       ContentType: input.contentType,
       ChecksumSHA256: checksumBase64(input.checksumSha256),
+      IfNoneMatch: input.ifNoneMatch,
       ServerSideEncryption: 'aws:kms',
       SSEKMSKeyId: this.kmsKeyArn,
       BucketKeyEnabled: true,

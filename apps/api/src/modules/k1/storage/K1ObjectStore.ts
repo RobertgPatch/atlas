@@ -33,6 +33,7 @@ export interface PutK1ObjectInput {
   contentType: string
   sizeBytes: number
   checksumSha256?: string | null
+  ifNoneMatch?: '*'
   metadata?: Record<string, string>
 }
 

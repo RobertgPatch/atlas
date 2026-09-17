@@ -11,15 +11,38 @@ Represents an executable runtime target.
 | `kind` | enum | Exactly `local` or `production` |
 | `remote` | boolean | `false` for `local`; `true` for `production` |
 | `terraformManaged` | boolean | `false` for `local`; `true` for `production` |
-| `allowsRealProviderMutation` | boolean | `false` for normal `local`; gated for `production` |
+| `allowsRealProviderMutation` | boolean | `false` for normal `local`; `k1_only` scope for an approved local BDA session; gated for `production` |
 | `databaseClass` | enum | `local_postgres` or `aws_rds` |
-| `adapterMode` | enum | Local defaults to `stub_local`; production uses configured production adapters |
+| `adapterMode` | enum | Local defaults to `stub_local`, may explicitly use `local_aws_bda`; production uses configured production adapters |
 
 ### Rules
 
 - No active value named `development` or `staging` may represent an AWS deployment target.
-- `local` cannot use the production Terraform backend, production database, production buckets/queues, or production provider resources.
+- `local` cannot use the production Terraform backend, database, SQS queues, runtime processes, or unrelated provider resources. An approved `local_aws_bda` session is the only exception and is limited to the K-1 S3/KMS/BDA resources.
 - `production` must use the production remote backend and `environment_name=production`.
+
+## Entity: Local BDA Session
+
+Represents the scoped hybrid provider selection; it is not an environment target.
+
+| Field | Type | Validation |
+|-------|------|------------|
+| `accountId` | string | Exactly 12 digits and equal to current STS identity |
+| `region` | string | Exactly `us-west-2` |
+| `bucket` | string | Exists in expected account; CORS allows both loopback Vite origins and PUT |
+| `kmsKeyArn` | ARN | Enabled KMS key in expected account/region |
+| `bdaProfileArn` | ARN | Approved BDA profile in expected region |
+| `bdaProjectArn` | ARN | Accessible project in expected account/region |
+| `bdaProjectStage` | enum | Exactly `LIVE` |
+| `queueMode` | enum | Exactly `local`; persisted in local PostgreSQL |
+| `costLimits` | object | Explicit monthly, daily, and in-flight finite ceilings |
+| `credentials` | external session | Short-lived AWS profile/session; never persisted in the dotenv artifact |
+
+### Rules
+
+- Preflight is read-only and completes before Docker or a child process starts.
+- K-1 document/result objects are remote evidence; all application metadata and extraction attempts remain in local PostgreSQL.
+- SQS URLs, non-loopback databases, broad AWS mutation flags, Terraform markers, and unrelated providers invalidate the session.
 
 ## Entity: Production Target Identity
 

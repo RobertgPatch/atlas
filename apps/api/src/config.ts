@@ -1,6 +1,28 @@
 import dotenv from 'dotenv'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+// The local launcher exports the approved CLI session into the process.
+// dotenv must not restore an older AWS_PROFILE from .env: the Node SDK gives
+// that profile precedence over the exported access key/session token.
+const hasLocalBdaSession = process.env.ATLAS_RUNTIME === 'local'
+  && process.env.ATLAS_LOCAL_BDA_ENABLED === 'true'
+  && Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY && process.env.AWS_SESSION_TOKEN)
 dotenv.config()
+if (hasLocalBdaSession) {
+  delete process.env.AWS_PROFILE
+  delete process.env.AWS_DEFAULT_PROFILE
+}
+
+// Resolve local evidence storage from the API package, not process.cwd().
+// npm workspaces, direct tsx launches, and compiled production launches can
+// otherwise point the same relative STORAGE_ROOT at different directories.
+const apiPackageRoot = fileURLToPath(new URL('../', import.meta.url))
+
+export const resolveStorageRoot = (configuredRoot: string): string =>
+  path.isAbsolute(configuredRoot)
+    ? path.normalize(configuredRoot)
+    : path.resolve(apiPackageRoot, configuredRoot)
 
 const asNumber = (value: string | undefined, fallback: number): number => {
   const parsed = Number(value)
@@ -41,6 +63,46 @@ const isLoopbackDatabaseUrl = (value: string): boolean => {
     return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host)
   } catch {
     return false
+  }
+}
+
+interface AwsArnParts {
+  service: string
+  region: string
+  accountId: string
+  resource: string
+}
+
+const parseAwsArn = (value: string): AwsArnParts | null => {
+  const match = /^arn:(?:aws|aws-us-gov|aws-cn):([^:]+):([^:]*):([^:]*):(.+)$/.exec(value)
+  return match
+    ? {
+        service: match[1]!,
+        region: match[2]!,
+        accountId: match[3]!,
+        resource: match[4]!,
+      }
+    : null
+}
+
+const validateLocalBdaArn = (args: {
+  name: string
+  value: string | undefined
+  service: string
+  region: string
+  accountId: string
+  resourcePrefix: string
+}): void => {
+  const arn = parseAwsArn(args.value?.trim() ?? '')
+  if (!arn) throw configurationError(args.name, 'a valid ARN is required for local BDA mode')
+  if (arn.service !== args.service || arn.region !== args.region) {
+    throw configurationError(args.name, `must be a ${args.service} resource in ${args.region}`)
+  }
+  if (arn.accountId !== args.accountId) {
+    throw configurationError(args.name, 'must belong to the explicitly approved AWS account')
+  }
+  if (!arn.resource.startsWith(args.resourcePrefix)) {
+    throw configurationError(args.name, `must identify ${args.resourcePrefix}`)
   }
 }
 
@@ -86,31 +148,124 @@ export const buildRuntimeBoundaryConfig = (
       throw configurationError('DATABASE_URL', 'the local runtime requires loopback PostgreSQL')
     }
 
-    const unsafeProviderSettings: Array<[string, boolean]> = [
-      ['K1_EXTRACTOR', k1ExtractorBackend !== 'stub'],
-      ['K1_OBJECT_STORE', k1ObjectStore !== 'local'],
-      ['K1_QUEUE', k1Queue !== 'local'],
-      ['K1_AWS_INGESTION_ENABLED', env.K1_AWS_INGESTION_ENABLED === 'true'],
+    const localBdaEnabled = !testRuntime && env.ATLAS_LOCAL_BDA_ENABLED === 'true'
+    if (env.ATLAS_LOCAL_BDA_ENABLED !== undefined
+      && !['true', 'false'].includes(env.ATLAS_LOCAL_BDA_ENABLED)) {
+      throw configurationError('ATLAS_LOCAL_BDA_ENABLED', 'expected exactly true or false')
+    }
+
+    const nonK1RemoteSettings: Array<[string, boolean]> = [
       ['MARKET_DATA_PROVIDER', (env.MARKET_DATA_PROVIDER ?? 'none') !== 'none'],
       ['PLAID_ENV', !['', 'sandbox'].includes(env.PLAID_ENV ?? '')],
+      ['AWS_APP_DOMAIN', Boolean(env.AWS_APP_DOMAIN?.trim())],
+      ['AWS_CLOUDFRONT_DISTRIBUTION_ID', Boolean(env.AWS_CLOUDFRONT_DISTRIBUTION_ID?.trim())],
+      ['AWS_WEB_ASSETS_BUCKET', Boolean(env.AWS_WEB_ASSETS_BUCKET?.trim())],
+      ['ATLAS_ALLOW_AWS_MUTATION', env.ATLAS_ALLOW_AWS_MUTATION === 'true'],
     ]
-    const remoteResourceKeys = [
-      'K1_S3_BUCKET',
-      'K1_KMS_KEY_ARN',
-      'K1_WORK_QUEUE_URL',
-      'K1_COMPLETION_QUEUE_URL',
-      'K1_BDA_PROFILE_ARN',
-      'K1_BDA_PROJECT_ARN',
-      'AWS_APP_DOMAIN',
-      'AWS_CLOUDFRONT_DISTRIBUTION_ID',
-      'AWS_WEB_ASSETS_BUCKET',
-    ]
-    const unsafe = testRuntime
+    const nonK1Remote = testRuntime
       ? undefined
-      : (unsafeProviderSettings.find(([, active]) => active)?.[0]
-        ?? remoteResourceKeys.find((key) => Boolean(env[key]?.trim())))
-    if (unsafe) {
-      throw configurationError(unsafe, 'remote providers/resources are prohibited in the local runtime')
+      : nonK1RemoteSettings.find(([, active]) => active)?.[0]
+    if (nonK1Remote) {
+      throw configurationError(nonK1Remote, 'the local runtime only permits the scoped K-1 BDA provider mode')
+    }
+
+    if (localBdaEnabled) {
+      const exactBdaSettings: Array<[string, string | undefined, string]> = [
+        ['K1_EXTRACTOR', env.K1_EXTRACTOR, 'aws_bda'],
+        ['K1_OBJECT_STORE', env.K1_OBJECT_STORE, 's3'],
+        ['K1_QUEUE', env.K1_QUEUE, 'local'],
+        ['K1_AWS_INGESTION_ENABLED', env.K1_AWS_INGESTION_ENABLED, 'true'],
+        ['K1_UPLOADS_ENABLED', env.K1_UPLOADS_ENABLED, 'true'],
+        ['K1_EXTRACTION_ENABLED', env.K1_EXTRACTION_ENABLED, 'true'],
+        ['K1_BDA_PROJECT_STAGE', env.K1_BDA_PROJECT_STAGE, 'LIVE'],
+        ['AWS_REGION', env.AWS_REGION ?? env.AWS_DEFAULT_REGION, 'us-west-2'],
+      ]
+      const invalid = exactBdaSettings.find(([, actual, expected]) => actual !== expected)
+      if (invalid) {
+        throw configurationError(invalid[0], `local BDA mode requires exactly ${invalid[2]}`)
+      }
+      if (env.K1_WORK_QUEUE_URL?.trim() || env.K1_COMPLETION_QUEUE_URL?.trim()) {
+        throw configurationError(
+          'K1_QUEUE',
+          'local BDA mode requires the PostgreSQL-backed local queue and no SQS URLs',
+        )
+      }
+      const accountId = env.ATLAS_LOCAL_BDA_ACCOUNT_ID?.trim() ?? ''
+      if (!/^\d{12}$/.test(accountId)) {
+        throw configurationError('ATLAS_LOCAL_BDA_ACCOUNT_ID', 'a 12-digit approved AWS account ID is required')
+      }
+      if (!env.K1_S3_BUCKET?.trim()) {
+        throw configurationError('K1_S3_BUCKET', 'a bucket name is required for local BDA mode')
+      }
+      const localPaidLimits: Array<[string, number, number]> = [
+        ['ABUSE_K1_GLOBAL_FILES_PER_MONTH', 1, 50],
+        ['ABUSE_K1_BDA_CALLS_PER_MONTH', 1, 10],
+        ['ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS', 640, 25_000],
+        ['ABUSE_BDA_MAX_ATTEMPTS', 1, 3],
+        ['ABUSE_K1_USER_FILES_PER_DAY', 1, 5],
+        ['ABUSE_K1_GLOBAL_FILES_PER_DAY', 1, 5],
+        ['ABUSE_K1_USER_DOCUMENTS_PER_DAY', 1, 3],
+        ['ABUSE_K1_GLOBAL_DOCUMENTS_PER_DAY', 1, 3],
+        ['ABUSE_K1_EXTRACTION_GLOBAL_IN_FLIGHT', 1, 1],
+      ]
+      const parsedLimits = new Map<string, number>()
+      for (const [name, minimum, maximum] of localPaidLimits) {
+        const raw = env[name]
+        if (!raw || !/^\d+$/.test(raw)) {
+          throw configurationError(name, 'an explicit base-10 local BDA ceiling is required')
+        }
+        const value = Number(raw)
+        if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+          throw configurationError(name, `local BDA mode requires ${minimum} through ${maximum}`)
+        }
+        parsedLimits.set(name, value)
+      }
+      const maximumReservedCents = parsedLimits.get('ABUSE_K1_BDA_CALLS_PER_MONTH')!
+        * parsedLimits.get('ABUSE_BDA_MAX_ATTEMPTS')!
+        * 640
+      if (parsedLimits.get('ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS')! < maximumReservedCents) {
+        throw configurationError(
+          'ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS',
+          `must cover the declared worst-case BDA reservation of ${maximumReservedCents} cents`,
+        )
+      }
+      validateLocalBdaArn({
+        name: 'K1_KMS_KEY_ARN', value: env.K1_KMS_KEY_ARN, service: 'kms',
+        region: 'us-west-2', accountId, resourcePrefix: 'key/',
+      })
+      validateLocalBdaArn({
+        name: 'K1_BDA_PROJECT_ARN', value: env.K1_BDA_PROJECT_ARN, service: 'bedrock',
+        region: 'us-west-2', accountId, resourcePrefix: 'data-automation-project/',
+      })
+      validateLocalBdaArn({
+        name: 'K1_BDA_PROFILE_ARN', value: env.K1_BDA_PROFILE_ARN, service: 'bedrock',
+        region: 'us-west-2', accountId, resourcePrefix: 'data-automation-profile/',
+      })
+    } else {
+      const unsafeProviderSettings: Array<[string, boolean]> = [
+        ['K1_EXTRACTOR', k1ExtractorBackend !== 'stub'],
+        ['K1_OBJECT_STORE', k1ObjectStore !== 'local'],
+        ['K1_QUEUE', k1Queue !== 'local'],
+        ['K1_AWS_INGESTION_ENABLED', env.K1_AWS_INGESTION_ENABLED === 'true'],
+      ]
+      const remoteResourceKeys = [
+        'K1_S3_BUCKET',
+        'K1_KMS_KEY_ARN',
+        'K1_WORK_QUEUE_URL',
+        'K1_COMPLETION_QUEUE_URL',
+        'K1_BDA_PROFILE_ARN',
+        'K1_BDA_PROJECT_ARN',
+      ]
+      const unsafe = testRuntime
+        ? undefined
+        : (unsafeProviderSettings.find(([, active]) => active)?.[0]
+          ?? remoteResourceKeys.find((key) => Boolean(env[key]?.trim())))
+      if (unsafe) {
+        throw configurationError(
+          unsafe,
+          'the local runtime requires explicit ATLAS_LOCAL_BDA_ENABLED=true for remote K-1 providers/resources',
+        )
+      }
     }
   } else {
     if (nodeEnvironment !== 'production') {
@@ -221,9 +376,16 @@ const positiveWindow = (
   requestsFallback: number,
   secondsName: string,
   secondsFallback: number,
+  options: IntegerSettingOptions = {},
 ) => ({
-  requests: strictInteger(env, environment, requestsName, requestsFallback, { max: 1_000_000 }),
-  seconds: strictInteger(env, environment, secondsName, secondsFallback, { max: 86_400 }),
+  requests: strictInteger(env, environment, requestsName, requestsFallback, {
+    ...options,
+    max: options.max ?? 1_000_000,
+  }),
+  seconds: strictInteger(env, environment, secondsName, secondsFallback, {
+    ...options,
+    max: 86_400,
+  }),
 })
 
 /**
@@ -263,13 +425,180 @@ export const buildAbuseProtectionConfig = (
   if (new Set([activeHmacKey, ...previousHmacKeys]).size !== previousHmacKeys.length + 1) {
     throw configurationError('ABUSE_HMAC_PREVIOUS_KEYS', 'rotation keys must be unique')
   }
+  const previousHmacKeyIds = (env.ABUSE_HMAC_PREVIOUS_KEY_IDS ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  if (previousHmacKeyIds.length !== previousHmacKeys.length) {
+    throw configurationError(
+      'ABUSE_HMAC_PREVIOUS_KEY_IDS',
+      'provide exactly one explicit version ID for every previous HMAC key',
+    )
+  }
+  if (new Set(previousHmacKeyIds).size !== previousHmacKeyIds.length) {
+    throw configurationError('ABUSE_HMAC_PREVIOUS_KEY_IDS', 'key version IDs must be unique')
+  }
+  for (const keyId of previousHmacKeyIds) {
+    if (!/^[A-Za-z0-9._-]{1,64}$/.test(keyId)) {
+      throw configurationError('ABUSE_HMAC_PREVIOUS_KEY_IDS', 'invalid key version ID')
+    }
+  }
+
+  const generatedHeaderName = environment === 'production' && env.ABUSE_VIEWER_ADDRESS_HEADER === undefined
+    ? (() => {
+        throw configurationError(
+          'ABUSE_VIEWER_ADDRESS_HEADER',
+          'production must explicitly require cloudfront-viewer-address',
+        )
+      })()
+    : (env.ABUSE_VIEWER_ADDRESS_HEADER ?? 'cloudfront-viewer-address').trim().toLowerCase()
+  if (generatedHeaderName !== 'cloudfront-viewer-address') {
+    throw configurationError(
+      'ABUSE_VIEWER_ADDRESS_HEADER',
+      'expected exactly cloudfront-viewer-address',
+    )
+  }
+  const requireGeneratedHeader = strictBoolean(
+    env,
+    environment,
+    'ABUSE_REQUIRE_GENERATED_VIEWER_ADDRESS',
+    false,
+    true,
+  )
+  if (environment === 'production' && !requireGeneratedHeader) {
+    throw configurationError(
+      'ABUSE_REQUIRE_GENERATED_VIEWER_ADDRESS',
+      'production must fail closed on a missing generated viewer address',
+    )
+  }
+  const deploymentTenantId = strictIdentifier(
+    env,
+    environment,
+    'ATLAS_DEPLOYMENT_TENANT_ID',
+    'local-family-office',
+    true,
+  )
+  const steadyStateApiTasks = strictInteger(
+    env,
+    environment,
+    'ABUSE_API_STEADY_STATE_TASKS',
+    1,
+    { min: 1, max: 1, productionExplicit: true },
+  )
+  const maximumLocalBuckets = strictInteger(
+    env,
+    environment,
+    'ABUSE_LOCAL_MAX_BUCKETS',
+    10_000,
+    { max: 1_000_000 },
+  )
+  const localPartitions = {
+    pinnedGlobal: strictInteger(
+      env,
+      environment,
+      'ABUSE_LOCAL_PINNED_GLOBAL_BUCKETS',
+      64,
+      { max: 10_000, productionExplicit: true },
+    ),
+    authenticated: strictInteger(
+      env,
+      environment,
+      'ABUSE_LOCAL_AUTHENTICATED_BUCKETS',
+      2_936,
+      { max: 1_000_000, productionExplicit: true },
+    ),
+    source: strictInteger(
+      env,
+      environment,
+      'ABUSE_LOCAL_SOURCE_BUCKETS',
+      7_000,
+      { max: 1_000_000, productionExplicit: true },
+    ),
+  }
+  if (Object.values(localPartitions).reduce((sum, value) => sum + value, 0) !== maximumLocalBuckets) {
+    throw configurationError(
+      'ABUSE_LOCAL_PARTITION_BUCKETS',
+      'pinned, authenticated, and source partitions must exactly equal ABUSE_LOCAL_MAX_BUCKETS',
+    )
+  }
+  const authGlobal = positiveWindow(
+    env,
+    environment,
+    'ABUSE_AUTH_GLOBAL_REQUESTS',
+    50,
+    'ABUSE_AUTH_GLOBAL_WINDOW_SECONDS',
+    300,
+    { productionExplicit: true },
+  )
+  const authGlobalDaily = positiveWindow(
+    env,
+    environment,
+    'ABUSE_AUTH_GLOBAL_DAILY_REQUESTS',
+    200,
+    'ABUSE_AUTH_GLOBAL_DAILY_WINDOW_SECONDS',
+    86_400,
+    { productionExplicit: true },
+  )
+  if (authGlobalDaily.seconds !== 86_400 || authGlobalDaily.requests < authGlobal.requests) {
+    throw configurationError(
+      'ABUSE_AUTH_GLOBAL_DAILY_REQUESTS',
+      'daily ceiling must use 86400 seconds and cover at least one short auth window',
+    )
+  }
+  const generalApiSource = positiveWindow(
+    env,
+    environment,
+    'ABUSE_API_SOURCE_REQUESTS',
+    300,
+    'ABUSE_API_SOURCE_WINDOW_SECONDS',
+    300,
+    { productionExplicit: true },
+  )
+  const generalApiGlobal = positiveWindow(
+    env,
+    environment,
+    'ABUSE_API_GLOBAL_REQUESTS',
+    500,
+    'ABUSE_API_GLOBAL_WINDOW_SECONDS',
+    300,
+    { productionExplicit: true },
+  )
+  const uploadTtlSeconds = strictInteger(
+    env,
+    environment,
+    'ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS',
+    300,
+    { max: 900, productionExplicit: true },
+  )
+  const uploadSignatureAgeSeconds = strictInteger(
+    env,
+    environment,
+    'ABUSE_UPLOAD_SIGNATURE_AGE_SECONDS',
+    300,
+    { max: 900, productionExplicit: true },
+  )
+  if (uploadTtlSeconds > uploadSignatureAgeSeconds) {
+    throw configurationError(
+      'ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS',
+      'must not exceed ABUSE_UPLOAD_SIGNATURE_AGE_SECONDS',
+    )
+  }
 
   const config = {
     productionRequiresExplicitPaidLimits: true,
+    runtime: { steadyStateApiTasks },
+    sourceIdentity: {
+      generatedHeaderName,
+      requireGeneratedHeader,
+    },
+    deploymentTenantId,
+    capabilities: {
+      uploadTtlSeconds,
+      signatureAgeSeconds: uploadSignatureAgeSeconds,
+    },
     localRates: {
-      maximumBuckets: strictInteger(env, environment, 'ABUSE_LOCAL_MAX_BUCKETS', 10_000, {
-        max: 1_000_000,
-      }),
+      maximumBuckets: maximumLocalBuckets,
+      partitions: localPartitions,
       bucketTtlSeconds: strictInteger(env, environment, 'ABUSE_LOCAL_BUCKET_TTL_SECONDS', 900, {
         max: 86_400,
       }),
@@ -284,7 +613,12 @@ export const buildAbuseProtectionConfig = (
         20,
         'ABUSE_AUTH_SOURCE_WINDOW_SECONDS',
         300,
+        { productionExplicit: true },
       ),
+      generalApiSource,
+      generalApiGlobal,
+      authGlobal,
+      authGlobalDaily,
       authenticatedReadUser: positiveWindow(
         env,
         environment,
@@ -295,6 +629,17 @@ export const buildAbuseProtectionConfig = (
       ),
     },
     exactRates: {
+      authGlobal,
+      authGlobalDaily,
+      authSource: positiveWindow(
+        env,
+        environment,
+        'ABUSE_AUTH_DURABLE_SOURCE_REQUESTS',
+        20,
+        'ABUSE_AUTH_DURABLE_SOURCE_WINDOW_SECONDS',
+        300,
+        { productionExplicit: true },
+      ),
       knownAccount: positiveWindow(
         env,
         environment,
@@ -406,13 +751,22 @@ export const buildAbuseProtectionConfig = (
       ),
     },
     quotas: {
+      dailyCost: {
+        maximumCents: strictInteger(
+          env,
+          environment,
+          'ABUSE_PAID_WORKLOAD_DAILY_BUDGET_CENTS',
+          2_000,
+          { min: 1, max: 2_000 },
+        ),
+      },
       monthlyCost: {
         maximumCents: strictInteger(
           env,
           environment,
           'ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS',
           2_500,
-          { productionExplicit: true, max: 2_500 },
+          { productionExplicit: true, max: 62_000 },
         ),
         k1UploadFiles: strictInteger(env, environment, 'ABUSE_K1_GLOBAL_FILES_PER_MONTH', 50, productionPaidLimit),
         k1BdaProviderCalls: strictInteger(env, environment, 'ABUSE_K1_BDA_CALLS_PER_MONTH', 1, productionPaidLimit),
@@ -499,6 +853,17 @@ export const buildAbuseProtectionConfig = (
       keyId: strictIdentifier(env, environment, 'ABUSE_HMAC_KEY_ID', 'local-v1', true),
       activeKey: activeHmacKey,
       previousKeys: previousHmacKeys,
+      previousKeyIds: previousHmacKeyIds,
+      keyring: {
+        active: {
+          id: strictIdentifier(env, environment, 'ABUSE_HMAC_KEY_ID', 'local-v1', true),
+          key: activeHmacKey,
+        },
+        retained: previousHmacKeys.map((key, index) => ({
+          id: previousHmacKeyIds[index]!,
+          key,
+        })),
+      },
       rotationMaxDays: strictInteger(env, environment, 'ABUSE_HMAC_ROTATION_MAX_DAYS', 90, {
         max: 365,
       }),
@@ -537,8 +902,10 @@ export const buildAbuseProtectionConfig = (
     authArtifacts: {
       challengeTtlSeconds: strictInteger(env, environment, 'ABUSE_MFA_CHALLENGE_TTL_SECONDS', 300, { max: 3_600 }),
       enrollmentTtlSeconds: strictInteger(env, environment, 'ABUSE_MFA_ENROLLMENT_TTL_SECONDS', 600, { max: 3_600 }),
+      passwordChangeTtlSeconds: strictInteger(env, environment, 'ABUSE_PASSWORD_CHANGE_TTL_SECONDS', 600, { max: 3_600 }),
       maximumChallenges: strictInteger(env, environment, 'ABUSE_MFA_MAX_CHALLENGES', 10_000, { max: 1_000_000 }),
       maximumEnrollments: strictInteger(env, environment, 'ABUSE_MFA_MAX_ENROLLMENTS', 10_000, { max: 1_000_000 }),
+      maximumPasswordChanges: strictInteger(env, environment, 'ABUSE_PASSWORD_CHANGE_MAX_TOKENS', 1_000, { max: 100_000 }),
     },
     timeouts: {
       requestMs: strictInteger(env, environment, 'ABUSE_REQUEST_TIMEOUT_MS', 30_000, { max: 300_000 }),
@@ -640,6 +1007,17 @@ const massiveMarketDataApiKey =
     ? (process.env.ATLAS_TEST_MASSIVE_MARKET_DATA_API_KEY ?? '')
     : (process.env.MASSIVE_MARKET_DATA_API_KEY ?? '')
 
+const canonicalTonyEmail = 'tpatch@jspllc.com'
+const configuredTonyEmail = (process.env.ADMIN_EMAIL ?? canonicalTonyEmail).trim().toLowerCase()
+const adminEmail = ['admin@atlas.com', 'admin@jackson.com'].includes(configuredTonyEmail)
+  ? canonicalTonyEmail
+  : configuredTonyEmail
+const adminPassword = process.env.ADMIN_PASSWORD ?? 'password123'
+const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL ?? 'rpatch@jspllc.com').trim().toLowerCase()
+const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD
+  ?? process.env.USER_PASSWORD
+  ?? 'password123'
+
 export const config = {
   nodeEnv,
   runtimeClass: runtimeBoundary.runtimeClass,
@@ -648,10 +1026,18 @@ export const config = {
   databaseUrl,
   persistenceSecretKey: process.env.PERSISTENCE_SECRET_KEY ?? '',
   requireDurablePersistence: asBoolean(process.env.REQUIRE_DURABLE_PERSISTENCE),
-  adminEmail: process.env.ADMIN_EMAIL ?? 'admin@jackson.com',
-  adminPassword: process.env.ADMIN_PASSWORD ?? 'password123',
+  adminEmail,
+  adminDisplayName: process.env.ADMIN_DISPLAY_NAME?.trim() || 'Tony Patch',
+  adminPassword,
+  superAdminEmail,
+  superAdminDisplayName: process.env.SUPER_ADMIN_DISPLAY_NAME?.trim() || 'Robert Patch',
+  superAdminPassword,
   userEmail: process.env.USER_EMAIL ?? 'user@jackson.com',
   userPassword: process.env.USER_PASSWORD ?? 'password123',
+  passwordPolicy: {
+    minimumCharacters: 15,
+    maximumCharacters: 128,
+  },
   passwordHash: {
     memoryCostKiB: Math.max(
       19 * 1024,
@@ -672,7 +1058,7 @@ export const config = {
   authLockoutMinutes: asNumber(process.env.AUTH_LOCKOUT_MINUTES, 30),
   mfaLoginEnabled: asBoolean(process.env.MFA_LOGIN_ENABLED),
   totpIssuer: process.env.TOTP_ISSUER ?? 'Jackson',
-  storageRoot: process.env.STORAGE_ROOT ?? './.storage',
+  storageRoot: resolveStorageRoot(process.env.STORAGE_ROOT ?? './.storage'),
   k1UploadMaxBytes: asNumber(process.env.K1_UPLOAD_MAX_BYTES, 25 * 1024 * 1024),
   k1ExtractorBackend: runtimeBoundary.k1ExtractorBackend,
   k1Ingestion: {
@@ -693,6 +1079,7 @@ export const config = {
       15,
     ),
     s3: {
+      region: process.env.K1_S3_REGION ?? process.env.AWS_REGION ?? 'us-west-2',
       bucket: process.env.K1_S3_BUCKET ?? '',
       kmsKeyArn: process.env.K1_KMS_KEY_ARN ?? '',
       inputPrefix: process.env.K1_S3_INPUT_PREFIX ?? 'originals',
@@ -703,6 +1090,7 @@ export const config = {
       completionQueueUrl: process.env.K1_COMPLETION_QUEUE_URL ?? '',
     },
     bda: {
+      region: process.env.K1_BDA_REGION ?? process.env.AWS_REGION ?? 'us-west-2',
       profileArn: process.env.K1_BDA_PROFILE_ARN ?? '',
       projectArn: process.env.K1_BDA_PROJECT_ARN ?? '',
       projectStage: (process.env.K1_BDA_PROJECT_STAGE ?? 'DEVELOPMENT') as
@@ -779,6 +1167,8 @@ export const config = {
     k1WorkerDesiredCount: asNumber(process.env.K1_WORKER_DESIRED_COUNT, 0),
     logRetentionDays: asNumber(process.env.PRODUCTION_LOG_RETENTION_DAYS, 30),
     alarmsConfigured: asBoolean(process.env.PRODUCTION_ALARMS_CONFIGURED),
+    applicationLogGroups: asList(process.env.AWS_APPLICATION_LOG_GROUPS, ''),
+    applicationLogViewEnabled: asBoolean(process.env.AWS_APPLICATION_LOG_VIEW_ENABLED),
   },
   plaid: {
     clientId: plaidClientId,
@@ -798,6 +1188,40 @@ export interface ProductionSessionSettings {
   sessionIdleTimeoutSeconds: number
   sessionActivityWriteIntervalSeconds: number
   sessionAbsoluteTimeoutSeconds: number
+}
+
+export interface ProductionIdentitySettings {
+  adminEmail: string
+  adminDisplayName: string
+  adminPassword: string
+  superAdminEmail: string
+  superAdminDisplayName: string
+  superAdminPassword: string
+}
+
+export const validateProductionIdentitySettings = (
+  settings: ProductionIdentitySettings,
+): void => {
+  if (settings.adminEmail === settings.superAdminEmail) {
+    throw new Error('Production human identities must use distinct email addresses.')
+  }
+  if (settings.adminEmail !== 'tpatch@jspllc.com' || settings.adminDisplayName !== 'Tony Patch') {
+    throw new Error('Production primary admin must be Tony Patch <tpatch@jspllc.com>.')
+  }
+  if (settings.superAdminEmail !== 'rpatch@jspllc.com' || settings.superAdminDisplayName !== 'Robert Patch') {
+    throw new Error('Production super admin must be Robert Patch <rpatch@jspllc.com>.')
+  }
+  for (const [name, value] of [
+    ['ADMIN_PASSWORD', settings.adminPassword],
+    ['SUPER_ADMIN_PASSWORD', settings.superAdminPassword],
+  ] as const) {
+    if (value.length < 15 || value.length > 128) {
+      throw new Error(`${name} must contain 15 through 128 characters in production.`)
+    }
+  }
+  if (settings.adminPassword === settings.superAdminPassword) {
+    throw new Error('Tony Patch and Robert Patch must not share a bootstrap password.')
+  }
 }
 
 export const validateProductionSessionSettings = (
@@ -833,4 +1257,7 @@ export const validateProductionSessionSettings = (
   }
 }
 
-if (nodeEnv === 'production') validateProductionSessionSettings(config)
+if (nodeEnv === 'production') {
+  validateProductionSessionSettings(config)
+  validateProductionIdentitySettings(config)
+}

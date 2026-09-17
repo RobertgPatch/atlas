@@ -12,15 +12,15 @@ run "versioned_private_web_recovery" {
   module { source = "./modules/edge" }
 
   variables {
-    name_prefix                  = "atlas-production"
-    web_assets_bucket_name       = "atlas-production-web-assets"
-    api_origin_domain_name       = "internal-atlas-production.us-west-2.elb.amazonaws.com"
-    api_origin_arn               = "arn:aws:elasticloadbalancing:us-west-2:111122223333:loadbalancer/app/atlas-production/0000000000000000"
-    web_acl_arn                  = "arn:aws:wafv2:us-east-1:111122223333:global/webacl/atlas-production/00000000-0000-0000-0000-000000000000"
-    cloudfront_price_class       = "PriceClass_100"
-    static_cache_policy_id       = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-    api_cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-    api_origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    name_prefix            = "atlas-production"
+    web_assets_bucket_name = "atlas-production-web-assets"
+    api_origin_domain_name = "internal-atlas-production.us-west-2.elb.amazonaws.com"
+    api_origin_arn         = "arn:aws:elasticloadbalancing:us-west-2:111122223333:loadbalancer/app/atlas-production/0000000000000000"
+    web_acl_arn            = "arn:aws:wafv2:us-east-1:111122223333:global/webacl/atlas-production/00000000-0000-0000-0000-000000000000"
+    cloudfront_price_class = "PriceClass_100"
+    static_cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    api_cache_policy_id    = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    session_cookie_name    = "atlas_session"
   }
 
   assert {
@@ -40,8 +40,13 @@ run "api_automatic_rollback_and_immutable_artifacts" {
   module { source = "./modules/api" }
 
   variables {
-    name_prefix                 = "atlas-production"
-    aws_region                  = "us-west-2"
+    name_prefix    = "atlas-production"
+    aws_region     = "us-west-2"
+    aws_account_id = "111122223333"
+    application_log_group_names = [
+      "/aws/ecs/atlas-production/api",
+      "/aws/ecs/atlas-production/k1-worker",
+    ]
     vpc_id                      = "vpc-0123456789abcdef0"
     private_subnet_ids          = ["subnet-private-a", "subnet-private-b"]
     alb_security_group_id       = "sg-0123456789abcdef0"
@@ -74,8 +79,9 @@ run "api_automatic_rollback_and_immutable_artifacts" {
       aws_ecs_service.api.deployment_circuit_breaker[0].rollback &&
       aws_lb.api.enable_deletion_protection &&
       aws_ecr_repository.api.image_tag_mutability == "IMMUTABLE" &&
-      aws_cloudwatch_log_group.api.retention_in_days == 30
+      aws_cloudwatch_log_group.api.retention_in_days == 30 &&
+      length(aws_iam_role_policy.application_logs_read) == 1
     )
-    error_message = "Production API activation requires automatic rollback, deletion protection, immutable artifacts, and retained logs."
+    error_message = "Production API activation requires automatic rollback, deletion protection, immutable artifacts, retained logs, and bounded application-log access."
   }
 }

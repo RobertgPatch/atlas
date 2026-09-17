@@ -61,7 +61,7 @@ durable('K-1 25-document load and isolation', () => {
       objectKeys.push(`quarantine/${batch.id}/${item.id}.pdf`)
       const response = await fixture.app.inject({
         method: 'PUT', url: `/v1/k1-ingestion-items/${item.id}/local-upload`,
-        headers: { cookie: fixture.cookie, 'content-type': 'application/pdf', 'content-length': String(file.length), 'x-amz-checksum-sha256': hash(file) },
+        headers: { cookie: fixture.cookie, 'content-type': 'application/pdf', 'content-length': String(file.length), 'if-none-match': '*', 'x-amz-checksum-sha256': hash(file) },
         payload: file,
       })
       expect(response.statusCode).toBe(204)

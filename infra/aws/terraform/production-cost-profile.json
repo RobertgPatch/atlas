@@ -11,6 +11,15 @@
   "targetMonthlyUsd": 110,
   "budgetThresholdUsd": 125,
   "budgetActionCount": 0,
+  "terraformInventory": {
+    "wafRuleNames": ["AWSManagedRulesAmazonIpReputationList", "AWSManagedRulesAnonymousIpList", "AWSManagedRulesCommonRuleSet", "AWSManagedRulesKnownBadInputsRuleSet", "api_general_global", "api_general_per_ip", "auth_global", "auth_per_ip", "paid_admission_global_emergency", "paid_admission_per_ip"],
+    "alarmResourceFamilies": ["abuse_protection", "api_5xx", "api_requests", "api_target_latency", "api_unhealthy_targets", "cloudfront_5xx_rate", "cloudfront_requests", "ecs_utilization", "k1_dlq_depth", "k1_queue_age", "k1_queue_depth", "k1_workflow", "market_price_scheduler_target_errors", "rds_connections", "rds_cpu", "rds_free_storage", "s3_put_requests", "scheduler_target_errors", "waf_blocked_requests", "waf_rate_rule_blocks"],
+    "wafLogConfigurationCount": 1,
+    "customMetricNamespaces": ["ProjectJackson/AbuseProtection", "ProjectJackson/K1Ingestion"],
+    "spaFunctions": ["static_spa_rewrite"],
+    "s3ProtectionResources": ["aws_s3_bucket_lifecycle_configuration.documents", "aws_s3_bucket_lifecycle_configuration.terraform_state", "aws_s3_bucket_lifecycle_configuration.web_recovery", "aws_s3_bucket_policy.documents", "aws_s3_bucket_policy.terraform_state", "aws_s3_bucket_policy.web", "aws_s3_bucket_public_access_block.documents", "aws_s3_bucket_public_access_block.terraform_state", "aws_s3_bucket_public_access_block.web", "aws_s3_bucket_server_side_encryption_configuration.documents", "aws_s3_bucket_server_side_encryption_configuration.terraform_state", "aws_s3_bucket_versioning.documents", "aws_s3_bucket_versioning.terraform_state", "aws_s3_bucket_versioning.web"],
+    "prohibitedControls": []
+  },
   "recurringResources": [
     { "key": "nat", "rateKey": "nat_gateway_hours", "quantity": 730 },
     { "key": "nat-ipv4", "rateKey": "public_ipv4_hours", "quantity": 730 },
@@ -22,6 +31,6 @@
     { "key": "waf", "rateKey": "waf_fixed_months", "quantity": 1 },
     { "key": "secrets", "rateKey": "secrets_months", "quantity": 13 },
     { "key": "kms", "rateKey": "kms_key_months", "quantity": 2 },
-    { "key": "alarms", "rateKey": "alarm_months", "quantity": 19 }
+    { "key": "alarms", "rateKey": "alarm_months", "quantity": 21 }
   ]
 }

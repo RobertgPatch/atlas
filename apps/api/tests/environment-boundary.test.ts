@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 import { buildRuntimeBoundaryConfig } from '../src/config.js'
 
@@ -8,7 +12,62 @@ const localBase = {
   DATABASE_URL: 'postgres://postgres:postgres@127.0.0.1:15432/atlas',
 }
 
+const localBda = {
+  ...localBase,
+  ATLAS_LOCAL_BDA_ENABLED: 'true',
+  ATLAS_LOCAL_BDA_ACCOUNT_ID: '111122223333',
+  AWS_REGION: 'us-west-2',
+  K1_EXTRACTOR: 'aws_bda',
+  K1_OBJECT_STORE: 's3',
+  K1_QUEUE: 'local',
+  K1_AWS_INGESTION_ENABLED: 'true',
+  K1_UPLOADS_ENABLED: 'true',
+  K1_EXTRACTION_ENABLED: 'true',
+  K1_S3_BUCKET: 'atlas-production-k1-documents',
+  K1_KMS_KEY_ARN: 'arn:aws:kms:us-west-2:111122223333:key/00000000-0000-0000-0000-000000000001',
+  K1_BDA_PROFILE_ARN: 'arn:aws:bedrock:us-west-2:111122223333:data-automation-profile/us.data-automation-v1',
+  K1_BDA_PROJECT_ARN: 'arn:aws:bedrock:us-west-2:111122223333:data-automation-project/000000000001',
+  K1_BDA_PROJECT_STAGE: 'LIVE',
+  ABUSE_K1_GLOBAL_FILES_PER_MONTH: '5',
+  ABUSE_K1_BDA_CALLS_PER_MONTH: '10',
+  ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS: '25000',
+  ABUSE_BDA_MAX_ATTEMPTS: '1',
+  ABUSE_K1_USER_FILES_PER_DAY: '3',
+  ABUSE_K1_GLOBAL_FILES_PER_DAY: '3',
+  ABUSE_K1_USER_DOCUMENTS_PER_DAY: '3',
+  ABUSE_K1_GLOBAL_DOCUMENTS_PER_DAY: '3',
+  ABUSE_K1_EXTRACTION_GLOBAL_IN_FLIGHT: '1',
+}
+
 describe('runtime environment boundary', () => {
+  it('keeps the exported local BDA session authoritative after dotenv loads an old profile', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'atlas-bda-credentials-'))
+    try {
+      writeFileSync(join(directory, '.env'), 'AWS_PROFILE=retired-staging\nAWS_DEFAULT_PROFILE=retired-staging\n')
+      const inherited = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('AWS_')))
+      const child = spawnSync(process.execPath, [
+        '--import', import.meta.resolve('tsx'), '--input-type=module', '-e',
+        `await import(${JSON.stringify(new URL('../src/config.ts', import.meta.url).href)});
+         const { defaultProvider } = await import(${JSON.stringify(import.meta.resolve('@aws-sdk/credential-provider-node'))});
+         const credentials = await defaultProvider()();
+         console.log(JSON.stringify({ profile: process.env.AWS_PROFILE ?? null,
+           defaultProfile: process.env.AWS_DEFAULT_PROFILE ?? null, accessKeyId: credentials.accessKeyId }));`,
+      ], {
+        cwd: directory, encoding: 'utf8', timeout: 10000,
+        env: { ...inherited, ...localBda,
+          AWS_ACCESS_KEY_ID: 'ASIAFAKELOCALBDATEST',
+          AWS_SECRET_ACCESS_KEY: 'fake-test-secret', AWS_SESSION_TOKEN: 'fake-test-session',
+        },
+      })
+      expect(child.status, child.stderr).toBe(0)
+      expect(JSON.parse(child.stdout.trim())).toEqual({
+        profile: null, defaultProfile: null, accessKeyId: 'ASIAFAKELOCALBDATEST',
+      })
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it('selects deterministic local adapters without AWS credentials', () => {
     const result = buildRuntimeBoundaryConfig(localBase)
 
@@ -43,6 +102,34 @@ describe('runtime environment boundary', () => {
   ])('rejects implicit provider activation through %s', (key, value) => {
     expect(() => buildRuntimeBoundaryConfig({ ...localBase, [key]: value }))
       .toThrow(/local runtime/i)
+  })
+
+  it('allows only the explicit local-to-AWS K-1 BDA provider boundary', () => {
+    expect(buildRuntimeBoundaryConfig(localBda)).toEqual({
+      runtimeClass: 'local',
+      databaseUrl: localBase.DATABASE_URL,
+      k1ExtractorBackend: 'aws_bda',
+      k1ObjectStore: 's3',
+      k1Queue: 'local',
+      awsMutationAllowed: false,
+    })
+  })
+
+  it.each([
+    ['ATLAS_LOCAL_BDA_ACCOUNT_ID', ''],
+    ['AWS_REGION', 'us-east-1'],
+    ['K1_QUEUE', 'sqs'],
+    ['K1_WORK_QUEUE_URL', 'https://sqs.us-west-2.amazonaws.com/111122223333/k1'],
+    ['K1_UPLOADS_ENABLED', 'false'],
+    ['K1_BDA_PROJECT_STAGE', 'DEVELOPMENT'],
+    ['ABUSE_K1_BDA_CALLS_PER_MONTH', '11'],
+    ['ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS', '1000'],
+    ['K1_KMS_KEY_ARN', 'arn:aws:kms:us-west-2:999900001111:key/00000000-0000-0000-0000-000000000001'],
+    ['K1_BDA_PROJECT_ARN', 'arn:aws:bedrock:us-east-1:111122223333:data-automation-project/000000000001'],
+    ['MARKET_DATA_PROVIDER', 'alpaca'],
+    ['ATLAS_ALLOW_AWS_MUTATION', 'true'],
+  ])('rejects an unsafe or incomplete local BDA setting %s', (key, value) => {
+    expect(() => buildRuntimeBoundaryConfig({ ...localBda, [key]: value })).toThrow()
   })
 
   it('requires explicit production runtime settings', () => {

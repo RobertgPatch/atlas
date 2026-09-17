@@ -14,9 +14,13 @@ import {
   admissionService,
   admissionRepository,
   abuseRetentionHealthEnvelope,
+  cloudWatchAbuseObservability,
   defaultRouteProtectionPolicy,
+  PrincipalRateLimiter,
+  LocalConcurrencyLimiter,
   registerLocalRateLimiter,
   registerRequestBoundaries,
+  registerRequestSourceIdentity,
   registerRoutePolicyCoverage,
   type AdmissionService,
   type ExternalRouteRegistration,
@@ -25,7 +29,10 @@ import {
   buildProtectionUnavailableResponse,
   buildRateLimitedResponse,
 } from './modules/abuse-protection/index.js'
-import { AuthCostAdmissionService } from './modules/auth/authAdmission.service.js'
+import {
+  AuthCostAdmissionService,
+  createInMemoryAuthAdmissionStore,
+} from './modules/auth/authAdmission.service.js'
 import { authRepository } from './modules/auth/auth.repository.js'
 
 declare module 'fastify' {
@@ -33,6 +40,8 @@ declare module 'fastify' {
     abuseProtectionAdmission: AdmissionService
     abuseProtectionRouteInventory: readonly ExternalRouteRegistration[]
     authCostAdmission: AuthCostAdmissionService
+    abuseProtectionPrincipalRateLimiter: PrincipalRateLimiter
+    abuseProtectionLocalConcurrency: LocalConcurrencyLimiter
   }
 }
 
@@ -64,15 +73,22 @@ export const buildApp = () => {
     throw new Error('WEB_ORIGIN is required in production and must contain an explicit allowlist.')
   }
 
-  registerLocalRateLimiter(app, {
+  registerRequestSourceIdentity(app)
+  const localRateStore = registerLocalRateLimiter(app, {
     enabled: config.security.rateLimitEnabled,
     maximumBuckets: config.abuseProtection.localRates.maximumBuckets,
+    partitions: config.abuseProtection.localRates.partitions,
     bucketTtlSeconds: config.abuseProtection.localRates.bucketTtlSeconds,
     cleanupBatchSize: config.abuseProtection.retention.cleanupBatchSize,
     fingerprintKey: config.abuseProtection.hmac.activeKey,
     ipv6PrefixLength: config.abuseProtection.localRates.ipv6PrefixLength,
     sessionCookieName: config.sessionCookieName,
   })
+  app.decorate(
+    'abuseProtectionPrincipalRateLimiter',
+    new PrincipalRateLimiter(localRateStore),
+  )
+  app.decorate('abuseProtectionLocalConcurrency', new LocalConcurrencyLimiter())
   const routeInventory = registerRoutePolicyCoverage(app, {
     enforceAtStartup: config.nodeEnv === 'production',
     defaultPolicy: defaultRouteProtectionPolicy,
@@ -80,11 +96,17 @@ export const buildApp = () => {
   app.decorate('abuseProtectionAdmission', admissionService)
   app.decorate('abuseProtectionRouteInventory', routeInventory)
   app.decorate('authCostAdmission', new AuthCostAdmissionService({
-    fingerprintKey: config.abuseProtection.hmac.activeKey,
-    accountRequests: config.abuseProtection.exactRates.knownAccount.requests,
-    accountWindowSeconds: config.abuseProtection.exactRates.knownAccount.seconds,
-    passwordConcurrency: config.abuseProtection.exactRates.globalHashConcurrency,
-    maximumAccounts: config.abuseProtection.localRates.maximumBuckets,
+    fingerprintKeyring: config.abuseProtection.hmac.keyring,
+    environment: config.nodeEnv,
+    limits: {
+      global: config.abuseProtection.exactRates.authGlobal,
+      globalDaily: config.abuseProtection.exactRates.authGlobalDaily,
+      source: config.abuseProtection.exactRates.authSource,
+      account: config.abuseProtection.exactRates.knownAccount,
+    },
+    ...(config.databaseUrl
+      ? {}
+      : { admissionStore: createInMemoryAuthAdmissionStore() }),
   }))
 
   app.setErrorHandler(async (error, request, reply) => {
@@ -167,6 +189,9 @@ export const buildApp = () => {
   })
   app.addHook('onClose', async () => {
     if (retentionCleanupTimer) clearInterval(retentionCleanupTimer)
+    if (config.nodeEnv !== 'test' && process.env.VITEST !== 'true') {
+      cloudWatchAbuseObservability.shutdown()
+    }
   })
 
   app.addHook('onSend', async (request, reply, payload) => {

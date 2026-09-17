@@ -9,7 +9,10 @@ import {
   admissionService,
   type AdmissionRequest,
 } from '../../src/modules/abuse-protection/admission.service.js'
-import { admitCostWorkload } from '../../src/modules/abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  createServiceCostSubjects,
+} from '../../src/modules/abuse-protection/costWorkloadAdmission.js'
 import type { AdmissionDecision } from '../../src/modules/abuse-protection/protection.types.js'
 import { BedrockK1StatusCheckboxVerifier } from '../../src/modules/k1/extraction/bedrockCheckboxVerifier.js'
 import { retryK1Extraction } from '../../src/modules/k1/extraction/k1Retry.service.js'
@@ -220,7 +223,10 @@ describe.each(decisionCases)(
           controlKey: 'k1_bedrock_checkbox',
           method: 'POST',
           routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
-          principal: 'test-document',
+          subjectContext: createServiceCostSubjects('test-worker', 'test-operation', {
+            document: 'test-document',
+            provider: 'aws-bedrock',
+          }),
           canonicalInputs: { documentId: 'test-document' },
           globalDailyLimit: 1,
         }),

@@ -14,8 +14,8 @@ import {
 
 describe('K-1 destination inventory', () => {
   it('accounts for every official field exactly once', () => {
-    expect(K1_OFFICIAL_DESTINATIONS).toHaveLength(48)
-    expect(new Set(K1_OFFICIAL_DESTINATIONS.map((entry) => entry.key)).size).toBe(48)
+    expect(K1_OFFICIAL_DESTINATIONS).toHaveLength(49)
+    expect(new Set(K1_OFFICIAL_DESTINATIONS.map((entry) => entry.key)).size).toBe(49)
     expect(K1_OFFICIAL_DESTINATIONS.map((entry) => entry.key).sort()).toEqual(
       [...K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS].sort(),
     )

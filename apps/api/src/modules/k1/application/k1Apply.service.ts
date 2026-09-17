@@ -208,6 +208,7 @@ export const applyReviewedK1 = async (args: ApplyK1Input): Promise<K1ApplyRespon
       if (request.decision === 'USE_EXTRACTED') {
         await k1OfficialRevisionRepository.applyActive(client, trackerYear.id, write)
         officialChanged = true
+        if (trackerYear.tax_year < 2021 && row.destination_key === 'box_16_entries') propagationRequired = true
       } else if (request.decision === 'KEEP_EXISTING' && JSON.stringify(row.extracted_value) !== JSON.stringify(row.existing_value)) {
         await k1OfficialRevisionRepository.addEvidenceOnly(client, trackerYear.id, write)
       }

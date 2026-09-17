@@ -119,6 +119,7 @@ durable('K-1 end-to-end permission loss', () => {
       { name: 'upload', method: 'POST', url: '/v1/k1-ingestion-batches', payload: { entityScopeId: f.entityId, files: [{ fileName: 'blocked.pdf', sizeBytes: 10, sha256: 'a'.repeat(64) }] }, expected: 403 },
       { name: 'status', method: 'GET', url: `/v1/k1-ingestion-batches/${f.batchId}`, expected: 404 },
       { name: 'pdf read', method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/pdf`, expected: 404 },
+      { name: 'pdf recovery', method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/source-pdf`, expected: 404 },
       { name: 'retry', method: 'POST', url: `/v1/k1-documents/${f.k1DocumentId}/retry-extraction`, payload: { expectedDocumentVersion: 3 }, expected: 403 },
       { name: 'match', method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/match`, payload: { expectedDocumentVersion: 3, entityId: f.entityId, partnershipId: f.partnershipId, taxYear: 2025, reviewedEvidence: true }, expected: 403 },
       { name: 'correction', method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/corrections`, headers: { 'if-match': '3' }, payload: { corrections: [{ fieldValueId: f.moneyFieldId, value: '1200.00' }] }, expected: 403 },

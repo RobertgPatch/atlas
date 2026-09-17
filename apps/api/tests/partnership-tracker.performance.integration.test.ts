@@ -48,6 +48,25 @@ durable('Partnership Tracker bounded list performance', () => {
     expect(detail.summary.tvpi).toBeNull()
     expect(detail.summary.irr).toBeNull()
   })
+
+  it('returns DPI, TVPI and XIRR from cash activity when no NAV has been recorded', async () => {
+    const scope = { isAdmin: true, entityIds: [] as string[] }
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2024, fixture.adminUserId, scope)
+    await partnershipTrackerRepository.createYear(fixture.partnershipId, 2025, fixture.adminUserId, scope)
+    await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2024, [
+      { kind: 'CAPITAL_CALL', activityDate: '2024-01-01', amount: '100.00' },
+    ], fixture.adminUserId, scope)
+    await partnershipTrackerRepository.createCashFlows(fixture.partnershipId, 2025, [
+      { kind: 'DISTRIBUTION', activityDate: '2025-01-01', amount: '110.00' },
+    ], fixture.adminUserId, scope)
+
+    const detail = await partnershipTrackerRepository.getPartnership(fixture.partnershipId, scope)
+    expect(detail.summary.latestNav).toBeNull()
+    expect(detail.summary.dpi).toBe('1.10000000')
+    expect(detail.summary.tvpi).toBe('1.10000000')
+    expect(Number(detail.summary.irr)).toBeCloseTo(0.1, 2)
+    expect(detail.summary.performanceStatus).toMatchObject({ dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'AVAILABLE' })
+  })
   it('loads 50 years, 50 commitments, and 200 NAV points as bounded detail reads', async () => {
     await pool!.query(`insert into k1_tracker_years (id, entity_id, partnership_id, tax_year, workflow_status)
       select gen_random_uuid(), $1, $2, 1950 + value, 'NOT_STARTED' from generate_series(0, 49) value`, [fixture.entityId, fixture.partnershipId])

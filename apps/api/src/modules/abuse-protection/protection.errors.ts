@@ -27,6 +27,7 @@ export interface ProtectionErrorResponse {
   readonly headers: Readonly<{
     'Retry-After': string
     'X-Request-Id': string
+    'Cache-Control': 'no-store'
   }>
   readonly body: ProtectionErrorBody
 }
@@ -76,6 +77,7 @@ const buildResponse = (
     headers: {
       'Retry-After': String(retryAfterSeconds),
       'X-Request-Id': requestId,
+      'Cache-Control': 'no-store',
     },
     body,
   }

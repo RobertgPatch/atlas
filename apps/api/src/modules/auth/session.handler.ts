@@ -17,7 +17,9 @@ export const getSessionHandler = async (
     user: {
       id: authUser.userId,
       email: authUser.email,
+      displayName: authUser.displayName,
       role: authUser.role,
+      accessLevel: authUser.accessLevel,
       status: authUser.status,
     },
     role: authUser.role,

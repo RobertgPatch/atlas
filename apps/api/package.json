@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "dev:k1-worker": "tsx watch src/workers/k1-extraction-worker.ts",
+    "dev:k1-worker": "tsx src/workers/k1-extraction-worker.ts",
     "migrate": "tsx src/scripts/run-migrations.ts",
+    "reconcile:identities": "tsx src/scripts/reconcile-bootstrap-identities.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:k1-worker": "node dist/workers/k1-extraction-worker.js",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1112.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1112.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.1121.0",
     "@aws-sdk/client-s3": "^3.1112.0",
     "@aws-sdk/client-sqs": "^3.1112.0",
     "@aws-sdk/s3-request-presigner": "^3.1112.0",

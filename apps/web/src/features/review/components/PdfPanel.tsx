@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Crosshair } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Crosshair, Upload } from 'lucide-react'
 import type { K1SourceLocation } from '../../../../../../packages/types/src/review-finalization'
 import { ErrorState } from '../../../components/ErrorState'
 import { authenticatedFetch } from '../../../auth/authenticatedFetch'
+import { Button } from '../../../components/shared/Button'
 
 interface Props {
   pdfUrl: string
+  reattachUrl?: string
   highlight: K1SourceLocation | null
   /** Absolute API base so iframe includes credentials automatically on same-origin. */
   title?: string
@@ -17,15 +19,55 @@ interface Props {
  * navigation (FitR), that could be added; today the fragment moves the viewer
  * to the correct page, which is sufficient for the US1 acceptance criterion.
  */
-export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
+export const PdfPanel = ({ pdfUrl, reattachUrl, highlight, title = 'K-1 PDF' }: Props) => {
   const ref = useRef<HTMLIFrameElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const [probeKey, setProbeKey] = useState(0)
   const [unavailable, setUnavailable] = useState(false)
+  const [sourceMissing, setSourceMissing] = useState(false)
   const [page, setPage] = useState(highlight?.page ?? 1)
+  const [reattaching, setReattaching] = useState(false)
+  const [reattachError, setReattachError] = useState<string | null>(null)
+
+  const reattachSource = async (file: File) => {
+    if (!reattachUrl) return
+    setReattaching(true)
+    setReattachError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const response = await authenticatedFetch(reattachUrl, {
+        method: 'PUT',
+        credentials: 'include',
+        body: form,
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => undefined) as { error?: string } | undefined
+        if (payload?.error === 'SOURCE_PDF_CHECKSUM_MISMATCH') {
+          throw new Error('That file is not the original PDF for this K-1. Select the same PDF that was uploaded before.')
+        }
+        if (payload?.error === 'SOURCE_PDF_ALREADY_AVAILABLE') {
+          setReattachError(null)
+          setProbeKey((value) => value + 1)
+          return
+        }
+        if (payload?.error === 'PDF_STORAGE_UNAVAILABLE') {
+          throw new Error('PDF storage is temporarily unavailable. Try loading the PDF again shortly.')
+        }
+        throw new Error('The PDF could not be reattached. Please try again.')
+      }
+      setUnavailable(false)
+      setProbeKey((value) => value + 1)
+    } catch (error) {
+      setReattachError(error instanceof Error ? error.message : 'The PDF could not be reattached.')
+    } finally {
+      setReattaching(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     let active = true
-    setUnavailable(false)
 
     void authenticatedFetch(pdfUrl, {
       method: 'HEAD',
@@ -35,13 +77,14 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
       .then((res) => {
         if (!active) return
         const contentType = res.headers.get('content-type') ?? ''
-        if (!res.ok || !contentType.includes('application/pdf')) {
-          setUnavailable(true)
-        }
+        setSourceMissing(res.status === 404)
+        setUnavailable(!res.ok || !contentType.includes('application/pdf'))
+        if (res.ok) setReattachError(null)
       })
       .catch(() => {
         if (!active) return
         setUnavailable(true)
+        setSourceMissing(false)
       })
 
     return () => {
@@ -59,7 +102,12 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
     }
   }, [highlight, pdfUrl])
 
-  useEffect(() => setPage(highlight?.page ?? 1), [highlight])
+  useEffect(() => {
+    // The selected evidence field is an external navigation command for the
+    // native PDF viewer, so it intentionally resets manual page navigation.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPage(highlight?.page ?? 1)
+  }, [highlight])
 
   useEffect(() => {
     if (!ref.current) return
@@ -95,11 +143,37 @@ export const PdfPanel = ({ pdfUrl, highlight, title = 'K-1 PDF' }: Props) => {
       {unavailable ? (
         <ErrorState
           title="PDF unavailable"
-          message="The source PDF could not be loaded for this K-1 document."
+          message={reattachError ?? (sourceMissing
+            ? 'The source PDF could not be found for this K-1 document. Reattach the original file to keep the existing review and audit history.'
+            : 'PDF storage is temporarily unavailable. Try loading the PDF again shortly.')}
           onRetry={() => setProbeKey((v) => v + 1)}
-        />
+        >
+          {reattachUrl && sourceMissing && <>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              className="sr-only"
+              aria-label="Select original source PDF"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0]
+                if (file) void reattachSource(file)
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              pending={reattaching}
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+              {reattaching ? 'Reattaching…' : 'Reattach original PDF'}
+            </Button>
+          </>}
+        </ErrorState>
       ) : (
         <iframe
+          key={`${pdfUrl}:${probeKey}`}
           ref={ref}
           title="PDF preview"
           className="w-full flex-1"

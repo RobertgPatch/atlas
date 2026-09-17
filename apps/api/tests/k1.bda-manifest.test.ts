@@ -61,6 +61,21 @@ const store = {
 } as unknown as K1ObjectStore
 
 describe('BDA job manifest loader', () => {
+  it('loads standard-only supporting segments when AWS reports NO_MATCH', async () => {
+    const metadata = { output_metadata: [{ segment_metadata: [{
+      standard_output_path: `s3://${bucket}/${standardKey}`, custom_output_status: 'NO_MATCH',
+    }] }] }
+    const bytes = Buffer.from(JSON.stringify(metadata))
+    const standardOnlyStore = { ...store, readRawResult: async (identity: K1ObjectIdentity) => {
+      const result = await store.readRawResult(identity, 1_000_000)
+      if (identity.key !== manifestKey) return result
+      return { ...result, body: Readable.from(bytes), metadata: { ...result.metadata,
+        sizeBytes: bytes.byteLength, checksumSha256: createHash('sha256').update(bytes).digest('hex'),
+      } }
+    } } as unknown as K1ObjectStore
+    const loaded = await loadBdaProviderResult(standardOnlyStore, { bucket, key: manifestKey }, 1_000_000)
+    expect(loaded.providerResult).toMatchObject({ outputSegments: [{ customOutputStatus: 'NO_MATCH', customOutput: {}, standardOutput: { document: { elements: [] } } }] })
+  })
   it('loads manifest-referenced custom and standard outputs before mapping', async () => {
     const loaded = await loadBdaProviderResult(store, { bucket, key: manifestKey }, 1_000_000)
     const draft = mapBdaResult(loaded.providerResult)

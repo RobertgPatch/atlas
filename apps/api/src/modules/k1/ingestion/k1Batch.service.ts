@@ -21,6 +21,7 @@ import { admissionService } from '../../abuse-protection/admission.service.js'
 import { defaultRouteProtectionPolicy } from '../../abuse-protection/policy.defaults.js'
 import { fingerprintSubject } from '../../abuse-protection/subjectFingerprint.js'
 import { requireWorkloadAdmission } from '../../abuse-protection/workloadAdmission.js'
+import type { ValidatedSubjectContext } from '../../abuse-protection/subjectContext.js'
 
 const retryableError = (code: K1IngestionErrorCode | null): boolean =>
   code != null && [
@@ -35,7 +36,11 @@ const retryableAttemptError = (code: string | null): boolean =>
   code != null && !/CLIENT|ENCRYPT|UNSUPPORTED|DUPLICATE/i.test(code)
 
 const safeAttemptMessage = (code: string): string =>
-  /THROTTL|TIMEOUT|UNAVAILABLE/i.test(code)
+  /RATE_LIMITED|QUOTA_EXCEEDED/i.test(code)
+    ? 'Extraction is blocked by the application usage limit. Retry after the allowance resets.'
+    : /AccessDenied|CredentialsProvider|ExpiredToken/i.test(code)
+      ? 'The extraction service could not authenticate or access the document.'
+    : /THROTTL|TIMEOUT|UNAVAILABLE/i.test(code)
     ? 'The extraction provider was temporarily unavailable.'
     : 'The extraction attempt did not complete.'
 
@@ -47,13 +52,19 @@ const safeItemMessage = (code: string): string => ({
   PDF_INVALID: 'The file is not a readable PDF.',
   PDF_ENCRYPTED: 'Encrypted PDFs are not supported.',
   DUPLICATE_K1_CONTENT: 'This PDF was already uploaded.',
+  PARTNERSHIP_IMPORT_REQUIRES_REVIEW: 'The first page did not identify one partnership safely. No partnership was created.',
   EXTRACTION_FAILED: 'The extraction attempt did not complete.',
 }[code] ?? 'The file requires attention.')
 
+export const shouldProxyK1UploadThroughApi = (
+  runtimeClass: 'local' | 'production',
+  objectStore: 'local' | 's3',
+): boolean => runtimeClass === 'local' || objectStore === 'local'
+
 const slotService = (): K1UploadSlotService =>
-  config.k1Ingestion.objectStore === 's3'
-    ? getS3K1UploadSlotService()
-    : localK1UploadSlotService
+  shouldProxyK1UploadThroughApi(config.runtimeClass, config.k1Ingestion.objectStore)
+    ? localK1UploadSlotService
+    : getS3K1UploadSlotService()
 
 export const toPublicItem = async (
   item: DurableK1IngestionItemRecord,
@@ -73,14 +84,19 @@ export const toPublicItem = async (
     sizeBytes: item.sizeBytes,
     sha256: item.sha256,
     status: item.status,
-    upload: includeSlot && ['PENDING_UPLOAD', 'FAILED'].includes(item.status) && !item.k1DocumentId
+    upload: includeSlot
+      && config.abuseProtection.killSwitches.k1UploadsEnabled
+      && ['PENDING_UPLOAD', 'FAILED'].includes(item.status)
+      && !item.k1DocumentId
       ? await slotService().createSlot(item)
       : null,
     k1DocumentId: item.k1DocumentId,
     error: item.errorCode
       ? {
           code: item.errorCode,
-          message: safeItemMessage(item.errorCode),
+          message: item.errorCode === 'EXTRACTION_FAILED' && latestAttempt?.errorCode
+            ? safeAttemptMessage(latestAttempt.errorCode)
+            : safeItemMessage(item.errorCode),
           retryable: retryableError(item.errorCode),
         }
       : null,
@@ -109,7 +125,7 @@ export const toPublicItem = async (
     )),
     canCancel: !['PROCESSING', 'APPLIED', 'CANCELLED'].includes(item.status),
     canDelete: ['FAILED', 'CANCELLED'].includes(item.status) && !document?.appliedAt,
-    partnershipId: document?.partnershipId ?? null,
+    partnershipId: item.partnershipIntakePartnershipId ?? document?.partnershipId ?? null,
     taxYear: document?.taxYear ?? null,
     partnershipCandidates: matchCandidates
       .filter((candidate) => candidate.type === 'PARTNERSHIP')
@@ -129,6 +145,7 @@ export const toPublicBatch = async (
   id: batch.id,
   status: batch.status,
   entityScopeId: batch.entityScopeId,
+  createPartnershipIfMissing: batch.createPartnershipIfMissing,
   createdAt: batch.createdAt.toISOString(),
   closedAt: batch.closedAt?.toISOString() ?? null,
   counts: batch.counts,
@@ -138,6 +155,8 @@ export const toPublicBatch = async (
 export const createK1IngestionBatch = async (args: {
   actorUserId: string
   entityScopeId: string | null
+  createPartnershipIfMissing?: boolean
+  subjectContext?: ValidatedSubjectContext
   uploadAttemptId?: string
   files: Array<{ fileName: string; sizeBytes: number; sha256: string }>
 }): Promise<K1IngestionBatch> => {
@@ -160,21 +179,29 @@ export const createK1IngestionBatch = async (args: {
     }
     hashes.add(file.sha256)
   }
-  const userHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
-    scope: 'user', value: args.actorUserId,
-  })
-  const globalHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
-    scope: 'global', value: 'atlas',
-  })
-  const entityHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
-    scope: 'entity', value: args.entityScopeId ?? 'unscoped',
-  })
+  const userHash = args.subjectContext?.activeHashes.user
+    ?? fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+      scope: 'user', value: args.actorUserId,
+    })
+  const globalHash = args.subjectContext?.activeHashes.global
+    ?? fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+      scope: 'global', value: 'atlas',
+    })
+  const entityHash = args.subjectContext?.activeHashes.entity
+    ?? fingerprintSubject(config.abuseProtection.hmac.activeKey, {
+      scope: 'entity', value: args.entityScopeId ?? 'unscoped',
+    })
   const totalBytes = args.files.reduce((sum, item) => sum + item.sizeBytes, 0)
   const policy = defaultRouteProtectionPolicy('POST', '/v1/k1-ingestion-batches')
   requireWorkloadAdmission(await admissionService.admit({
     policy,
     requestId: `k1-batch-${randomUUID()}`,
-    subjectHashes: { user: userHash, entity: entityHash, global: globalHash },
+    subjectHashes: {
+      ...args.subjectContext?.activeHashes,
+      user: userHash,
+      entity: entityHash,
+      global: globalHash,
+    },
     workload: {
       workloadKey: 'k1_upload_batch',
       idempotency: {
@@ -185,6 +212,7 @@ export const createK1IngestionBatch = async (args: {
           routePattern: policy.routePattern,
           inputs: {
             entityScopeId: args.entityScopeId,
+            createPartnershipIfMissing: args.createPartnershipIfMissing ?? false,
             // File content remains part of the fingerprint, while this ID
             // distinguishes an explicit retry/re-upload from a duplicated
             // network request within the same browser attempt.
@@ -207,11 +235,12 @@ export const createK1IngestionBatch = async (args: {
         { workloadKey: 'k1_upload_global_files', scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: args.files.length, limit: config.abuseProtection.quotas.k1Upload.globalFilesPerDay },
         { workloadKey: 'k1_upload_global_bytes', scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: totalBytes, limit: config.abuseProtection.quotas.k1Upload.globalUnacceptedBytes },
         { workloadKey: 'cost-family:k1_upload_file', scopeKind: 'global', scopeHash: globalHash, periodKind: 'billing_month', units: args.files.length, limit: config.abuseProtection.quotas.monthlyCost.k1UploadFiles },
+        { workloadKey: 'cost-budget:paid-workload-cents', scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: args.files.length * 2, limit: config.abuseProtection.quotas.dailyCost.maximumCents },
         { workloadKey: 'cost-budget:paid-workload-cents', scopeKind: 'global', scopeHash: globalHash, periodKind: 'billing_month', units: args.files.length * 2, limit: config.abuseProtection.quotas.monthlyCost.maximumCents },
       ],
       leaseScopeKind: 'user',
       leaseScopeHash: userHash,
-      leaseTtlSeconds: config.k1Ingestion.uploadUrlTtlSeconds,
+      leaseTtlSeconds: config.abuseProtection.capabilities.uploadTtlSeconds,
       backlogLimit: config.abuseProtection.quotas.k1Upload.activeBatchesPerUser,
     },
   }))
@@ -223,6 +252,7 @@ export const createK1IngestionBatch = async (args: {
     id: batchId,
     createdByUserId: args.actorUserId,
     entityScopeId: args.entityScopeId,
+    createPartnershipIfMissing: args.createPartnershipIfMissing ?? false,
     items: args.files.map((file) => {
       const itemId = randomUUID()
       return {

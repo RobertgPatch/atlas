@@ -16,7 +16,12 @@ import { readObjectToBuffer } from '../storage/K1ObjectStore.js'
 import { getK1ObjectStore } from '../storage/index.js'
 import { toPublicBatch } from './k1Batch.service.js'
 import { createK1ExtractionClientToken } from '../extraction/k1ExtractionAttempt.repository.js'
-import { admitCostWorkload } from '../../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  authorizeCostSubjects,
+  createBackgroundCostSubjects,
+} from '../../abuse-protection/costWorkloadAdmission.js'
+import type { ValidatedSubjectContext } from '../../abuse-protection/subjectContext.js'
 
 const safeMessages: Record<K1IngestionErrorCode, string> = {
   K1_INGESTION_DISABLED: 'K-1 ingestion is not available.',
@@ -37,6 +42,7 @@ const safeMessages: Record<K1IngestionErrorCode, string> = {
   PDF_ENCRYPTED: 'Password-protected or encrypted PDFs are not supported.',
   PDF_PAGE_LIMIT_EXCEEDED: 'The PDF has more pages than the configured limit.',
   DUPLICATE_K1_CONTENT: 'This exact PDF was already uploaded for the entity.',
+  PARTNERSHIP_IMPORT_REQUIRES_REVIEW: 'The first page did not identify one partnership safely. No partnership was created.',
   EXTRACTION_FAILED: 'The K-1 could not be extracted. Retry the document.',
   EXTRACTION_RESULT_INVALID: 'The extraction result could not be verified.',
   EXTRACTION_THROTTLED: 'The extraction provider is busy. The document will retry.',
@@ -76,6 +82,14 @@ const inspectPdf = async (buffer: Buffer): Promise<number> => {
   }
 }
 
+const extractFirstPage = async (buffer: Buffer): Promise<Buffer> => {
+  const source = await PDFDocument.load(buffer, { ignoreEncryption: false, updateMetadata: false })
+  const firstPageOnly = await PDFDocument.create()
+  const [firstPage] = await firstPageOnly.copyPages(source, [0])
+  firstPageOnly.addPage(firstPage!)
+  return Buffer.from(await firstPageOnly.save({ updateFieldAppearances: false }))
+}
+
 const failItem = async (
   item: DurableK1IngestionItemRecord,
   code: K1IngestionErrorCode,
@@ -96,6 +110,7 @@ const completeOne = async (args: {
   itemId: string
   sha256: string
   objectVersionId?: string | null
+  subjectContext?: ValidatedSubjectContext
 }): Promise<void> => {
   const initialItem = await durableK1BatchRepository.getItemById(args.itemId)
   if (!initialItem || initialItem.batchId !== args.batchId) {
@@ -109,6 +124,34 @@ const completeOne = async (args: {
     await failItem(item, 'OBJECT_CHECKSUM_MISMATCH')
     return
   }
+  const batch = await durableK1BatchRepository.getById(args.batchId)
+  if (!batch) throw Object.assign(new Error('BATCH_NOT_FOUND'), { code: 'BATCH_NOT_FOUND' })
+  const authorizedResources = {
+    ...(batch.entityScopeId ? { entity: batch.entityScopeId } : {}),
+    document: item.k1DocumentId ?? item.id,
+    provider: 'aws-bda',
+  }
+  await admitCostWorkload({
+    workloadKey: 'k1_bda_document',
+    method: 'POST',
+    routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
+    subjectContext: args.subjectContext
+      ? authorizeCostSubjects(args.subjectContext, authorizedResources)
+      : createBackgroundCostSubjects(batch.createdByUserId, item.id, authorizedResources),
+    canonicalInputs: {
+      batchId: args.batchId,
+      itemId: args.itemId,
+      sha256: item.sha256,
+      sizeBytes: item.sizeBytes,
+    },
+    globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
+    units: 1,
+    quotas: [
+      { scopeKind: 'user', limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+      { scopeKind: 'global', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+    ],
+    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
+  })
   try {
     await withTransaction(async (client) => {
       await durableK1BatchRepository.transitionItem(client, item.id, {
@@ -142,34 +185,11 @@ const completeOne = async (args: {
       throw Object.assign(new Error('OBJECT_CHECKSUM_MISMATCH'), { code: 'OBJECT_CHECKSUM_MISMATCH' })
     }
     const pageCount = await inspectPdf(buffer)
-    const batch = await durableK1BatchRepository.getById(args.batchId)
-    if (!batch) throw Object.assign(new Error('BATCH_NOT_FOUND'), { code: 'BATCH_NOT_FOUND' })
-
-    await admitCostWorkload({
-      workloadKey: 'k1_bda_document',
-      method: 'POST',
-      routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
-      principal: batch.createdByUserId,
-      canonicalInputs: {
-        batchId: args.batchId,
-        itemId: args.itemId,
-        sha256: actualHash,
-        pageCount,
-      },
-      globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
-      units: 1,
-      quotas: [
-        { scopeKind: 'user', scopeValue: batch.createdByUserId, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
-        { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
-      ],
-      leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
-    })
-
     let k1DocumentId = item.k1DocumentId
     let acceptedMetadata = metadata
     let acceptedObjectKey = item.objectKey
     if (!k1DocumentId) {
-      const duplicate = batch.entityScopeId
+      const duplicate = !batch.createPartnershipIfMissing && batch.entityScopeId
         ? await durableK1Repository.findActiveDuplicateByHash(batch.entityScopeId, actualHash)
         : null
       if (duplicate) {
@@ -177,8 +197,23 @@ const completeOne = async (args: {
       }
       const documentId = randomUUID()
       k1DocumentId = randomUUID()
-      acceptedObjectKey = `${config.k1Ingestion.s3.inputPrefix.replace(/^\/+|\/+$/g, '')}/accepted/${k1DocumentId}.pdf`
-      if (store.promoteAccepted) {
+      const acceptedBuffer = batch.createPartnershipIfMissing
+        ? await extractFirstPage(buffer)
+        : buffer
+      const acceptedHash = batch.createPartnershipIfMissing
+        ? createHash('sha256').update(acceptedBuffer).digest('hex')
+        : actualHash
+      const acceptedPageCount = batch.createPartnershipIfMissing ? 1 : pageCount
+      acceptedObjectKey = `${config.k1Ingestion.s3.inputPrefix.replace(/^\/+|\/+$/g, '')}/${batch.createPartnershipIfMissing ? 'partnership-intake' : 'accepted'}/${k1DocumentId}.pdf`
+      if (batch.createPartnershipIfMissing) {
+        acceptedMetadata = await store.put({
+          key: acceptedObjectKey,
+          body: acceptedBuffer,
+          contentType: 'application/pdf',
+          sizeBytes: acceptedBuffer.byteLength,
+          checksumSha256: acceptedHash,
+        })
+      } else if (store.promoteAccepted) {
         acceptedMetadata = await store.promoteAccepted(identity, acceptedObjectKey)
       }
       await withTransaction(async (client) => {
@@ -191,9 +226,9 @@ const completeOne = async (args: {
           storageBucket: acceptedMetadata.bucket,
           storageVersionId: acceptedMetadata.versionId,
           mimeType: 'application/pdf',
-          sizeBytes: item.sizeBytes,
-          sha256: actualHash,
-          pageCount,
+          sizeBytes: acceptedBuffer.byteLength,
+          sha256: acceptedHash,
+          pageCount: acceptedPageCount,
           uploadedBy: batch.createdByUserId,
         }, client)
         await durableK1BatchRepository.transitionItem(client, item.id, {
@@ -204,6 +239,9 @@ const completeOne = async (args: {
           objectVersionId: acceptedMetadata.versionId,
         })
       })
+      if (batch.createPartnershipIfMissing) {
+        await store.delete(identity)
+      }
     } else {
       await withTransaction(async (client) => {
         await durableK1BatchRepository.transitionItem(client, item.id, {
@@ -251,11 +289,16 @@ const completeOne = async (args: {
 export const completeK1BatchUploads = async (args: {
   batchId: string
   items: Array<{ itemId: string; sha256: string; objectVersionId?: string | null }>
+  subjectContext?: ValidatedSubjectContext
 }) => {
   const batch = await durableK1BatchRepository.getById(args.batchId)
   if (!batch) throw Object.assign(new Error('BATCH_NOT_FOUND'), { code: 'BATCH_NOT_FOUND' })
   for (const item of args.items) {
-    await completeOne({ batchId: args.batchId, ...item })
+    await completeOne({
+      batchId: args.batchId,
+      ...item,
+      ...(args.subjectContext ? { subjectContext: args.subjectContext } : {}),
+    })
   }
   const updated = await durableK1BatchRepository.getById(args.batchId)
   if (!updated) throw new Error('BATCH_NOT_FOUND')

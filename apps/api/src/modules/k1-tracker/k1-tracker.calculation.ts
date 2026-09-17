@@ -114,6 +114,14 @@ export const calculateTrackerYear = (
   },
 ): K1TrackerCalculation => {
   const values = year.values
+  const historical = year.taxYear < 2021
+  // Historical Box 16 contains overlapping foreign-income disclosures as well
+  // as taxes. Only P/Q enter this reconciliation, never the entire box or 20.
+  const foreignRows = year.officialFormData?.box_16_entries
+  const historicalForeignTaxes = historical && Array.isArray(foreignRows)
+    ? sum(foreignRows.filter(row => ['P', 'Q'].includes(row.code.replace(/\*+$/, '').trim().toUpperCase()))
+      .map(row => absolute(moneyToCents(row.value) ?? zero)))
+    : zero
   const carriedBeginning = previous?.endingOutsideBasis ?? zero
   const beginningOutsideBasis = values.opening_outside_basis ?? carriedBeginning
   const priorSuspendedLoss = values.opening_suspended_loss ?? previous?.cumulativeSuspendedLoss ?? zero
@@ -146,7 +154,8 @@ export const calculateTrackerYear = (
   const effectiveLine13 = Object.hasOwn(values, 'box_13_other_portfolio_deductions') || Object.hasOwn(values, 'box_13_management_fees')
     ? absolute(amount(values, 'box_13_other_portfolio_deductions')) + absolute(amount(values, 'box_13_management_fees'))
     : absolute(amount(values, 'box_13_other_deductions'))
-  const deductions = sum(deductionKeys.map((key) => absolute(amount(values, key)))) + effectiveLine13
+  const deductions = sum(deductionKeys.filter(key => !historical || key === 'box_12_section_179_deduction')
+    .map((key) => absolute(amount(values, key)))) + effectiveLine13 + historicalForeignTaxes
   const calculatedNetIncomeBeforeNondeductibleExpenses = sum(sectionLIncomeEffects) - deductions
   const distributions = absolute(amount(values, 'box_19_distributions'))
   const totalIncreases = contributions + incomeIncrease
@@ -166,6 +175,7 @@ export const calculateTrackerYear = (
   const sectionLEnding = values.section_l_ending_capital ?? null
   const bookCapital = values.book_capital_account ?? sectionLEnding
   const inferredNondeductibleExpenses = (() => {
+    if (historical) return zero
     if (enteredNondeductibleExpenses != null || sectionLBeginning == null || sectionLNetIncome == null || sectionLEnding == null || bookCapital == null) return zero
     const inferredAmount = calculatedNetIncomeBeforeNondeductibleExpenses - sectionLNetIncome
     const calculatedSectionLEndingBeforeNondeductibleExpenses = sectionLBeginning + sectionLContributions + calculatedNetIncomeBeforeNondeductibleExpenses + sectionLOther + sectionLWithdrawals
@@ -193,7 +203,10 @@ export const calculateTrackerYear = (
   const endingOutsideBasis = basisAfterNondeductibleExpenses - allowedLoss
   const endingBeforeLimit = beginningOutsideBasis + totalIncreases - currentLosses - deductions - nondeductibleExpenses - distributionDecrease
 
-  const calculatedNetIncome = calculatedNetIncomeBeforeNondeductibleExpenses - nondeductibleExpenses
+  // Before 2021 the requested reconciliation is taxable Part III income.
+  // Item L book adjustments and Box 18C are not part of that subtotal. Box 18C
+  // and distributions retain their separate effects on outside basis.
+  const calculatedNetIncome = calculatedNetIncomeBeforeNondeductibleExpenses - (historical ? zero : nondeductibleExpenses)
   const calculatedSectionLEnding = sectionLBeginning == null
     ? null
     : sectionLBeginning + sectionLContributions + calculatedNetIncome + sectionLOther + sectionLWithdrawals
@@ -259,6 +272,13 @@ export const calculateTrackerYear = (
     check('journal-balance', absolute(journalBalance) <= TOLERANCE ? 'PASS' : 'FAIL', absolute(journalBalance) <= TOLERANCE ? 'Journal entry balances.' : 'Journal entry does not balance to zero.', journalBalance, zero, journalBalance),
   ]
 
+  if (historical) {
+    // Book-capital comparisons cannot validate taxable income on these forms.
+    // Preserve reported fields as evidence without asking the user to force a tie.
+    for (let index = checks.length - 1; index >= 0; index -= 1) {
+      if (['section-l-net-income', 'section-l-ending', 'book-tax-unexplained'].includes(checks[index].key)) checks.splice(index, 1)
+    }
+  }
   const warningCount = checks.filter((item) => item.status === 'WARNING' || item.status === 'FAIL' || item.status === 'INCOMPLETE').length
   const status = statusForChecks(checks, Object.values(values).some((value) => value != null))
   const summary: K1TrackerYearSummary = {
@@ -276,7 +296,7 @@ export const calculateTrackerYear = (
     endingOutsideBasis: centsToMoney(endingOutsideBasis),
     cumulativeSuspendedLoss: centsToMoney(cumulativeSuspendedLoss),
     taxableExcessDistribution: centsToMoney(taxableExcessDistribution),
-    sectionLDifference: centsToMoney(sectionLEndingDifference),
+    sectionLDifference: historical ? null : centsToMoney(sectionLEndingDifference),
     warningCount,
     sourceConflictCount: 0,
   }
@@ -290,7 +310,7 @@ export const calculateTrackerYear = (
     lossLimitation: { priorSuspendedLoss: centsToMoney(priorSuspendedLoss), currentLosses: centsToMoney(currentLosses), deductions: centsToMoney(deductions), totalLossPool: centsToMoney(totalLossPool), basisAvailableForLosses: centsToMoney(basisAfterNondeductibleExpenses), allowedLoss: centsToMoney(allowedLoss), cumulativeSuspendedLoss: centsToMoney(cumulativeSuspendedLoss), allocations: lossAllocations.map((item) => ({ key: item.key, pool: centsToMoney(item.amount), allowed: centsToMoney(item.allowed), suspended: centsToMoney(item.suspended) })) },
     distribution: { cashOrPropertyDistribution: centsToMoney(distributions), liabilityRelief: centsToMoney(liabilityDecrease), basisBeforeDistribution: centsToMoney(basisAfterIncreases), taxableExcessDistribution: centsToMoney(taxableExcessDistribution) },
     liabilities: { nonrecourseBeginning: centsToMoney(nonrecourseBeginning), nonrecourseEnding: centsToMoney(nonrecourseEnding), qualifiedNonrecourseBeginning: centsToMoney(qualifiedBeginning), qualifiedNonrecourseEnding: centsToMoney(qualifiedEnding), recourseBeginning: centsToMoney(recourseBeginning), recourseEnding: centsToMoney(recourseEnding), netChange: centsToMoney(liabilityChange) },
-    sectionL: { reportedBeginning: centsToMoney(sectionLBeginning), reportedContributions: centsToMoney(sectionLContributions), reportedNetIncome: centsToMoney(sectionLNetIncome), reportedWithdrawals: centsToMoney(sectionLWithdrawals), reportedEnding: centsToMoney(sectionLEnding), calculatedNetIncome: centsToMoney(calculatedNetIncome), calculatedEnding: centsToMoney(calculatedSectionLEnding), beginningDifference: centsToMoney(sectionLBeginningDifference), contributionDifference: centsToMoney(sectionLContributionDifference), netIncomeDifference: centsToMoney(sectionLNetIncomeDifference), endingDifference: centsToMoney(sectionLEndingDifference) },
+    sectionL: { partThreeIncome: centsToMoney(sum(sectionLIncomeEffects)), partThreeDeductions: centsToMoney(deductions), historicalForeignTaxes: centsToMoney(historicalForeignTaxes), reportedBeginning: centsToMoney(sectionLBeginning), reportedContributions: centsToMoney(sectionLContributions), reportedNetIncome: centsToMoney(sectionLNetIncome), reportedWithdrawals: centsToMoney(sectionLWithdrawals), reportedEnding: centsToMoney(sectionLEnding), calculatedNetIncome: centsToMoney(calculatedNetIncome), calculatedEnding: centsToMoney(calculatedSectionLEnding), beginningDifference: centsToMoney(sectionLBeginningDifference), contributionDifference: centsToMoney(sectionLContributionDifference), netIncomeDifference: centsToMoney(sectionLNetIncomeDifference), endingDifference: centsToMoney(sectionLEndingDifference) },
     bookTax: { endingBookCapital: centsToMoney(bookCapital), endingTaxBasis: centsToMoney(endingOutsideBasis), bookTaxDifference: centsToMoney(bookTaxDifference), section704c: centsToMoney(amount(values, 'recon_section_704c')), section754: centsToMoney(amount(values, 'recon_section_754')), timingDifferences: centsToMoney(amount(values, 'recon_timing_differences')), otherPermanentDifferences: centsToMoney(amount(values, 'recon_other_permanent_differences')), taxExemptIncomeBasisDifference: centsToMoney(taxExemptIncomeBasisDifference), totalExplainedDifference: centsToMoney(reconTotal), unexplainedVariance: centsToMoney(unexplainedVariance) },
     journalEntries,
     journalBalance: centsToMoney(journalBalance)!,

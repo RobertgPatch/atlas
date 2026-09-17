@@ -31,3 +31,18 @@ export const requireAdmin = async (
     return
   }
 }
+
+export const requireSuperAdmin = async (
+  request: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> => {
+  if (!request.authUser) {
+    clearInvalidSessionCookie(reply)
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
+
+  if (request.authUser.accessLevel !== 'SuperAdmin') {
+    reply.status(403).send({ error: 'FORBIDDEN' })
+  }
+}

@@ -40,10 +40,22 @@ export const parseS3UploadFailure = (args: {
   status: number
   responseText?: string
 }): K1ApiError => {
+  let apiError: { error?: unknown; message?: unknown } | undefined
+  if (args.responseText) {
+    try {
+      const parsed = JSON.parse(args.responseText) as unknown
+      if (parsed && typeof parsed === 'object') apiError = parsed as typeof apiError
+    } catch {
+      // Direct S3 failures are XML, while proxy failures are JSON.
+    }
+  }
   const awsCode = args.responseText?.match(/<Code>([^<]+)<\/Code>/i)?.[1]
-  const code = awsCode ?? (args.status === 0 ? 'UPLOAD_NETWORK_ERROR' : `HTTP_${args.status}`)
+  const proxyCode = typeof apiError?.error === 'string' ? apiError.error : undefined
+  const code = awsCode ?? proxyCode
+    ?? (args.status === 0 ? 'UPLOAD_NETWORK_ERROR' : `HTTP_${args.status}`)
+  const proxyMessage = typeof apiError?.message === 'string' ? apiError.message : undefined
   return new K1ApiError(code, args.status, {
-    message: s3UploadMessage(code, args.status),
+    message: proxyMessage ?? s3UploadMessage(code, args.status),
   })
 }
 
@@ -278,6 +290,7 @@ export const k1Client = {
   uploadBatch: async (args: {
     files: File[]
     entityScopeId: string | null
+    createPartnershipIfMissing?: boolean
     onProgress?: (fileName: string, progress: number) => void
   }): Promise<K1IngestionBatch> => {
     const declared = await Promise.all(args.files.map(async (file) => ({
@@ -288,6 +301,7 @@ export const k1Client = {
     })))
     const batch = await k1Client.createBatch({
       entityScopeId: args.entityScopeId,
+      createPartnershipIfMissing: args.createPartnershipIfMissing,
       uploadAttemptId: crypto.randomUUID(),
       files: declared,
     })

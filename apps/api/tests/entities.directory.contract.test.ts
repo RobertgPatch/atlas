@@ -44,7 +44,7 @@ describe('Entities directory design contract', () => {
       jurisdiction: 'Nevada',
       taxId: '88-1140552',
       formedOn: '06/02/2008',
-      status: 'DRAFT',
+      status: 'ACTIVE',
     })
 
     const list = await f.app.inject({
@@ -62,7 +62,7 @@ describe('Entities directory design contract', () => {
       jurisdiction: 'Nevada',
       taxId: '88-1140552',
       formedOn: '06/02/2008',
-      status: 'DRAFT',
+      status: 'ACTIVE',
       ownerCount: 0,
       partnershipCount: 0,
       investmentCount: 0,
@@ -82,7 +82,7 @@ describe('Entities directory design contract', () => {
       jurisdiction: 'Nevada',
       taxId: '88-1140552',
       formedOn: '06/02/2008',
-      status: 'DRAFT',
+      status: 'ACTIVE',
     })
   })
 

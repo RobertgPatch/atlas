@@ -9,6 +9,7 @@ export function InvestmentTrackerPage() {
     <AppShell
       currentPath="/investment-tracker"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

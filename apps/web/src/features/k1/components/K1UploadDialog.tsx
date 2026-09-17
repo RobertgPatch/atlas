@@ -23,6 +23,7 @@ interface K1UploadDialogProps {
     id: string
     name: string
   }
+  createPartnershipIfMissing?: boolean
 }
 
 type LocalStatus = 'READY' | 'UPLOADING' | K1IngestionItem['status']
@@ -40,8 +41,12 @@ const MAX_BYTES = 25 * 1024 * 1024
 
 const keyFor = (file: File) => `${file.name}:${file.size}:${file.lastModified}`
 
-const validateFiles = (files: File[]): string | null => {
-  if (files.length > MAX_FILES) return `You can upload up to ${MAX_FILES} PDFs at a time.`
+const validateFiles = (files: File[], maxFiles = MAX_FILES): string | null => {
+  if (files.length > maxFiles) {
+    return maxFiles === 1
+      ? 'Select one K-1 PDF for the partnership you want to add.'
+      : `You can upload up to ${maxFiles} PDFs at a time.`
+  }
   for (const file of files) {
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       return `${file.name} must be a PDF.`
@@ -84,6 +89,7 @@ export function K1UploadDialog({
   onBatchCreated,
   initialFile,
   entityScope,
+  createPartnershipIfMissing = false,
 }: K1UploadDialogProps) {
   const [entityId, setEntityId] = useState(entityScope?.id ?? '')
   const [files, setFiles] = useState<LocalFileState[]>([])
@@ -91,9 +97,10 @@ export function K1UploadDialog({
   const inputRef = useRef<HTMLInputElement>(null)
   const lookups = useK1Lookups()
   const upload = useK1BatchUpload()
+  const maxFiles = createPartnershipIfMissing ? 1 : MAX_FILES
 
   const addFiles = (incoming: File[]) => {
-    const validation = validateFiles(incoming)
+    const validation = validateFiles(incoming, maxFiles)
     if (validation) {
       setError(validation)
       return
@@ -107,7 +114,7 @@ export function K1UploadDialog({
         }
       }
       const next = [...unique.values()]
-      const combinedError = validateFiles(next.map((entry) => entry.file))
+      const combinedError = validateFiles(next.map((entry) => entry.file), maxFiles)
       if (combinedError) {
         setError(combinedError)
         return current
@@ -168,6 +175,7 @@ export function K1UploadDialog({
       const batch = await upload.mutateAsync({
         files: submitted,
         entityScopeId: entityId,
+        createPartnershipIfMissing,
         onProgress: updateProgress,
       })
       mergeBatch(batch, submitted)
@@ -206,8 +214,14 @@ export function K1UploadDialog({
       >
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4">
           <div>
-            <h2 id="k1-upload-title" className="text-lg font-semibold text-gray-900">Upload K-1 documents</h2>
-            <p className="mt-0.5 text-sm text-gray-500">Select up to 25 partnership K-1 PDFs. Each document is read separately.</p>
+            <h2 id="k1-upload-title" className="text-lg font-semibold text-gray-900">
+              {createPartnershipIfMissing ? 'Add partnership from K-1' : 'Upload K-1 documents'}
+            </h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              {createPartnershipIfMissing
+                ? 'Select the partnership K-1 PDF and the legal entity that owns the position. Only page 1 is read.'
+                : 'Select up to 25 partnership K-1 PDFs. Each document is read separately.'}
+            </p>
           </div>
           <button aria-label="Close upload dialog" onClick={handleClose} className={iconActionClassName}>
             <X className="h-5 w-5 text-gray-500" />
@@ -237,7 +251,9 @@ export function K1UploadDialog({
             </div>
           ) : (
             <label className="block">
-              <span className="text-sm font-medium text-gray-700">Entity</span>
+              <span className="text-sm font-medium text-gray-700">
+                {createPartnershipIfMissing ? 'Owning legal entity' : 'Entity'}
+              </span>
               <select
                 aria-label="Entity"
                 value={entityId}
@@ -253,8 +269,10 @@ export function K1UploadDialog({
             </label>
           )}
 
-          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-            Partnership and tax-year matches are proposed from the PDF. The app will ask for review instead of creating or overwriting records automatically.
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm leading-5 text-blue-900">
+            {createPartnershipIfMissing
+              ? 'Page 1 is checked against this owner’s partnerships by EIN and fund name. A match reuses the existing record. A new record is created only when the owner and fund identity are clear. This does not add the K-1 to annual history.'
+              : 'Partnership and tax-year matches are proposed from the PDF. The app will ask for review instead of creating or overwriting records automatically.'}
           </div>
 
           <div
@@ -274,7 +292,7 @@ export function K1UploadDialog({
                 aria-label="PDF files"
                 type="file"
                 accept="application/pdf,.pdf"
-                multiple
+                multiple={!createPartnershipIfMissing}
                 onChange={(event) => {
                   addFiles(Array.from(event.target.files ?? []))
                   event.target.value = ''
@@ -282,7 +300,9 @@ export function K1UploadDialog({
                 className="sr-only"
               />
             </label>
-            <p className="mt-1 text-xs text-gray-500">PDF only · 25 MB per file · 25 files per batch</p>
+            <p className="mt-1 text-xs text-gray-500">
+              PDF only · 25 MB {createPartnershipIfMissing ? '· one partnership per upload' : 'per file · 25 files per batch'}
+            </p>
           </div>
 
           {files.length > 0 && (
@@ -357,7 +377,11 @@ export function K1UploadDialog({
               pending={upload.isPending}
             >
               <Upload className="h-4 w-4" />
-              {upload.isPending ? 'Uploading…' : `Upload ${readyFiles.length} ${readyFiles.length === 1 ? 'file' : 'files'}`}
+              {upload.isPending
+                ? 'Uploading…'
+                : createPartnershipIfMissing
+                  ? 'Read K-1 and add partnership'
+                  : `Upload ${readyFiles.length} ${readyFiles.length === 1 ? 'file' : 'files'}`}
             </Button>
           )}
         </div>

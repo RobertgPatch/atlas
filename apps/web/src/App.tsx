@@ -19,6 +19,8 @@ import { LiquidityPage } from './pages/LiquidityPage'
 import { LoginPage } from './pages/LoginPage'
 import { MFAPage } from './pages/MFAPage'
 import { MFASetupPage } from './pages/MFASetupPage'
+import { PasswordChangePage } from './pages/PasswordChangePage'
+import { AdminOperationsPage } from './pages/AdminOperationsPage'
 import { MagicPatternDashboardPage } from './pages/magic-patterns/MagicPatternDashboardPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { TicRegistryPage } from './pages/TicRegistryPage'
@@ -38,12 +40,14 @@ const protectedRouteElements: Record<CurrentProtectedRoutePattern, React.ReactEl
   '/reports': <ReportsPage />,
   '/k1': <K1Dashboard />,
   '/k1/:id/review': <K1ReviewWorkspace />,
+  '/admin': <AdminOperationsPage />,
 }
 
-const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
-  const { status } = useSession()
+const ProtectedRoute = ({ children, superAdmin = false }: { children: React.ReactElement; superAdmin?: boolean }) => {
+  const { status, session } = useSession()
   if (status === 'unknown') return null
   if (status !== 'authenticated') return <Navigate to="/" replace />
+  if (superAdmin && session?.user.accessLevel !== 'SuperAdmin') return <Navigate to="/dashboard" replace />
   return children
 }
 
@@ -81,13 +85,14 @@ export function App() {
         <SessionExpiryDialog />
         <Routes>
           <Route path="/" element={<LoginPage />} />
+          <Route path="/password/change" element={<PasswordChangePage />} />
           <Route path="/mfa/setup" element={<MFASetupPage />} />
           <Route path="/mfa" element={<MFAPage />} />
           {CURRENT_PROTECTED_ROUTE_PATTERNS.map((path) => (
             <Route
               key={path}
               path={path}
-              element={<ProtectedRoute>{protectedRouteElements[path]}</ProtectedRoute>}
+              element={<ProtectedRoute superAdmin={path === '/admin'}>{protectedRouteElements[path]}</ProtectedRoute>}
             />
           ))}
           <Route path="*" element={<Navigate to="/" replace />} />

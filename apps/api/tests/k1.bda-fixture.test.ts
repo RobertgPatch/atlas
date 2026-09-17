@@ -9,15 +9,16 @@ import {
 } from './helpers/k1BdaFixture.js'
 
 describe('sanitized BDA fixture set', () => {
-  it('covers the required revisions, operational exceptions, and all 79 destinations', async () => {
+  it('covers the required revisions, operational exceptions, and all 80 destinations', async () => {
     const manifest = await loadK1BdaFixtureManifest()
     expect(() => assertK1BdaFixtureCoverage(manifest)).not.toThrow()
     expect(manifest.fixtures.some((fixture) =>
       fixture.revisionYear !== null && fixture.revisionYear < 2024,
     )).toBe(true)
     expect(manifest.fixtures.some((fixture) => fixture.revisionYear === 2021)).toBe(true)
-    expect(supportedFixtureCanonicalPaths()).toHaveLength(79)
-    expect(new Set(supportedFixtureCanonicalPaths()).size).toBe(79)
+    expect(supportedFixtureCanonicalPaths()).toHaveLength(80)
+    expect(new Set(supportedFixtureCanonicalPaths()).size).toBe(80)
+    expect(supportedFixtureCanonicalPaths()).toContain('official.box_16_entries')
   })
 
   it('generates a multi-page synthetic K-1 with no production identifiers', async () => {

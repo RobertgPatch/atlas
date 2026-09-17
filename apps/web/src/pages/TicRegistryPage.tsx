@@ -10,6 +10,7 @@ export function TicRegistryPage() {
     <AppShell
       currentPath="/tic-registry"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

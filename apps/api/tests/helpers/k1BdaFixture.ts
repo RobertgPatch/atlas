@@ -61,8 +61,8 @@ export const assertK1BdaFixtureCoverage = (manifest: K1BdaFixtureManifest): void
   ]) {
     if (!features.has(feature)) throw new Error(`Missing fixture feature: ${feature}`)
   }
-  if (supportedFixtureCanonicalPaths().length !== 79) {
-    throw new Error('The fixture generator must cover all 48 official and 31 literal calculation destinations.')
+  if (supportedFixtureCanonicalPaths().length !== 80) {
+    throw new Error('The fixture generator must cover all 49 official and 31 literal calculation destinations, including historical Box 16.')
   }
 }
 

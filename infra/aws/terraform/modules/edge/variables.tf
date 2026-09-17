@@ -56,9 +56,15 @@ variable "api_cache_policy_id" {
   type        = string
 }
 
-variable "api_origin_request_policy_id" {
-  description = "CloudFront origin request policy id for /v1/* API traffic."
+variable "session_cookie_name" {
+  description = "Exact bounded session cookie name forwarded by the API origin request policy."
   type        = string
+  default     = "atlas_session"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_-]{1,64}$", var.session_cookie_name))
+    error_message = "session_cookie_name must be a bounded cookie-safe identifier."
+  }
 }
 
 output "web_bucket_name" {

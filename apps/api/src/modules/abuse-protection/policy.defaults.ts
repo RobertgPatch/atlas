@@ -12,6 +12,7 @@ import type {
   RouteClass,
   RouteProtectionPolicy,
   ScopeDimension,
+  LocalRateLimit,
 } from './protection.types.js'
 
 const routeContains = (routePattern: string, fragments: readonly string[]): boolean =>
@@ -24,6 +25,11 @@ const isReviewFinalizationRoute = (routePattern: string): boolean =>
 const isK1ApplicationAdminRoute = (routePattern: string): boolean =>
   routePattern === '/v1/k1-documents/:k1DocumentId/apply-preview'
   || routePattern === '/v1/k1-documents/:k1DocumentId/apply'
+
+const isAuthenticationWorkRoute = (routePattern: string): boolean =>
+  routePattern === '/v1/auth/login'
+  || routePattern.startsWith('/v1/auth/mfa/')
+  || routePattern === '/v1/auth/password/change'
 
 const isAdminManagedMutation = (
   method: HttpMethod,
@@ -43,8 +49,7 @@ const authenticationFor = (
   method: HttpMethod,
   routePattern: string,
 ): AuthenticationBoundary => {
-  if (routePattern === '/health' || routePattern === '/v1/auth/login') return 'public'
-  if (routePattern.startsWith('/v1/auth/mfa/')) return 'public'
+  if (routePattern === '/health' || isAuthenticationWorkRoute(routePattern)) return 'public'
   if (routePattern === '/v1/admin/plaid-refresh/run') return 'scheduler'
   if (routePattern.startsWith('/v1/admin/')) return 'admin'
   if (isReviewFinalizationRoute(routePattern)) return 'admin'
@@ -59,8 +64,7 @@ const classFor = (
 ): RouteClass => {
   if (routePattern === '/health') return 'PUBLIC_HEALTH'
   if (
-    routePattern === '/v1/auth/login'
-    || routePattern.startsWith('/v1/auth/mfa/')
+    isAuthenticationWorkRoute(routePattern)
   ) return 'AUTH_ATTEMPT'
   if (
     routePattern === '/v1/auth/session'
@@ -357,6 +361,78 @@ const costUnitsFor = (routeClass: RouteClass): readonly CostUnitName[] => {
     : ordinarySettings(routeClass).costUnits
 }
 
+const sharedClassKeyFor = (routeClass: RouteClass): string => {
+  if (routeClass === 'PUBLIC_HEALTH') return 'liveness'
+  if (routeClass === 'AUTH_ATTEMPT') return 'auth'
+  if (routeClass === 'AUTHENTICATED_READ') return 'general_api'
+  if (routeClass === 'DATABASE_HEAVY_READ') return 'heavy_read'
+  if (routeClass === 'DOCUMENT_DOWNLOAD' || routeClass === 'EXPORT_DOWNLOAD') return 'download'
+  if (routeClass === 'BUSINESS_WRITE' || routeClass === 'ADMIN_WRITE') return 'write'
+  if (routeClass === 'INTERNAL_SCHEDULER') return 'internal'
+  return 'paid_work'
+}
+
+const localRatesFor = (
+  routeClass: RouteClass,
+  authentication: AuthenticationBoundary,
+): readonly LocalRateLimit[] => {
+  if (routeClass === 'INTERNAL_SCHEDULER') return []
+  const classKey = sharedClassKeyFor(routeClass)
+  const sourceWindow = routeClass === 'AUTH_ATTEMPT'
+    ? config.abuseProtection.localRates.authSource
+    : routeClass === 'PUBLIC_HEALTH'
+      ? { requests: 120, seconds: 60 }
+      : config.abuseProtection.localRates.generalApiSource
+  const globalWindow = routeClass === 'AUTH_ATTEMPT'
+    ? config.abuseProtection.localRates.authGlobal
+    : routeClass === 'PUBLIC_HEALTH'
+      ? { requests: 240, seconds: 60 }
+      : config.abuseProtection.localRates.generalApiGlobal
+  const rates: LocalRateLimit[] = [{
+    limitKey: `${classKey}.global`,
+    scope: 'global',
+    partition: 'pinned_global',
+    requests: globalWindow.requests,
+    windowSeconds: globalWindow.seconds,
+  }, {
+    limitKey: `${classKey}.source`,
+    scope: 'source_prefix',
+    partition: 'source',
+    requests: sourceWindow.requests,
+    windowSeconds: sourceWindow.seconds,
+  }]
+  if (authentication === 'session' || authentication === 'admin') {
+    const principalWindow = config.abuseProtection.localRates.authenticatedReadUser
+    rates.push({
+      limitKey: `${classKey}.user`,
+      scope: 'user',
+      partition: 'authenticated',
+      requests: principalWindow.requests,
+      windowSeconds: principalWindow.seconds,
+    }, {
+      limitKey: `${classKey}.session`,
+      scope: 'session',
+      partition: 'authenticated',
+      requests: principalWindow.requests,
+      windowSeconds: principalWindow.seconds,
+    })
+  }
+  return rates
+}
+
+const concurrencyClassFor = (routeClass: RouteClass): string | null => {
+  if (routeClass === 'AUTH_ATTEMPT') return 'argon2_password'
+  if (routeClass === 'DATABASE_HEAVY_READ') return 'heavy_read'
+  if (routeClass === 'DOCUMENT_DOWNLOAD' || routeClass === 'EXPORT_DOWNLOAD') return 'download'
+  if (new Set<RouteClass>([
+    'K1_UPLOAD_ADMISSION',
+    'PAID_EXTRACTION',
+    'EXTERNAL_PROVIDER',
+    'INTERNAL_SCHEDULER',
+  ]).has(routeClass)) return `workload.${sharedClassKeyFor(routeClass)}`
+  return null
+}
+
 export const defaultRouteProtectionPolicy = (
   method: HttpMethod,
   rawRoutePattern: string,
@@ -381,6 +457,8 @@ export const defaultRouteProtectionPolicy = (
     ? (routePattern.startsWith('/v1/plaid/') ? 'plaid_refresh' : 'market_data_refresh')
     : classSettings.killSwitch
 
+  const localRates = localRatesFor(routeClass, authentication)
+
   return defineRouteProtectionPolicy({
     policyKey: policyKeyFor(method, routePattern),
     routeClass,
@@ -391,6 +469,7 @@ export const defaultRouteProtectionPolicy = (
     localRate: routeClass === 'PUBLIC_HEALTH'
       ? { scope: 'source_prefix', requests: 120, windowSeconds: 60 }
       : { scope: authentication === 'public' ? 'source_prefix' : 'user', requests: localWindow.requests, windowSeconds: localWindow.seconds },
+    localRates,
     payloadLimits: {
       bodyBytes: routeClass === 'AUTH_ATTEMPT'
         ? config.abuseProtection.payloadLimits.authJsonBodyBytes
@@ -417,6 +496,7 @@ export const defaultRouteProtectionPolicy = (
         : 'fail_closed',
     owner: ownerFor(routePattern),
     ...classSettings,
+    concurrencyClass: concurrencyClassFor(routeClass),
     killSwitch: routeKillSwitch,
     costUnits: costUnitsFor(routeClass),
   })

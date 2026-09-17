@@ -10,6 +10,7 @@ export function LiquidityPage() {
     <AppShell
       currentPath="/liquidity"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

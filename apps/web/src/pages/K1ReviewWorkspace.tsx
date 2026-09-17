@@ -322,6 +322,7 @@ export const K1ReviewWorkspace = () => {
     <AppShell
       currentPath={window.location.pathname}
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => { void authClient.logout().finally(() => sessionStore.setUnauthenticated()) }}
     >
@@ -439,7 +440,7 @@ export const K1ReviewWorkspace = () => {
           </div>}
         </div>
 
-        <div className="h-full min-h-0"><PdfPanel pdfUrl={resolveApiUrl(sessionData.pdfUrl)} highlight={highlight} title={sessionData.partnership.name ?? sessionData.partnership.rawName ?? 'K-1 PDF'} /></div>
+        <div className="h-full min-h-0"><PdfPanel pdfUrl={resolveApiUrl(sessionData.pdfUrl)} reattachUrl={resolveApiUrl(`/k1-documents/${sessionData.k1DocumentId}/source-pdf`)} highlight={highlight} title={sessionData.partnership.name ?? sessionData.partnership.rawName ?? 'K-1 PDF'} /></div>
       </div>}
     </AppShell>
   )

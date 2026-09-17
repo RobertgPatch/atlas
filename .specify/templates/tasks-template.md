@@ -54,7 +54,8 @@ or recovery tests whenever a boundary or constitutional risk is affected.
 - [ ] T002 Initialize [language] project with [framework] dependencies
 - [ ] T003 [P] Configure linting and formatting tools
 - [ ] T004 [P] Record feature data classification, actors, tenant/entity scope,
-      authorization matrix, threat model, and required architecture decisions
+      authorization matrix, threat model, required architecture decisions, and
+      compensating controls/expiry/remediation for every approved exception
 
 ---
 
@@ -163,6 +164,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX Verify financial provenance, reconciliation, corrections, and audit evidence
 - [ ] TXXX Verify backup/restore, measured RPO/RTO, migration, and rollback evidence
 - [ ] TXXX Run quickstart.md and incident/recovery procedure validation
+- [ ] TXXX Verify every exception is closed, renewed by a new explicit decision, or
+      still active and scoped to the proposed release; block out-of-scope actions
 
 ---
 

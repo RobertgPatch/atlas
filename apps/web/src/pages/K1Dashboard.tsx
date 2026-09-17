@@ -298,6 +298,7 @@ export function K1Dashboard() {
     <AppShell
       currentPath="/k1"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

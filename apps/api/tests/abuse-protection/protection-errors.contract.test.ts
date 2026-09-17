@@ -30,8 +30,29 @@ describe('protection error contract and failure modes', () => {
     ]) {
       expect(response.headers['Retry-After']).toBe(String(response.body.retryAfterSeconds))
       expect(response.headers['X-Request-Id']).toBe(response.body.requestId)
+      expect(response.headers['Cache-Control']).toBe('no-store')
       expect(Buffer.byteLength(JSON.stringify(response.body))).toBeLessThanOrEqual(MAX_PROTECTION_ERROR_BODY_BYTES)
+      expect(JSON.stringify(response.body)).not.toMatch(/ip|email|account|userId|sessionId|cookie|remaining|resetTimestamp/i)
     }
+  })
+
+  it('keeps authentication rejection public behavior independent of account existence', () => {
+    const known = buildRateLimitedResponse({
+      code: 'RATE_LIMITED',
+      requestId: 'request_known_123',
+      retryAfterSeconds: 60,
+    })
+    const unknown = buildRateLimitedResponse({
+      code: 'RATE_LIMITED',
+      requestId: 'request_unknown_1',
+      retryAfterSeconds: 60,
+    })
+
+    expect({ ...known.body, requestId: '[request]' }).toEqual({
+      ...unknown.body,
+      requestId: '[request]',
+    })
+    expect(known.statusCode).toBe(429)
   })
 
   it('degrades only cheap completed-data reads when the exact store is unavailable', async () => {

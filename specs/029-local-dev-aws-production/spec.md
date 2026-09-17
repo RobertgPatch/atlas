@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-28
 
-**Status**: Repository implementation complete; production activation blocked on operator evidence
+**Status**: Repository amendment implemented; production activation and real local-BDA acceptance remain blocked on operator-supplied AWS evidence
 
 **Input**: User description: "Development exists on my local machine and deployment goes straight to AWS production."
 
@@ -16,6 +16,11 @@
 - Q: How much may cost optimization change the managed production architecture? → A: Retain the managed architecture, including private RDS, Fargate, the Application Load Balancer, NAT gateway, CloudFront, and WAF; limit cost optimization to safe right-sizing and configuration changes rather than single-host consolidation.
 - Q: What monthly AWS cost objective should govern the retained managed architecture? → A: Target an estimated recurring cost of no more than $110 per month for the initial single-user workload and configure the monthly AWS budget alert at $125.
 - Q: What database availability level should the one-user production environment use? → A: Retain a Single-AZ `db.t4g.micro` RDS PostgreSQL instance with encryption, private networking, deletion protection, automated backups, and final snapshots; accept possible recovery downtime instead of paying for a Multi-AZ standby.
+
+### Session 2026-08-30
+
+- Q: How should real K-1 parsing work during local development? → A: Add an explicit local-to-AWS BDA mode. Web, API, PostgreSQL, evidence metadata, and the durable work queue remain local; only K-1 objects, KMS operations, and BDA invocations use the approved production-account resources in `us-west-2`.
+- Q: May this mode use the production AWS account even though there is no staging stack? → A: Yes, but only through a K-1-scoped command with exact account/resource preflight, short-lived credentials, low paid-work quotas, and no production database, SQS queue, Terraform, or unrelated provider access. Offline stub mode remains the default and all CI remains offline.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -32,6 +37,8 @@ As a developer, I can run and test Project Jackson on my local machine without p
 1. **Given** a developer has the documented local prerequisites, **When** they start the local environment, **Then** the application uses local services and does not require production AWS credentials or endpoints.
 2. **Given** production-only settings are absent, **When** local tests and builds run, **Then** they complete without contacting production infrastructure.
 3. **Given** a local process is misconfigured with a production endpoint or production AWS identity, **When** the local safety checks run, **Then** the workflow fails before performing a mutating operation.
+4. **Given** an operator explicitly starts local BDA mode with an approved short-lived AWS identity, **When** a K-1 PDF is uploaded, **Then** the browser stores it in the approved KMS-encrypted S3 bucket, the PostgreSQL-backed local queue submits it to the LIVE BDA project, and the local reconciler persists the parsed result in local PostgreSQL.
+5. **Given** the AWS identity, account, region, bucket ownership/CORS, KMS key, BDA project, or paid-work settings do not match the approved local BDA contract, **When** startup is attempted, **Then** no API, worker, web, or provider process starts.
 
 ---
 
@@ -84,6 +91,8 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 
 - The developer has AWS credentials in their shell while starting the local stack.
 - A local variable file points at a production database, bucket, queue, or provider resource.
+- A local BDA session expires, the worker exits, or BDA is still processing after the browser reloads.
+- The K-1 bucket lacks loopback CORS origins even though its presigned URL and IAM permissions are otherwise valid.
 - The production state backend is unavailable, locked, or resolves to the wrong account or region.
 - The saved plan changes after approval or was generated from a different commit.
 - Terraform proposes replacement of RDS, state storage, KMS, networking, CloudFront, or other protected resources.
@@ -97,9 +106,9 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 
 ### Functional Requirements
 
-- **FR-001**: The supported development runtime MUST execute on the developer's local machine using local application processes, a local database, and deterministic local or stub provider adapters by default.
+- **FR-001**: The supported development runtime MUST execute on the developer's local machine using local application processes and a local database. Deterministic local/stub adapters MUST remain the default; AWS BDA MAY be selected only by the explicit scoped mode in FR-028 through FR-033.
 - **FR-002**: Local development and automated tests MUST NOT require a long-lived AWS development or staging stack.
-- **FR-003**: Local workflows MUST fail closed before mutating a resource identified as production.
+- **FR-003**: Local workflows MUST fail closed before mutating a production resource except for the documented K-1 S3/KMS/BDA operations explicitly authorized by FR-028 through FR-033.
 - **FR-004**: AWS production MUST be the only active remote deployment environment described by current scripts, variable examples, CI gates, and operator documentation.
 - **FR-005**: The repository MUST provide a production-specific deployment entry point and MUST remove or retire the active AWS staging/development deployment entry points.
 - **FR-006**: Production deployment MUST consume an ignored production variable file derived from a committed sanitized example; secret values MUST remain outside committed Terraform variables and outputs.
@@ -124,10 +133,17 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 - **FR-025**: Cost optimization MUST retain the managed production boundaries provided by private RDS, Fargate, the Application Load Balancer, NAT gateway, CloudFront, and WAF; it MUST NOT consolidate the API and PostgreSQL onto one EC2 instance or remove these controls solely to reduce cost.
 - **FR-026**: The production design MUST target an estimated recurring AWS cost of no more than $110 per month under the documented single-user, low-traffic assumptions and MUST configure an AWS monthly budget alert at $125; the alert MUST notify operators and MUST NOT automatically stop production services.
 - **FR-027**: Production PostgreSQL MUST use an explicitly configured Single-AZ `db.t4g.micro` RDS deployment with the data protections required by FR-012; Multi-AZ standby capacity MUST NOT be provisioned for the initial single-user workload unless a later approved availability change revises the cost target.
+- **FR-028**: The repository MUST provide `npm run dev:local:bda` as an explicit hybrid provider command; it MUST keep Fastify, Vite, PostgreSQL, migrations, document metadata, and the work/completion queue local while selecting S3, KMS, and Bedrock Data Automation for K-1 documents only.
+- **FR-029**: Local BDA startup MUST perform read-only preflight before starting a child process: verify an unexpired AWS identity, exact operator-approved 12-digit account, `us-west-2`, bucket ownership and loopback upload CORS, an enabled matching KMS key, and an accessible LIVE BDA project.
+- **FR-030**: Local BDA mode MUST require explicit `aws_bda`/`s3`/`local` adapter settings, enabled K-1 upload/extraction switches, bounded monthly/daily/in-flight paid-work quotas, and empty SQS URLs; it MUST continue to reject remote databases, Terraform production markers, broad AWS mutation flags, and unrelated remote providers/resources.
+- **FR-031**: Local BDA identifiers and cost ceilings MUST be supplied from an ignored `.env.local-bda` file based on a sanitized committed example. AWS credentials, tokens, production tfvars, and state MUST NOT be stored in that file or committed.
+- **FR-032**: The production K-1 bucket CORS contract MUST allow `PUT` from `http://localhost:5173` and `http://127.0.0.1:5173`; authorization MUST still require a short-lived, single-object presigned request with the expected checksum and KMS headers.
+- **FR-033**: When a durable queued K-1 references evidence accepted into local storage before local BDA mode existed, the BDA worker MUST copy and checksum that evidence into the approved KMS-encrypted S3 bucket and atomically replace the document storage identity before creating/submitting an extraction attempt; a failed copy MUST leave the item queued and retryable, and the original local file MUST remain available for recovery.
 
 ### Key Entities
 
-- **Local Development Environment**: Developer-owned processes, local database, local files, and deterministic provider substitutes with no production mutation authority.
+- **Local Development Environment**: Developer-owned processes and local PostgreSQL. It uses local files and deterministic substitutes by default; explicit local BDA mode has only the documented K-1 S3/KMS/BDA authority.
+- **Local BDA Session**: A short-lived, account-bound hybrid session whose local worker consumes the PostgreSQL queue, submits approved K-1 objects to BDA, and reconciles results back into local PostgreSQL.
 - **Production Environment**: The single AWS runtime containing production networking, compute, database, storage, edge, security, secrets, schedulers, workers, and observability.
 - **Production Release**: An immutable source commit plus API image, web artifact bundle, database migration set, and release metadata.
 - **Production Terraform Plan**: A saved, reviewable infrastructure plan tied to the expected account, region, backend, variables, source commit, and digest.
@@ -150,6 +166,8 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 - **SC-010**: The reviewed production plan retains private RDS, Fargate, the Application Load Balancer, NAT gateway, CloudFront, and WAF while applying only validated, non-destructive cost configuration changes.
 - **SC-011**: Before production apply, the documented low-traffic cost estimate is no more than $110 per month and the reviewed Terraform configuration shows a $125 monthly AWS budget notification without an automatic service-shutdown action.
 - **SC-012**: The reviewed production plan shows exactly one Single-AZ `db.t4g.micro` PostgreSQL instance with encryption, private access, deletion protection, at least 35 days of point-in-time recovery, and a final-snapshot requirement; an isolated restore exercise demonstrates an RPO of no more than 15 minutes and an RTO of no more than eight hours.
+- **SC-013**: Automated boundary tests reject wrong-account, wrong-region, SQS, unrelated-provider, broad-mutation, partial-switch, and non-LIVE local BDA fixtures, while the complete approved fixture selects `aws_bda` + S3 + the PostgreSQL-backed local queue; an integration test proves legacy queued evidence is copied to encrypted S3 before BDA invocation.
+- **SC-014**: With valid operator-supplied AWS inputs, a real PDF uploaded from either loopback origin leaves `QUEUED`, produces exactly one BDA invocation, survives browser reload, and reaches a reviewable or explicit failed terminal state without synthetic stub output.
 
 ## Assumptions
 
@@ -161,7 +179,8 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 - The managed separation between application compute, database, networking, edge delivery, and web application protection is retained even where a single-host design would cost less.
 - The $110 monthly cost target is an estimate based on the documented single-user traffic profile; provider price changes and usage-based charges can vary, so the $125 budget is an alert threshold rather than a guaranteed cap.
 - Single-AZ database recovery downtime is acceptable for the initial single-user workload only while restore evidence satisfies the ratified 15-minute RPO and eight-hour RTO; automated Multi-AZ failover is not required at this stage.
-- Local and CI tests use stubs, mocks, recorded fixtures, or isolated local services rather than production providers.
+- Normal local development and CI use stubs, mocks, recorded fixtures, or isolated local services. The separately invoked local BDA workflow is ordinary operator-authorized provider use, not an automated, load, or bounded-abuse test.
+- The production K-1 Terraform resources must be enabled and applied before local BDA can be activated; creating or changing those resources remains a separately approved production deployment.
 - Historical specifications are records and are not rewritten solely to adopt the new environment terminology.
 - Eliminating remote pre-production increases operational risk, so stronger plan integrity, protected-resource checks, incremental activation, observability, and rollback gates are required.
 
@@ -172,4 +191,5 @@ As a maintainer, I see consistent environment terminology across Terraform, scri
 - Renaming existing physical AWS resources when replacement would be required.
 - Consolidating the production API and PostgreSQL database onto one EC2 instance or otherwise replacing the retained managed architecture solely for cost reduction.
 - Running load, bounded-abuse, destructive, or real-provider test suites against production.
+- Using production RDS, SQS, ECS workers, Plaid, market-data providers, CloudWatch log import, or Terraform mutation from the local BDA command.
 - Rewriting historical feature specifications that accurately describe earlier decisions.

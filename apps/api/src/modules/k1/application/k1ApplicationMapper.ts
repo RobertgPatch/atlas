@@ -94,6 +94,7 @@ const groupByDestination = (fields: DurableK1FieldValueRecord[]): Map<string, Du
 /** Compiles the reviewed active attempt into application destinations. */
 export const mapReviewedK1ApplicationValues = (
   fields: DurableK1FieldValueRecord[],
+  taxYear?: number,
 ): K1MappedApplicationValue[] => {
   const accepted = fields.filter((field) => field.reviewStatus !== 'REJECTED')
   if (accepted.some((field) => field.reviewStatus === 'PENDING')) {
@@ -247,7 +248,7 @@ export const mapReviewedK1ApplicationValues = (
     mapped.push({
       destinationKind: 'OFFICIAL', destinationKey: key, value,
       sourceFieldValueIds: destinationFields.map((field) => field.id),
-      policy: 'OFFICIAL_FORM', affectsDownstreamCalculations: false,
+      policy: 'OFFICIAL_FORM', affectsDownstreamCalculations: key === 'box_16_entries' && taxYear !== undefined && taxYear < 2021,
     })
   }
   return mapped

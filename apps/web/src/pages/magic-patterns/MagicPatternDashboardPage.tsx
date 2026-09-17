@@ -792,6 +792,7 @@ export function MagicPatternDashboardPage() {
       currentPath="/dashboard"
       mainClassName="bg-[#e7eee9]"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

@@ -35,6 +35,10 @@ async function seedYear(
     { fieldKey: 'capital_contributions', amount: contributions, sourceType: 'MANUAL_ENTRY' },
     { fieldKey: 'box_19_distributions', amount: distributions, sourceType: 'MANUAL_ENTRY' },
   ], actorUserId, adminScope)
+  await partnershipTrackerRepository.createCashFlows(partnershipId, taxYear, [
+    { kind: 'CAPITAL_CALL', activityDate: `${taxYear}-01-01`, amount: contributions },
+    { kind: 'DISTRIBUTION', activityDate: `${taxYear}-12-31`, amount: distributions.replace(/^-/, '') },
+  ], actorUserId, adminScope)
   if (warningCount > 0) {
     await pool!.query('update k1_tracker_years set warning_count = $2 where partnership_id = $1 and tax_year = $3', [partnershipId, warningCount, taxYear])
   }

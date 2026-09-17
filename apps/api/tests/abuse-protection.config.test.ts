@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildAbuseProtectionConfig,
+  resolveStorageRoot,
   validateProductionSessionSettings,
 } from '../src/config.js'
 
@@ -15,11 +16,35 @@ const everyNumberIsFiniteAndPositive = (value: unknown): boolean => {
 }
 
 describe('abuse-protection configuration', () => {
+  it('anchors relative evidence storage to the API package instead of process cwd', () => {
+    const resolved = resolveStorageRoot('./.storage').replaceAll('\\', '/')
+    expect(resolved).toMatch(/\/apps\/api\/\.storage$/)
+    expect(resolveStorageRoot('.storage')).toBe(resolveStorageRoot('./.storage'))
+  })
+
   it('uses finite conservative defaults and keeps paid workloads disabled locally', () => {
     const protection = buildAbuseProtectionConfig({}, 'development')
 
     expect(everyNumberIsFiniteAndPositive(protection)).toBe(true)
     expect(protection.localRates.authSource).toEqual({ requests: 20, seconds: 300 })
+    expect(protection.localRates.generalApiSource).toEqual({ requests: 300, seconds: 300 })
+    expect(protection.localRates.partitions).toEqual({
+      pinnedGlobal: 64,
+      authenticated: 2_936,
+      source: 7_000,
+    })
+    expect(protection.exactRates.authGlobal).toEqual({ requests: 50, seconds: 300 })
+    expect(protection.exactRates.authGlobalDaily).toEqual({ requests: 200, seconds: 86_400 })
+    expect(protection.runtime.steadyStateApiTasks).toBe(1)
+    expect(protection.sourceIdentity).toEqual({
+      generatedHeaderName: 'cloudfront-viewer-address',
+      requireGeneratedHeader: false,
+    })
+    expect(protection.deploymentTenantId).toBe('local-family-office')
+    expect(protection.capabilities).toEqual({
+      uploadTtlSeconds: 300,
+      signatureAgeSeconds: 300,
+    })
     expect(protection.exactRates.knownAccount).toEqual({ requests: 5, seconds: 900 })
     expect(protection.quotas.paidExtraction).toMatchObject({
       globalDocumentsPerDay: 100,
@@ -84,7 +109,43 @@ describe('abuse-protection configuration', () => {
         },
         'production',
       ),
-    ).toThrow(/ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS/)
+    ).toThrow(/ABUSE_VIEWER_ADDRESS_HEADER/)
+  })
+
+  it('rejects malformed source, topology, partition, rotation, and capability settings', () => {
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_VIEWER_ADDRESS_HEADER: 'x-forwarded-for',
+    }, 'development')).toThrow(/ABUSE_VIEWER_ADDRESS_HEADER/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_API_STEADY_STATE_TASKS: '2',
+    }, 'development')).toThrow(/ABUSE_API_STEADY_STATE_TASKS/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ATLAS_DEPLOYMENT_TENANT_ID: 'request supplied tenant',
+    }, 'development')).toThrow(/ATLAS_DEPLOYMENT_TENANT_ID/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_LOCAL_MAX_BUCKETS: '100',
+      ABUSE_LOCAL_PINNED_GLOBAL_BUCKETS: '10',
+      ABUSE_LOCAL_AUTHENTICATED_BUCKETS: '40',
+      ABUSE_LOCAL_SOURCE_BUCKETS: '60',
+    }, 'development')).toThrow(/ABUSE_LOCAL_.*BUCKETS/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_HMAC_PREVIOUS_KEYS: 'previous-test-hmac-key-material-0001',
+      ABUSE_HMAC_PREVIOUS_KEY_IDS: '',
+    }, 'development')).toThrow(/ABUSE_HMAC_PREVIOUS_KEY_IDS/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_AUTH_GLOBAL_REQUESTS: '50',
+      ABUSE_AUTH_GLOBAL_DAILY_REQUESTS: '49',
+    }, 'development')).toThrow(/ABUSE_AUTH_GLOBAL_DAILY_REQUESTS/)
+
+    expect(() => buildAbuseProtectionConfig({
+      ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS: '301',
+      ABUSE_UPLOAD_SIGNATURE_AGE_SECONDS: '300',
+    }, 'development')).toThrow(/ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS/)
   })
 
   it('rejects inconsistent user/global, retry, delay, and timeout ceilings', () => {

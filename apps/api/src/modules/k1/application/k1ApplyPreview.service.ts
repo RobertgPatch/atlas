@@ -109,7 +109,7 @@ export const createK1ApplyPreview = async (args: {
     )).rows[0]
   }
   const fields = await durableReviewRepository.listForActiveAttempt(document.id)
-  const mapped = mapReviewedK1ApplicationValues(fields)
+  const mapped = mapReviewedK1ApplicationValues(fields, document.taxYear)
   const calculations = await client.query<{ field_key: string; amount: string | null }>(
     `select field_key, amount from k1_tracker_value_revisions
       where tracker_year_id = $1 and is_active`,

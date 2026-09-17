@@ -37,6 +37,11 @@ export function LoginPage() {
     setIsLoading(true)
     try {
       const result = await authClient.login(email, password)
+      if ('status' in result && result.status === 'PASSWORD_CHANGE_REQUIRED') {
+        authFlowStore.setPasswordChange(result)
+        navigate('/password/change')
+        return
+      }
       if ('status' in result && result.status === 'MFA_ENROLL_REQUIRED') {
         authFlowStore.setEnrollment(result)
         navigate('/mfa/setup')

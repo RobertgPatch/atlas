@@ -55,6 +55,11 @@ const start = async () => {
   const app = buildApp()
 
   try {
+    if (config.abuseProtection.runtime.steadyStateApiTasks !== 1) {
+      throw new Error(
+        'Password-hash concurrency is process-local and requires exactly one steady-state API task.',
+      )
+    }
     if (config.databaseUrl) {
       app.log.info('[migrate] DATABASE_URL detected, running migrations')
       await runMigrations((msg) => app.log.info(msg))

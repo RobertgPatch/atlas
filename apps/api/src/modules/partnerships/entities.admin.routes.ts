@@ -307,7 +307,7 @@ const createEntityHandler = async (req: FastifyRequest, reply: FastifyReply) => 
           id, name, entity_type, jurisdiction, tax_id, formed_on, status, notes,
           registered_agent, primary_contact, created_at, updated_at
         )
-         values ($1, $2, $3, $4, $5, $6::date, 'DRAFT', null, null, null, now(), now())
+         values ($1, $2, $3, $4, $5, $6::date, 'ACTIVE', null, null, null, now(), now())
          on conflict (id) do nothing`,
         [entity.id, entity.name, entity.entityType, entity.jurisdiction, entity.taxId, formedOn],
       )

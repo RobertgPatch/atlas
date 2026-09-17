@@ -79,6 +79,7 @@ export const uploadBodySchema = z.object({
 
 export const createIngestionBatchSchema = z.object({
   entityScopeId: uuidSchema.nullish(),
+  createPartnershipIfMissing: z.boolean().optional().default(false),
   uploadAttemptId: uuidSchema.optional(),
   files: z.array(z.object({
     fileName: z.string().trim().min(1).max(255)
@@ -87,7 +88,15 @@ export const createIngestionBatchSchema = z.object({
     sha256: k1Sha256Schema,
     mimeType: z.literal('application/pdf').optional().default('application/pdf'),
   }).strict()).min(1).max(config.abuseProtection.payloadLimits.k1FilesPerBatch),
-}).strict()
+}).strict().superRefine((value, ctx) => {
+  if (value.createPartnershipIfMissing && !value.entityScopeId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['entityScopeId'],
+      message: 'An owning entity is required when creating a partnership from a K-1.',
+    })
+  }
+})
 
 export const ingestionBatchParamsSchema = z.object({ batchId: uuidSchema })
 export const ingestionItemParamsSchema = z.object({ itemId: uuidSchema })
@@ -114,6 +123,7 @@ export const localUploadHeadersSchema = z.object({
     'Content-Type must be application/pdf.',
   ),
   'content-length': z.coerce.number().int().min(1).max(config.abuseProtection.payloadLimits.k1FileBytes),
+  'if-none-match': z.literal('*'),
   'x-amz-checksum-sha256': k1Sha256Schema,
 })
 

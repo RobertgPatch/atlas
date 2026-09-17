@@ -4,22 +4,23 @@ import test from 'node:test'
 import { validateProductionSmokeContract } from './validate-production-smoke-contract.mjs'
 
 const routeSource = `
-export const PUBLIC_ROUTE_PATTERNS = ['/', '/mfa/setup', '/mfa'] as const
+export const PUBLIC_ROUTE_PATTERNS = ['/', '/password/change', '/mfa/setup', '/mfa'] as const
 export const CURRENT_PROTECTED_ROUTE_PATTERNS = [
   '/dashboard', '/investment-tracker', '/liquidity', '/entities', '/entities/:id',
-  '/estate-maps', '/tic-registry', '/reports', '/k1', '/k1/:id/review',
+  '/estate-maps', '/tic-registry', '/reports', '/k1', '/k1/:id/review', '/admin',
 ] as const
 `
 
 const contract = {
   schemaVersion: '1.0.0',
   routeDecisions: [
-    ['/', 'edge-home'], ['/mfa/setup', 'auth-login'], ['/mfa', 'auth-login'],
+    ['/', 'edge-home'], ['/password/change', 'auth-login'], ['/mfa/setup', 'auth-login'], ['/mfa', 'auth-login'],
     ['/dashboard', 'dashboard-read'], ['/investment-tracker', 'investment-aggregation-read'],
     ['/liquidity', 'liquidity-holdings-read'], ['/entities', 'entities-list-read'],
     ['/entities/:id', 'entity-detail-read'], ['/estate-maps', 'current-surface-contract'],
     ['/tic-registry', 'tic-properties-read'], ['/reports', 'current-surface-contract'],
     ['/k1', 'current-surface-contract'], ['/k1/:id/review', 'current-surface-contract'],
+    ['/admin', 'current-surface-contract'],
   ].map(([route, decision]) => ({ route, decision })),
   requests: [
     { name: 'edge-home', method: 'GET', path: '/' },

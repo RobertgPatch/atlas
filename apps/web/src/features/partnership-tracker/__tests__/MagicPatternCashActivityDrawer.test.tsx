@@ -4,12 +4,14 @@ import { MagicPatternCashActivityDrawer } from '../components/magic-patterns/Mag
 
 const mutations = vi.hoisted(() => ({
   createCashFlows: vi.fn().mockResolvedValue({ created: [] }),
+  createNav: vi.fn().mockResolvedValue({ id: 'valuation-1' }),
   createYear: vi.fn().mockResolvedValue({ taxYear: 2026 }),
 }))
 
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: () => ({
     createCashFlows: { mutateAsync: mutations.createCashFlows, isPending: false },
+    createNav: { mutateAsync: mutations.createNav, isPending: false },
     createYear: { mutateAsync: mutations.createYear, isPending: false },
   }),
 }))
@@ -17,6 +19,7 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
 describe('MagicPatternCashActivityDrawer', () => {
   beforeEach(() => {
     mutations.createCashFlows.mockClear()
+    mutations.createNav.mockClear()
     mutations.createYear.mockClear()
   })
 
@@ -80,5 +83,34 @@ describe('MagicPatternCashActivityDrawer', () => {
         ],
       },
     }))
+  })
+
+  it('records a valuation selected from the activity type dropdown', async () => {
+    render(
+      <MagicPatternCashActivityDrawer
+        open
+        onClose={vi.fn()}
+        partnershipId="partnership-1"
+        fundName="AC Bell Investors, LLC"
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText(/Activity type/), { target: { value: 'VALUATION' } })
+    fireEvent.change(screen.getByLabelText(/Valuation date/), { target: { value: '2026-06-30' } })
+    fireEvent.change(screen.getByLabelText(/NAV \/ FMV \(USD\)/), { target: { value: '875000' } })
+    fireEvent.change(screen.getByLabelText(/^Source/), { target: { value: 'valuation_409a' } })
+    fireEvent.change(screen.getByLabelText(/^Note/), { target: { value: 'Quarter-end report' } })
+    expect(screen.queryByText('Settlement state')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+
+    await waitFor(() => expect(mutations.createNav).toHaveBeenCalledWith({
+      id: 'partnership-1',
+      body: {
+        amount: '875000.00',
+        valuationDate: '2026-06-30',
+        note: '[409A valuation] Quarter-end report',
+      },
+    }))
+    expect(mutations.createCashFlows).not.toHaveBeenCalled()
   })
 })

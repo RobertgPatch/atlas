@@ -9,6 +9,8 @@ Replace the active AWS staging/development topology with two supported runtime c
 
 The deployment path becomes an operator-run, production-only Plan/Bootstrap/Prepare/Apply/Rollback workflow. It binds a clean source commit, a committed production-target descriptor, an immutable API image, a hashed web bundle, a saved Terraform plan, live secret-version attestation, migration compatibility evidence, an exact confirmation phrase, and read-only retained-flow smoke checks. Bootstrap may hold application capacity at zero only before the first activation; routine production remains at one always-on API task and one always-on RDS instance.
 
+The 2026-08-30 amendment preserves those two runtime classes while adding one explicit hybrid provider mode: `dev:local:bda`. Application state and execution remain local, the durable K-1 queue remains PostgreSQL-backed, and only presigned S3 upload, KMS encryption, and asynchronous BDA invocation/status use the approved `us-west-2` production-account K-1 resources. Stub mode remains the default and CI contract. Hybrid startup is gated by an ignored identifier file, short-lived AWS credentials, exact STS/resource/CORS preflight, and small paid-work ceilings.
+
 ## Technical Context
 
 **Language/Version**: Node.js 22; API TypeScript 5.7/ES2022/NodeNext; web TypeScript 6.0; PowerShell 7-compatible deployment and policy tooling; Terraform 1.11.4 in CI (`>=1.11` constraint)
@@ -25,8 +27,8 @@ The deployment path becomes an operator-run, production-only Plan/Bootstrap/Prep
 
 **Performance Goals**: One continuously available API task at 0.25 vCPU/0.5 GiB only after production-shaped validation; retained read flows remain usable for one concurrent interactive user; ECS reaches steady state and every required smoke check completes within documented deployment timeouts
 
-**Constraints**: No AWS staging/development environment; no scheduled shutdown or scale-to-zero in normal production; retain private RDS, Fargate, ALB, NAT, CloudFront, and WAF; estimated recurring cost `<= $110/month` for the declared workload; $125 notification-only budget; 15-minute RPO; eight-hour RTO; quarterly isolated restore evidence; unique physical-person production identities and MFA; no unrelated tenant until isolation is proven; no silent region/backend/name migration; no committed secrets, Restricted data, tfvars, state, plans, or raw plan JSON
-**Scale/Scope**: One human user, one concurrent browser session, at most 10,000 application requests/month, 20 GiB initial database storage, no more than 1 GiB/month through NAT, 1 GiB/month of logs, 2 GiB ECR, 5 GiB S3, one daily Plaid refresh and weekday market-close scheduling totaling under five Fargate task-hours/month, K-1 AWS ingestion disabled, and no paid BDA/Bedrock calls in the baseline
+**Constraints**: No AWS staging/development environment; no scheduled shutdown or scale-to-zero in normal production; retain private RDS, Fargate, ALB, NAT, CloudFront, and WAF; estimated recurring cost `<= $110/month` for the declared workload; $125 notification-only budget; 15-minute RPO; eight-hour RTO; quarterly isolated restore evidence; unique physical-person production identities and MFA; no unrelated tenant until isolation is proven; no silent region/backend/name migration; no committed secrets, Restricted data, tfvars, state, plans, or raw plan JSON; local BDA may access only the approved K-1 S3/KMS/BDA resources and must never use production RDS, SQS, ECS, Terraform mutation, or unrelated providers
+**Scale/Scope**: One human user, one concurrent browser session, at most 10,000 application requests/month, 20 GiB initial database storage, no more than 1 GiB/month through NAT, 1 GiB/month of logs, 2 GiB ECR, 5 GiB S3, one daily Plaid refresh and weekday market-close scheduling totaling under five Fargate task-hours/month. K-1 AWS ingestion and paid BDA/Bedrock calls remain excluded from the always-on baseline estimate; explicit local BDA calls are separately metered and capped by the local provider profile.
 
 ## Constitution Check
 
@@ -66,6 +68,15 @@ Before Terraform right-sizing is accepted, a production-shaped Linux container m
 - Run database migrations synchronously before starting the worker or web client; keep API/worker migration calls idempotent under the existing PostgreSQL advisory lock.
 - Treat migration failure, database failure, or `/internal/readiness` timeout as fatal. Do not downgrade these failures to a warning and continue opening the web application.
 - Test a clean PostgreSQL volume, repeated startup, unavailable database, and a fixture migration failure without contacting AWS.
+
+### Explicit local-to-AWS BDA provider mode
+
+- Add `dev:local:bda` without adding a third deployed environment. Fastify, Vite, PostgreSQL, migrations, upload metadata, the work/completion queue, and reconciliation state remain local.
+- Load only non-secret resource identifiers and local paid-work ceilings from ignored `apps/api/.env.local-bda`; credentials continue to come from a short-lived AWS CLI/SDK profile or session.
+- Before Docker or a child process starts, require STS account equality, `us-west-2`, expected bucket ownership, both loopback CORS origins with `PUT`, an enabled matching KMS key, and an accessible LIVE BDA project. Reject SQS URLs, remote databases, production Terraform markers, broad AWS mutation flags, and unrelated providers.
+- Use the existing S3 upload-slot/object-store adapters, asynchronous BDA extractor, PostgreSQL work queue, and local completion reconciler. Run the worker without a watch-wrapper so an early fatal exit is observable and logged.
+- Before claiming an attempt for a pre-amendment queued item with a local-only source identity, stream the checksum-bound source to the approved KMS-encrypted S3 key, compare-and-set the durable document identity, and retain the local copy; S3 failure leaves the queue item untouched for retry.
+- Keep `dev:local`/`dev:local:stub` offline and deterministic. No CI test invokes AWS; the real-PDF acceptance test is manual and requires operator-supplied AWS evidence.
 
 ### Production policy ownership
 

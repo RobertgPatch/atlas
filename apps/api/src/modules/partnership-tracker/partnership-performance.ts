@@ -153,42 +153,40 @@ export const composePartnershipPerformance = ({
     ? sum(datedDistributions.map((item) => item.cents))
     : distributions.length ? sum(distributions.map((item) => item.cents)) : null
   const navCents = moneyToCents(latestNav?.amount)
+  const calculationNavCents = navCents ?? zero
   const commitmentCents = moneyToCents(currentCommitment)
   const outsideBasisCents = moneyToCents(latestEndingOutsideBasis)
   const status = defaultStatus()
 
   if (totalContributionCents != null && totalContributionCents > zero) status.dpi = 'AVAILABLE'
-  if (totalContributionCents != null && totalContributionCents > zero) status.tvpi = latestNav ? 'AVAILABLE' : 'MISSING_NAV'
+  if (totalContributionCents != null && totalContributionCents > zero) status.tvpi = 'AVAILABLE'
 
   let irr: string | null = null
   let irrTerminalDate: string | null = null
   let irrUsesCarriedForwardNav = false
   if (totalContributionCents != null && totalContributionCents > zero) {
-    if (!latestNav) {
-      status.irr = 'MISSING_NAV'
+    const cashFlows = new Map<string, bigint>()
+    if (hasOperationalLedger) {
+      for (const entry of datedContributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
+      for (const entry of datedDistributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
     } else {
-      const cashFlows = new Map<string, bigint>()
-      if (hasOperationalLedger) {
-        for (const entry of datedContributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) - entry.cents)
-        for (const entry of datedDistributions) cashFlows.set(entry.date, (cashFlows.get(entry.date) ?? zero) + entry.cents)
-      } else {
-        for (const entry of contributions) {
-          const date = dateAtYearEnd(entry.taxYear)
-          cashFlows.set(date, (cashFlows.get(date) ?? zero) - entry.cents)
-        }
-        for (const entry of distributions) {
-          const date = dateAtYearEnd(entry.taxYear)
-          cashFlows.set(date, (cashFlows.get(date) ?? zero) + entry.cents)
-        }
+      for (const entry of contributions) {
+        const date = dateAtYearEnd(entry.taxYear)
+        cashFlows.set(date, (cashFlows.get(date) ?? zero) - entry.cents)
       }
-      const latestAnnualDate = cashFlows.size ? [...cashFlows.keys()].sort().at(-1)! : latestNav.date
-      irrTerminalDate = latestNav.date > latestAnnualDate ? latestNav.date : latestAnnualDate
-      irrUsesCarriedForwardNav = irrTerminalDate > latestNav.date
-      cashFlows.set(irrTerminalDate, (cashFlows.get(irrTerminalDate) ?? zero) + (navCents ?? zero))
-      const result = solveIrr([...cashFlows.entries()].map(([date, cents]) => ({ date, cents })))
-      irr = result.value
-      status.irr = result.status
+      for (const entry of distributions) {
+        const date = dateAtYearEnd(entry.taxYear)
+        cashFlows.set(date, (cashFlows.get(date) ?? zero) + entry.cents)
+      }
     }
+    const terminalValueDate = latestNav?.date ?? asOfDate
+    const latestCashFlowDate = cashFlows.size ? [...cashFlows.keys()].sort().at(-1)! : terminalValueDate
+    irrTerminalDate = terminalValueDate > latestCashFlowDate ? terminalValueDate : latestCashFlowDate
+    irrUsesCarriedForwardNav = latestNav != null && irrTerminalDate > latestNav.date
+    cashFlows.set(irrTerminalDate, (cashFlows.get(irrTerminalDate) ?? zero) + calculationNavCents)
+    const result = solveIrr([...cashFlows.entries()].map(([date, cents]) => ({ date, cents })))
+    irr = result.value
+    status.irr = result.status
   }
 
   let annualizedCashOnCashYield: string | null = null
@@ -211,7 +209,8 @@ export const composePartnershipPerformance = ({
   } else if (totalContributionCents == null) {
     status.unfundedCommitment = 'MISSING_CONTRIBUTIONS'
   } else {
-    const unfundedCents = commitmentCents - totalContributionCents
+    const remainingCents = commitmentCents - totalContributionCents
+    const unfundedCents = remainingCents > zero ? remainingCents : zero
     unfundedCommitmentAmount = centsToMoney(unfundedCents)
     if (commitmentCents === zero) {
       status.unfundedCommitment = 'MISSING_COMMITMENT'
@@ -235,7 +234,7 @@ export const composePartnershipPerformance = ({
     totalCapitalContributions: centsToMoney(totalContributionCents),
     totalDistributions: centsToMoney(totalDistributionCents),
     dpi: status.dpi === 'AVAILABLE' ? ratio(totalDistributionCents ?? zero, totalContributionCents!) : null,
-    tvpi: status.tvpi === 'AVAILABLE' ? ratio((totalDistributionCents ?? zero) + (navCents ?? zero), totalContributionCents!) : null,
+    tvpi: status.tvpi === 'AVAILABLE' ? ratio((totalDistributionCents ?? zero) + calculationNavCents, totalContributionCents!) : null,
     irr,
     irrTerminalDate,
     irrUsesCarriedForwardNav,

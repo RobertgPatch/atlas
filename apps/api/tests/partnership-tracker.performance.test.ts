@@ -29,6 +29,22 @@ describe('Partnership Tracker performance', () => {
     })
   })
 
+  it('reports zero unfunded commitment when settled capital calls exceed the commitment', () => {
+    const result = composePartnershipPerformance({
+      annualValues: [],
+      cashFlowEvents: [
+        { kind: 'CAPITAL_CALL', activityDate: '2026-09-01', amount: '641938.00' },
+      ],
+      latestNav: null,
+      currentCommitment: '600000.00',
+    })
+
+    expect(result.totalCapitalContributions).toBe('641938.00')
+    expect(result.unfundedCommitmentAmount).toBe('0.00')
+    expect(result.unfundedCommitmentPercentage).toBe('0.00000000')
+    expect(result.performanceStatus.unfundedCommitment).toBe('AVAILABLE')
+  })
+
   it('aggregates canonical contributions and absolute distributions into overview metrics', () => {
     const result = composePartnershipPerformance({
       annualValues: twoYearPerformanceFixture().map((value) => value.taxYear === 2022
@@ -55,6 +71,30 @@ describe('Partnership Tracker performance', () => {
     })
     expect(result.totalCapitalContributions).toBe('200.00')
     expect(result.totalDistributions).toBe('20.00')
+  })
+
+  it('uses zero NAV for TVPI and XIRR when no valuation is recorded', () => {
+    const result = composePartnershipPerformance({
+      annualValues: [],
+      cashFlowEvents: [
+        { kind: 'CAPITAL_CALL', activityDate: '2024-01-01', amount: '100.00' },
+        { kind: 'DISTRIBUTION', activityDate: '2025-01-01', amount: '110.00' },
+      ],
+      latestNav: null,
+      asOfDate: '2025-12-31',
+    })
+
+    expect(result.dpi).toBe('1.10000000')
+    expect(result.tvpi).toBe('1.10000000')
+    expect(Number(result.irr)).toBeCloseTo(0.1, 2)
+    expect(result.irrTerminalDate).toBe('2025-12-31')
+    expect(result.irrUsesCarriedForwardNav).toBe(false)
+    expect(result.performanceStatus).toMatchObject({
+      dpi: 'AVAILABLE',
+      tvpi: 'AVAILABLE',
+      irr: 'AVAILABLE',
+      unrealizedGain: 'MISSING_NAV',
+    })
   })
 
   it('keeps zero distinct from missing and returns deterministic unavailable statuses', () => {
@@ -100,12 +140,17 @@ describe('Partnership Tracker performance', () => {
     const missingNav = composePartnershipPerformance({
       annualValues: [{ taxYear: 2024, hasCanonicalContribution: true, capitalContributions: '100.00', legacyCapitalContributions: null, distributions: '0.00' }],
       latestNav: null,
+      asOfDate: '2025-12-31',
     })
 
     expect(sameDate.irr).toMatch(/^0\.250/)
     expect(negative.irr).toMatch(/^-/)
     expect(ambiguous.performanceStatus.irr).toBe('AMBIGUOUS_IRR')
-    expect(missingNav.performanceStatus).toMatchObject({ dpi: 'AVAILABLE', tvpi: 'MISSING_NAV', irr: 'MISSING_NAV' })
+    expect(missingNav.dpi).toBe('0.00000000')
+    expect(missingNav.tvpi).toBe('0.00000000')
+    expect(missingNav.irr).toBeNull()
+    expect(missingNav.irrTerminalDate).toBe('2025-12-31')
+    expect(missingNav.performanceStatus).toMatchObject({ dpi: 'AVAILABLE', tvpi: 'AVAILABLE', irr: 'INSUFFICIENT_CASH_FLOWS' })
   })
 
   it('annualizes cash yield and derives signed commitment and unrealized values', () => {

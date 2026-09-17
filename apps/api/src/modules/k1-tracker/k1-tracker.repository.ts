@@ -194,7 +194,7 @@ const inputFor = (year: TrackerYearRow, values: TrackerValueRow[]): TrackerYearI
   if (!hasCanonicalContribution && result.section_l_capital_contributed != null) {
     result.capital_contributions = result.section_l_capital_contributed
   }
-  return { id: year.id, taxYear: year.tax_year, revision: year.revision, status: year.workflow_status, values: result }
+  return { id: year.id, taxYear: year.tax_year, revision: year.revision, status: year.workflow_status, values: result, officialFormData: year.official_form_data }
 }
 
 const projectCanonicalContribution = (values: TrackerValueRow[]): TrackerValueRow[] => {
@@ -743,6 +743,8 @@ export const k1TrackerRepository = {
       }
       await refreshConflictCount(client, year.id)
       const calculationChanges = changes.some((change) => !change.fieldKey.startsWith('liability_'))
+        || (taxYear < 2021 && officialFormData !== undefined
+          && JSON.stringify(officialFormData.box_16_entries) !== JSON.stringify(year.official_form_data?.box_16_entries))
       const materialChanges = calculationChanges || officialFormData !== undefined
       const affected = calculationChanges
         ? years.filter((item) => item.tax_year >= taxYear)

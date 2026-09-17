@@ -3,7 +3,6 @@ import type { MagicWorkspaceArea } from '../partnership-tracker/components/magic
 const validAreas = new Set<MagicWorkspaceArea>([
   'overview',
   'capital-activity',
-  'valuations',
   'k1-history',
   'underlying-assets',
 ])
@@ -11,8 +10,9 @@ const validAreas = new Set<MagicWorkspaceArea>([
 export function canonicalInvestmentTrackerArea(rawArea: string | null): MagicWorkspaceArea {
   if (rawArea && validAreas.has(rawArea as MagicWorkspaceArea)) return rawArea as MagicWorkspaceArea
   if (rawArea === 'cash-activity') return 'capital-activity'
+  if (rawArea === 'valuations') return 'capital-activity'
   if (rawArea === 'k1') return 'k1-history'
-  if (rawArea === 'capital') return 'valuations'
+  if (rawArea === 'capital') return 'capital-activity'
   if (rawArea === 'assets') return 'underlying-assets'
   return 'overview'
 }

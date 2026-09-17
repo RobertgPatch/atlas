@@ -4,7 +4,10 @@ import { pool } from "../infra/db/client.js";
 import { runMigrations } from "../infra/db/migrate.js";
 import { marketDataService } from "../modules/market-data/market-data.service.js";
 import { plaidRepository } from "../modules/plaid/plaid.repository.js";
-import { runCostWorkload } from "../modules/abuse-protection/costWorkloadAdmission.js";
+import {
+  createServiceCostSubjects,
+  runCostWorkload,
+} from "../modules/abuse-protection/costWorkloadAdmission.js";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MARKET_CLOSE_SETTLED_MINUTE = 16 * 60 + 20;
@@ -142,7 +145,11 @@ export const runBackfill = async (
       controlKey: "backfills",
       method: "POST",
       routePattern: "/v1/reports/consolidated-holdings/refresh",
-      principal: "system:market-price-backfill",
+      subjectContext: createServiceCostSubjects(
+        "market-price-backfill",
+        `${range.from}:${range.to}`,
+        { provider: "market-data" },
+      ),
       canonicalInputs: { from: range.from, to: range.to },
       globalDailyLimit: config.abuseProtection.quotas.backfill.globalRunsPerDay,
       units: 1,

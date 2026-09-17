@@ -32,4 +32,20 @@ describe('parseS3UploadFailure', () => {
     expect(error.code).toBe('HTTP_503')
     expect(error.payload).toEqual({ message: 'S3 rejected the PDF upload (HTTP 503).' })
   })
+
+  it('preserves a safe error returned by the authenticated local upload proxy', () => {
+    const error = parseS3UploadFailure({
+      status: 503,
+      responseText: JSON.stringify({
+        error: 'UPLOAD_INCOMPLETE',
+        message: 'The upload could not be stored. Refresh your AWS credentials and retry.',
+      }),
+    })
+
+    expect(error.code).toBe('UPLOAD_INCOMPLETE')
+    expect(error.status).toBe(503)
+    expect(error.payload).toEqual({
+      message: 'The upload could not be stored. Refresh your AWS credentials and retry.',
+    })
+  })
 })

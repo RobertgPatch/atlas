@@ -52,5 +52,30 @@ describe('Magic Patterns individual partnership activity summary', () => {
     expect(screen.queryByText('Current investment position')).not.toBeInTheDocument()
     expect(screen.queryByText('Calculated performance')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Financial commitment history' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'NAV / FMV over time' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'NAV and fair market value history' })).toBeInTheDocument()
+  })
+
+  it('shows zero remaining commitment when capital called exceeds the commitment', () => {
+    const overcalledDetail: PartnershipTrackerDetail = {
+      ...detail,
+      summary: {
+        ...detail.summary,
+        currentCommittedCapital: { amount: '600000.00', date: '2024-01-01' },
+        totalCapitalContributions: '641938.00',
+        unfundedCommitmentAmount: '0.00',
+        unfundedCommitmentPercentage: '0.00000000',
+      },
+    }
+    const cashFlows = detail.cashFlowEvents.map((flow) => flow.kind === 'CAPITAL_CALL'
+      ? { ...flow, amount: '641938.00' }
+      : flow)
+
+    render(<MagicPatternPartnershipOverview detail={overcalledDetail} cashFlows={cashFlows} canEdit={false} onGo={vi.fn()} />)
+
+    const summary = screen.getByRole('table', { name: 'Partnership activity summary for Redwood Fund' })
+    expect(within(within(summary).getByRole('row', { name: /Capital called/ })).getByText('($641,938.00)')).toBeInTheDocument()
+    expect(within(within(summary).getByRole('row', { name: /Committed capital/ })).getByText('$600,000.00')).toBeInTheDocument()
+    expect(within(within(summary).getByRole('row', { name: /Unfunded commitment/ })).getByText('$0.00')).toBeInTheDocument()
   })
 })

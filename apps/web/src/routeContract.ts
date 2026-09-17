@@ -1,4 +1,4 @@
-export const PUBLIC_ROUTE_PATTERNS = ['/', '/mfa/setup', '/mfa'] as const
+export const PUBLIC_ROUTE_PATTERNS = ['/', '/password/change', '/mfa/setup', '/mfa'] as const
 
 export const CURRENT_PROTECTED_ROUTE_PATTERNS = [
   '/dashboard',
@@ -11,6 +11,7 @@ export const CURRENT_PROTECTED_ROUTE_PATTERNS = [
   '/reports',
   '/k1',
   '/k1/:id/review',
+  '/admin',
 ] as const
 
 export type CurrentProtectedRoutePattern = typeof CURRENT_PROTECTED_ROUTE_PATTERNS[number]

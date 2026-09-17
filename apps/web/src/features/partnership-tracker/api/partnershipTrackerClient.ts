@@ -58,7 +58,9 @@ export function serializeTrackerMoney(value: string): string {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
-  const response = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers })
+  // Never reuse a browser-cached response for mutable, authenticated tax data.
+  // This also bypasses old HTML responses cached by the former SPA error fallback.
+  const response = await authenticatedFetch(`${API_BASE}${path}`, { credentials: 'include', ...init, headers, cache: 'no-store' })
   if (!response.ok) {
     let payload: unknown
     try { payload = await response.json() } catch { payload = undefined }
@@ -68,7 +70,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new PartnershipTrackerApiError(code, response.status, payload)
   }
   if (response.status === 204) return undefined as T
-  return response.json() as Promise<T>
+  try {
+    return await response.json() as T
+  } catch {
+    throw new PartnershipTrackerApiError('INVALID_API_RESPONSE', response.status)
+  }
 }
 
 const root = '/partnership-tracker/partnerships'

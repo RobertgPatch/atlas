@@ -1,66 +1,63 @@
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { config } from '../../src/config.js'
-import { authRepository } from '../../src/modules/auth/auth.repository.js'
+import { auditRepository } from '../../src/modules/audit/audit.repository.js'
+import { LockoutService } from '../../src/modules/auth/lockout.service.js'
+import { TEST_FINGERPRINT_KEYRING } from '../helpers/abuseProtectionTestHelpers.js'
 
-describe('bounded authentication state and retention', () => {
-  const original = { ...config.abuseProtection.authArtifacts }
+describe('bounded fingerprinted authentication state', () => {
+  afterEach(() => vi.restoreAllMocks())
 
-  afterEach(() => {
-    Object.assign(config.abuseProtection.authArtifacts, original)
-    vi.useRealTimers()
-  })
-
-  it('expires MFA challenges and enrollment secrets after their finite TTLs', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-08-25T12:00:00.000Z'))
-    Object.assign(config.abuseProtection.authArtifacts, {
-      challengeTtlSeconds: 2,
-      enrollmentTtlSeconds: 3,
+  it('uses a fixed cooldown, suppresses repeats, and recovers without escalation', async () => {
+    let at = new Date('2026-08-29T12:00:00.000Z')
+    const service = new LockoutService({
+      keyring: TEST_FINGERPRINT_KEYRING,
+      threshold: 3,
+      cooldownMinutes: 1,
+      maximumSubjects: 4,
+      now: () => at,
     })
 
-    const challenge = authRepository.createMfaChallenge('ttl-user-challenge')
-    const enrollment = authRepository.createMfaEnrollment('ttl-user-enrollment', 'secret')
-    expect(authRepository.getChallenge(challenge.id)).toBeDefined()
-    expect(authRepository.getMfaEnrollment(enrollment.id)).toBeDefined()
+    await expect(service.recordFailure('Owner@Example.test', 'PASSWORD')).resolves.toBeNull()
+    await expect(service.recordFailure('owner@example.test', 'PASSWORD')).resolves.toBeNull()
+    const cooldown = await service.recordFailure('owner@example.test', 'PASSWORD')
+    expect(cooldown?.toISOString()).toBe('2026-08-29T12:01:00.000Z')
+    await expect(service.recordFailure('owner@example.test', 'PASSWORD')).resolves.toEqual(cooldown)
+    expect(service.stats().subjectRows).toBe(1)
 
-    vi.advanceTimersByTime(2_001)
-    expect(authRepository.getChallenge(challenge.id)).toBeUndefined()
-    expect(authRepository.getMfaEnrollment(enrollment.id)).toBeDefined()
-
-    vi.advanceTimersByTime(1_000)
-    expect(authRepository.getMfaEnrollment(enrollment.id)).toBeUndefined()
+    at = new Date('2026-08-29T12:01:01.000Z')
+    await expect(service.getLockout('owner@example.test', 'PASSWORD')).resolves.toBeNull()
+    await expect(service.recordFailure('owner@example.test', 'PASSWORD')).resolves.toBeNull()
+    await service.clear('owner@example.test', 'PASSWORD')
+    await expect(service.getLockout('owner@example.test', 'PASSWORD')).resolves.toBeNull()
   })
 
-  it('evicts oldest attacker-controlled MFA records at configured cardinality caps', () => {
-    Object.assign(config.abuseProtection.authArtifacts, {
-      maximumChallenges: 2,
-      maximumEnrollments: 2,
+  it('bounds attacker-selected subject state and audits explicit recovery without raw identity', async () => {
+    const service = new LockoutService({
+      keyring: TEST_FINGERPRINT_KEYRING,
+      threshold: 2,
+      cooldownMinutes: 5,
+      maximumSubjects: 2,
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
     })
+    await service.recordFailure('first@example.test', 'PASSWORD')
+    await service.recordFailure('second@example.test', 'PASSWORD')
+    await service.recordFailure('third@example.test', 'PASSWORD')
+    expect(service.stats().subjectRows).toBeLessThanOrEqual(2)
 
-    const firstChallenge = authRepository.createMfaChallenge('bounded-challenge-1')
-    authRepository.createMfaChallenge('bounded-challenge-2')
-    authRepository.createMfaChallenge('bounded-challenge-3')
-    expect(authRepository.getChallenge(firstChallenge.id)).toBeUndefined()
-
-    const firstEnrollment = authRepository.createMfaEnrollment('bounded-enrollment-1', 'secret-1')
-    authRepository.createMfaEnrollment('bounded-enrollment-2', 'secret-2')
-    authRepository.createMfaEnrollment('bounded-enrollment-3', 'secret-3')
-    expect(authRepository.getMfaEnrollment(firstEnrollment.id)).toBeUndefined()
-  })
-
-  it('defines an indexed, finite auth-attempt cleanup path', () => {
-    const migration = readFileSync(fileURLToPath(new URL(
-      '../../src/infra/db/migrations/039_abuse_protection.sql',
-      import.meta.url,
-    )), 'utf8')
-
-    expect(config.abuseProtection.retention.authAttemptDays).toBeGreaterThan(0)
-    expect(config.abuseProtection.retention.cleanupBatchSize).toBeGreaterThan(0)
-    expect(migration).toMatch(/auth_attempts_cleanup_idx/i)
-    expect(authRepository.cleanupAuthAttempts).toBeTypeOf('function')
+    const audit = vi.spyOn(auditRepository, 'record').mockResolvedValue()
+    await service.recover({
+      identifier: 'owner@example.test',
+      type: 'PASSWORD',
+      userId: '00000000-0000-4000-8000-000000000001',
+      actorUserId: '00000000-0000-4000-8000-000000000002',
+    })
+    expect(audit).toHaveBeenCalledWith({
+      actorUserId: '00000000-0000-4000-8000-000000000002',
+      eventName: 'auth.protection.recovered',
+      objectType: 'user',
+      objectId: '00000000-0000-4000-8000-000000000001',
+      after: { attemptType: 'PASSWORD' },
+    })
+    expect(JSON.stringify(audit.mock.calls)).not.toContain('owner@example.test')
   })
 })

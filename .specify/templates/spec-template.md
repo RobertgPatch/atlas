@@ -108,6 +108,13 @@
 - **Incident/Compliance Impact**: [WISP, incident response, breach assessment,
   applicable-law register, provider review, or professional review changes]
 
+### Approved Exceptions
+
+- [State `None`, or cite each versioned exception ID and record. Include the exact
+  requirement, allowed and prohibited scope, compensating controls, owner,
+  remediation target, approval date, and expiration. An assumption or TODO is not
+  an exception, and non-production scope does not authorize production use.]
+
 ## Requirements *(mandatory)*
 
 <!--

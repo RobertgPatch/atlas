@@ -110,7 +110,10 @@ export class ProtectionOverrideService implements AdmissionControlResolver {
       const active = matchingOverride(records, controlKey, input.subjectHashes)
       if (active) {
         const resolved: EffectiveProtectionControl = {
-          enabled: active.mode !== 'disable',
+          // `temporary_allow` remains readable for migration compatibility, but
+          // feature 030 never lets a runtime row increase risk. Legacy rows fail
+          // closed until an operator revokes or replaces them.
+          enabled: active.mode === 'lower_limit',
           source: 'runtime_override',
           expiresAt: active.expiresAt,
           ...(active.mode === 'lower_limit'

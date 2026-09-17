@@ -22,7 +22,7 @@
     "rds_gp3_gib_months": 0.115,
     "fargate_vcpu_hours": 0.04048,
     "fargate_gib_hours": 0.004445,
-    "waf_fixed_months": 13,
+    "waf_fixed_months": 15,
     "secrets_months": 0.4,
     "kms_key_months": 1,
     "alarm_months": 0.1

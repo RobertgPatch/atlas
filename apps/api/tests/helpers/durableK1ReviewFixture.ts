@@ -121,6 +121,13 @@ export const createDurableK1ReviewFixture = async (): Promise<DurableK1ReviewFix
   )
 
   const cleanup = async () => {
+    const currentStorage = await pool.query<{ storage_path: string }>(
+      `select d.storage_path
+         from documents d
+         join k1_documents kd on kd.document_id = d.id
+        where kd.id = $1`,
+      [k1DocumentId],
+    )
     await pool.query('delete from audit_events where object_id = any($1::uuid[])', [[k1DocumentId, moneyFieldId, codeRowFieldId, issueId]])
     await pool.query('delete from k1_application_field_decisions where application_id in (select id from k1_document_applications where k1_document_id = $1)', [k1DocumentId])
     await pool.query('delete from k1_document_applications where k1_document_id = $1', [k1DocumentId])
@@ -143,7 +150,12 @@ export const createDurableK1ReviewFixture = async (): Promise<DurableK1ReviewFix
     await pool.query('delete from entity_memberships where entity_id = $1', [entityId])
     await pool.query('delete from partnerships where id = $1', [partnershipId])
     await pool.query('delete from entities where id = $1', [entityId])
-    await getK1ObjectStore().delete({ key: objectKey }).catch(() => undefined)
+    const storageKeys = new Set([
+      objectKey,
+      ...currentStorage.rows.map((row) => row.storage_path),
+    ])
+    await Promise.allSettled([...storageKeys].map((key) =>
+      getK1ObjectStore().delete({ key })))
     await base.app.close()
   }
   return { ...base, entityId, partnershipId, batchId, itemId, documentId, k1DocumentId,

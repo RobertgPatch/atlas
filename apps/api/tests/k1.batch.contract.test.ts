@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { config } from '../src/config.js'
 import { pool } from '../src/infra/db/client.js'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 
@@ -19,8 +20,13 @@ const digest = (buffer: Buffer) => createHash('sha256').update(buffer).digest('h
 durable('K-1 ingestion batch API contract', () => {
   let fixture: TestFixture
   let entityId: string
+  const originalHmacActiveKey = config.abuseProtection.hmac.activeKey
+  const originalKeyringActiveKey = config.abuseProtection.hmac.keyring.active.key
 
   beforeEach(async () => {
+    const testHmacKey = `k1-batch-contract-${randomUUID()}-0123456789abcdef`
+    config.abuseProtection.hmac.activeKey = testHmacKey
+    config.abuseProtection.hmac.keyring.active.key = testHmacKey
     fixture = await createTestFixture()
     entityId = randomUUID()
     await pool!.query(
@@ -31,6 +37,8 @@ durable('K-1 ingestion batch API contract', () => {
   })
 
   afterEach(async () => {
+    config.abuseProtection.hmac.activeKey = originalHmacActiveKey
+    config.abuseProtection.hmac.keyring.active.key = originalKeyringActiveKey
     await fixture.app.close()
     await pool!.query(
       `delete from k1_ingestion_items
@@ -51,6 +59,7 @@ durable('K-1 ingestion batch API contract', () => {
       headers: { cookie: fixture.cookie },
       payload: {
         entityScopeId: entityId,
+        createPartnershipIfMissing: true,
         files: [
           { fileName: 'alpha.pdf', sizeBytes: one.length, sha256: digest(one), mimeType: 'application/pdf' },
           { fileName: 'beta.pdf', sizeBytes: two.length, sha256: digest(two), mimeType: 'application/pdf' },
@@ -58,11 +67,12 @@ durable('K-1 ingestion batch API contract', () => {
       },
     })
 
-    expect(response.statusCode).toBe(201)
+    expect(response.statusCode, response.body).toBe(201)
     const batch = response.json()
     expect(batch).toMatchObject({
       status: 'OPEN',
       entityScopeId: entityId,
+      createPartnershipIfMissing: true,
       counts: { total: 2, active: 2, actionRequired: 0, applied: 0, failed: 0 },
     })
     expect(batch.items).toHaveLength(2)
@@ -132,6 +142,20 @@ durable('K-1 ingestion batch API contract', () => {
     })
     expect(forbidden.statusCode).toBe(403)
     expect(forbidden.json().error).toBe('FORBIDDEN_ENTITY')
+
+    await pool!.query(
+      `insert into entity_memberships (id, user_id, entity_id, created_by)
+       values ($1, $2, $3, $4) on conflict (user_id, entity_id) do nothing`,
+      [randomUUID(), fixture.user.id, entityId, fixture.admin.id],
+    )
+    const nonAdminImport = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/k1-ingestion-batches',
+      headers: { cookie: fixture.userCookie },
+      payload: { ...payload, createPartnershipIfMissing: true },
+    })
+    expect(nonAdminImport.statusCode).toBe(403)
+    expect(nonAdminImport.json()).toMatchObject({ error: 'FORBIDDEN' })
   })
 
   it('returns a per-item failure when completion cannot verify an upload', async () => {
@@ -147,6 +171,7 @@ durable('K-1 ingestion batch API contract', () => {
       },
     })
     const batch = created.json()
+    expect(created.statusCode, created.body).toBe(201)
     const completed = await fixture.app.inject({
       method: 'POST',
       url: `/v1/k1-ingestion-batches/${batch.id}/complete-uploads`,

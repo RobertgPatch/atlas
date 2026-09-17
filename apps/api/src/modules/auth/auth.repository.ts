@@ -1,19 +1,25 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { config } from '../../config.js'
 import { pool } from '../../infra/db/client.js'
 import { decryptSecret, encryptSecret } from '../../infra/crypto/secretCodec.js'
 import { passwordService } from './password.service.js'
 
 export type Role = 'Admin' | 'User'
+export type AccessLevel = 'SuperAdmin' | Role
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
 export type MfaEnrollmentState = 'PENDING' | 'ENROLLED' | 'RESET_REQUIRED'
 
 export interface UserRecord {
   id: string
   email: string
+  displayName: string
   passwordHash: string
   role: Role
+  accessLevel: AccessLevel
   status: UserStatus
+  passwordChangeRequired: boolean
+  passwordChangedAt: Date | null
+  bootstrapPasswordResetPending: boolean
   mfaSecret: string | null
   mfaEnrollmentState: MfaEnrollmentState
   createdAt: Date
@@ -47,11 +53,20 @@ interface MfaEnrollmentRecord {
   expiresAt: Date
 }
 
+interface PasswordChangeRecord {
+  id: string
+  tokenHash: string
+  userId: string
+  createdAt: Date
+  expiresAt: Date
+}
+
 interface UserRow {
   id: string
   email: string
+  display_name: string
   password_hash: string
-  role: Role | null
+  access_level: AccessLevel | null
   status: UserStatus | null
   is_active: boolean
   created_at: Date
@@ -59,6 +74,9 @@ interface UserRow {
   login_count: number | null
   totp_secret_encrypted: string | null
   enrollment_state: MfaEnrollmentState | null
+  password_change_required: boolean
+  password_changed_at: Date | null
+  bootstrap_password_reset_pending: boolean
 }
 
 interface SessionRow {
@@ -82,6 +100,7 @@ const sessions = new Map<string, SessionRecord>()
 const persistedSessionActivity = new Map<string, Date>()
 const challenges = new Map<string, MfaChallengeRecord>()
 const enrollments = new Map<string, MfaEnrollmentRecord>()
+const passwordChanges = new Map<string, PasswordChangeRecord>()
 
 const cleanupMfaArtifacts = (at = now()): void => {
   for (const [id, challenge] of challenges) {
@@ -89,6 +108,9 @@ const cleanupMfaArtifacts = (at = now()): void => {
   }
   for (const [id, enrollment] of enrollments) {
     if (enrollment.expiresAt <= at) enrollments.delete(id)
+  }
+  for (const [id, passwordChange] of passwordChanges) {
+    if (passwordChange.expiresAt <= at) passwordChanges.delete(id)
   }
 }
 
@@ -137,9 +159,14 @@ const mapUserRow = (row: UserRow): UserRecord => {
   return {
     id: row.id,
     email: row.email,
+    displayName: row.display_name,
     passwordHash: row.password_hash,
-    role: row.role ?? 'User',
+    role: row.access_level === 'SuperAdmin' || row.access_level === 'Admin' ? 'Admin' : 'User',
+    accessLevel: row.access_level ?? 'User',
     status: row.status ?? (row.is_active ? 'Active' : 'Inactive'),
+    passwordChangeRequired: row.password_change_required,
+    passwordChangedAt: row.password_changed_at,
+    bootstrapPasswordResetPending: row.bootstrap_password_reset_pending,
     mfaSecret,
     mfaEnrollmentState: row.enrollment_state ?? 'RESET_REQUIRED',
     createdAt: row.created_at,
@@ -166,11 +193,16 @@ const seedInMemoryUsers = () => {
   users.set(adminId, {
     id: adminId,
     email: config.adminEmail,
+    displayName: config.adminDisplayName,
     // Kept only for synchronous module seeding. bootstrapFromDatabase replaces
     // these legacy values with Argon2id before the server accepts requests.
     passwordHash: sha256(config.adminPassword),
     role: 'Admin',
+    accessLevel: 'Admin',
     status: 'Active',
+    passwordChangeRequired: config.nodeEnv !== 'test',
+    passwordChangedAt: null,
+    bootstrapPasswordResetPending: false,
     mfaSecret: null,
     mfaEnrollmentState: 'RESET_REQUIRED',
     createdAt: now(),
@@ -178,25 +210,52 @@ const seedInMemoryUsers = () => {
     loginCount: 0,
   })
 
-  const userId = randomUUID()
-  users.set(userId, {
-    id: userId,
-    email: config.userEmail,
-    passwordHash: sha256(config.userPassword),
-    role: 'User',
+  const superAdminId = randomUUID()
+  users.set(superAdminId, {
+    id: superAdminId,
+    email: config.superAdminEmail,
+    displayName: config.superAdminDisplayName,
+    passwordHash: sha256(config.superAdminPassword),
+    role: 'Admin',
+    accessLevel: 'SuperAdmin',
     status: 'Active',
+    passwordChangeRequired: config.nodeEnv !== 'test',
+    passwordChangedAt: null,
+    bootstrapPasswordResetPending: false,
     mfaSecret: null,
     mfaEnrollmentState: 'RESET_REQUIRED',
     createdAt: now(),
     lastLoginAt: null,
     loginCount: 0,
   })
+
+  if (config.nodeEnv === 'test') {
+    const userId = randomUUID()
+    users.set(userId, {
+      id: userId,
+      email: config.userEmail,
+      displayName: 'Test User',
+      passwordHash: sha256(config.userPassword),
+      role: 'User',
+      accessLevel: 'User',
+      status: 'Active',
+      passwordChangeRequired: false,
+      passwordChangedAt: null,
+      bootstrapPasswordResetPending: false,
+      mfaSecret: null,
+      mfaEnrollmentState: 'RESET_REQUIRED',
+      createdAt: now(),
+      lastLoginAt: null,
+      loginCount: 0,
+    })
+  }
 }
 
 const upgradeInMemorySeedPasswords = async () => {
   const credentials = [
     [config.adminEmail, config.adminPassword],
-    [config.userEmail, config.userPassword],
+    [config.superAdminEmail, config.superAdminPassword],
+    ...(config.nodeEnv === 'test' ? [[config.userEmail, config.userPassword] as const] : []),
   ] as const
 
   for (const [email, password] of credentials) {
@@ -213,6 +272,7 @@ const userSelectSql = `
   select
     u.id,
     u.email,
+    u.display_name,
     u.password_hash,
     coalesce(
       (
@@ -220,47 +280,89 @@ const userSelectSql = `
         from user_roles ur
         join roles r on r.id = ur.role_id
         where ur.user_id = u.id
-        order by case when r.name = 'Admin' then 0 else 1 end
+        order by case when r.name = 'SuperAdmin' then 0 when r.name = 'Admin' then 1 else 2 end
         limit 1
       ),
       'User'
-    )::text as role,
+    )::text as access_level,
     u.status,
     u.is_active,
     u.created_at,
     u.last_login_at,
     u.login_count,
+    u.password_change_required,
+    u.password_changed_at,
+    u.bootstrap_password_reset_pending,
     m.totp_secret_encrypted,
     m.enrollment_state
   from users u
   left join user_mfa_enrollments m on m.user_id = u.id
 `
 
-const upsertSeedUser = async (email: string, password: string, role: Role) => {
+const ensureBootstrapUser = async (input: {
+  email: string
+  displayName: string
+  password: string
+  accessLevel: AccessLevel
+}) => {
   if (!pool) return
 
-  const passwordHash = await passwordService.hash(password)
-
-  const userResult = await pool.query<{ id: string }>(
-    `
-      insert into users (id, email, password_hash, mfa_enabled, is_active, status)
-      values ($1, $2, $3, false, true, 'Active')
-      on conflict (email) do update
-      set updated_at = now()
-      returning id
-    `,
-    [randomUUID(), email, passwordHash],
+  const existing = await pool.query<{
+    id: string
+    bootstrap_password_reset_pending: boolean
+  }>(
+    `select id, bootstrap_password_reset_pending
+       from users
+      where lower(email) = lower($1)
+      order by created_at
+      limit 1`,
+    [input.email],
   )
-  const userId = userResult.rows[0]?.id
+  let userId = existing.rows[0]?.id
+  if (!userId) {
+    const passwordHash = await passwordService.hash(input.password)
+    const inserted = await pool.query<{ id: string }>(
+      `insert into users (
+         id, email, display_name, password_hash, mfa_enabled, is_active, status,
+         password_change_required, bootstrap_password_reset_pending
+       )
+       values ($1, $2, $3, $4, false, true, 'Active', true, false)
+       returning id`,
+      [randomUUID(), input.email, input.displayName, passwordHash],
+    )
+    userId = inserted.rows[0]?.id
+  } else if (existing.rows[0]?.bootstrap_password_reset_pending) {
+    const passwordHash = await passwordService.hash(input.password)
+    await pool.query(
+      `update users
+          set email = $2,
+              display_name = $3,
+              password_hash = $4,
+              password_change_required = true,
+              bootstrap_password_reset_pending = false,
+              updated_at = now()
+        where id = $1`,
+      [userId, input.email, input.displayName, passwordHash],
+    )
+  } else {
+    await pool.query(
+      `update users
+          set display_name = $2,
+              updated_at = now()
+        where id = $1`,
+      [userId, input.displayName],
+    )
+  }
   if (!userId) return
 
+  await pool.query('delete from user_roles where user_id = $1', [userId])
   await pool.query(
     `
       insert into user_roles (id, user_id, role_id)
       select gen_random_uuid(), $1, id from roles where name = $2
       on conflict do nothing
     `,
-    [userId, role],
+    [userId, input.accessLevel],
   )
 }
 
@@ -326,16 +428,21 @@ const persistUser = (user: UserRecord) => {
     const userResult = await pool!.query<{ id: string }>(
       `
         insert into users (
-          id, email, password_hash, mfa_enabled, is_active, status,
-          created_at, last_login_at, login_count, updated_at
+          id, email, display_name, password_hash, mfa_enabled, is_active, status,
+          password_change_required, password_changed_at,
+          bootstrap_password_reset_pending, created_at, last_login_at, login_count, updated_at
         )
-        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
         on conflict (id) do update
         set email = excluded.email,
+            display_name = excluded.display_name,
             password_hash = excluded.password_hash,
             mfa_enabled = excluded.mfa_enabled,
             is_active = excluded.is_active,
             status = excluded.status,
+            password_change_required = excluded.password_change_required,
+            password_changed_at = excluded.password_changed_at,
+            bootstrap_password_reset_pending = excluded.bootstrap_password_reset_pending,
             last_login_at = excluded.last_login_at,
             login_count = excluded.login_count,
             updated_at = now()
@@ -344,10 +451,14 @@ const persistUser = (user: UserRecord) => {
       [
         user.id,
         user.email,
+        user.displayName,
         user.passwordHash,
         user.mfaEnrollmentState === 'ENROLLED' && Boolean(user.mfaSecret),
         user.status !== 'Inactive',
         user.status,
+        user.passwordChangeRequired,
+        user.passwordChangedAt,
+        user.bootstrapPasswordResetPending,
         user.createdAt,
         user.lastLoginAt,
         user.loginCount,
@@ -360,7 +471,7 @@ const persistUser = (user: UserRecord) => {
         where user_id = $1
           and role_id not in (select id from roles where name = $2)
       `,
-      [userResult.rows[0]!.id, user.role],
+      [userResult.rows[0]!.id, user.accessLevel],
     )
     await pool!.query(
       `
@@ -368,7 +479,7 @@ const persistUser = (user: UserRecord) => {
         select gen_random_uuid(), $1, id from roles where name = $2
         on conflict do nothing
       `,
-      [userResult.rows[0]!.id, user.role],
+      [userResult.rows[0]!.id, user.accessLevel],
     )
   })
 }
@@ -425,11 +536,32 @@ export const authRepository = {
 
     await pool.query(`
       insert into roles (id, name)
-      values (gen_random_uuid(), 'Admin'), (gen_random_uuid(), 'User')
+      values
+        (gen_random_uuid(), 'SuperAdmin'),
+        (gen_random_uuid(), 'Admin'),
+        (gen_random_uuid(), 'User')
       on conflict (name) do nothing
     `)
-    await upsertSeedUser(config.adminEmail, config.adminPassword, 'Admin')
-    await upsertSeedUser(config.userEmail, config.userPassword, 'User')
+    await ensureBootstrapUser({
+      email: config.adminEmail,
+      displayName: config.adminDisplayName,
+      password: config.adminPassword,
+      accessLevel: 'Admin',
+    })
+    await ensureBootstrapUser({
+      email: config.superAdminEmail,
+      displayName: config.superAdminDisplayName,
+      password: config.superAdminPassword,
+      accessLevel: 'SuperAdmin',
+    })
+    if (config.nodeEnv === 'test') {
+      await ensureBootstrapUser({
+        email: config.userEmail,
+        displayName: 'Test User',
+        password: config.userPassword,
+        accessLevel: 'User',
+      })
+    }
     await loadUsersFromDatabase()
     await loadSessionsFromDatabase()
     await getDummyPasswordHash()
@@ -527,6 +659,44 @@ export const authRepository = {
     if (!enrollment) return undefined
     enrollments.delete(enrollmentId)
     return enrollment
+  },
+
+  createPasswordChange(userId: string): { token: string; expiresAt: Date } {
+    const createdAt = now()
+    cleanupMfaArtifacts(createdAt)
+    for (const [id, existing] of passwordChanges) {
+      if (existing.userId === userId) passwordChanges.delete(id)
+    }
+    evictOldest(
+      passwordChanges,
+      config.abuseProtection.authArtifacts.maximumPasswordChanges,
+    )
+    const token = randomBytes(32).toString('base64url')
+    const record: PasswordChangeRecord = {
+      id: randomUUID(),
+      tokenHash: sha256(token),
+      userId,
+      createdAt,
+      expiresAt: new Date(
+        createdAt.getTime()
+        + config.abuseProtection.authArtifacts.passwordChangeTtlSeconds * 1_000,
+      ),
+    }
+    passwordChanges.set(record.tokenHash, record)
+    return { token, expiresAt: record.expiresAt }
+  },
+
+  getPasswordChange(token: string): PasswordChangeRecord | undefined {
+    cleanupMfaArtifacts()
+    return passwordChanges.get(sha256(token))
+  },
+
+  consumePasswordChange(token: string): PasswordChangeRecord | undefined {
+    const tokenHash = sha256(token)
+    const record = this.getPasswordChange(token)
+    if (!record) return undefined
+    passwordChanges.delete(tokenHash)
+    return record
   },
 
   createSession(userId: string): { token: string; session: SessionRecord } {
@@ -653,6 +823,7 @@ export const authRepository = {
     const user = users.get(userId)
     if (!user) return undefined
     user.role = role
+    user.accessLevel = role
     users.set(userId, user)
     persistUser(user)
     return user
@@ -682,7 +853,9 @@ export const authRepository = {
     const existing = this.findUserByEmail(email)
     if (existing) {
       existing.role = role
+      existing.accessLevel = role
       existing.status = 'Invited'
+      existing.passwordChangeRequired = true
       users.set(existing.id, existing)
       persistUser(existing)
       return existing
@@ -691,9 +864,14 @@ export const authRepository = {
     const user: UserRecord = {
       id: randomUUID(),
       email,
+      displayName: email.split('@', 1)[0] ?? email,
       passwordHash: await passwordService.hash(config.userPassword),
       role,
+      accessLevel: role,
       status: 'Invited',
+      passwordChangeRequired: true,
+      passwordChangedAt: null,
+      bootstrapPasswordResetPending: false,
       mfaSecret: null,
       mfaEnrollmentState: 'PENDING',
       createdAt: now(),
@@ -703,6 +881,37 @@ export const authRepository = {
     users.set(user.id, user)
     persistUser(user)
     return user
+  },
+
+  async changePassword(userId: string, newPassword: string): Promise<UserRecord | undefined> {
+    const user = users.get(userId)
+    if (!user) return undefined
+    user.passwordHash = await passwordService.hash(newPassword)
+    user.passwordChangeRequired = false
+    user.passwordChangedAt = now()
+    user.bootstrapPasswordResetPending = false
+    users.set(user.id, user)
+    if (pool) {
+      await pool.query(
+        `update users
+            set password_hash = $2,
+                password_change_required = false,
+                password_changed_at = $3,
+                bootstrap_password_reset_pending = false,
+                updated_at = now()
+          where id = $1`,
+        [user.id, user.passwordHash, user.passwordChangedAt],
+      )
+    }
+    this.revokeAllUserSessions(user.id, 'password-changed')
+    return user
+  },
+
+  _debugSetPasswordChangeRequired(userId: string, required: boolean): void {
+    const user = users.get(userId)
+    if (!user) return
+    user.passwordChangeRequired = required
+    users.set(user.id, user)
   },
 
   async _flushPersistenceWrites(): Promise<void> {

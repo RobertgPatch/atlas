@@ -209,7 +209,9 @@ function Invoke-CostValidation {
   if (Test-Path -LiteralPath $OutputPath) { Stop-ProductionDeployment Artifact 'Cost evidence output already exists.' }
   Invoke-ExternalQuiet node @(
     (Join-Path $RepoPath 'scripts\security\validate-production-cost.mjs'),
-    '--profile', $profilePath, '--rates', $ratesPath, '--output', $OutputPath
+    '--profile', $profilePath, '--rates', $ratesPath,
+    '--terraform-root', (Join-Path $RepoPath 'infra\aws\terraform'),
+    '--output', $OutputPath
   ) Validation 'Production cost validation failed.'
   try { return Get-Content -LiteralPath $OutputPath -Raw | ConvertFrom-Json }
   catch { Stop-ProductionDeployment Validation 'Production cost evidence is invalid.' }

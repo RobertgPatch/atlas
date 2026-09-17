@@ -6,6 +6,7 @@ import {
 import { loginHandler } from './login.handler.js'
 import { mfaEnrollCompleteHandler } from './mfa-enroll-complete.handler.js'
 import { mfaVerifyHandler } from './mfa-verify.handler.js'
+import { passwordChangeHandler } from './password-change.handler.js'
 import { getSessionHandler, logoutHandler } from './session.handler.js'
 import { withSession } from './session.middleware.js'
 import { requireAuthenticated } from './rbac.middleware.js'
@@ -24,6 +25,9 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
   app.post('/auth/mfa/verify', {
     config: abuseProtection('POST', '/v1/auth/mfa/verify'),
   }, mfaVerifyHandler)
+  app.post('/auth/password/change', {
+    config: abuseProtection('POST', '/v1/auth/password/change'),
+  }, passwordChangeHandler)
 
   app.get('/auth/session', {
     config: abuseProtection('GET', '/v1/auth/session'),

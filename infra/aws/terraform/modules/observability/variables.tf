@@ -236,6 +236,7 @@ output "alarm_names" {
     ],
     [for alarm in aws_cloudwatch_metric_alarm.ecs_utilization : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.s3_put_requests : alarm.alarm_name],
+    [for alarm in aws_cloudwatch_metric_alarm.waf_rate_rule_blocks : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_queue_age : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_queue_depth : alarm.alarm_name],
     [for alarm in aws_cloudwatch_metric_alarm.k1_dlq_depth : alarm.alarm_name],

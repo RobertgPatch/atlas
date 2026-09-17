@@ -47,7 +47,19 @@ try {
   Assert-True ($LASTEXITCODE -eq 4) 'The compatibility wrapper did not preserve the adapter failure exit code.'
   Assert-True (-not $output.Contains('SENTINEL_SECRET_MUST_NOT_LEAK')) 'The wrapper leaked sensitive fixture content.'
 
-  Write-Output 'PASS Terraform guardrail compatibility wrapper delegates without independent rules and preserves exit codes.'
+  $badContractPath = Join-Path $tempRoot 'bad-auth-route-scope.json'
+  [ordered]@{
+    schemaVersion = '1.0.0'; method = 'POST'
+    routes = @('/v1/auth/login', '/v1/auth/password/reset')
+    regex = '^(?:/v1/auth/login|/v1/auth/password/reset)$'
+  } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $badContractPath -Encoding UTF8
+  $common.PlanJsonPath = Join-Path $PSScriptRoot 'fixtures\production-plans\routine-pass.json'
+  $common.AuthRouteContractPath = $badContractPath
+  $output = (& $wrapper @common 2>&1 | Out-String)
+  Assert-True ($LASTEXITCODE -eq 4) 'A stale authentication WAF route contract must fail closed.'
+  Assert-True ($output.Contains('Authentication WAF route guard failed')) 'The route-contract failure was not diagnosed.'
+
+  Write-Output 'PASS Terraform guardrail wrapper checks the canonical auth WAF contract, delegates once, and preserves exit codes.'
 }
 finally {
   if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }

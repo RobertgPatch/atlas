@@ -54,6 +54,7 @@ export interface WorkloadQuotaLimit {
   readonly workloadKey?: string
   readonly scopeKind: QuotaScopeKind
   readonly scopeHash: Uint8Array
+  readonly scopeHashAliases?: readonly Uint8Array[]
   readonly periodKind: QuotaPeriodKind
   readonly units: number
   readonly limit: number
@@ -78,6 +79,7 @@ export interface AdmissionRequest {
   readonly policy: RouteProtectionPolicy
   readonly requestId: string
   readonly subjectHashes: Readonly<Partial<Record<ScopeDimension, Uint8Array>>>
+  readonly subjectHashAliases?: Readonly<Partial<Record<ScopeDimension, readonly Uint8Array[]>>>
   readonly workload?: WorkloadAdmissionInput
   readonly now?: Date
 }
@@ -103,12 +105,47 @@ export class AdmissionServiceInputError extends Error {
 
 const supportedRateScopes = new Set<RateWindowScopeKind>([
   'account',
+  'source_prefix',
   'user',
   'session',
   'tenant',
   'operation',
   'global',
 ])
+
+export const AUTH_ADMISSION_REASON_CODES = [
+  'AUTH_GLOBAL_RATE',
+  'AUTH_SOURCE_RATE',
+  'AUTH_ACCOUNT_RATE',
+  'AUTH_STORE_UNAVAILABLE',
+] as const
+
+export type AuthAdmissionReasonCode = (typeof AUTH_ADMISSION_REASON_CODES)[number]
+
+export interface AuthenticationRateReservation {
+  readonly policyKey: string
+  readonly scope: 'global' | 'source_prefix' | 'account'
+  /** Active digest first, followed by retained aliases. */
+  readonly subjectHashes: readonly Uint8Array[]
+  readonly requests: number
+  readonly windowSeconds: number
+}
+
+export interface AuthenticationAdmissionInput {
+  readonly rates: readonly AuthenticationRateReservation[]
+  readonly now?: Date
+}
+
+export type AuthenticationAdmissionResult =
+  | {
+      readonly allowed: true
+      readonly reservedScopes: readonly AuthenticationRateReservation['scope'][]
+    }
+  | {
+      readonly allowed: false
+      readonly reasonCode: AuthAdmissionReasonCode
+      readonly retryAfterSeconds: number
+    }
 
 const finiteDate = (value: Date, name: string): Date => {
   if (!(value instanceof Date) || !Number.isFinite(value.getTime())) {
@@ -184,6 +221,7 @@ const rateReservationsFor = (
       policyKey: rate.policyLimitKey,
       scopeKind: rate.scope as RateWindowScopeKind,
       scopeHash: hashFor(request.subjectHashes, rate.scope),
+      scopeHashAliases: request.subjectHashAliases?.[rate.scope],
       windowStartedAt: window.start,
       windowSeconds: rate.windowSeconds,
       units: rate.units ?? 1,
@@ -208,6 +246,7 @@ const quotaReservationsFor = (
       workloadKey: quota.workloadKey ?? workload.workloadKey,
       scopeKind: quota.scopeKind,
       scopeHash: quota.scopeHash,
+      scopeHashAliases: quota.scopeHashAliases,
       periodKind: quota.periodKind,
       periodStartedAt,
       units: positiveInteger(quota.units, 'quota units'),
@@ -250,6 +289,66 @@ export class AdmissionService {
     this.#idempotency = options.idempotency ?? idempotencyService
     this.#controls = options.controls ?? configuredControlResolver
     this.#hardDisabledControls = options.hardDisabledControls ?? new Set()
+  }
+
+  async admitAuthentication(
+    input: AuthenticationAdmissionInput,
+  ): Promise<AuthenticationAdmissionResult> {
+    const now = finiteDate(input.now ?? new Date(), 'now')
+    if (input.rates.length < 3 || input.rates.length > 4) {
+      throw new AdmissionServiceInputError(
+        'Authentication admission requires global, daily-global, source, and optional account rates.',
+      )
+    }
+    const rateWindows = input.rates.map((rate) => {
+      const activeHash = rate.subjectHashes[0]
+      if (!activeHash || activeHash.byteLength !== 32) {
+        throw new AdmissionServiceInputError('Authentication subject hashes must be 32 bytes.')
+      }
+      const window = fixedWindow(now, rate.windowSeconds)
+      return {
+        policyKey: rate.policyKey,
+        scopeKind: rate.scope,
+        scopeHash: activeHash,
+        scopeHashAliases: rate.subjectHashes.slice(1),
+        windowStartedAt: window.start,
+        windowSeconds: positiveInteger(rate.windowSeconds, 'windowSeconds'),
+        units: 1,
+        limit: positiveInteger(rate.requests, 'requests'),
+        expiresAt: window.end,
+      }
+    })
+
+    try {
+      await this.#repository.withTransaction(async (client) => {
+        await this.#repository.reserveInTransaction(client, { rateWindows, now })
+      })
+      return {
+        allowed: true,
+        reservedScopes: input.rates.map((rate) => rate.scope),
+      }
+    } catch (error) {
+      if (error instanceof AdmissionLimitExceededError) {
+        const reasonCode = AUTH_ADMISSION_REASON_CODES.includes(
+          error.reasonCode as AuthAdmissionReasonCode,
+        )
+          ? error.reasonCode as AuthAdmissionReasonCode
+          : 'AUTH_GLOBAL_RATE'
+        return {
+          allowed: false,
+          reasonCode,
+          retryAfterSeconds: error.retryAfterSeconds,
+        }
+      }
+      if (error instanceof AdmissionStoreUnavailableError) {
+        return {
+          allowed: false,
+          reasonCode: 'AUTH_STORE_UNAVAILABLE',
+          retryAfterSeconds: 30,
+        }
+      }
+      throw error
+    }
   }
 
   async admit(request: AdmissionRequest): Promise<AdmissionDecision> {

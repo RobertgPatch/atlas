@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime'
 
 import { config } from '../../../config.js'
+import { localBdaCredentials } from '../../../infra/aws/localBdaCredentials.js'
 
 import type { K1ExtractionDraft } from '../k1.types.js'
 import { validateK1DraftRelationships } from './k1DraftValidation.js'
@@ -74,6 +75,7 @@ export class BedrockK1StatusCheckboxVerifier implements K1StatusCheckboxVerifier
     beforeProviderCall?: () => Promise<void>
   } = {}) {
     this.client = options.client ?? new BedrockRuntimeClient({
+      credentials: localBdaCredentials(),
       region: options.region,
       maxAttempts: config.abuseProtection.retryBudgets.bedrockCheckboxMaximumAttempts,
     })

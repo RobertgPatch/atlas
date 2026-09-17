@@ -28,6 +28,19 @@ production profiles/resources, and mutation flags before starting a child
 process. AWS credentials may remain in the shell only when no AWS adapter or
 production target is activated.
 
+For real K-1 parsing while keeping the application and database local, copy
+`apps/api/local-bda.env.example` to the ignored `apps/api/.env.local-bda`, use
+an approved short-lived AWS profile, and run `npm run dev:local:bda`. This
+preflights the exact account, region, bucket/CORS, KMS key, and LIVE BDA project
+before starting any process. The K-1 queue remains in local PostgreSQL; SQS,
+production RDS, Terraform mutation, and unrelated providers are refused.
+Use a short-lived role/profile with the Terraform `k1_ingestion.local_bda_policy_arn`
+policy attached; that managed policy is intentionally unattached by default and
+contains no SQS, RDS, ECS, or infrastructure-deployment permissions.
+Queued PDFs accepted before BDA mode are promoted from local evidence storage
+to the approved KMS-encrypted bucket before an extraction attempt is created;
+copy failure leaves the item queued and retains the local source.
+
 Copy `apps/api/.env.example` to `apps/api/.env` only for local overrides. Keep
 the production-only variables blank. Production values are supplied through
 the production release and secret contracts, never copied into the local file.
@@ -66,10 +79,12 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Required for production durability. |
 | `REQUIRE_DURABLE_PERSISTENCE` | `false` | Set to `true` in production so startup fails without PostgreSQL. |
 | `WEB_ORIGIN` | _(empty)_ | Comma-separated allowed browser origins for credentialed CORS requests. |
-| `ADMIN_EMAIL` | `admin@jackson.com` | Bootstrap admin email inserted into durable databases on startup |
-| `ADMIN_PASSWORD` | `password123` | Bootstrap admin password used when the admin user is first created |
-| `USER_EMAIL` | `user@jackson.com` | Bootstrap standard user email inserted into durable databases on startup |
-| `USER_PASSWORD` | `password123` | Bootstrap standard user password used when the user is first created |
+| `ADMIN_EMAIL` | `tpatch@jspllc.com` | Tony Patch's canonical admin identity; legacy Atlas/Jackson admin emails are migrated while preserving the user id |
+| `ADMIN_DISPLAY_NAME` | `Tony Patch` | Human name recorded in authentication audit context |
+| `ADMIN_PASSWORD` | _(required in production)_ | One-time Tony bootstrap passphrase; the account must replace it before a session is issued |
+| `SUPER_ADMIN_EMAIL` | `rpatch@jspllc.com` | Robert Patch's super-admin identity |
+| `SUPER_ADMIN_DISPLAY_NAME` | `Robert Patch` | Human name recorded in authentication audit context |
+| `SUPER_ADMIN_PASSWORD` | _(required in production)_ | Distinct one-time Robert bootstrap passphrase; the account must replace it before a session is issued |
 | `PASSWORD_HASH_MEMORY_KIB` | `65536` | Argon2id memory cost per password operation; values below the OWASP minimum are clamped |
 | `PASSWORD_HASH_TIME_COST` | `3` | Argon2id iteration count; minimum `2` |
 | `PASSWORD_HASH_PARALLELISM` | `1` | Argon2id lanes per password operation; minimum `1` |
@@ -80,9 +95,13 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `SESSION_ABSOLUTE_TIMEOUT_SECONDS` | `28800` | Maximum session lifetime |
 | `AUTH_LOCKOUT_THRESHOLD` | `3` | Failed login attempts before lockout |
 | `AUTH_LOCKOUT_MINUTES` | `30` | Lockout duration |
+| `AWS_APPLICATION_LOG_VIEW_ENABLED` | `false` | Enables the Robert-only, redacted CloudWatch application log view |
+| `AWS_APPLICATION_LOG_GROUPS` | _(empty)_ | Comma-separated exact CloudWatch application log groups (maximum 8) |
 | `STORAGE_ROOT` | `./.storage` | Local directory for uploaded PDFs |
 | `K1_UPLOAD_MAX_BYTES` | `26214400` | Max upload size (25 MB) |
 | `K1_EXTRACTOR` | `stub` | K-1 extraction backend: `stub` or `aws_bda` |
+| `ATLAS_LOCAL_BDA_ENABLED` | `false` | Scoped switch set only by the explicit `dev:local:bda` launcher |
+| `ATLAS_LOCAL_BDA_ACCOUNT_ID` | _(empty)_ | Exact 12-digit account approved for local K-1 S3/KMS/BDA calls |
 | `K1_AWS_INGESTION_ENABLED` | `false` | Enables durable K-1 batch ingestion |
 | `K1_OBJECT_STORE` | `local` | K-1 object store: `local` or `s3` |
 | `K1_QUEUE` | `local` | K-1 work queue: `local` or `sqs` |
@@ -171,8 +190,8 @@ K-1 extraction supports only the offline stub and AWS Bedrock Data Automation:
 | `stub` | Deterministic offline extractor for unit tests and development without AWS. |
 | `aws_bda` | Durable S3 worker flow using the configured BDA project and K-1 blueprint. |
 
-Real AWS BDA is production-only in the supported environment model. The former
-local BDA launcher has been removed because it could inherit production
-credentials or resource identifiers. Provider development must use a separately
-authorized sandbox workflow that proves the account and every resource are not
-production; no such workflow is activated by `dev:local`.
+`dev:local` and CI remain offline/stub. Real AWS BDA is available only through
+`dev:local:bda`, which keeps application state and the durable queue local and
+permits only preflighted K-1 S3/KMS/BDA operations in `us-west-2`. Resource
+identifiers and low cost ceilings live in ignored `.env.local-bda`; credentials
+come from the AWS session/profile and are never stored in that file.

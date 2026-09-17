@@ -4,6 +4,7 @@ import { withTransaction } from '../../infra/db/client.js'
 
 export const RATE_WINDOW_SCOPE_KINDS = [
   'account',
+  'source_prefix',
   'user',
   'session',
   'tenant',
@@ -14,6 +15,7 @@ export const RATE_WINDOW_SCOPE_KINDS = [
 export const QUOTA_SCOPE_KINDS = [
   'user',
   'entity',
+  'document',
   'account',
   'provider',
   'global',
@@ -42,6 +44,8 @@ export interface RateWindowReservation {
   readonly policyKey: string
   readonly scopeKind: RateWindowScopeKind
   readonly scopeHash: Uint8Array
+  /** Active digest followed by retained aliases used during HMAC rotation. */
+  readonly scopeHashAliases?: readonly Uint8Array[]
   readonly windowStartedAt: Date
   readonly windowSeconds: number
   readonly units: AdmissionUnitValue
@@ -53,6 +57,8 @@ export interface WorkloadQuotaReservation {
   readonly workloadKey: string
   readonly scopeKind: QuotaScopeKind
   readonly scopeHash: Uint8Array
+  /** Active digest followed by retained aliases used during HMAC rotation. */
+  readonly scopeHashAliases?: readonly Uint8Array[]
   readonly periodKind: QuotaPeriodKind
   readonly periodStartedAt: Date
   readonly units: AdmissionUnitValue
@@ -199,12 +205,14 @@ const MAX_CLEANUP_BATCH_SIZE = 5_000
 
 interface NormalizedRateWindow extends Omit<RateWindowReservation, 'scopeHash' | 'units' | 'limit'> {
   readonly scopeHash: Buffer
+  readonly scopeHashAliases: readonly Buffer[]
   readonly units: bigint
   readonly limit: bigint
 }
 
 interface NormalizedQuota extends Omit<WorkloadQuotaReservation, 'scopeHash' | 'units' | 'limit'> {
   readonly scopeHash: Buffer
+  readonly scopeHashAliases: readonly Buffer[]
   readonly units: bigint
   readonly limit: bigint
 }
@@ -255,6 +263,17 @@ const hash32 = (value: Uint8Array, field: string): Buffer => {
   return hash
 }
 
+const rateReasonCode = (value: Pick<RateWindowReservation, 'policyKey' | 'scopeKind'>): string => {
+  if (value.policyKey === 'auth.00.global' || value.policyKey === 'auth.01.global_daily') {
+    return 'AUTH_GLOBAL_RATE'
+  }
+  if (value.scopeKind === 'source_prefix') return 'AUTH_SOURCE_RATE'
+  if (value.scopeKind === 'account' && value.policyKey.startsWith('auth.')) {
+    return 'AUTH_ACCOUNT_RATE'
+  }
+  return 'RATE_WINDOW_LIMIT'
+}
+
 const validUuid = (value: string, field: string): string => {
   const normalized = value.trim().toLowerCase()
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(normalized)) {
@@ -280,17 +299,23 @@ const normalizeRateWindows = (
     if (units > limit) {
       throw new AdmissionLimitExceededError({
         code: 'RATE_LIMITED',
-        reasonCode: 'RATE_WINDOW_LIMIT',
+        reasonCode: rateReasonCode(value),
         retryAfterSeconds: value.windowSeconds,
       })
     }
     if (expiresAt <= windowStartedAt) {
       throw new AdmissionRepositoryInputError('Rate-window expiration must follow its boundary.')
     }
+    const activeHash = hash32(value.scopeHash, 'scopeHash')
+    const aliases = [activeHash, ...(value.scopeHashAliases ?? []).map((alias) =>
+      hash32(alias, 'scopeHashAliases'))]
+    const uniqueAliases = [...new Map(aliases.map((alias) => [alias.toString('hex'), alias])).values()]
+      .sort(Buffer.compare)
     return {
       ...value,
       policyKey: nonEmpty(value.policyKey, 'policyKey'),
-      scopeHash: hash32(value.scopeHash, 'scopeHash'),
+      scopeHash: activeHash,
+      scopeHashAliases: uniqueAliases,
       windowStartedAt,
       windowSeconds: positiveInteger(value.windowSeconds, 'windowSeconds'),
       units,
@@ -341,10 +366,16 @@ const normalizeQuotas = (
     if (expiresAt <= periodStartedAt) {
       throw new AdmissionRepositoryInputError('Quota expiration must follow its period boundary.')
     }
+    const activeHash = hash32(value.scopeHash, 'scopeHash')
+    const aliases = [activeHash, ...(value.scopeHashAliases ?? []).map((alias) =>
+      hash32(alias, 'scopeHashAliases'))]
+    const uniqueAliases = [...new Map(aliases.map((alias) => [alias.toString('hex'), alias])).values()]
+      .sort(Buffer.compare)
     return {
       ...value,
       workloadKey: nonEmpty(value.workloadKey, 'workloadKey'),
-      scopeHash: hash32(value.scopeHash, 'scopeHash'),
+      scopeHash: activeHash,
+      scopeHashAliases: uniqueAliases,
       periodStartedAt,
       units,
       limit,
@@ -416,6 +447,108 @@ const reserveRateWindow = async (
   value: NormalizedRateWindow,
   now: Date,
 ): Promise<ReservedRateWindow> => {
+  if (value.scopeHashAliases.length > 1) {
+    // Advisory locks cover the no-row case and make active/retained digest
+    // consolidation safe during a rolling HMAC-key deployment.
+    for (const alias of value.scopeHashAliases) {
+      const lockIdentity = [
+        value.policyKey,
+        value.scopeKind,
+        value.windowStartedAt.toISOString(),
+        value.windowSeconds,
+        alias.toString('hex'),
+      ].join(':')
+      await client.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [lockIdentity])
+    }
+
+    const existing = await client.query<{
+      scope_hash: Buffer
+      consumed_units: string | bigint
+      expires_at: Date | string
+    }>(
+      `select scope_hash, consumed_units, expires_at
+         from abuse_rate_windows
+        where policy_key = $1
+          and scope_kind = $2
+          and scope_hash = any($3::bytea[])
+          and window_started_at = $4
+          and window_seconds = $5
+        for update`,
+      [
+        value.policyKey,
+        value.scopeKind,
+        value.scopeHashAliases,
+        value.windowStartedAt,
+        value.windowSeconds,
+      ],
+    )
+    const consumed = existing.rows.reduce(
+      (sum, row) => sum + asBigInt(row.consumed_units, 'consumed_units'),
+      0n,
+    )
+    if (consumed + value.units > value.limit) {
+      const latestExpiry = existing.rows.reduce<Date | string | undefined>((latest, row) => {
+        if (!latest) return row.expires_at
+        return new Date(row.expires_at).getTime() > new Date(latest).getTime()
+          ? row.expires_at
+          : latest
+      }, undefined)
+      throw new AdmissionLimitExceededError({
+        code: 'RATE_LIMITED',
+        reasonCode: rateReasonCode(value),
+        retryAfterSeconds: retryAfter(latestExpiry ?? value.expiresAt, now),
+      })
+    }
+
+    const retainedAliases = value.scopeHashAliases.filter((alias) =>
+      !alias.equals(value.scopeHash))
+    if (retainedAliases.length > 0) {
+      await client.query(
+        `delete from abuse_rate_windows
+          where policy_key = $1
+            and scope_kind = $2
+            and scope_hash = any($3::bytea[])
+            and window_started_at = $4
+            and window_seconds = $5`,
+        [
+          value.policyKey,
+          value.scopeKind,
+          retainedAliases,
+          value.windowStartedAt,
+          value.windowSeconds,
+        ],
+      )
+    }
+    const nextConsumed = consumed + value.units
+    const consolidated = await client.query<{ consumed_units: string | bigint }>(
+      `insert into abuse_rate_windows (
+         policy_key, scope_kind, scope_hash, window_started_at, window_seconds,
+         consumed_units, expires_at, updated_at
+       ) values ($1, $2, $3, $4, $5, $6::bigint, $7, $8)
+       on conflict (policy_key, scope_kind, scope_hash, window_started_at, window_seconds)
+       do update set
+         consumed_units = excluded.consumed_units,
+         expires_at = greatest(abuse_rate_windows.expires_at, excluded.expires_at),
+         updated_at = excluded.updated_at
+       returning consumed_units`,
+      [
+        value.policyKey,
+        value.scopeKind,
+        value.scopeHash,
+        value.windowStartedAt,
+        value.windowSeconds,
+        nextConsumed.toString(),
+        value.expiresAt,
+        now,
+      ],
+    )
+    return {
+      policyKey: value.policyKey,
+      scopeKind: value.scopeKind,
+      consumedUnits: asBigInt(consolidated.rows[0]?.consumed_units, 'consumed_units'),
+    }
+  }
+
   const result = await client.query<{ consumed_units: string | bigint }>(
     `insert into abuse_rate_windows (
        policy_key, scope_kind, scope_hash, window_started_at, window_seconds,
@@ -455,7 +588,7 @@ const reserveRateWindow = async (
     )
     throw new AdmissionLimitExceededError({
       code: 'RATE_LIMITED',
-      reasonCode: 'RATE_WINDOW_LIMIT',
+      reasonCode: rateReasonCode(value),
       retryAfterSeconds: retryAfter(existing.rows[0]?.expires_at, now),
     })
   }
@@ -471,6 +604,104 @@ const reserveQuota = async (
   value: NormalizedQuota,
   now: Date,
 ): Promise<ReservedWorkloadQuota> => {
+  if (value.scopeHashAliases.length > 1) {
+    for (const alias of value.scopeHashAliases) {
+      const lockIdentity = [
+        value.workloadKey,
+        value.scopeKind,
+        value.periodKind,
+        value.periodStartedAt.toISOString(),
+        alias.toString('hex'),
+      ].join(':')
+      await client.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [lockIdentity])
+    }
+    const existing = await client.query<{
+      scope_hash: Buffer
+      reserved_units: string | bigint
+      expires_at: Date | string
+    }>(
+      `select scope_hash, reserved_units, expires_at
+         from workload_quota_counters
+        where workload_key = $1
+          and scope_kind = $2
+          and scope_hash = any($3::bytea[])
+          and period_kind = $4
+          and period_started_at = $5
+        for update`,
+      [
+        value.workloadKey,
+        value.scopeKind,
+        value.scopeHashAliases,
+        value.periodKind,
+        value.periodStartedAt,
+      ],
+    )
+    const reserved = existing.rows.reduce(
+      (sum, row) => sum + asBigInt(row.reserved_units, 'reserved_units'),
+      0n,
+    )
+    if (reserved + value.units > value.limit) {
+      const latestExpiry = existing.rows.reduce<Date | string | undefined>((latest, row) => {
+        if (!latest) return row.expires_at
+        return new Date(row.expires_at).getTime() > new Date(latest).getTime()
+          ? row.expires_at
+          : latest
+      }, undefined)
+      throw new AdmissionLimitExceededError({
+        code: 'QUOTA_EXCEEDED',
+        reasonCode: 'WORKLOAD_QUOTA_LIMIT',
+        retryAfterSeconds: retryAfter(latestExpiry ?? value.expiresAt, now),
+      })
+    }
+    const retainedAliases = value.scopeHashAliases.filter((alias) =>
+      !alias.equals(value.scopeHash))
+    if (retainedAliases.length > 0) {
+      await client.query(
+        `delete from workload_quota_counters
+          where workload_key = $1
+            and scope_kind = $2
+            and scope_hash = any($3::bytea[])
+            and period_kind = $4
+            and period_started_at = $5`,
+        [
+          value.workloadKey,
+          value.scopeKind,
+          retainedAliases,
+          value.periodKind,
+          value.periodStartedAt,
+        ],
+      )
+    }
+    const nextReserved = reserved + value.units
+    const consolidated = await client.query<{ reserved_units: string | bigint }>(
+      `insert into workload_quota_counters (
+         workload_key, scope_kind, scope_hash, period_kind, period_started_at,
+         reserved_units, completed_units, failed_units, expires_at, updated_at
+       ) values ($1, $2, $3, $4, $5, $6::bigint, 0, 0, $7, $8)
+       on conflict (workload_key, scope_kind, scope_hash, period_kind, period_started_at)
+       do update set
+         reserved_units = excluded.reserved_units,
+         expires_at = greatest(workload_quota_counters.expires_at, excluded.expires_at),
+         updated_at = excluded.updated_at
+       returning reserved_units`,
+      [
+        value.workloadKey,
+        value.scopeKind,
+        value.scopeHash,
+        value.periodKind,
+        value.periodStartedAt,
+        nextReserved.toString(),
+        value.expiresAt,
+        now,
+      ],
+    )
+    return {
+      workloadKey: value.workloadKey,
+      scopeKind: value.scopeKind,
+      periodKind: value.periodKind,
+      reservedUnits: asBigInt(consolidated.rows[0]?.reserved_units, 'reserved_units'),
+    }
+  }
   const result = await client.query<{ reserved_units: string | bigint }>(
     `insert into workload_quota_counters (
        workload_key, scope_kind, scope_hash, period_kind, period_started_at,

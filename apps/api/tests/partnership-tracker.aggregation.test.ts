@@ -94,7 +94,7 @@ describe('partnership aggregation composition', () => {
     totalCapitalContributions: '55000.00',
     totalDistributions: '5000.00',
     latestNav: { amount: '45000.00', date: '2024-12-31' },
-    unfundedCommitmentAmount: '-5000.00',
+    unfundedCommitmentAmount: '0.00',
     warningCount: 2,
   })
   const rows = [delta, cedar, beacon, alpha]
@@ -115,7 +115,7 @@ describe('partnership aggregation composition', () => {
       paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
       distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
       latestNav: { amount: '270000.00', knownCount: 3, totalCount: 4 },
-      unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
+      unfundedCommitment: { amount: '120000.00', knownCount: 3, totalCount: 4 },
       dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE' },
       tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE' },
       annualizedCashOnCashYield: { value: '0.05000000', status: 'PARTIAL_COVERAGE' },
@@ -128,6 +128,22 @@ describe('partnership aggregation composition', () => {
     const zero = summary({ id: 'zero', name: 'Zero', totalCapitalContributions: '0.00', totalDistributions: '0.00', latestNav: { amount: '0.00', date: '2025-12-31' } })
     expect(composePartnershipAggregation([zero]).rollup.dpi).toMatchObject({ value: null, status: 'ZERO_DENOMINATOR' })
     expect(composePartnershipAggregation([cedar]).rollup.dpi).toMatchObject({ value: null, status: 'NO_DATA' })
+  })
+
+  it('keeps missing NAV unrecorded while computing TVPI from distributions', () => {
+    const noValuation = summary({
+      id: 'no-valuation',
+      name: 'No Valuation',
+      latestNav: null,
+      totalCapitalContributions: '100.00',
+      totalDistributions: '25.00',
+      tvpi: '0.25000000',
+    })
+    const rollup = composePartnershipAggregation([noValuation]).rollup
+
+    expect(rollup.latestNav).toEqual({ amount: null, knownCount: 0, totalCount: 1 })
+    expect(rollup.dpi).toMatchObject({ value: '0.25000000', status: 'AVAILABLE' })
+    expect(rollup.tvpi).toMatchObject({ value: '0.25000000', status: 'AVAILABLE' })
   })
 
   it('combines filters, keeps base facets stable, and removes unavailable owners', () => {

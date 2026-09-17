@@ -1,82 +1,148 @@
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
-import { registerLocalRateLimiter } from '../../src/modules/abuse-protection/localRateLimiter.plugin.js'
+import {
+  registerLocalRateLimiter,
+} from '../../src/modules/abuse-protection/localRateLimiter.plugin.js'
+import { PrincipalRateLimiter } from '../../src/modules/abuse-protection/principalRateLimiter.js'
+import { defineRouteProtectionPolicy } from '../../src/modules/abuse-protection/routePolicy.registry.js'
+import { createValidatedSubjectContext } from '../../src/modules/abuse-protection/subjectContext.js'
+import type { RouteProtectionPolicy } from '../../src/modules/abuse-protection/protection.types.js'
+import { TEST_FINGERPRINT_KEY, TEST_FINGERPRINT_KEYRING } from '../helpers/abuseProtectionTestHelpers.js'
 
-const fingerprintKey = 'fair-limit-test-hmac-key-material-v1'
+const policy = (
+  userRequests = 3,
+  sourceRequests = 100,
+): RouteProtectionPolicy => defineRouteProtectionPolicy({
+  policyKey: 'route.fair.read',
+  routeClass: 'AUTHENTICATED_READ',
+  method: 'GET',
+  routePattern: '/v1/fair',
+  authentication: 'session',
+  scopeDimensions: ['source_prefix', 'user', 'session', 'tenant', 'global'],
+  localRate: null,
+  localRates: [{
+    limitKey: 'general_api.source', scope: 'source_prefix', partition: 'source',
+    requests: sourceRequests, windowSeconds: 60,
+  }, {
+    limitKey: 'general_api.user', scope: 'user', partition: 'authenticated',
+    requests: userRequests, windowSeconds: 60,
+  }, {
+    limitKey: 'general_api.session', scope: 'session', partition: 'authenticated',
+    requests: 100, windowSeconds: 60,
+  }],
+  durableRates: [],
+  payloadLimits: {},
+  concurrencyLimit: null,
+  concurrencyClass: null,
+  backlogLimit: null,
+  idempotency: 'none',
+  killSwitch: null,
+  failureMode: 'low_cost_degraded_read',
+  costUnits: ['request'],
+  costDrivers: ['database_read'],
+  owner: 'platform-security',
+})
 
-describe('fair abuse-protection limits', () => {
-  const apps: FastifyInstance[] = []
+const context = (userId: string, sessionId: string) => createValidatedSubjectContext({
+  userId,
+  sessionId,
+  deploymentTenantId: 'family-office',
+  environment: 'test',
+  keyring: TEST_FINGERPRINT_KEYRING,
+})
 
+describe('independent source, user, and session fairness', () => {
+  const apps: ReturnType<typeof Fastify>[] = []
   afterEach(async () => {
-    await Promise.all(apps.splice(0).map((app) => app.close()))
+    await Promise.all(apps.splice(0).map((app) => app.close().catch(() => undefined)))
   })
 
-  it('isolates authenticated sessions sharing one NAT address', async () => {
+  it('holds one user to one ceiling across 10 sessions and 10 networks', async () => {
     const app = Fastify({ logger: false })
     apps.push(app)
-    const policy = {
-      ...defaultRouteProtectionPolicy('GET', '/v1/partnerships'),
-      localRate: { scope: 'user' as const, requests: 1, windowSeconds: 60 },
+    const routePolicy = policy(3, 100)
+    const store = registerLocalRateLimiter(app, {
+      enabled: true,
+      maximumBuckets: 64,
+      partitions: { pinnedGlobal: 4, authenticated: 40, source: 20 },
+      bucketTtlSeconds: 60,
+      fingerprintKey: TEST_FINGERPRINT_KEY,
+      ipv6PrefixLength: 64,
+    })!
+    const limiter = new PrincipalRateLimiter(store)
+    app.get('/v1/fair', {
+      config: { abuseProtection: routePolicy },
+      preHandler: async (request, reply) => {
+        const decision = await limiter.admit(routePolicy, context(
+          '00000000-0000-4000-8000-000000000001',
+          String(request.headers['x-test-session']),
+        ))
+        if (!decision.allowed) await reply.status(429).send({ error: decision.code })
+      },
+    }, async () => ({ ok: true }))
+
+    const results = []
+    for (let index = 0; index < 10; index += 1) {
+      results.push(await app.inject({
+        method: 'GET',
+        url: '/v1/fair',
+        remoteAddress: `198.51.${index}.10`,
+        headers: { 'x-test-session': `session-${index}` },
+      }))
     }
-    registerLocalRateLimiter(app, {
+
+    expect(results.filter((response) => response.statusCode === 200)).toHaveLength(3)
+    expect(results.slice(3).every((response) => response.statusCode === 429)).toBe(true)
+  })
+
+  it('does not accept request-shaped tenant/resource fallbacks in validated context', () => {
+    const trusted = createValidatedSubjectContext({
+      userId: 'user-1',
+      sessionId: 'session-1',
+      deploymentTenantId: 'family-office',
+      environment: 'test',
+      keyring: TEST_FINGERPRINT_KEYRING,
+      authorizedResources: { entity: 'authorized-entity' },
+    })
+    expect(trusted.deploymentTenantId).toBe('family-office')
+    expect(trusted.aliases.tenant?.[0]?.digest).toHaveLength(32)
+    expect(trusted.aliases.entity?.[0]?.digest).toHaveLength(32)
+    expect(trusted.aliases.account).toBeUndefined()
+  })
+
+  it('keeps shared-NAT source pressure separate from per-user fairness', async () => {
+    const app = Fastify({ logger: false })
+    apps.push(app)
+    const routePolicy = policy(10, 2)
+    const store = registerLocalRateLimiter(app, {
       enabled: true,
       maximumBuckets: 32,
+      partitions: { pinnedGlobal: 2, authenticated: 20, source: 10 },
       bucketTtlSeconds: 60,
-      fingerprintKey,
+      fingerprintKey: TEST_FINGERPRINT_KEY,
       ipv6PrefixLength: 64,
-      sessionCookieName: 'atlas_session',
-    })
-    app.get('/v1/partnerships', { config: { abuseProtection: policy } }, async () => ({ ok: true }))
+    })!
+    const principal = new PrincipalRateLimiter(store)
+    app.get('/v1/fair', {
+      config: { abuseProtection: routePolicy },
+      preHandler: async (request, reply) => {
+        const userId = String(request.headers['x-test-user'])
+        const sessionId = String(request.headers['x-test-session'])
+        const decision = await principal.admit(routePolicy, context(userId, sessionId))
+        if (!decision.allowed) await reply.status(429).send({ error: decision.code })
+      },
+    }, async () => ({ ok: true }))
 
-    const inject = (session: string) => app.inject({
+    const inject = (user: string, session: string, remoteAddress: string) => app.inject({
       method: 'GET',
-      url: '/v1/partnerships',
-      remoteAddress: '198.51.100.20',
-      headers: { cookie: `atlas_session=${session}` },
+      url: '/v1/fair',
+      remoteAddress,
+      headers: { 'x-test-user': user, 'x-test-session': session },
     })
-    expect((await inject('session-a')).statusCode).toBe(200)
-    expect((await inject('session-a')).statusCode).toBe(429)
-    expect((await inject('session-b')).statusCode).toBe(200)
-  })
-
-  it('keeps exact heavy-read and write ceilings scoped by user, session, tenant, and global identity', () => {
-    for (const [method, route] of [
-      ['GET', '/v1/dashboard'],
-      ['POST', '/v1/partnerships'],
-      ['PATCH', '/v1/entities/:entityId'],
-    ] as const) {
-      const policy = defaultRouteProtectionPolicy(method, route)
-      expect(new Set(policy.scopeDimensions)).toEqual(
-        expect.objectContaining(new Set(['user', 'session', 'tenant', 'global'])),
-      )
-      expect(new Set(policy.durableRates.map((rate) => rate.scope))).toEqual(
-        new Set(['user', 'session', 'tenant', 'global']),
-      )
-      expect(policy.durableRates.every((rate) => Number.isSafeInteger(rate.requests) && rate.requests > 0)).toBe(true)
-    }
-  })
-
-  it('normalizes anonymous IPv6 rotation while preserving capacity for a different prefix', async () => {
-    const app = Fastify({ logger: false })
-    apps.push(app)
-    const policy = {
-      ...defaultRouteProtectionPolicy('POST', '/v1/auth/login'),
-      localRate: { scope: 'source_prefix' as const, requests: 1, windowSeconds: 60 },
-    }
-    registerLocalRateLimiter(app, {
-      enabled: true,
-      maximumBuckets: 32,
-      bucketTtlSeconds: 60,
-      fingerprintKey,
-      ipv6PrefixLength: 64,
-    })
-    app.post('/v1/auth/login', { config: { abuseProtection: policy } }, async () => ({ ok: true }))
-
-    const inject = (remoteAddress: string) => app.inject({ method: 'POST', url: '/v1/auth/login', remoteAddress })
-    expect((await inject('2001:db8:100:1::1')).statusCode).toBe(200)
-    expect((await inject('2001:db8:100:1::ffff')).statusCode).toBe(429)
-    expect((await inject('2001:db8:100:2::1')).statusCode).toBe(200)
+    expect((await inject('user-a', 'session-a1', '198.51.100.10')).statusCode).toBe(200)
+    expect((await inject('user-b', 'session-b1', '198.51.100.10')).statusCode).toBe(200)
+    expect((await inject('user-c', 'session-c1', '198.51.100.10')).statusCode).toBe(429)
+    expect((await inject('user-c', 'session-c2', '198.51.100.11')).statusCode).toBe(200)
   })
 })

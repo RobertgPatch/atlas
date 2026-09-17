@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
+import { constants } from 'node:fs'
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, rename, stat, unlink } from 'node:fs/promises'
+import { copyFile, mkdir, rename, stat, unlink } from 'node:fs/promises'
 import path from 'node:path'
 import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -63,7 +64,21 @@ export class LocalK1ObjectStore implements K1ObjectStore {
       if (expectedHash && actualHash !== expectedHash) {
         throw Object.assign(new Error('OBJECT_CHECKSUM_MISMATCH'), { code: 'OBJECT_CHECKSUM_MISMATCH' })
       }
-      await rename(temporaryPath, absolutePath)
+      if (input.ifNoneMatch === '*') {
+        try {
+          await copyFile(temporaryPath, absolutePath, constants.COPYFILE_EXCL)
+          await unlink(temporaryPath)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+            throw Object.assign(new Error('UPLOAD_PRECONDITION_FAILED'), {
+              code: 'UPLOAD_PRECONDITION_FAILED',
+            })
+          }
+          throw error
+        }
+      } else {
+        await rename(temporaryPath, absolutePath)
+      }
       const details = await stat(absolutePath)
       return {
         key,

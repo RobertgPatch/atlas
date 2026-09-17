@@ -13,13 +13,16 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Shield,
   X,
 } from 'lucide-react'
+import type { JacksonAccessLevel } from '../../auth/authClient'
 
 interface AppShellProps {
   children: React.ReactNode
   currentPath?: string
   userRole?: 'Admin' | 'User'
+  userAccessLevel?: JacksonAccessLevel
   userEmail?: string
   onSignOut?: () => void
   mainClassName?: string
@@ -63,6 +66,12 @@ const navigation: NavigationSection[] = [
     items: [{ name: 'Reports', href: '/reports', icon: FileText }],
   },
 ]
+
+const administrationNavigation: NavigationSection = {
+  id: 'administration',
+  label: 'Administration',
+  items: [{ name: 'Operations', href: '/admin', icon: Shield }],
+}
 
 const isNavigationItemActive = (item: NavigationItem, currentPath: string) =>
   currentPath === item.href || currentPath.startsWith(`${item.href}/`)
@@ -121,6 +130,7 @@ export function AppShell({
   children,
   currentPath = '/dashboard',
   userRole = 'User',
+  userAccessLevel,
   userEmail,
   onSignOut,
   mainClassName = 'bg-gray-50',
@@ -138,6 +148,9 @@ export function AppShell({
   })
   const reduceMotion = useReducedMotion()
   const accountInitials = getAccountInitials(userEmail)
+  const visibleNavigation = userAccessLevel === 'SuperAdmin'
+    ? [...navigation, administrationNavigation]
+    : navigation
 
   useEffect(() => {
     try {
@@ -186,7 +199,7 @@ export function AppShell({
           </div>
 
           <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-2 pb-4">
-            {navigation.map((section, sectionIndex) => (
+            {visibleNavigation.map((section, sectionIndex) => (
               <div key={section.id} className={sectionIndex === 0 ? '' : 'mt-6'}>
                 <h2 className={`px-2 pb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 ${isDesktopNavCollapsed ? 'lg:hidden' : ''}`}>
                   {section.label}
@@ -269,7 +282,7 @@ export function AppShell({
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
               <p className="max-w-56 truncate text-sm font-medium text-gray-900">{userEmail ?? 'User'}</p>
-              <p className="text-xs text-gray-500">{userRole}</p>
+              <p className="text-xs text-gray-500">{userAccessLevel ?? userRole}</p>
             </div>
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white" aria-hidden="true">
               {accountInitials}

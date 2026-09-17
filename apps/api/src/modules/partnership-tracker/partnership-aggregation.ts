@@ -314,10 +314,10 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershi
   const tvpi = coveredRatio(
     tvpiNumerator,
     paidInCents,
-    Math.min(distributions.knownCount, latestNav.knownCount),
+    distributions.knownCount,
     paidInCapital.knownCount,
     rows.length,
-    distributions.knownCount === rows.length && latestNav.knownCount === rows.length && paidInCapital.knownCount === rows.length,
+    distributions.knownCount === rows.length && paidInCapital.knownCount === rows.length,
   )
   const navDates = rows.flatMap((row) => row.latestNav?.date ? [row.latestNav.date] : []).sort()
   return {

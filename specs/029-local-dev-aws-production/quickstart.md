@@ -65,11 +65,61 @@ The implementation must include fixture-backed tests showing the local preflight
 
 - a non-loopback production database URL;
 - production AWS environment markers;
-- production S3/SQS/BDA identifiers;
-- an explicit production account in a real-provider local command;
+- production S3/SQS/BDA identifiers without the explicit local BDA switch;
+- a real-provider account/resource mismatch;
 - a production mutation flag passed to a local command.
 
 No negative test may use real production credentials or endpoints.
+
+### Explicit local K-1 BDA mode (2026-08-30 amendment)
+
+This mode is for a small number of manual real K-1 uploads. It is not run by
+CI and does not create an AWS development/staging environment.
+
+1. Ensure the reviewed production Terraform has created/enabled the K-1
+   S3/KMS/LIVE-BDA resources and bucket CORS includes both loopback Vite
+   origins. Applying those changes is a separate production deployment.
+2. Copy the sanitized identifier/cost template. Do not add credentials,
+   secrets, database endpoints, SQS URLs, tfvars, or state:
+
+```powershell
+Copy-Item apps/api/local-bda.env.example apps/api/.env.local-bda
+```
+
+3. Fill in `ATLAS_LOCAL_BDA_ACCOUNT_ID`, `AWS_PROFILE`, `K1_S3_BUCKET`,
+   `K1_KMS_KEY_ARN`, `K1_BDA_PROFILE_ARN`, and `K1_BDA_PROJECT_ARN` from the
+   reviewed production K-1 outputs. Keep the explicit cost ceilings small.
+   The profile should assume a short-lived role with only the output
+   `local_bda_policy_arn` attached. The policy is created unattached and has no
+   SQS, RDS, ECS, CloudWatch-log, or Terraform deployment permissions.
+4. Refresh the short-lived profile/session, then start:
+
+```powershell
+aws sts get-caller-identity
+npm run dev:local:bda
+```
+
+The launcher performs its own read-only STS/S3/CORS/KMS/BDA verification before
+Docker or any application child starts. The browser uploads through an exact
+short-lived presigned URL; the worker consumes the PostgreSQL-backed local queue
+and the local reconciler polls BDA status. A browser reload reads the durable
+local item/attempt and the accepted source PDF remains in versioned S3.
+
+For a pre-amendment queued item whose accepted PDF is still local, the worker
+first streams the file to the same accepted key in S3 with its stored checksum
+and required KMS encryption, then atomically changes the document storage
+identity before creating the BDA attempt. If that copy fails, the item remains
+queued/retryable and the local source is retained.
+
+Do not restart a queued item in BDA mode until the preflight passes. Stub mode
+must never consume real queued work because it would create synthetic output.
+
+Repository verification on 2026-08-30 made no AWS call and did not consume the
+operator's queued document: it remained `QUEUED` with delivery count `0` and no
+extraction attempt. The accepted local source exists and its byte count and
+SHA-256 match the durable document metadata. The integration suite separately
+proved local evidence promotion, encrypted S3 identity replacement, BDA input
+URI selection, and durable local completion reconciliation using fakes.
 
 ### Implementation evidence (2026-08-29)
 
@@ -202,6 +252,7 @@ After implementation, the active entry points must include:
 
 ```text
 dev:local
+dev:local:bda                         # scoped K-1 provider mode; not an AWS deployment target
 deploy:aws:production
 ```
 
@@ -210,7 +261,6 @@ They must not include:
 ```text
 deploy:aws:staging
 deploy:aws:development
-dev:local:bda                         # unless redesigned as explicit non-production sandbox-only tooling
 ```
 
 The Terraform root must contain:
