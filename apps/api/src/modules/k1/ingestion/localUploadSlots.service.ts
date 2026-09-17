@@ -1,5 +1,6 @@
 import { config } from '../../../config.js'
 import { withTransaction } from '../../../infra/db/client.js'
+import { cloudWatchAbuseObservability } from '../../abuse-protection/abuseObservability.js'
 import {
   durableK1BatchRepository,
   type DurableK1IngestionItemRecord,
@@ -12,16 +13,41 @@ export class LocalK1UploadSlotService implements K1UploadSlotService {
   readonly kind = 'local' as const
 
   async createSlot(item: DurableK1IngestionItemRecord): Promise<K1UploadSlot> {
-    return {
+    if (!config.abuseProtection.killSwitches.k1UploadsEnabled) {
+      cloudWatchAbuseObservability.record({
+        decision: 'disabled',
+        policyKey: 'k1.upload_capability',
+        routeClass: 'K1_UPLOAD_ADMISSION',
+        scopeKind: 'document',
+        workloadKey: 'k1_upload',
+        reasonCode: 'K1_UPLOADS_DISABLED',
+        environment: config.nodeEnv,
+      })
+      throw new Error('K1_UPLOADS_DISABLED')
+    }
+    const slot: K1UploadSlot = {
       method: 'PUT',
       url: `/v1/k1-ingestion-items/${item.id}/local-upload`,
       headers: {
         'content-type': 'application/pdf',
         'content-length': String(item.sizeBytes),
+        'if-none-match': '*',
         'x-amz-checksum-sha256': item.sha256,
       },
-      expiresAt: new Date(Date.now() + config.k1Ingestion.uploadUrlTtlSeconds * 1_000).toISOString(),
+      expiresAt: new Date(
+        Date.now() + config.abuseProtection.capabilities.uploadTtlSeconds * 1_000,
+      ).toISOString(),
     }
+    cloudWatchAbuseObservability.record({
+      decision: 'allowed',
+      policyKey: 'k1.upload_capability',
+      routeClass: 'K1_UPLOAD_ADMISSION',
+      scopeKind: 'document',
+      workloadKey: 'k1_upload',
+      reasonCode: 'CAPABILITY_ISSUED',
+      environment: config.nodeEnv,
+    })
+    return slot
   }
 }
 
@@ -36,6 +62,15 @@ export const acceptLocalK1Upload = async (args: {
   const item = await durableK1BatchRepository.getItemById(args.itemId)
   if (!item) throw Object.assign(new Error('ITEM_NOT_FOUND'), { code: 'ITEM_NOT_FOUND' })
   if (!['PENDING_UPLOAD', 'FAILED'].includes(item.status)) {
+    cloudWatchAbuseObservability.record({
+      decision: 'blocked',
+      policyKey: 'k1.upload_capability',
+      routeClass: 'K1_UPLOAD_ADMISSION',
+      scopeKind: 'document',
+      workloadKey: 'k1_upload',
+      reasonCode: 'CAPABILITY_REPLAY',
+      environment: config.nodeEnv,
+    })
     throw Object.assign(new Error('INVALID_ITEM_STATE'), { code: 'INVALID_ITEM_STATE' })
   }
   if (args.sizeBytes !== item.sizeBytes || args.body.byteLength !== item.sizeBytes) {
@@ -50,6 +85,7 @@ export const acceptLocalK1Upload = async (args: {
     contentType: 'application/pdf',
     sizeBytes: item.sizeBytes,
     checksumSha256: item.sha256,
+    ifNoneMatch: '*',
   })
   await withTransaction(async (client) => {
     await durableK1BatchRepository.transitionItem(client, item.id, {

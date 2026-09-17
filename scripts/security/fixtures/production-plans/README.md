@@ -3,3 +3,5 @@
 Plan-policy fixtures are hand-authored synthetic Terraform JSON fragments. They must contain only fake resource addresses and placeholder identifiers; never copy `terraform show -json`, state, tfvars, backend data, provider responses, account IDs, secret ARNs, or sensitive before/after values from a real environment.
 
 Redaction fixtures may contain `SENTINEL_SECRET_MUST_NOT_LEAK`, and tests must prove that value never appears in diagnostics or result artifacts. Saved plans and raw plan JSON remain under ignored `.artifacts/` and are not normal test fixtures.
+
+`production-plan-policy.test.ps1` derives negative fixtures from the synthetic pass plans for public ALB/ECS/RDS exposure, broad ingress, API Gateway or Lambda Function URL entrypoints, alternate DNS/origin outputs, missing WAF attachment/rules, custom public API origins, internal-path forwarding, and request-driven autoscaling. These mutations must remain fake and must never be replaced with production plan fragments.

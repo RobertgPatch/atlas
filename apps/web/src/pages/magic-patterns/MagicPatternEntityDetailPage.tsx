@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Ban,
   CheckCircle2,
-  CircleDashed,
   Clock,
   Info,
   Loader2,
@@ -43,12 +42,12 @@ const formatCurrency = (value: number) =>
 
 const normalizeStatus = (value: string) => {
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'active') return 'validated' as const
+  if (normalized === 'active' || normalized === 'draft') return 'validated' as const
   if (normalized === 'validated') return 'validated' as const
   if (normalized === 'pending') return 'pending' as const
   if (normalized === 'error') return 'error' as const
   if (normalized === 'inactive') return 'inactive' as const
-  return 'draft' as const
+  return 'validated' as const
 }
 
 const DesignButton = Button
@@ -60,11 +59,6 @@ function StatusChip({ status, compact = false }: { status: string; compact?: boo
       label: 'Validated',
       style: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
       Icon: CheckCircle2,
-    },
-    draft: {
-      label: 'Draft',
-      style: 'bg-slate-50 text-slate-600 ring-slate-500/20',
-      Icon: CircleDashed,
     },
     pending: {
       label: 'Pending',
@@ -285,6 +279,7 @@ export function MagicPatternEntityDetailPage() {
   const shellProps = {
     currentPath: '/entities',
     userRole: session?.role ?? 'User',
+    userAccessLevel: session?.user.accessLevel,
     userEmail: session?.user.email,
     onSignOut: () => {
       void authClient.logout().finally(() => sessionStore.setUnauthenticated())

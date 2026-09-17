@@ -120,6 +120,12 @@ export const setProtectionOverrideHandler = async (
     const body = overrideSchema.parse(request.body)
     const now = new Date()
     const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+    if (!expiresAt) {
+      return reply.status(body.mode === 'temporary_allow' ? 409 : 400).send({
+        error: body.mode === 'temporary_allow' ? 'OVERRIDE_CONFLICT' : 'INVALID_REQUEST',
+        message: 'Every runtime protection override must expire.',
+      })
+    }
     if (expiresAt && (
       expiresAt <= now
       || expiresAt.getTime() - now.getTime()
@@ -128,18 +134,10 @@ export const setProtectionOverrideHandler = async (
       return reply.status(400).send({ error: 'INVALID_REQUEST', message: 'Override expiry is outside the permitted window.' })
     }
     if (body.mode === 'temporary_allow') {
-      if (!expiresAt || !body.ticketReference?.startsWith('BREAKGLASS-')) {
-        return reply.status(409).send({
-          error: 'OVERRIDE_CONFLICT',
-          message: 'Temporary allow requires an expiring BREAKGLASS ticket.',
-        })
-      }
-      if (!protectionOverrideService.configuredEnabled(controlKey)) {
-        return reply.status(409).send({
-          error: 'OVERRIDE_CONFLICT',
-          message: 'A runtime override cannot bypass an environment hard disable.',
-        })
-      }
+      return reply.status(409).send({
+        error: 'OVERRIDE_CONFLICT',
+        message: 'Runtime overrides may only disable work or lower an existing hard ceiling.',
+      })
     }
     const requestedGlobalDailyLimit = body.value.globalDailyLimit
     if (
@@ -154,11 +152,18 @@ export const setProtectionOverrideHandler = async (
     if (
       body.mode === 'lower_limit'
       && (
-        Object.keys(body.value).length === 0
+        Object.keys(body.value).length !== 1
+        || !Object.hasOwn(body.value, 'globalDailyLimit')
         || Object.values(body.value).some((value) => typeof value !== 'number' || value < 0)
       )
     ) {
-      return reply.status(400).send({ error: 'INVALID_REQUEST', message: 'Lower-limit values must be finite non-negative numbers.' })
+      return reply.status(400).send({ error: 'INVALID_REQUEST', message: 'A lower-limit override must contain one finite non-negative globalDailyLimit.' })
+    }
+    if (body.mode === 'disable' && Object.keys(body.value).length > 0) {
+      return reply.status(400).send({
+        error: 'INVALID_REQUEST',
+        message: 'Disable overrides do not accept limit values.',
+      })
     }
 
     const created = await protectionOverrideRepository.replace({
@@ -180,7 +185,9 @@ export const setProtectionOverrideHandler = async (
       objectId: controlKey,
       after: {
         overrideId: created.overrideId,
+        scopeKind: created.scopeKind,
         mode: created.mode,
+        value: created.value,
         reason: created.reason,
         ticketReference: created.ticketReference,
         expiresAt: created.expiresAt,

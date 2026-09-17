@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-bedrock-data-automation-runtime'
 
 import { config } from '../../../config.js'
+import { localBdaCredentials } from '../../../infra/aws/localBdaCredentials.js'
 import type {
   ExtractCtx,
   ExtractResult,
@@ -51,7 +52,8 @@ export class BdaExtractor implements K1AsyncExtractor {
 
   constructor(options: BdaExtractorOptions = {}) {
     this.client = options.client ?? new BedrockDataAutomationRuntimeClient({
-      region: options.region ?? config.aws.region,
+      region: options.region ?? config.k1Ingestion.bda.region,
+      credentials: localBdaCredentials(),
       maxAttempts: config.abuseProtection.retryBudgets.bdaMaximumAttempts,
     })
     this.profileArn = requireSetting(options.profileArn ?? config.k1Ingestion.bda.profileArn, 'K1_BDA_PROFILE_ARN_REQUIRED')

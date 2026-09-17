@@ -5,12 +5,13 @@ import { WorkspaceNav } from '../components/magic-patterns/MagicPatternPartnersh
 
 describe('MagicPattern partnership workspace navigation', () => {
   it('wraps without creating a second horizontal scrollbar above the K-1 year rail', () => {
-    render(<WorkspaceNav area="k1-history" counts={{ nav: 4, k1: 3 }} onChange={vi.fn()} />)
+    render(<WorkspaceNav area="k1-history" counts={{ k1: 3 }} onChange={vi.fn()} />)
 
     const navigation = screen.getByRole('navigation', { name: 'Partnership sections' })
     expect(navigation).toHaveClass('overflow-hidden')
     expect(navigation).toHaveClass('-top-4', 'sm:-top-6', 'lg:-top-8')
     expect(navigation).not.toHaveClass('overflow-x-auto')
     expect(navigation.firstElementChild).toHaveClass('flex-wrap')
+    expect(screen.queryByRole('button', { name: /Valuations/i })).not.toBeInTheDocument()
   })
 })

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0.0",
+  "method": "POST",
+  "routes": [
+    "/v1/auth/login",
+    "/v1/auth/mfa/enroll/complete",
+    "/v1/auth/mfa/verify",
+    "/v1/auth/password/change"
+  ],
+  "regex": "^(?:/v1/auth/login|/v1/auth/mfa/enroll/complete|/v1/auth/mfa/verify|/v1/auth/password/change)$"
+}

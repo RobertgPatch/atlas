@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '../src/config.js'
 import { authRepository } from '../src/modules/auth/auth.repository.js'
 import { lockoutService } from '../src/modules/auth/lockout.service.js'
+import { auditRepository } from '../src/modules/audit/audit.repository.js'
+import { passwordService } from '../src/modules/auth/password.service.js'
 import { totpService } from '../src/modules/auth/totp.service.js'
 import { createTestFixture, type TestFixture } from './helpers/testApp.js'
 
@@ -173,7 +175,7 @@ describe('feature-flagged login', () => {
   )
 
   it.each([false, true])(
-    'preserves password lockout behavior with MFA=%s',
+    'keeps temporary password cooldowns indistinguishable with MFA=%s',
     async (mfaEnabled) => {
       setMfaLoginEnabled(mfaEnabled)
       const lockoutUntil = new Date('2026-08-25T12:30:00.000Z')
@@ -188,12 +190,41 @@ describe('feature-flagged login', () => {
         },
       })
 
-      expect(response.statusCode).toBe(423)
-      expect(response.json()).toEqual({
-        error: 'ACCOUNT_LOCKED',
-        lockoutUntil: lockoutUntil.toISOString(),
-      })
+      expect(response.statusCode).toBe(401)
+      expect(response.json()).toEqual({ error: 'SIGN_IN_FAILED' })
       expect(response.headers['set-cookie']).toBeUndefined()
+    },
+  )
+
+  it.each([
+    ['AUTH_GLOBAL_RATE', 429],
+    ['AUTH_SOURCE_RATE', 429],
+    ['AUTH_ACCOUNT_RATE', 429],
+    ['AUTH_STORE_UNAVAILABLE', 503],
+  ] as const)(
+    'rejects %s before lockout, Argon2, session, or audit work',
+    async (reasonCode, statusCode) => {
+      vi.spyOn(fixture.app.authCostAdmission, 'admit').mockResolvedValueOnce({
+        allowed: false,
+        reasonCode,
+        retryAfterSeconds: 17,
+      })
+      const passwordVerify = vi.spyOn(passwordService, 'verify')
+      const createSession = vi.spyOn(authRepository, 'createSession')
+      const auditWrite = vi.spyOn(auditRepository, 'record')
+
+      const response = await fixture.app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: { email: fixture.admin.email, password: config.adminPassword },
+      })
+
+      expect(response.statusCode).toBe(statusCode)
+      expect(response.headers['retry-after']).toBe('17')
+      expect(passwordVerify).not.toHaveBeenCalled()
+      expect(lockoutService.getLockout).not.toHaveBeenCalled()
+      expect(createSession).not.toHaveBeenCalled()
+      expect(auditWrite).not.toHaveBeenCalled()
     },
   )
 

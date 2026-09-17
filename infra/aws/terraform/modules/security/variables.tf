@@ -35,6 +35,28 @@ variable "api_general_rate_action" {
   }
 }
 
+variable "api_general_global_rate_limit_requests_per_5_minutes" {
+  description = "Constant-key global ceiling for /v1 and /health over an explicit 300-second window."
+  type        = number
+  default     = 5000
+
+  validation {
+    condition     = var.api_general_global_rate_limit_requests_per_5_minutes >= 10 && floor(var.api_general_global_rate_limit_requests_per_5_minutes) == var.api_general_global_rate_limit_requests_per_5_minutes
+    error_message = "api_general_global_rate_limit_requests_per_5_minutes must be an integer of at least 10."
+  }
+}
+
+variable "api_general_global_rate_action" {
+  description = "Rollout action for the constant-key general API ceiling."
+  type        = string
+  default     = "block"
+
+  validation {
+    condition     = contains(["count", "block"], var.api_general_global_rate_action)
+    error_message = "api_general_global_rate_action must be count or block."
+  }
+}
+
 variable "auth_rate_limit_requests_per_5_minutes" {
   description = "Authentication-path WAF rate limit per IP over a 5-minute window."
   type        = number
@@ -49,11 +71,33 @@ variable "auth_rate_limit_requests_per_5_minutes" {
 variable "auth_rate_action" {
   description = "Rollout action for the auth per-IP rate rule. Use count during observation, then block."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.auth_rate_action)
     error_message = "auth_rate_action must be count or block."
+  }
+}
+
+variable "auth_global_rate_limit_requests_per_5_minutes" {
+  description = "Constant-key global authentication ceiling over an explicit 300-second window."
+  type        = number
+  default     = 500
+
+  validation {
+    condition     = var.auth_global_rate_limit_requests_per_5_minutes >= 10 && floor(var.auth_global_rate_limit_requests_per_5_minutes) == var.auth_global_rate_limit_requests_per_5_minutes
+    error_message = "auth_global_rate_limit_requests_per_5_minutes must be an integer of at least 10."
+  }
+}
+
+variable "auth_global_rate_action" {
+  description = "Rollout action for the constant-key authentication ceiling."
+  type        = string
+  default     = "block"
+
+  validation {
+    condition     = contains(["count", "block"], var.auth_global_rate_action)
+    error_message = "auth_global_rate_action must be count or block."
   }
 }
 
@@ -71,7 +115,7 @@ variable "paid_admission_rate_limit_requests_per_5_minutes" {
 variable "paid_admission_rate_action" {
   description = "Rollout action for the paid-admission per-IP rate rule. Use count during observation, then block."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.paid_admission_rate_action)
@@ -93,11 +137,31 @@ variable "paid_admission_global_emergency_requests_per_5_minutes" {
 variable "paid_admission_global_emergency_action" {
   description = "Rollout action for the count-all paid-admission emergency rule. Use count during observation, then block."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.paid_admission_global_emergency_action)
     error_message = "paid_admission_global_emergency_action must be count or block."
+  }
+}
+
+variable "count_observation_owner" {
+  description = "Named operator responsible for a temporary WAF Count observation. Required whenever any rate rule uses count."
+  type        = string
+  default     = null
+}
+
+variable "count_observation_expires_at" {
+  description = "RFC3339 expiry consumed by the no-Apply rollout validator. Required whenever any rate rule uses count."
+  type        = string
+  default     = null
+
+  validation {
+    condition = (
+      var.count_observation_expires_at == null ||
+      can(formatdate("YYYY-MM-DD'T'hh:mm:ssZ", var.count_observation_expires_at))
+    )
+    error_message = "count_observation_expires_at must be an RFC3339 timestamp."
   }
 }
 

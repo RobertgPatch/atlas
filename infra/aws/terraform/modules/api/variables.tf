@@ -8,6 +8,34 @@ variable "aws_region" {
   type        = string
 }
 
+variable "aws_account_id" {
+  description = "AWS account that owns the application CloudWatch log groups."
+  type        = string
+  default     = ""
+
+  validation {
+    condition = (
+      length(var.application_log_group_names) == 0 ||
+      can(regex("^[0-9]{12}$", var.aws_account_id))
+    )
+    error_message = "aws_account_id must be a 12-digit account id when application log access is enabled."
+  }
+}
+
+variable "application_log_group_names" {
+  description = "Exact application log groups the API super-admin viewer may read."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition = (
+      length(var.application_log_group_names) <= 8 &&
+      alltrue([for name in var.application_log_group_names : startswith(name, "/aws/ecs/${var.name_prefix}/")])
+    )
+    error_message = "Application log access is limited to eight exact ECS log groups under this production name prefix."
+  }
+}
+
 variable "vpc_id" {
   description = "VPC id."
   type        = string

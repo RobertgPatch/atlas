@@ -65,7 +65,7 @@ resource "aws_ecs_cluster" "this" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 }
 
@@ -111,6 +111,26 @@ resource "aws_iam_role_policy" "task_execution_secrets" {
 resource "aws_iam_role" "task" {
   name               = "${var.name_prefix}-ecs-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_tasks_assume_role.json
+}
+
+data "aws_iam_policy_document" "application_logs_read" {
+  count = length(var.application_log_group_names) > 0 ? 1 : 0
+
+  statement {
+    actions = ["logs:FilterLogEvents"]
+    resources = [
+      for name in var.application_log_group_names :
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:${name}:*"
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "application_logs_read" {
+  count = length(var.application_log_group_names) > 0 ? 1 : 0
+
+  name   = "${var.name_prefix}-application-logs-read"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.application_logs_read[0].json
 }
 
 resource "aws_lb" "api" {

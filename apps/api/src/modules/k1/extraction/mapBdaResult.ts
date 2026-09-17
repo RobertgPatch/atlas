@@ -1,4 +1,6 @@
+import { K1_STATEMENT_BOXES, k1CodeDescription } from './k1CodeReference.js'
 import { createHash } from 'node:crypto'
+import { moneyToCents } from '../../k1-tracker/k1-tracker.calculation.js'
 
 import type {
   K1ExtractedValue,
@@ -13,6 +15,7 @@ import {
   K1_MAPPING_RULE_VERSION,
 } from './k1DestinationInventory.js'
 import {
+  isK1StatementReference,
   normalizeK1ExtractedValue,
   validateK1DraftRelationships,
 } from './k1DraftValidation.js'
@@ -40,6 +43,8 @@ const normalizeDocumentText = (value: string): string => value
 const containsScheduleK1Form1065Header = (value: string): boolean => {
   const normalized = normalizeDocumentText(value)
   if (!/\bschedule k\s*1 form 1065\b/.test(normalized)) return false
+  if (/\b(?:this list identifies the codes|boxes and codes|page 2)\b/.test(normalized)
+    && !/\binformation about the partnership\b/.test(normalized)) return false
 
   // A tax package can contain state worksheets and instructions that mention
   // the federal form by name. Count a page as a K-1 only when the phrase is a
@@ -178,6 +183,41 @@ const selectK1Segment = (root: JsonRecord): K1SegmentSelection => {
     selectedPage: selected.headerPages[0] ?? null,
     issues,
   }
+}
+
+/** Rejoin standard OCR from following logical documents in the same upload.
+ * Custom output stays bound to the selected federal K-1. Never guess page
+ * offsets or merge another K-1; unresolved references remain review issues.
+ */
+const packetStatementOutput = (root: JsonRecord, selection: K1SegmentSelection): unknown => {
+  const selectedOutput = selection.segment.standardOutput ?? selection.segment.standard_output
+  if (selection.issues.length) return selectedOutput
+  const segments = array(root.outputSegments ?? root.output_segments).map(record)
+  const selectedIndex = segments.indexOf(selection.segment)
+  if (selectedIndex < 0) return selectedOutput
+  const elementsFor = (output: unknown): JsonRecord[] => {
+    const data = record(output)
+    const doc = record(data?.document ?? data?.Document)
+    return array(doc?.elements ?? doc?.Elements ?? data?.elements ?? data?.Elements)
+      .map(record).filter((element): element is JsonRecord => element !== null)
+  }
+  const elements = [...elementsFor(selectedOutput)]
+  let lastPage = Math.max(0, ...elements.flatMap(elementPages))
+  let added = false
+  for (let index = selectedIndex + 1; index < segments.length; index += 1) {
+    const output = segments[index]?.standardOutput ?? segments[index]?.standard_output
+    if (locateScheduleK1HeaderPages(output).detected) break
+    const following = elementsFor(output)
+    const pages = following.flatMap(elementPages)
+    if (!pages.length || Math.min(...pages) <= lastPage) break
+    for (const element of following) {
+      // Provider element IDs can restart in each logical document.
+      elements.push({ ...element, id: `segment-${index}:${string(element.id ?? element.element_id) ?? elements.length}` })
+    }
+    lastPage = Math.max(...pages)
+    added = true
+  }
+  return added ? { elements } : selectedOutput
 }
 
 const deterministicUuid = (parts: unknown[]): string => {
@@ -402,6 +442,7 @@ interface StatementCodeRow {
   rawValue: { code: string; description: string; amount: string }
   sourceLocations: K1ExtractionSourceLocation[]
   providerId: string
+  isCodeTotal?: boolean
 }
 
 const normalizedCodeRow = (value: unknown): NormalizedCodeRow | null => {
@@ -419,126 +460,403 @@ const normalizedWords = (value: string): string => value
 
 const baseCode = (value: string): string => value.trim().toUpperCase().replace(/\*+$/, '')
 
+const statementReference = (value: K1ExtractedValue): boolean => {
+  const row = normalizedCodeRow(value.normalizedValue)
+  return Boolean(row && (row.code.includes('*') || isK1StatementReference(row.code)
+    || (row.amount === null && (/\b(?:stmt|statement|attached|attachment)\b/i.test(row.description)
+      || isK1StatementReference(value.rawValue)))))
+}
+
+const referenceCode = (code: string): string => isK1StatementReference(code) ? '' : baseCode(code)
+
+// BDA can assign a paragraph below a table an earlier reading_order than the
+// table itself. Physical page position keeps end-of-page code headings attached
+// to their continuation, with provider order as the fallback for unlocated text.
+const statementElementOrder = (left: JsonRecord, right: JsonRecord): number => {
+  const pageOrder = (elementPages(left)[0] ?? 0) - (elementPages(right)[0] ?? 0)
+  if (pageOrder) return pageOrder
+  const top = (element: JsonRecord): number | null => {
+    const location = record(array(element.locations ?? element.location)[0])
+    return toBBox(location?.bounding_box ?? location?.boundingBox ?? location?.bbox)?.[1] ?? null
+  }
+  const leftTop = top(left)
+  const rightTop = top(right)
+  // Table boxes include padding that can overlap the heading above them.
+  if (leftTop !== null && rightTop !== null && Math.abs(leftTop - rightTop) > 0.01) return leftTop - rightTop
+  return (number(left.reading_order ?? left.readingOrder) ?? 0)
+    - (number(right.reading_order ?? right.readingOrder) ?? 0)
+}
+
 /**
  * Federal tax packages commonly print `13ZZ* STMT` on the face of the K-1 and
  * put the actual deductions in a later "Federal Statements" table. BDA's
  * standard output retains that table even when the custom blueprint returns
- * only the blank STMT marker. Read only the table explicitly headed as the
- * Schedule K-1 Line 13 statement; do not treat generic worksheets or code
+ * only the blank STMT marker. Read only tables explicitly headed for the
+ * matching Schedule K-1 box; do not treat generic worksheets or code
  * legends as additional K-1 values.
  */
-const line13StatementRows = (
+const codedStatementRows = (
+  box: number,
+  year: number | null,
   standardOutput: unknown,
   byProviderId: Map<string, K1ExtractionSourceLocation[]>,
+  issues?: K1ExtractionDraftIssue[],
 ): StatementCodeRow[] => {
   const root = record(standardOutput)
   const document = record(root?.document ?? root?.Document)
   const elements = array(document?.elements ?? document?.Elements ?? root?.elements ?? root?.Elements)
     .map(record)
     .filter((element): element is JsonRecord => element !== null)
+    .sort(statementElementOrder)
   const rows: StatementCodeRow[] = []
-
-  elements.forEach((heading, headingIndex) => {
-    const headingText = elementText(heading)?.trim() ?? ''
-    if (!/^schedule k-?1,\s*line 13\s*-\s*other deductions$/i.test(headingText)) return
-    const headingPages = elementPages(heading)
-    const headingPage = headingPages[0]
-    const headingOrder = number(heading.reading_order ?? heading.readingOrder)
-    if (headingPage === undefined || headingOrder === null) return
-
-    const table = elements.slice(headingIndex + 1).find((candidate) => {
-      const candidatePage = elementPages(candidate)[0]
-      const candidateOrder = number(candidate.reading_order ?? candidate.readingOrder)
-      return candidatePage === headingPage
-        && candidateOrder !== null
-        && candidateOrder > headingOrder
-        && string(candidate.type)?.toUpperCase() === 'TABLE'
-    })
-    if (!table) return
-    const providerId = string(table.id ?? table.element_id) ?? `line-13-statement-page-${headingPage}`
-    const sourceLocations = byProviderId.get(providerId) ?? []
-    const tableText = elementText(table) ?? ''
-
-    tableText.split(/\r?\n/).forEach((line) => {
-      const columns = line.split('\t').map((column) => column.trim())
-      if (columns.length < 3 || /^code$/i.test(columns[0])) return
-      const code = baseCode(columns[0])
-      const description = columns.slice(1, -1).join(' ').trim()
-      const amount = columns.at(-1)!.replace(/^\$\s*/, '').trim()
-      if (!code || !description || !amount) return
-      const normalized = normalizeK1ExtractedValue(
-        'official.box_13_entries',
-        'CODE_ROW',
-        { code, description, amount },
-      )
-      const normalizedRow = normalizedCodeRow(normalized.value)
-      if (normalized.issue || normalizedRow?.amount === null) return
-      rows.push({ rawValue: { code, description, amount }, sourceLocations, providerId })
-    })
-  })
+  let activeBox: number | null = null
+  let federal = false
+  let group: { code: string; description: string; details: StatementCodeRow[]; total?: StatementCodeRow } | null = null
+  const flush = () => {
+    if (!group) return
+    if (group.total && group.details.length) {
+      const detailTotal = group.details.reduce((total, row) => total + (moneyToCents(row.rawValue.amount) ?? 0n), 0n)
+      if (moneyToCents(group.total.rawValue.amount) !== detailTotal) issues?.push({
+        code: 'K1_STATEMENT_TOTAL_MISMATCH', severity: 'HIGH',
+        canonicalPath: `official.box_${box}_entries`,
+        message: `Box ${box} code ${group.code} statement details do not match the printed total. Review the supporting pages.`,
+      })
+    }
+    // The printed code total is the review value. Components remain in the
+    // source evidence and must not become additional amounts for that code.
+    rows.push(...(group.total ? [{ ...group.total, isCodeTotal: true }] : group.details))
+    group = null
+  }
+  const pageText = new Map<number, string>()
+  for (const element of elements) for (const page of elementPages(element)) {
+    pageText.set(page, `${pageText.get(page) ?? ''}\n${elementText(element) ?? ''}`)
+  }
+  const mainPage = locateScheduleK1HeaderPages(standardOutput).pages[0]
+  const identifierPatterns = [/\b\d{2}-\d{7}\b/g, /(?:\*\*|\d{2})-\*{3}\d{4}\b/g, /\b\d{3}-\d{2}-\d{4}\b/g]
+  const mainText = pageText.get(mainPage) ?? ''
+  const excludedPages = new Set([...pageText].filter(([, text]) => {
+    const statedYear = /\b(?:tax year|form 1065\)?)\s*[: -]?\s*((?:19|20)\d{2})\b/i.exec(text)?.[1]
+    return /(?:state schedule|state k-?1|this list identifies the codes|boxes and codes|partner.s instructions for schedule)/i.test(text)
+      || (year !== null && statedYear !== undefined && Number(statedYear) !== year)
+      // Compare like-for-like identifiers only. OCR can omit a partner's
+      // masked TIN on the face while still reading the partnership EIN.
+      || identifierPatterns.some(pattern => {
+        const mainIds = new Set(mainText.match(pattern) ?? [])
+        return mainIds.size > 0 && (text.match(pattern) ?? []).some(id => !mainIds.has(id))
+      })
+  }).map(([page]) => page))
+  let previousPage: number | null = null
+  for (const element of elements) {
+    const page = elementPages(element)[0]
+    if (page === undefined) continue
+    if (excludedPages.has(page) || (previousPage !== null && page > previousPage + 1)) {
+      flush(); activeBox = null; federal = false
+    }
+    previousPage = page
+    if (excludedPages.has(page)) continue
+    const providerId = string(element.id ?? element.element_id) ?? `statement-page-${page}`
+    const sourceLocations = byProviderId.get(providerId) ?? [{ page, textRef: providerId }]
+    const makeRow = (code: string, description: string, amount: string): StatementCodeRow | null => {
+      if (!description || k1CodeDescription(year, box, code) === 'Reserved for future use') return null
+      const rawValue = { code, description, amount }
+      const normalized = normalizeK1ExtractedValue(`official.box_${box}_entries`, 'CODE_ROW', rawValue)
+      if (normalized.issue || normalizedCodeRow(normalized.value)?.amount == null) return null
+      return { rawValue, sourceLocations, providerId }
+    }
+    for (const rawLine of (elementText(element) ?? '').split(/\r?\n/)) {
+      const line = rawLine.trim()
+      if (/^(?:sch(?:edule)?\.?\s+k-?1\s+supporting schedules|federal statements)/i.test(line)) federal = true
+      // A new form/worksheet is a boundary; code-group context may cross a
+      // continuation page, but must not leak into a different form or Item L.
+      if (/^(?:schedule k-?1\s*\(form|state\b)/i.test(line)) {
+        flush(); activeBox = null; federal = false
+      }
+      if (/^item [a-z]\s*[-–]/i.test(line)) { flush(); activeBox = null }
+      const heading = /^(schedule k-?1[, ]+)?\s*(?:line|box) (\d+[a-z]?)\s*[-:–]\s*.+$/i.exec(line)
+      if (heading) {
+        flush()
+        if (heading[1]) federal = true
+        activeBox = federal && heading[2] === String(box) ? box : null
+        continue
+      }
+      if (activeBox !== box) continue
+      // An explicit TOTAL BOX letter also resolves a continuation when OCR
+      // missed the preceding code heading. Never assign it to the prior code.
+      const printedTotal = /^TOTAL\s+BOX\s+([A-Z]{1,2})\s+(\(?[+-]?\$?\s*\d[\d,]*(?:\.\d+)?\)?)$/i.exec(line)
+      if (printedTotal) {
+        const code = printedTotal[1].toUpperCase()
+        if (group && group.code !== code) flush()
+        group ??= { code, description: k1CodeDescription(year, box, code) ?? `Box ${box}, code ${code}`, details: [] }
+        group.total = makeRow(code, group.description, printedTotal[2]) ?? undefined
+        flush()
+        continue
+      }
+      const columns = line.split('\t').map(column => column.trim()).filter(Boolean)
+      const tableCode = baseCode(columns[0] ?? '').replace(new RegExp(`^${box}\\s*`), '')
+      if (columns.length >= 2 && /^[A-Z]{1,2}$/.test(tableCode)) {
+        flush()
+        const row = makeRow(tableCode, columns.slice(1, -1).join(' ') || k1CodeDescription(year, box, tableCode) || '', columns.at(-1)!)
+        if (row) rows.push(row)
+        continue
+      }
+      const codeHeading = /^([A-Z]{1,2})\s*[-–]\s*(.+)$/.exec(line)
+      if (codeHeading) {
+        flush()
+        const withAmount = /^(.*?)\s+(\(?[+-]?\$?\s*\d[\d,]*(?:\.\d+)?\)?)$/.exec(codeHeading[2])
+        group = { code: codeHeading[1], description: withAmount?.[1] ?? codeHeading[2], details: [] }
+        if (withAmount) group.total = makeRow(group.code, group.description, withAmount[2]) ?? undefined
+        continue
+      }
+      if (!group) continue
+      const valueLine = /^(.*?)\s+(\(?[+-]?\$?\s*\d[\d,]*(?:\.\d+)?\)?)$/.exec(line)
+        ?? /^(TOTAL BOX [A-Z]{1,2})\s+(\(?[+-]?\d[\d,]*(?:\.\d+)?\)?)$/.exec(line)
+      if (!valueLine) continue
+      const row = makeRow(group.code, valueLine[1], valueLine[2])
+      if (!row) continue
+      if (/^total\b/i.test(valueLine[1])) {
+        group.total = { ...row, rawValue: { ...row.rawValue, description: group.description } }
+      } else {
+        group.details.push(row)
+      }
+    }
+  }
+  flush()
 
   return rows
 }
 
-const supplementLine13Statements = (
+/** Recover numeric face entries when custom output follows a statement but omits
+ * a separate printed deduction. Only the selected federal form page is eligible;
+ * code legends, state schedules, and statement totals must not be counted again.
+ */
+const supplementLine13FaceRows = (
   values: K1ExtractedValue[],
   standardOutput: unknown,
   byProviderId: Map<string, K1ExtractionSourceLocation[]>,
+  selectedPage: number | null,
+  issues: K1ExtractionDraftIssue[],
+): K1ExtractedValue[] => {
+  if (selectedPage === null) return values
+  const root = record(standardOutput)
+  const document = record(root?.document ?? root?.Document)
+  const elements = array(document?.elements ?? document?.Elements ?? root?.elements ?? root?.Elements)
+  const additions: K1ExtractedValue[] = []
+  for (const rawElement of elements) {
+    const table = record(rawElement)
+    if (!table || string(table.type)?.toUpperCase() !== 'TABLE'
+      || !elementPages(table).includes(selectedPage)) continue
+    const providerId = string(table.id ?? table.element_id)
+    if (!providerId) continue
+    for (const [index, line] of (elementText(table) ?? '').split(/\r?\n/).entries()) {
+      const columns = line.split('\t').map(column => column.trim())
+      // BDA commonly puts "13 A" and "Other deductions 891" in adjacent cells.
+      // Also accept a separate code cell, but never consume the right-hand boxes.
+      const separateCode = columns[0] === '13' && /^[A-Z]{1,2}\*?$/i.test(columns[1] ?? '')
+      const marker = separateCode ? `13 ${columns[1]}` : columns[0]
+      const code = /^13\s*([A-Z]{1,2})\*?$/i.exec(marker)?.[1]?.toUpperCase()
+      if (!code) continue
+      const labelIndex = separateCode ? 2 : 1
+      const label = columns[labelIndex] ?? ''
+      const amountText = /^Other deductions\s+(.+)$/i.exec(label)?.[1]
+        ?? (/^Other deductions$/i.test(label) && columns.slice(labelIndex + 2).every(column => !column)
+          ? columns[labelIndex + 1] : undefined)
+      if (!amountText || !/^\(?[+-]?\$?\s*\d[\d,]*(?:\.\d+)?\)?$/.test(amountText)) continue
+      const rawValue = { code, description: 'Other deductions', amount: amountText }
+      const normalized = normalizeK1ExtractedValue('official.box_13_entries', 'CODE_ROW', rawValue)
+      const row = normalizedCodeRow(normalized.value)
+      if (normalized.issue || !row || row.amount === null) continue
+      const existing = [...values, ...additions].filter(value => {
+        const candidate = normalizedCodeRow(value.normalizedValue)
+        return value.canonicalPath === 'official.box_13_entries'
+          && candidate !== null && candidate.amount !== null && baseCode(candidate.code) === code
+      })
+      if (existing.some(value => normalizedCodeRow(value.normalizedValue)?.amount === row.amount)) continue
+      if (existing.length) {
+        issues.push({
+          code: 'CONFLICTING_LINE_13_AMOUNT', severity: 'HIGH',
+          canonicalPath: 'official.box_13_entries', occurrenceId: existing[0].occurrenceId,
+          message: `Line 13 code ${code} differs between the printed form and custom extraction. Verify the amount against the PDF.`,
+        })
+        continue
+      }
+      additions.push({
+        occurrenceId: deterministicUuid(['federal-face', 'official.box_13_entries', providerId, index, rawValue]),
+        canonicalPath: 'official.box_13_entries', kind: 'CODE_ROW', rawValue,
+        normalizedValue: normalized.value, confidence: null,
+        sourceLocations: (byProviderId.get(providerId) ?? []).filter(location => location.page === selectedPage),
+        destination: classifyK1CanonicalPath('official.box_13_entries'),
+        mappingRuleVersion: K1_MAPPING_RULE_VERSION,
+      })
+    }
+  }
+  const firstLine13 = values.findIndex(value => value.canonicalPath === 'official.box_13_entries')
+  return firstLine13 < 0 ? [...values, ...additions]
+    : [...values.slice(0, firstLine13), ...additions, ...values.slice(firstLine13)]
+}
+
+/** Read the two independent Part III columns. Subsequent letter/star rows
+ * inherit their box only within that column, never from the neighboring box.
+ * This also recovers a box-wide star omitted by an older custom blueprint.
+ */
+const supplementPrintedCodeRows = (
+  values: K1ExtractedValue[],
+  standardOutput: unknown,
+  byProviderId: Map<string, K1ExtractionSourceLocation[]>,
+  selectedPage: number | null,
+  year: number | null,
+): K1ExtractedValue[] => {
+  if (selectedPage === null) return values
+  const root = record(standardOutput)
+  const doc = record(root?.document ?? root?.Document)
+  const additions: K1ExtractedValue[] = []
+  for (const rawElement of array(doc?.elements ?? doc?.Elements ?? root?.elements ?? root?.Elements)) {
+    const table = record(rawElement)
+    if (!table || string(table.type)?.toUpperCase() !== 'TABLE' || !elementPages(table).includes(selectedPage)) continue
+    const providerId = string(table.id ?? table.element_id)
+    if (!providerId) continue
+    const activeBoxes = new Map<number, number | null>()
+    for (const [lineIndex, line] of (elementText(table) ?? '').split(/\r?\n/).entries()) {
+      const columns = line.split('\t').map(column => column.trim())
+      for (let column = 0; column + 1 < columns.length; column += 2) {
+        const marker = columns[column].toUpperCase()
+        const heading = /^(\d{1,2})\s*([A-Z]{1,2}\*?|\*)?$/.exec(marker)
+        if (heading) activeBoxes.set(column, K1_STATEMENT_BOXES.some(box => box === Number(heading[1])) ? Number(heading[1]) : null)
+        const box = activeBoxes.get(column)
+        const code = heading?.[2] ?? (/^(?:[A-Z]{1,2}\*?|\*)$/.test(marker) ? marker : '')
+        if (!box || !code) continue
+        const text = columns[column + 1]
+        const amount = isK1StatementReference(text) ? text
+          : box === 16 && code === 'A' ? text.replace(/^Foreign transactions\s*/i, '')
+          : /(?:^|\s)(\(?[+-]?\$?\s*\d[\d,]*(?:\.\d+)?\)?)$/.exec(text)?.[1]
+        if (amount === undefined || !amount.trim()) continue
+        const canonicalPath = `official.box_${box}_entries`
+        const rawValue = { code, description: isK1StatementReference(amount) ? 'See statement' : k1CodeDescription(year, box, baseCode(code)) ?? text.replace(amount, '').trim(), amount }
+        const normalized = normalizeK1ExtractedValue(canonicalPath, 'CODE_ROW', rawValue)
+        const row = normalizedCodeRow(normalized.value)
+        if (normalized.issue || !row) continue
+        const exists = [...values, ...additions].some(value => value.canonicalPath === canonicalPath
+          && referenceCode(normalizedCodeRow(value.normalizedValue)?.code ?? '') === referenceCode(code)
+          && (row.amount === null ? statementReference(value) : normalizedCodeRow(value.normalizedValue)?.amount != null))
+        if (exists) continue
+        additions.push({
+          occurrenceId: deterministicUuid(['federal-code-row', canonicalPath, providerId, lineIndex, column, rawValue]),
+          canonicalPath, kind: 'CODE_ROW', rawValue, normalizedValue: normalized.value, confidence: null,
+          sourceLocations: (byProviderId.get(providerId) ?? []).filter(location => location.page === selectedPage),
+          destination: classifyK1CanonicalPath(canonicalPath), mappingRuleVersion: K1_MAPPING_RULE_VERSION,
+        })
+      }
+    }
+  }
+  return [...values, ...additions]
+}
+
+const supplementCodedStatements = (
+  box: number,
+  year: number | null,
+  values: K1ExtractedValue[],
+  standardOutput: unknown,
+  byProviderId: Map<string, K1ExtractionSourceLocation[]>,
+  issues: K1ExtractionDraftIssue[],
 ): K1ExtractedValue[] => {
   const placeholders = values.filter((value) => {
-    if (value.canonicalPath !== 'official.box_13_entries') return false
+    if (value.canonicalPath !== `official.box_${box}_entries`) return false
     const row = normalizedCodeRow(value.normalizedValue)
-    return Boolean(row && row.amount === null && baseCode(row.code) && /\b(?:stmt|statement)\b/i.test(row.description))
+    return Boolean(row && row.amount === null && statementReference(value))
   })
   const placeholderCodes = new Set(placeholders.flatMap((value) => {
     const row = normalizedCodeRow(value.normalizedValue)
-    return row ? [baseCode(row.code)] : []
+    return row ? [referenceCode(row.code)] : []
   }))
-  if (placeholderCodes.size === 0) return values
+  const statements = codedStatementRows(box, year, standardOutput, byProviderId, issues)
+  if (statements.length === 0) return values
+  // A numeric face entry can coexist with a box-wide star. Its supporting
+  // components explain that amount; only the other codes are additional income.
+  const coveredCodes = new Set<string>()
+  const duplicateComponentIds = new Set<string>()
+  const totalEvidence = new Map<string, K1ExtractionSourceLocation[]>()
+  for (const code of new Set(statements.map(row => baseCode(row.rawValue.code)))) {
+    if (placeholderCodes.size > 0 && !placeholderCodes.has('') && !placeholderCodes.has(code)) continue
+    const existingValues = values.filter(value => value.canonicalPath === `official.box_${box}_entries`
+      && baseCode(normalizedCodeRow(value.normalizedValue)?.code ?? '') === code
+      && normalizedCodeRow(value.normalizedValue)?.amount != null)
+    const existing = existingValues
+      .map(value => normalizedCodeRow(value.normalizedValue))
+      .filter(row => row?.amount != null && baseCode(row.code) === code)
+    const statementRows = statements.filter(row => baseCode(row.rawValue.code) === code)
+    const statementTotal = statementRows
+      .reduce((total, row) => total + (moneyToCents(row.rawValue.amount) ?? 0n), 0n)
+    const printedTotal = statementRows.find(row => row.isCodeTotal)
+    if (printedTotal) {
+      const amount = moneyToCents(printedTotal.rawValue.amount)
+      const sameAmount = existingValues.find(value => moneyToCents(normalizedCodeRow(value.normalizedValue)!.amount) === amount)
+      // Keep a correct face total once, or replace partial provider components
+      // with the statement's explicit total. Never add the two together.
+      existingValues.filter(value => value !== sameAmount).forEach(value => duplicateComponentIds.add(value.occurrenceId))
+      if (sameAmount) {
+        coveredCodes.add(code)
+        totalEvidence.set(sameAmount.occurrenceId, printedTotal.sourceLocations)
+      } else if (existingValues.length && existing.reduce((sum, row) => sum + (moneyToCents(row!.amount) ?? 0n), 0n) !== amount) {
+        issues.push({ code: 'K1_CODE_TOTAL_MISMATCH', severity: 'HIGH', canonicalPath: `official.box_${box}_entries`,
+          message: `Box ${box} code ${code}: the extracted face or component amounts differ from the printed statement total. The statement total is shown; verify it against the PDF.`,
+        })
+      }
+      continue
+    }
+    if (existing.length && existing.reduce((total, row) => total + (moneyToCents(row!.amount) ?? 0n), 0n) === statementTotal) coveredCodes.add(code)
+    const totalValue = existingValues.find(value => moneyToCents(normalizedCodeRow(value.normalizedValue)!.amount) === statementTotal)
+    const otherValues = existingValues.filter(value => value !== totalValue)
+    if (totalValue && otherValues.length && otherValues.reduce((total, value) => total + (moneyToCents(normalizedCodeRow(value.normalizedValue)!.amount) ?? 0n), 0n) === statementTotal) {
+      coveredCodes.add(code)
+      otherValues.forEach(value => duplicateComponentIds.add(value.occurrenceId))
+    }
+  }
 
   const existingRows = new Set(values.flatMap((value) => {
-    if (value.canonicalPath !== 'official.box_13_entries') return []
+    if (duplicateComponentIds.has(value.occurrenceId)) return []
+    if (value.canonicalPath !== `official.box_${box}_entries`) return []
     const row = normalizedCodeRow(value.normalizedValue)
     return row && row.amount !== null
       ? [`${baseCode(row.code)}|${normalizedWords(row.description)}|${row.amount}`]
       : []
   }))
-  const additions = line13StatementRows(standardOutput, byProviderId).flatMap((statement, index) => {
-    const normalization = normalizeK1ExtractedValue('official.box_13_entries', 'CODE_ROW', statement.rawValue)
+  const resolvedCodes = new Set<string>()
+  const additions = statements.flatMap((statement, index) => {
+    const normalization = normalizeK1ExtractedValue(`official.box_${box}_entries`, 'CODE_ROW', statement.rawValue)
     const row = normalizedCodeRow(normalization.value)
-    if (!row || row.amount === null || !placeholderCodes.has(baseCode(row.code))) return []
+    if (!row || row.amount === null || (placeholderCodes.size > 0 && !placeholderCodes.has('') && !placeholderCodes.has(baseCode(row.code)))) return []
+    resolvedCodes.add(baseCode(row.code))
+    if (coveredCodes.has(baseCode(row.code))) return []
     const key = `${baseCode(row.code)}|${normalizedWords(row.description)}|${row.amount}`
     if (existingRows.has(key)) return []
     existingRows.add(key)
     return [{
       occurrenceId: deterministicUuid([
-        'federal-statement', 'official.box_13_entries', statement.providerId, index, statement.rawValue,
+        'federal-statement', `official.box_${box}_entries`, statement.providerId, index, statement.rawValue,
       ]),
-      canonicalPath: 'official.box_13_entries',
+      canonicalPath: `official.box_${box}_entries`,
       kind: 'CODE_ROW' as const,
       rawValue: statement.rawValue,
       normalizedValue: normalization.value,
       confidence: null,
       sourceLocations: statement.sourceLocations,
-      destination: classifyK1CanonicalPath('official.box_13_entries'),
+      destination: classifyK1CanonicalPath(`official.box_${box}_entries`),
       mappingRuleVersion: K1_MAPPING_RULE_VERSION,
     }]
   })
-  if (additions.length === 0) return values
-
-  const resolvedCodes = new Set(additions.flatMap((value) => {
-    const row = normalizedCodeRow(value.normalizedValue)
-    return row ? [baseCode(row.code)] : []
-  }))
+  if (resolvedCodes.size === 0) return values
   const withoutResolvedPlaceholders = values.filter((value) => {
-    if (value.canonicalPath !== 'official.box_13_entries') return true
+    if (duplicateComponentIds.has(value.occurrenceId)) return false
+    if (value.canonicalPath !== `official.box_${box}_entries`) return true
     const row = normalizedCodeRow(value.normalizedValue)
     return !(row && row.amount === null
-      && resolvedCodes.has(baseCode(row.code))
-      && /\b(?:stmt|statement)\b/i.test(row.description))
-  })
+      && (!referenceCode(row.code) || resolvedCodes.has(referenceCode(row.code)))
+      && (/\b(?:stmt|statement|attached|attachment)\b/i.test(row.description) || row.code.includes('*') || isK1StatementReference(value.rawValue)))
+  }).map(value => totalEvidence.has(value.occurrenceId) ? {
+    ...value,
+    sourceLocations: distinctJsonValues([...value.sourceLocations, ...totalEvidence.get(value.occurrenceId)!]) as K1ExtractionSourceLocation[],
+  } : value)
   const finalLine13Index = withoutResolvedPlaceholders.reduce(
-    (last, value, index) => value.canonicalPath === 'official.box_13_entries' ? index : last,
+    (last, value, index) => value.canonicalPath === `official.box_${box}_entries` ? index : last,
     -1,
   )
   return finalLine13Index < 0
@@ -567,6 +885,12 @@ const LINE_17_PRINTED_TAXONOMY = new Map([
  */
 const sanitizePartThreeValues = (values: K1ExtractedValue[]): K1ExtractedValue[] => {
   let sanitized = [...values]
+  // Older blueprints also return a scalar Box 11 amount, often just 11A.
+  // Once coded rows are available, application mapping derives their total.
+  if (sanitized.some(value => value.canonicalPath === 'official.box_11_entries'
+    && normalizedCodeRow(value.normalizedValue)?.amount != null)) {
+    sanitized = sanitized.filter(value => value.canonicalPath !== 'calculation.box_11_other_income_loss')
+  }
   const line17 = sanitized.filter((value) => value.canonicalPath === 'official.box_17_entries')
   const line17Placeholders = line17.filter((value) => {
     const row = normalizedCodeRow(value.normalizedValue)
@@ -681,14 +1005,13 @@ export const mapBdaResult = (raw: unknown): K1ExtractionDraft => {
   const root = record(raw) ?? {}
   const selection = selectK1Segment(root)
   const { segment, selectedPage } = selection
+  const standardOutput = packetStatementOutput(root, selection)
   const status = string(segment.customOutputStatus ?? segment.custom_output_status) ?? 'UNKNOWN'
   const customOutput = record(segment.customOutput ?? segment.custom_output)
   const inferenceResult = customOutput?.inference_result ?? customOutput?.inferenceResult ?? segment.inference_result
   const explainability = customOutput?.explainability_info ?? customOutput?.explainabilityInfo
-  const parsedEvidence = parseStandardEvidence(segment.standardOutput ?? segment.standard_output)
-  const evidence = selectedPage === null
-    ? parsedEvidence.evidence
-    : parsedEvidence.evidence.filter((reference) => reference.page === selectedPage)
+  const parsedEvidence = parseStandardEvidence(standardOutput)
+  const evidence = parsedEvidence.evidence
   const { byProviderId } = parsedEvidence
   const validationIssues = [...statusIssues(status), ...selection.issues]
   const values: K1ExtractedValue[] = []
@@ -703,9 +1026,13 @@ export const mapBdaResult = (raw: unknown): K1ExtractionDraft => {
     const sourceLocations = evidenceIds.flatMap((id) => byProviderId.get(id) ?? [])
     const directLocations = parseDirectLocations(field)
     const allLocations = sourceLocations.length > 0 ? sourceLocations : directLocations
+    const statementBox = /^official\.box_(\d+)_entries$/.exec(canonicalPath)?.[1]
+    const supportingPages = new Set(statementBox ? codedStatementRows(
+      Number(statementBox), null, standardOutput, byProviderId,
+    ).flatMap(row => row.sourceLocations.map(location => location.page)) : [])
     const locations = selectedPage === null
       ? allLocations
-      : allLocations.filter((location) => location.page === selectedPage)
+      : allLocations.filter((location) => location.page === selectedPage || supportingPages.has(location.page))
     if (selectedPage !== null && allLocations.length > 0 && locations.length === 0) return
     const destination = classifyK1CanonicalPath(canonicalPath)
 
@@ -761,12 +1088,39 @@ export const mapBdaResult = (raw: unknown): K1ExtractionDraft => {
     })
   })
 
-  const statementAwareValues = supplementLine13Statements(
+  const referenceYear = values.find(value => value.canonicalPath === 'match.tax_year')?.normalizedValue
+  const year = typeof referenceYear === 'number' ? referenceYear : null
+  const faceAwareValues = supplementPrintedCodeRows(supplementLine13FaceRows(
     values,
-    segment.standardOutput ?? segment.standard_output,
+    standardOutput,
     byProviderId,
-  )
-  const sanitizedValues = sanitizePartThreeValues(statementAwareValues)
+    selectedPage,
+    validationIssues,
+  ), standardOutput, byProviderId, selectedPage, year)
+  const statementAwareValues = K1_STATEMENT_BOXES.reduce((current, box) => supplementCodedStatements(
+    box, year, current,
+    standardOutput, byProviderId, validationIssues,
+  ), faceAwareValues)
+  const resolvedValues = statementAwareValues.flatMap(value => {
+    const row = normalizedCodeRow(value.normalizedValue)
+    if (value.kind !== 'CODE_ROW' || !row) return [value]
+    const code = referenceCode(row.code)
+    if (statementReference(value) && (row.amount === null || !code)) {
+      // Box 20 disclosures are optional for the application's federal reconciliation.
+      // Retain available amounts, but do not require missing supporting disclosures.
+      if (value.canonicalPath !== 'official.box_20_entries') {
+        validationIssues.push({ code: 'UNRESOLVED_K1_STATEMENT', severity: 'HIGH',
+          canonicalPath: value.canonicalPath,
+          message: `Box ${/^official\.box_(\d+)_entries$/.exec(value.canonicalPath)?.[1] ?? ''}${code ? ` code ${code}` : ''}: the supporting statement values could not be fully resolved. Verify the matching statement before reconciliation.`,
+          details: { code: code || null, sourceLocations: value.sourceLocations, rawReference: value.rawValue },
+        })
+      }
+      // A reference is never an editable monetary input or a substitute zero.
+      return []
+    }
+    return [{ ...value, normalizedValue: { ...row, code } }]
+  })
+  const sanitizedValues = sanitizePartThreeValues(resolvedValues)
   validationIssues.push(...validateK1DraftRelationships(sanitizedValues))
   const explicitRevisionYear = number(
     segment.revisionYear ?? segment.revision_year ?? root.revisionYear ?? root.revision_year,
@@ -786,7 +1140,8 @@ export const mapBdaResult = (raw: unknown): K1ExtractionDraft => {
       customOutputStatus: status,
     },
     values: sanitizedValues,
-    evidence,
+    evidence: selectedPage === null ? evidence : evidence.filter(reference =>
+      reference.page === selectedPage || sanitizedValues.some(value => value.sourceLocations.some(location => location.page === reference.page))),
     validationIssues,
   }
 }

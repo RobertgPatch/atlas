@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 import { registerLocalRateLimiter } from '../../src/modules/abuse-protection/localRateLimiter.plugin.js'
+import { LocalConcurrencyLimiter } from '../../src/modules/abuse-protection/localConcurrency.js'
 
 describe('below-limit protected workflow regressions', () => {
   const apps: FastifyInstance[] = []
@@ -61,5 +62,25 @@ describe('below-limit protected workflow regressions', () => {
       expect(response.statusCode).toBe(200)
     }
     expect(calls).toHaveBeenCalledTimes(routes.length)
+  })
+
+  it('starts no provider, queue, object, export, or database-heavy work after rejection', async () => {
+    const limiter = new LocalConcurrencyLimiter()
+    const active = limiter.acquire('heavy_read', 1)
+    expect(active.admitted).toBe(true)
+    const effects = {
+      provider: vi.fn(),
+      queue: vi.fn(),
+      object: vi.fn(),
+      export: vi.fn(),
+      databaseHeavy: vi.fn(),
+    }
+
+    const rejected = limiter.acquire('heavy_read', 1)
+    if (rejected.admitted) Object.values(effects).forEach((effect) => effect())
+
+    expect(rejected.admitted).toBe(false)
+    Object.values(effects).forEach((effect) => expect(effect).not.toHaveBeenCalled())
+    if (active.admitted) active.release()
   })
 })

@@ -11,7 +11,10 @@ import { RefreshAlreadyRunningError } from '../plaid/plaid.holdings-sync.js'
 import { plaidRepository } from '../plaid/plaid.repository.js'
 import { evaluateSnapshotFreshness } from '../plaid/plaid.refresh-policy.js'
 import { plaidRefreshScheduler } from '../plaid/plaid.refresh-scheduler.js'
-import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  createServiceCostSubjects,
+} from '../abuse-protection/costWorkloadAdmission.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -61,16 +64,20 @@ export const runPlaidRefreshHandler = async (
     workloadKey: 'plaid_scheduled_refresh',
     method: 'POST',
     routePattern: '/v1/admin/plaid-refresh/run',
-    principal: 'scheduler:plaid-refresh',
+    subjectContext: createServiceCostSubjects(
+      'plaid-refresh-scheduler',
+      body.scheduledFor ?? 'current-window',
+      { provider: 'plaid' },
+    ),
     canonicalInputs: { scheduledFor: body.scheduledFor ?? null },
     globalDailyLimit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay,
     quotas: [
       ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
         scopeKind: 'account' as const,
-        scopeValue: account.id,
+        authorizedScopeValue: account.id,
         limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesPerAccountDay,
       })),
-      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay },
+      { scopeKind: 'global', limit: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay },
     ],
     leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
   })

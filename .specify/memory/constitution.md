@@ -1,28 +1,26 @@
 <!--
 Sync Impact Report
-- Version change: unratified template -> 1.0.0
-- Added principles:
-  - I. Security, Privacy, and Compliance Are Release Gates
-  - II. Unique Identity, Tenant Isolation, and Least Privilege
-  - III. Financial Data Integrity, Provenance, and Auditability
-  - IV. Architecture and Scale Before Implementation
-  - V. Verification Evidence; No Shortcuts
-  - VI. Recoverability and Continuity
-  - VII. Observable and Incident-Ready Operation
-- Added sections:
-  - Engineering, Data, and Compliance Constraints
-  - Delivery Workflow and Quality Gates
-- Removed sections: placeholder-only template content
-- Templates requiring updates:
-  - ✅ .specify/templates/plan-template.md
-  - ✅ .specify/templates/spec-template.md
-  - ✅ .specify/templates/tasks-template.md
-  - ✅ .specify/templates/commands/*.md (directory absent; no command templates to update)
+- Version change: 1.0.0 -> 2.0.0
+- Modified governance:
+  - All constitutional requirements may use a documented, versioned exception approved by
+    Robert Patch; exceptions are scope-specific and never imply production authorization.
+  - A failed gate now stops only the affected scope unless an active exception explicitly
+    authorizes that scope.
+  - Production exceptions receive stricter evidence, rollback, monitoring, and expiry rules.
+- Modified principles:
+  - Principles I, II, III, V, and VI remain mandatory defaults but are governed by the formal
+    exception process instead of being described as categorically non-negotiable.
+- Templates synchronized:
+  - [updated] .specify/templates/constitution-template.md
+  - [updated] .specify/templates/plan-template.md
+  - [updated] .specify/templates/spec-template.md
+  - [updated] .specify/templates/tasks-template.md
+  - [n/a] .specify/templates/commands/*.md (directory absent)
 - Active artifacts synchronized:
-  - ✅ specs/029-local-dev-aws-production/plan.md
-  - ✅ specs/029-local-dev-aws-production/spec.md
-  - ✅ specs/029-local-dev-aws-production/tasks.md
-  - ✅ specs/029-local-dev-aws-production/contracts/production-cost-model.md
+  - [updated] specs/030-user-ip-rate-limiting/spec.md
+  - [updated] specs/030-user-ip-rate-limiting/plan.md
+  - [added] specs/030-user-ip-rate-limiting/evidence/EX-030-001.md
+  - [added] specs/030-user-ip-rate-limiting/evidence/c1-c2-remediation.md
 - Follow-up items:
   - TODO(LEGAL-APPLICABILITY): Robert Patch must obtain qualified California legal or
     compliance review before Jackson is offered to an unrelated family office and must
@@ -43,7 +41,7 @@ Sync Impact Report
 
 ## Core Principles
 
-### I. Security, Privacy, and Compliance Are Release Gates (NON-NEGOTIABLE)
+### I. Security, Privacy, and Compliance Are Release Gates
 
 Jackson MUST protect the confidentiality, integrity, availability, and lawful use of family
 office information throughout collection, transmission, processing, storage, backup, export,
@@ -62,7 +60,7 @@ secrets, weakened encryption, bypassed authorization, disabled safeguards, or re
 known exploitable Critical or High vulnerability. This principle exists because a disclosure or
 silent corruption could cause material financial, tax, legal, privacy, and personal harm.
 
-### II. Unique Identity, Tenant Isolation, and Least Privilege (NON-NEGOTIABLE)
+### II. Unique Identity, Tenant Isolation, and Least Privilege
 
 Every human login MUST identify one physical person; shared human accounts are prohibited.
 Tony Patch's CPA access, Robert Patch's developer/operator access, service identities, and any
@@ -85,7 +83,7 @@ positive and negative tests pass, bulk/export paths are scoped, caches and jobs 
 and a threat model demonstrates fail-closed separation. A dedicated AWS stack or database per
 family office remains a valid design; a shared multi-tenant design is not presumed.
 
-### III. Financial Data Integrity, Provenance, and Auditability (NON-NEGOTIABLE)
+### III. Financial Data Integrity, Provenance, and Auditability
 
 Jackson MUST make every material financial, tax, ownership, estate, trust, partnership,
 property, capital, distribution, commitment, valuation, and document-derived value traceable to
@@ -132,7 +130,7 @@ requirements, preserves security boundaries, and has an evidenced evolution path
 preferred. A temporary workaround MUST have an owner, documented risk, removal condition, and
 expiration; unlabeled shortcuts and permanent TODO-based controls are prohibited.
 
-### V. Verification Evidence; No Shortcuts (NON-NEGOTIABLE)
+### V. Verification Evidence; No Shortcuts
 
 Acceptance criteria, failure cases, abuse cases, authorization rules, and a test strategy MUST
 be defined before implementation for every behavior change. Changed behavior MUST have
@@ -156,7 +154,7 @@ exposure, audit integrity, or recovery MUST receive root-cause analysis and regr
 This principle exists because passing evidence, not implementation confidence, establishes that
 a sensitive change is safe.
 
-### VI. Recoverability and Continuity (NON-NEGOTIABLE)
+### VI. Recoverability and Continuity
 
 Production data MUST meet a recovery point objective of no more than 15 minutes and a recovery
 time objective of no more than eight hours. PostgreSQL MUST have encrypted point-in-time
@@ -294,8 +292,9 @@ RTO MUST NOT be guessed or hidden as assumptions.
 Every implementation plan MUST pass a Constitution Check before research and again after design.
 It MUST include a threat model for new trust boundaries, an authorization matrix for new access,
 an architecture decision for material choices, migration and rollback plans, capacity and cost
-limits, observability, and verification evidence. A failed non-negotiable principle stops work.
-Complexity may be justified only when it is the smallest safe response to a documented need.
+limits, observability, and verification evidence. A failed gate stops work in the affected scope
+unless an active, versioned exception explicitly authorizes that scope. Complexity may be
+justified only when it is the smallest safe response to a documented need.
 
 ### Implementation, review, and release
 
@@ -319,20 +318,37 @@ the existing real K-1 test documents MUST pass the approved inventory, and the r
 incident-response baselines MUST have evidence. Until tenant isolation is proven, production MUST
 remain single-tenant and MUST reject unrelated customer data.
 
-### Security deferrals
+### Documented exceptions and deferrals
 
-There are no exceptions for encryption of Restricted data, unique human identity, production
-MFA, server-side authorization, tenant isolation, S3 public-access blocking, secret protection,
-audit integrity, backup before destructive change, or release with a reachable exploitable
-Critical or High vulnerability.
+Robert Patch MAY approve a temporary exception to any constitutional, specification, plan, test,
+review, merge, deployment, or operational requirement. No exception is valid merely because it
+appears in a discussion, assumption, TODO, or complexity table. It MUST have a versioned record
+that names a unique exception ID; the exact requirement; evidence and risk; justification;
+affected systems and data; allowed actions; prohibited actions; compensating safeguards; owner;
+remediation tasks and acceptance evidence; approval date; effective date; expiration; and status.
 
-Robert Patch MAY approve a temporary deferral for a lower-risk finding only when a versioned
-record names the control, affected scope, evidence, justification, compensating safeguard, owner,
-remediation plan, and expiration. The deferral MUST demonstrate that Restricted data and
-non-negotiable principles remain protected, MUST expire within 30 days, MUST NOT renew
-automatically, and MUST be visible to plans, reviews, and release gates. An emergency change MAY
-use an expedited single-operator path but MUST NOT bypass non-negotiable controls; it requires
-contemporaneous logging and a post-incident review within two business days.
+Exception scope MUST explicitly distinguish planning, local implementation and testing, code
+review, merge, production deployment, and continued production use. Unless the record expressly
+names a broader scope, an exception authorizes only planning plus local implementation and
+testing. It never implicitly authorizes merge, production mutation, production traffic, or use
+of Restricted data. Every plan, task set, review, and release gate affected by the exception MUST
+cite its ID and verify that the proposed action is within scope and before expiry. Requirements
+outside the named exception remain in force.
+
+An ordinary exception MUST expire within 30 calendar days. An exception affecting encryption of
+Restricted data, unique human identity, production MFA, server-side authorization, tenant
+isolation, S3 public-access blocking, secret protection, audit integrity, backup before a
+destructive change, or a reachable exploitable Critical or High vulnerability MUST expire within
+seven calendar days and MUST also define immediate containment, heightened monitoring, rollback,
+and revocation triggers. No exception renews automatically; extension requires a new versioned
+risk decision and effective date. Expired or violated exceptions fail closed for their affected
+scope.
+
+An emergency change MAY use an expedited single-operator path when its exception record is
+created contemporaneously, identifies the emergency and production scope, and preserves evidence.
+It requires a post-incident review within two business days. The exception mechanism records an
+explicit risk decision; it does not convert the excepted state into compliance or passing
+evidence.
 
 ## Governance
 
@@ -352,11 +368,11 @@ Compliance MUST be reviewed in every specification, plan, task set, pull request
 change review, and production release. Robert Patch MUST conduct a complete review at least
 annually and after a security incident, legal or standard change, new data category, material
 provider or architecture change, or planned onboarding of an unrelated family office. Review
-evidence, unresolved applicability questions, approved deferrals, restore results, incidents,
+evidence, unresolved applicability questions, approved exceptions and deferrals, restore results, incidents,
 and remediation MUST remain versioned and auditable.
 
 This constitution is engineering governance, not legal advice or a certification. Legal
 applicability MUST be confirmed by a qualified professional when required by the Security and
 Legal Baseline; uncertainty MUST be recorded and resolved before the affected business change.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29
+**Version**: 2.0.0 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29

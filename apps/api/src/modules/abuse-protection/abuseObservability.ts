@@ -69,18 +69,33 @@ export interface AbuseStructuredLog {
   readonly details: Readonly<Record<string, unknown>>
 }
 
+export interface AbuseSuppressionSummary {
+  readonly event: 'abuse_protection_suppression_summary'
+  readonly environment: string
+  readonly windowMs: number
+  readonly suppressedLogs: number
+}
+
 export interface AbuseObservabilityOptions {
   readonly emitMetric?: (metric: AbuseMetric) => void
   readonly emitLog?: (event: AbuseStructuredLog) => void
+  readonly emitSuppressionSummary?: (event: AbuseSuppressionSummary) => void
   readonly sampleRate?: number
   readonly maximumLogsPerWindow?: number
+  readonly maximumMetricSeries?: number
   readonly windowMs?: number
+  /** Production enables aggregation; focused unit callers may opt into immediate emission. */
+  readonly aggregateMetrics?: boolean
+  readonly autoFlush?: boolean
   readonly now?: () => number
   readonly random?: () => number
 }
 
 export interface AbuseObservability {
   record(event: AbuseEvent): void
+  flush(): void
+  shutdown(): void
+  bufferedSeries(): number
   snapshot(): Readonly<{
     emittedMetrics: number
     emittedLogs: number
@@ -88,52 +103,71 @@ export interface AbuseObservability {
   }>
 }
 
-export const abuseMetricEnvelope = (metric: AbuseMetric, timestamp = Date.now()) => ({
-  _aws: {
-    Timestamp: timestamp,
-    CloudWatchMetrics: [{
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [[
-        'Environment',
-        'Decision',
-        'RouteClass',
-        'WorkloadKey',
-      ]],
-      Metrics: [
-        { Name: metric.name, Unit: 'Count' },
-        { Name: 'ProviderCalls', Unit: 'Count' },
-        { Name: 'RetryAttempts', Unit: 'Count' },
-        { Name: 'CostUnits', Unit: 'Count' },
-        { Name: 'DecisionLatency', Unit: 'Milliseconds' },
-      ],
-    }, {
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment']],
-      Metrics: [
-        { Name: metric.name, Unit: 'Count' },
-        { Name: 'ProviderCalls', Unit: 'Count' },
-        { Name: 'RetryAttempts', Unit: 'Count' },
-        { Name: 'CostUnits', Unit: 'Count' },
-      ],
-    }],
-  },
-  Environment: metric.dimensions.environment,
-  Decision: metric.dimensions.decision,
-  RouteClass: metric.dimensions.routeClass,
-  WorkloadKey: metric.dimensions.workloadKey,
-  PolicyKey: metric.dimensions.policyKey,
-  ScopeKind: metric.dimensions.scopeKind,
-  ReasonCode: metric.dimensions.reasonCode,
-  [metric.name]: metric.value,
-  ProviderCalls: metric.dimensions.workloadKey !== 'none'
+type AbuseCloudWatchMetricName =
+  | 'AbuseProtectionCritical'
+  | 'ProviderCalls'
+  | 'RetryAttempts'
+  | 'CostUnits'
+
+interface AbuseCloudWatchMeasurement {
+  readonly name: AbuseCloudWatchMetricName
+  readonly value: number
+}
+
+const criticalReason =
+  /(?:SATURATED|STORE_UNAVAILABLE|EVICTION|HMAC|CAPABILITY_REPLAY|BACKLOG|QUOTA|DISABLED)/
+const providerRouteClasses = new Set<RouteClass>([
+  'PAID_EXTRACTION',
+  'EXTERNAL_PROVIDER',
+  'INTERNAL_SCHEDULER',
+])
+
+/**
+ * Emit only the environment-level signals that drive an operator alarm.
+ * Routine decisions remain available as sampled structured logs. Publishing
+ * zero-valued placeholders or request-category dimensions would create paid
+ * custom metric series even when no actionable event occurred.
+ */
+export const abuseMetricEnvelope = (
+  metric: AbuseMetric,
+  timestamp = Date.now(),
+): Readonly<Record<string, unknown>> | null => {
+  const measurements: AbuseCloudWatchMeasurement[] = []
+  if (criticalReason.test(metric.dimensions.reasonCode)) {
+    measurements.push({ name: 'AbuseProtectionCritical', value: metric.value })
+  }
+  if (
+    metric.dimensions.workloadKey !== 'none'
     && metric.dimensions.decision === 'allowed'
-    && ['PAID_EXTRACTION', 'EXTERNAL_PROVIDER', 'INTERNAL_SCHEDULER'].includes(metric.dimensions.routeClass)
-    ? metric.units
-    : 0,
-  RetryAttempts: metric.dimensions.decision === 'retried' ? metric.value : 0,
-  CostUnits: metric.units,
-  DecisionLatency: metric.latencyMs ?? 0,
-})
+    && providerRouteClasses.has(metric.dimensions.routeClass)
+  ) {
+    measurements.push({ name: 'ProviderCalls', value: metric.units })
+  }
+  if (metric.dimensions.decision === 'retried') {
+    measurements.push({ name: 'RetryAttempts', value: metric.value })
+  }
+  if (
+    metric.dimensions.workloadKey !== 'none'
+    && metric.dimensions.decision === 'allowed'
+  ) {
+    measurements.push({ name: 'CostUnits', value: metric.units })
+  }
+  const actionableMeasurements = measurements.filter(({ value }) => value > 0)
+  if (actionableMeasurements.length === 0) return null
+
+  return {
+    _aws: {
+      Timestamp: timestamp,
+      CloudWatchMetrics: [{
+        Namespace: 'ProjectJackson/AbuseProtection',
+        Dimensions: [['Environment']],
+        Metrics: actionableMeasurements.map(({ name }) => ({ Name: name, Unit: 'Count' })),
+      }],
+    },
+    Environment: metric.dimensions.environment,
+    ...Object.fromEntries(actionableMeasurements.map(({ name, value }) => [name, value])),
+  }
+}
 
 export const abuseRetentionHealthEnvelope = (input: {
   readonly environment: string
@@ -143,38 +177,40 @@ export const abuseRetentionHealthEnvelope = (input: {
   readonly storageBytes?: number
   readonly failures?: number
   readonly timestamp?: number
-}) => ({
-  _aws: {
-    Timestamp: input.timestamp ?? Date.now(),
-    CloudWatchMetrics: [{
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment', 'Store']],
-      Metrics: [
-        { Name: 'CleanupDeletedRows', Unit: 'Count' },
-        { Name: 'RetainedRows', Unit: 'Count' },
-        { Name: 'RetentionStorageBytes', Unit: 'Bytes' },
-        { Name: 'CleanupFailures', Unit: 'Count' },
-      ],
-    }, {
-      Namespace: 'ProjectJackson/AbuseProtection',
-      Dimensions: [['Environment']],
-      Metrics: [{ Name: 'CleanupFailures', Unit: 'Count' }],
-    }],
-  },
-  Environment: boundedDimension(input.environment, 'ENVIRONMENT'),
-  Store: input.store,
-  CleanupDeletedRows: boundedNonNegative(input.deletedRows, 0),
-  RetainedRows: boundedNonNegative(input.retainedRows, 0),
-  RetentionStorageBytes: boundedNonNegative(input.storageBytes, 0),
-  CleanupFailures: boundedNonNegative(input.failures, 0),
-})
+}): Readonly<Record<string, unknown>> => {
+  const environment = boundedDimension(input.environment, 'ENVIRONMENT')
+  const failures = boundedNonNegative(input.failures, 0)
+  const record = {
+    event: 'abuse_protection_retention_cleanup',
+    Environment: environment,
+    Store: input.store,
+    CleanupDeletedRows: boundedNonNegative(input.deletedRows, 0),
+    RetainedRows: boundedNonNegative(input.retainedRows, 0),
+    RetentionStorageBytes: boundedNonNegative(input.storageBytes, 0),
+    CleanupFailures: failures,
+  }
+  if (failures === 0) return record
+
+  return {
+    _aws: {
+      Timestamp: input.timestamp ?? Date.now(),
+      CloudWatchMetrics: [{
+        Namespace: 'ProjectJackson/AbuseProtection',
+        Dimensions: [['Environment']],
+        Metrics: [{ Name: 'CleanupFailures', Unit: 'Count' }],
+      }],
+    },
+    ...record,
+  }
+}
 
 const decisions = new Set<string>(ABUSE_EVENT_DECISIONS)
 const routeClasses = new Set<string>(ROUTE_CLASSES)
 const scopeDimensions = new Set<string>(SCOPE_DIMENSIONS)
 const dimensionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 const sensitiveKey =
-  /authorization|cookie|password|secret|token|mfa|totp|email|ip(address)?|query|string|body|document|file(name)?|credential/i
+  /authorization|cookie|password|secret|token|mfa|totp|email|ip(address)?|session|csrf|idempotency|presign|query|string|body|document|file(name)?|credential/i
+const sensitiveValue = /(?:\bBearer\s+\S+|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\b(?:\d{1,3}\.){3}\d{1,3}\b|\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b|X-Amz-(?:Algorithm|Credential|Date|Expires|Security-Token|Signature)|atlas_session=)/i
 
 const boundedDimension = (value: string, name: string): string => {
   if (!dimensionPattern.test(value)) throw new Error(`INVALID_ABUSE_EVENT_${name}`)
@@ -192,7 +228,9 @@ const redactValue = (value: unknown, depth: number): unknown => {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') {
     return value
   }
-  if (typeof value === 'string') return value.slice(0, 256)
+  if (typeof value === 'string') {
+    return sensitiveValue.test(value) ? '[REDACTED]' : value.slice(0, 256)
+  }
   if (Array.isArray(value)) {
     return value.slice(0, 20).map((item) => redactValue(item, depth + 1))
   }
@@ -217,12 +255,18 @@ export const createAbuseObservability = (
 ): AbuseObservability => {
   const sampleRate = options.sampleRate ?? 0.05
   const maximumLogsPerWindow = options.maximumLogsPerWindow ?? 100
+  const maximumMetricSeries = options.maximumMetricSeries ?? 256
   const windowMs = options.windowMs ?? 60_000
+  const aggregateMetrics = options.aggregateMetrics ?? false
+  const autoFlush = options.autoFlush ?? aggregateMetrics
   if (!Number.isFinite(sampleRate) || sampleRate < 0 || sampleRate > 1) {
     throw new Error('INVALID_ABUSE_LOG_SAMPLE_RATE')
   }
   if (!Number.isSafeInteger(maximumLogsPerWindow) || maximumLogsPerWindow < 0) {
     throw new Error('INVALID_ABUSE_LOG_WINDOW_LIMIT')
+  }
+  if (!Number.isSafeInteger(maximumMetricSeries) || maximumMetricSeries <= 0) {
+    throw new Error('INVALID_ABUSE_METRIC_SERIES_LIMIT')
   }
   if (!Number.isSafeInteger(windowMs) || windowMs <= 0) {
     throw new Error('INVALID_ABUSE_LOG_WINDOW')
@@ -232,14 +276,45 @@ export const createAbuseObservability = (
   const random = options.random ?? Math.random
   const emitMetric = options.emitMetric ?? (() => undefined)
   const emitLog = options.emitLog ?? (() => undefined)
+  const emitSuppressionSummary = options.emitSuppressionSummary ?? (() => undefined)
   let windowStartedAt = now()
   let logsInWindow = 0
   let emittedMetrics = 0
   let emittedLogs = 0
   let suppressedLogs = 0
+  let suppressedLogsInWindow = 0
+  let stopped = false
+  const bufferedMetrics = new Map<string, AbuseMetric>()
 
-  return {
+  const flush = (): void => {
+    if (aggregateMetrics) {
+      for (const metric of bufferedMetrics.values()) {
+        emitMetric(metric)
+        emittedMetrics += 1
+      }
+      bufferedMetrics.clear()
+    }
+    if (suppressedLogsInWindow > 0) {
+      emitSuppressionSummary({
+        event: 'abuse_protection_suppression_summary',
+        environment: boundedDimension(config.nodeEnv, 'ENVIRONMENT'),
+        windowMs,
+        suppressedLogs: suppressedLogsInWindow,
+      })
+    }
+    suppressedLogsInWindow = 0
+    logsInWindow = 0
+    windowStartedAt = now()
+  }
+
+  const timer = autoFlush
+    ? setInterval(flush, windowMs)
+    : null
+  timer?.unref?.()
+
+  const observability: AbuseObservability = {
     record(event) {
+      if (stopped) throw new Error('ABUSE_OBSERVABILITY_SHUT_DOWN')
       if (!decisions.has(event.decision)) throw new Error('INVALID_ABUSE_EVENT_DECISION')
       if (!routeClasses.has(event.routeClass)) throw new Error('INVALID_ABUSE_EVENT_ROUTE_CLASS')
       if (event.scopeKind && !scopeDimensions.has(event.scopeKind)) {
@@ -258,7 +333,13 @@ export const createAbuseObservability = (
         ? null
         : boundedNonNegative(event.latencyMs, 0)
 
-      emitMetric({
+      const at = now()
+      if (at - windowStartedAt >= windowMs) {
+        flush()
+        windowStartedAt = at
+      }
+
+      const metric: AbuseMetric = {
         name: 'AbuseProtectionDecision',
         value: 1,
         dimensions: {
@@ -272,16 +353,31 @@ export const createAbuseObservability = (
         },
         units,
         latencyMs,
-      })
-      emittedMetrics += 1
-
-      const at = now()
-      if (at - windowStartedAt >= windowMs) {
-        windowStartedAt = at
-        logsInWindow = 0
       }
+      if (aggregateMetrics) {
+        const seriesKey = JSON.stringify(metric.dimensions)
+        const current = bufferedMetrics.get(seriesKey)
+        if (current) {
+          bufferedMetrics.set(seriesKey, {
+            ...current,
+            value: current.value + 1,
+            units: current.units + units,
+            latencyMs: Math.max(current.latencyMs ?? 0, latencyMs ?? 0),
+          })
+        } else {
+          if (bufferedMetrics.size >= maximumMetricSeries) {
+            throw new Error('ABUSE_METRIC_SERIES_LIMIT_EXCEEDED')
+          }
+          bufferedMetrics.set(seriesKey, metric)
+        }
+      } else {
+        emitMetric(metric)
+        emittedMetrics += 1
+      }
+
       if (logsInWindow >= maximumLogsPerWindow || random() >= sampleRate) {
         suppressedLogs += 1
+        suppressedLogsInWindow += 1
         return
       }
       emitLog({
@@ -304,17 +400,37 @@ export const createAbuseObservability = (
       logsInWindow += 1
       emittedLogs += 1
     },
+    flush,
+    shutdown() {
+      if (stopped) return
+      stopped = true
+      if (timer) clearInterval(timer)
+      flush()
+    },
+    bufferedSeries: () => bufferedMetrics.size,
     snapshot: () => ({ emittedMetrics, emittedLogs, suppressedLogs }),
   }
+  return observability
 }
 
+const isVitestRuntime = process.env.VITEST === 'true'
+
 export const cloudWatchAbuseObservability = createAbuseObservability({
-  sampleRate: config.nodeEnv === 'test' ? 0 : 0.05,
+  sampleRate: config.nodeEnv === 'test' || isVitestRuntime ? 0 : 0.05,
   maximumLogsPerWindow: 100,
-  emitMetric: config.nodeEnv === 'test'
+  maximumMetricSeries: 256,
+  aggregateMetrics: config.nodeEnv !== 'test' && !isVitestRuntime,
+  autoFlush: config.nodeEnv !== 'test' && !isVitestRuntime,
+  emitMetric: config.nodeEnv === 'test' || isVitestRuntime
     ? () => undefined
-    : (metric) => console.info(JSON.stringify(abuseMetricEnvelope(metric))),
-  emitLog: config.nodeEnv === 'test'
+    : (metric) => {
+        const envelope = abuseMetricEnvelope(metric)
+        if (envelope) console.info(JSON.stringify(envelope))
+      },
+  emitLog: config.nodeEnv === 'test' || isVitestRuntime
+    ? () => undefined
+    : (event) => console.info(JSON.stringify(event)),
+  emitSuppressionSummary: config.nodeEnv === 'test' || isVitestRuntime
     ? () => undefined
     : (event) => console.info(JSON.stringify(event)),
 })

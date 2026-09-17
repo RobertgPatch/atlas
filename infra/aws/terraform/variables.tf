@@ -435,6 +435,23 @@ variable "waf_api_general_rate_action" {
   }
 }
 
+variable "waf_api_general_global_rate_limit_requests_per_5_minutes" {
+  description = "Constant-key global /v1 and /health WAF ceiling over five minutes."
+  type        = number
+  default     = 5000
+}
+
+variable "waf_api_general_global_rate_action" {
+  description = "Global /v1 and /health WAF action: count for observation or block for enforcement."
+  type        = string
+  default     = "block"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_api_general_global_rate_action)
+    error_message = "waf_api_general_global_rate_action must be count or block."
+  }
+}
+
 variable "waf_auth_rate_limit_requests_per_5_minutes" {
   description = "Authentication-path WAF rate limit per IP over a 5-minute window."
   type        = number
@@ -444,11 +461,28 @@ variable "waf_auth_rate_limit_requests_per_5_minutes" {
 variable "waf_auth_rate_action" {
   description = "Authentication-path WAF rate action: count for observation or block for enforcement."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.waf_auth_rate_action)
     error_message = "waf_auth_rate_action must be count or block."
+  }
+}
+
+variable "waf_auth_global_rate_limit_requests_per_5_minutes" {
+  description = "Constant-key global authentication WAF ceiling over five minutes."
+  type        = number
+  default     = 500
+}
+
+variable "waf_auth_global_rate_action" {
+  description = "Global authentication WAF action: count for observation or block for enforcement."
+  type        = string
+  default     = "block"
+
+  validation {
+    condition     = contains(["count", "block"], var.waf_auth_global_rate_action)
+    error_message = "waf_auth_global_rate_action must be count or block."
   }
 }
 
@@ -461,7 +495,7 @@ variable "waf_paid_admission_rate_limit_requests_per_5_minutes" {
 variable "waf_paid_admission_rate_action" {
   description = "Paid-admission-path WAF rate action: count for observation or block for enforcement."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.waf_paid_admission_rate_action)
@@ -478,12 +512,24 @@ variable "waf_paid_admission_global_emergency_requests_per_5_minutes" {
 variable "waf_paid_admission_global_emergency_action" {
   description = "Count-all paid-admission WAF emergency action: count for observation or block for enforcement."
   type        = string
-  default     = "count"
+  default     = "block"
 
   validation {
     condition     = contains(["count", "block"], var.waf_paid_admission_global_emergency_action)
     error_message = "waf_paid_admission_global_emergency_action must be count or block."
   }
+}
+
+variable "waf_count_observation_owner" {
+  description = "Named operator for a temporary WAF Count rollout. Required when any WAF rate action is count."
+  type        = string
+  default     = null
+}
+
+variable "waf_count_observation_expires_at" {
+  description = "RFC3339 expiry for a temporary WAF Count rollout. The rollout validator enforces a window under 24 hours."
+  type        = string
+  default     = null
 }
 
 variable "cloudfront_price_class" {
@@ -502,12 +548,6 @@ variable "api_cache_policy_id" {
   description = "CloudFront managed CachingDisabled policy id for /v1/*."
   type        = string
   default     = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-}
-
-variable "api_origin_request_policy_id" {
-  description = "CloudFront managed AllViewer policy id so authenticated API headers/cookies reach the origin."
-  type        = string
-  default     = "216adef6-5c7f-47e4-b989-5492eafa07d3"
 }
 
 variable "alarm_email" {
@@ -707,6 +747,29 @@ variable "k1_aws_ingestion_enabled" {
   default     = false
 }
 
+variable "k1_upload_capability_ttl_seconds" {
+  description = "Lifetime of an exact conditional K-1 PUT capability."
+  type        = number
+  default     = 300
+  validation {
+    condition     = var.k1_upload_capability_ttl_seconds >= 60 && var.k1_upload_capability_ttl_seconds <= 900
+    error_message = "k1_upload_capability_ttl_seconds must be between 60 and 900."
+  }
+}
+
+variable "k1_upload_signature_age_seconds" {
+  description = "Maximum SigV4 age accepted by the K-1 quarantine bucket."
+  type        = number
+  default     = 300
+  validation {
+    condition = (
+      var.k1_upload_signature_age_seconds >= var.k1_upload_capability_ttl_seconds
+      && var.k1_upload_signature_age_seconds <= 900
+    )
+    error_message = "k1_upload_signature_age_seconds must cover the capability TTL and be at most 900."
+  }
+}
+
 variable "k1_input_prefix" {
   description = "Opaque prefix for original K-1 PDF objects."
   type        = string
@@ -793,7 +856,10 @@ variable "k1_mapping_schema_version" {
 }
 
 variable "k1_upload_allowed_origins" {
-  description = "Browser origins allowed to upload K-1 PDFs directly to S3."
+  description = "Browser origins allowed to use a presigned URL for direct K-1 uploads. Loopback origins support the explicitly preflighted local-to-AWS BDA workflow."
   type        = list(string)
-  default     = []
+  default = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+  ]
 }

@@ -6,6 +6,7 @@ import {
   keepPreviousData,
 } from '@tanstack/react-query'
 import { k1Client, type K1Filters } from '../api/k1Client'
+import { entitiesClient } from '../../partnerships/api/entitiesClient'
 import type { K1IngestionBatchFilters, K1Status } from '../../../../../../packages/types/src/k1-ingestion'
 
 const POLL_MS = 5_000
@@ -51,7 +52,7 @@ export const useK1Lookups = () =>
   useQuery({
     queryKey: k1Keys.lookups(),
     queryFn: async () => ({
-      entities: (await k1Client.listEntities()).items,
+      entities: (await entitiesClient.list()).items.map(({ id, name }) => ({ id, name })),
     }),
     staleTime: 60_000,
   })

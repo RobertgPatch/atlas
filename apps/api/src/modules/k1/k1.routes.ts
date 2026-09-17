@@ -1,7 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { ZodError } from 'zod'
 import { defaultRouteProtectionPolicy } from '../abuse-protection/policy.defaults.js'
-import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  authorizeCostSubjects,
+} from '../abuse-protection/costWorkloadAdmission.js'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { auditRepository } from '../audit/audit.repository.js'
@@ -34,8 +37,15 @@ import type {
   K1Status,
   K1UploadResponse,
 } from './k1.types.js'
+import { K1_INGESTION_ERROR_CODES } from './k1.types.js'
 import { config } from '../../config.js'
-import { createK1IngestionBatch, getK1IngestionBatch, listK1IngestionBatches, toPublicItem } from './ingestion/k1Batch.service.js'
+import {
+  createK1IngestionBatch,
+  getK1IngestionBatch,
+  listK1IngestionBatches,
+  shouldProxyK1UploadThroughApi,
+  toPublicItem,
+} from './ingestion/k1Batch.service.js'
 import { acceptLocalK1Upload } from './ingestion/localUploadSlots.service.js'
 import { completeK1BatchUploads } from './ingestion/k1UploadCompletion.service.js'
 import { retryK1Extraction } from './extraction/k1Retry.service.js'
@@ -52,12 +62,34 @@ const sendZodError = (reply: FastifyReply, err: ZodError) =>
     issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message })),
   })
 
+const upstreamStorageErrorCodes = new Set([
+  'AccessDenied',
+  'ExpiredToken',
+  'InvalidAccessKeyId',
+  'SignatureDoesNotMatch',
+  'SlowDown',
+  'ServiceUnavailable',
+  'InternalError',
+])
+
+const ingestionErrorCode = (error: unknown): string => {
+  const candidate = (error as { code?: unknown }).code
+  if (typeof candidate === 'string' && (
+    K1_INGESTION_ERROR_CODES.includes(candidate as never)
+    || upstreamStorageErrorCodes.has(candidate)
+  )) return candidate
+  const name = (error as { name?: unknown }).name
+  if (typeof name === 'string' && upstreamStorageErrorCodes.has(name)) return name
+  return 'INTERNAL_INGESTION_ERROR'
+}
+
 const ingestionErrorStatus = (code: string): number => {
   if (code === 'BATCH_NOT_FOUND' || code === 'ITEM_NOT_FOUND' || code === 'UPLOAD_NOT_FOUND') return 404
   if (code === 'FORBIDDEN_ENTITY' || code === 'FORBIDDEN_K1_DOCUMENT') return 403
   if (code === 'UNSUPPORTED_MEDIA_TYPE') return 415
-  if (code === 'WORKLOAD_DISABLED' || code === 'PROTECTION_UNAVAILABLE') return 503
+  if (code === 'WORKLOAD_DISABLED' || code === 'PROTECTION_UNAVAILABLE' || upstreamStorageErrorCodes.has(code)) return 503
   if (code === 'INVALID_FILE_COUNT' || code === 'INVALID_FILE_NAME' || code === 'INVALID_FILE_SIZE' || code === 'INVALID_CHECKSUM') return 400
+  if (code === 'INTERNAL_INGESTION_ERROR') return 500
   return 409
 }
 
@@ -75,11 +107,24 @@ const ingestionErrorMessage = (code: string): string => ({
   WORKLOAD_DISABLED: 'K-1 uploads are temporarily disabled by the application cost controls.',
   PROTECTION_UNAVAILABLE: 'K-1 upload protection is temporarily unavailable. Try again shortly.',
   IDEMPOTENT_REPLAY: 'This upload attempt is already being processed. Refresh the K-1 queue before retrying.',
+  AccessDenied: 'AWS denied the upload. Verify the local BDA role, KMS key, and bucket policy permissions.',
+  ExpiredToken: 'The AWS session expired. Run aws login, restart local BDA mode, and retry.',
+  InvalidAccessKeyId: 'The active AWS credentials are invalid. Refresh the approved AWS profile and retry.',
+  SignatureDoesNotMatch: 'AWS rejected the signed upload request. Restart local BDA mode and retry.',
+  SlowDown: 'S3 temporarily throttled the upload. Wait briefly and retry.',
+  ServiceUnavailable: 'S3 is temporarily unavailable. Retry shortly.',
+  InternalError: 'S3 could not store the upload. Retry shortly.',
 }[code] ?? 'The K-1 upload request could not be completed.')
 
 const sendIngestionError = (reply: FastifyReply, error: unknown) => {
-  const code = (error as { code?: string }).code ?? 'INTERNAL_INGESTION_ERROR'
-  const retryable = ['UPLOAD_NOT_FOUND', 'UPLOAD_INCOMPLETE', 'OBJECT_CHECKSUM_MISMATCH', 'OBJECT_SIZE_MISMATCH', 'INTERNAL_INGESTION_ERROR'].includes(code)
+  const code = ingestionErrorCode(error)
+  const retryable = [
+    'UPLOAD_NOT_FOUND',
+    'UPLOAD_INCOMPLETE',
+    'OBJECT_CHECKSUM_MISMATCH',
+    'OBJECT_SIZE_MISMATCH',
+    'INTERNAL_INGESTION_ERROR',
+  ].includes(code) || upstreamStorageErrorCodes.has(code)
   return reply.code(ingestionErrorStatus(code)).send({
     error: code,
     message: ingestionErrorMessage(code),
@@ -636,16 +681,20 @@ const reparseHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     workloadKey: 'k1_reparse',
     method: 'POST',
     routePattern: '/v1/k1-documents/:k1DocumentId/reparse',
-    principal: request.authUser!.userId,
+    subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
+      entity: k1.entityId,
+      document: k1.id,
+      provider: 'local-k1-parser',
+    }),
     canonicalInputs: {
       k1DocumentId: k1.id,
       parseErrorCode: k1.parseErrorCode,
     },
     globalDailyLimit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
     quotas: [
-      { scopeKind: 'user', scopeValue: request.authUser!.userId, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
-      { scopeKind: 'entity', scopeValue: k1.id, limit: config.abuseProtection.quotas.paidExtraction.retriesPerDocumentPerDay },
-      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+      { scopeKind: 'user', limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+      { scopeKind: 'document', limit: config.abuseProtection.quotas.paidExtraction.retriesPerDocumentPerDay },
+      { scopeKind: 'global', limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
     ],
     leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.bdaProviderMs / 1_000),
   })
@@ -677,7 +726,10 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     workloadKey: 'k1_csv_export',
     method: 'GET',
     routePattern: '/v1/k1-documents/export.csv',
-    principal: request.authUser!.userId,
+    subjectContext: authorizeCostSubjects(
+      request.abuseProtectionSubjectContext,
+      q.entity_id ? { entity: q.entity_id } : {},
+    ),
     canonicalInputs: {
       taxYear: q.tax_year ?? null,
       entityId: q.entity_id ?? null,
@@ -755,11 +807,19 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
 const createBatchHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const parsed = createIngestionBatchSchema.safeParse(request.body)
   if (!parsed.success) return sendZodError(reply, parsed.error)
+  if (parsed.data.createPartnershipIfMissing && request.authUser?.role !== 'Admin') {
+    return reply.code(403).send({ error: 'FORBIDDEN', message: 'Admin access is required to create a partnership.' })
+  }
   if (!assertEntityInScope(request, reply, parsed.data.entityScopeId ?? undefined)) return
   try {
     const batch = await createK1IngestionBatch({
       actorUserId: request.authUser!.userId,
       entityScopeId: parsed.data.entityScopeId ?? null,
+      createPartnershipIfMissing: parsed.data.createPartnershipIfMissing,
+      subjectContext: authorizeCostSubjects(
+        request.abuseProtectionSubjectContext,
+        parsed.data.entityScopeId ? { entity: parsed.data.entityScopeId } : {},
+      ),
       uploadAttemptId: parsed.data.uploadAttemptId,
       files: parsed.data.files,
     })
@@ -771,6 +831,7 @@ const createBatchHandler = async (request: FastifyRequest, reply: FastifyReply) 
       after: k1AuditMetadata(request, {
         batchId: batch.id,
         entityId: batch.entityScopeId ?? undefined,
+        createPartnershipIfMissing: batch.createPartnershipIfMissing,
         status: batch.status,
         counts: { ...batch.counts },
       }),
@@ -872,7 +933,9 @@ const deleteItemHandler = async (request: FastifyRequest, reply: FastifyReply) =
 }
 
 const localUploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
-  if (config.k1Ingestion.objectStore !== 'local') return reply.code(404).send({ error: 'NOT_FOUND' })
+  if (!shouldProxyK1UploadThroughApi(config.runtimeClass, config.k1Ingestion.objectStore)) {
+    return reply.code(404).send({ error: 'NOT_FOUND' })
+  }
   const params = ingestionItemParamsSchema.safeParse(request.params)
   const headers = localUploadHeadersSchema.safeParse(request.headers)
   if (!params.success) return sendZodError(reply, params.error)
@@ -905,7 +968,11 @@ const completeBatchUploadsHandler = async (request: FastifyRequest, reply: Fasti
   const durable = await durableK1BatchRepository.getById(params.data.batchId)
   if (!durable || !batchInScope(request, durable)) return reply.code(404).send({ error: 'BATCH_NOT_FOUND' })
   try {
-    const batch = await completeK1BatchUploads({ batchId: durable.id, items: body.data.items })
+    const batch = await completeK1BatchUploads({
+      batchId: durable.id,
+      items: body.data.items,
+      subjectContext: request.abuseProtectionSubjectContext,
+    })
     await auditRepository.record({
       eventName: 'k1.ingestion_batch.uploads_completed',
       objectType: 'k1_ingestion_batch',

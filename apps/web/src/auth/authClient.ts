@@ -1,12 +1,15 @@
 import { authenticatedFetch } from './authenticatedFetch'
 
 export type JacksonRole = 'Admin' | 'User'
+export type JacksonAccessLevel = 'SuperAdmin' | JacksonRole
 export type UserStatus = 'Invited' | 'Active' | 'Inactive'
 
 export interface UserSummary {
   id: string
   email: string
+  displayName: string
   role: JacksonRole
+  accessLevel: JacksonAccessLevel
   status: UserStatus
 }
 
@@ -38,10 +41,25 @@ export interface MfaEnrollmentResponse {
   manualEntryKey: string
 }
 
+export interface PasswordChangeRequiredResponse {
+  changeToken: string
+  status: 'PASSWORD_CHANGE_REQUIRED'
+  expiresAt: string
+  policy: PasswordPolicySummary
+}
+
+export interface PasswordPolicySummary {
+  minimumCharacters: number
+  maximumCharacters: number
+  acceptsPassphrases: boolean
+  compositionRequired: boolean
+}
+
 export type LoginResponse =
   | SessionResponse
   | MfaEnrollmentResponse
   | MfaChallengeResponse
+  | PasswordChangeRequiredResponse
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ??
@@ -86,6 +104,13 @@ export const authClient = {
     return request<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    })
+  },
+
+  changePassword(changeToken: string, newPassword: string) {
+    return request<{ status: 'PASSWORD_CHANGED' }>('/auth/password/change', {
+      method: 'POST',
+      body: JSON.stringify({ changeToken, newPassword }),
     })
   },
 

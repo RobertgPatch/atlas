@@ -4,7 +4,7 @@
 
 Use this runbook when traffic, retries, queue growth, provider calls, storage growth, or billing signals suggest abuse or accidental cost amplification. Runtime workload controls are the fastest containment mechanism. AWS Budgets and Cost Anomaly Detection confirm financial impact later; they are not real-time admission controls.
 
-Only an authenticated Atlas `Admin` may change runtime controls. Use an approved incident ticket, retain the API audit events, and have a second operator review any break-glass allow. Do not paste session cookies, provider credentials, document identifiers, or raw request data into tickets, terminals, dashboards, or chat.
+Only an authenticated Atlas `Admin` may change runtime controls. Use an approved incident ticket and retain the API audit events. Runtime overrides may disable work or lower a global daily ceiling; they may never create a temporary allow or weaken auth/paid global ceilings. Do not paste session cookies, provider credentials, document identifiers, or raw request data into tickets, terminals, dashboards, or chat.
 
 ## First five minutes
 
@@ -45,11 +45,11 @@ Alarm names use the deployed `${name_prefix}-<suffix>` pattern.
 
 | Signal | Interpretation | Immediate response |
 |---|---|---|
-| `cloudfront-requests`, `waf-blocked-requests` | A simultaneous rise with stable ALB/API metrics means the edge is absorbing the traffic. High CloudFront traffic without proportional WAF blocks means allowed traffic is reaching the origin. | Keep WAF protection enabled. Correlate paths with low-cardinality app decisions. Enable the paid-admission global WAF block if paid paths are flooding. |
+| `cloudfront-requests`, `waf-blocked-requests`, `waf-api-rate-blocks`, `waf-auth-rate-blocks` | A simultaneous rise with stable ALB/API metrics means the edge is absorbing the traffic. High CloudFront traffic without proportional WAF blocks means allowed traffic is reaching the origin. | Keep WAF protection enabled. Correlate paths with low-cardinality app decisions. Enable the paid-admission global WAF block if paid paths are flooding. |
 | `cloudfront-5xx-rate`, `alb-requests`, `alb-target-p95-latency`, `api-5xx`, `api-unhealthy-targets` | Origin saturation, dependency failure, or allowed abusive traffic. | Disable the implicated cost-producing workloads. Check ECS/RDS before increasing capacity; request-driven scaling can increase the bill. |
 | `ecs-api-cpu`, `ecs-api-memory`, `ecs-worker-cpu`, `ecs-worker-memory` | Compute pressure. Worker pressure plus BDA/queue growth usually points to K-1 processing; API pressure plus export/provider signals identifies the web workload. | Disable the matching switch and confirm fixed desired counts have not been raised. |
 | `rds-cpu`, `rds-connections`, `rds-free-storage` | Admission, session, export, backfill, or cleanup pressure. Low free storage is a capacity incident even if request traffic is normal. | Stop exports/backfills first, then other writes as evidence dictates. Keep cheap completed-data reads available. Do not fail open paid work if admission storage is unhealthy. |
-| `abuse-protection-decisions` | A rise in throttled/quota-rejected events is expected containment. A rise in protection-unavailable is a control-plane incident; paid work must remain fail closed. | Inspect decision/reason dimensions only. Do not loosen limits merely to clear the alarm. |
+| `abuse-protection-critical` | Hash/concurrency saturation, admission-store failure, local eviction, HMAC failure, capability replay, backlog/quota rejection, or a disabled workload crossed its five-minute envelope. | Inspect only fixed decision/reason dimensions. Keep auth and paid work fail closed; never loosen a hard ceiling merely to clear the alarm. |
 | `abuse-provider-calls`, `abuse-retry-attempts`, `abuse-cost-units` | Direct indicators of variable-cost amplification. Retries rising faster than successful operations suggest a provider outage or unknown outcomes. | Disable the named workload. Do not replay unknown operations; reconcile using existing idempotency/provider tokens. |
 | K-1 queue age/depth/DLQ, `k1-worker-errors`, `k1-extraction-failures`, `k1-apply-failures`, `k1-reconciliation-lag`, `k1-page-count` | Queue backlog, poisoned messages, reconciliation failure, or BDA page-cost growth. | Disable `k1_extraction`; disable `k1_bedrock_checkbox` separately if extraction is healthy and only model verification is increasing. Preserve the DLQ. |
 | `abuse-cleanup-failures` and `${name_prefix}-s3-put-requests` | Retention cleanup is failing or unaccepted uploads are accumulating. S3 `PutRequests` is a request-growth proxy, so correlate it with admitted K-1 file/storage units before attribution. | Disable `k1_uploads`, inspect quarantine lifecycle/cleanup, and avoid deleting accepted evidence during incident response. |
@@ -144,18 +144,17 @@ manifest, and execution evidence remain mandatory during an incident.
 
 Verify the rule action and CloudFront/WAF metrics after propagation. Never change managed reputation/input rules to count or allow during an active cost-abuse event.
 
-## Break glass
+## False-positive recovery and lower-only overrides
 
-`temporary_allow` is only for a confirmed false positive affecting one named workload. It cannot override an environment hard disable. Require an incident/change ticket beginning with `BREAKGLASS-`, a second human approver, a narrow expiry (normally 30 minutes), and monitoring for the entire window. It never raises the separately configured global emergency ceiling.
+Feature 030 rejects `temporary_allow`, including requests carrying a break-glass ticket. A false positive is recovered by correcting the reviewed default, moving only a candidate WAF rule from Block back to Count through the rollout validator, or applying a narrower **lower** workload ceiling during containment. Every runtime row needs a workload scope, Admin actor, reason, ticket, and expiry.
 
 ```powershell
 $ControlKey = 'report_exports'
-$BreakGlassTicket = "BREAKGLASS-$IncidentId"
 $body = @{
-  mode = 'temporary_allow'
-  value = @{}
-  reason = "$IncidentId confirmed false positive; approved narrow recovery window"
-  ticketReference = $BreakGlassTicket
+  mode = 'lower_limit'
+  value = @{ globalDailyLimit = 1 }
+  reason = "$IncidentId reduce export ceiling while investigating false positives"
+  ticketReference = $IncidentId
   expiresAt = (Get-Date).ToUniversalTime().AddMinutes(30).ToString('o')
 } | ConvertTo-Json -Compress
 
@@ -167,7 +166,24 @@ curl.exe --silent --show-error --fail-with-body `
   "$ApiBase/admin/protection-controls/$ControlKey"
 ```
 
-Do not use break glass to clear alarms, process a backlog faster, bypass an unavailable admission store, or replay operations with unknown provider outcomes.
+The API rejects unknown lower-limit keys, non-expiring rows, values above the configured workload ceiling, and attempts to address `auth_global` or `paid_global` as runtime controls. Do not use an override to process a backlog faster, bypass an unavailable admission store, or replay operations with unknown provider outcomes.
+
+## Scenario diagnosis
+
+| Scenario | Evidence pattern | Safe containment and recovery |
+|---|---|---|
+| Single-source authentication bot | `waf-auth-rate-blocks` and `AUTH_SOURCE_RATE` rise; global auth remains below its ceiling. | Keep auth source Block enabled. Confirm known and unknown accounts return the same bounded response. Do not log the source or account value. |
+| Distributed authentication bot | `AUTH_GLOBAL_RATE` rises across otherwise ordinary source signals; Argon2 calls stop before the configured ceiling. | Keep the durable global/daily ceiling and WAF global rule enabled. If hash saturation or store failure appears, treat it as urgent and preserve fail-closed behavior. |
+| Source churn / shared NAT false positive | Local eviction rises with a stable authenticated-user rate, or a source rule blocks several legitimate users behind one network. | Keep pinned global/user partitions intact. Roll only the candidate source WAF rule back to Count for under 24 hours; retain homepage/dashboard/liquidity/entity flows below application ceilings. |
+| Admission-store failure | `AUTH_STORE_UNAVAILABLE`, `ADMISSION_STORE_UNAVAILABLE`, RDS connection/CPU, or cleanup alarms rise. | Auth and paid work stay fail closed. Check RDS connectivity/capacity and migrations. Do not cache an allow, bypass PostgreSQL, or enable paid work. |
+| S3 capability replay/growth | `CAPABILITY_REPLAY`, S3 PutRequests, object versions, or quarantine bytes rise without matching admitted files. | Disable `k1_uploads`, retain bucket policy/versioning/KMS/public-access blocks, and inspect lifecycle/presign expiry. Never delete accepted tax evidence as containment. |
+| Origin drift | CI topology/plan policy reports a public ALB/task/RDS, alternate gateway, internal behavior, direct-origin output, or detached WAF. | Block deployment. Restore the private VPC origin and immediate-upstream security-group boundary. Never make the origin public as rollback. |
+
+## AWS escalation and cost reconciliation
+
+Escalate to AWS Support when WAF/CloudFront behavior differs from the saved plan, a service quota or regional incident prevents containment, presigned S3 conditions are not enforced as documented, or spend continues after all measured work has stopped. Record the AWS case ID in the incident without attaching Restricted request data.
+
+At containment, seven days, and thirty days, export service-level Cost Explorer totals for CloudFront, WAF, CloudWatch, S3, ECS, RDS, NAT, and Bedrock. Compare them with `infra/aws/terraform/production-cost-profile.json`; separate the $100.22 fixed subtotal from the $5.98 variable/recovery allowance. Refresh the dated price evidence and open a reviewed model change if the projected total exceeds $110. Budget and anomaly alerts confirm delayed billing impact; they do not prove current traffic is safe.
 
 ## Verification and rollback
 

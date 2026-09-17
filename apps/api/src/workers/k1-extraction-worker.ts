@@ -20,6 +20,7 @@ import { createK1CompletionHandler } from '../modules/k1/worker/k1Completion.han
 import { K1ExtractionReconciler } from '../modules/k1/worker/k1ExtractionReconciler.js'
 import { createK1StartWorkHandler } from '../modules/k1/worker/k1StartWork.handler.js'
 import { emitK1Metric } from '../modules/k1/k1Observability.js'
+import { WorkloadAdmissionError } from '../modules/abuse-protection/workloadAdmission.js'
 
 const log = pino({
   name: 'k1-extraction-worker',
@@ -68,7 +69,13 @@ export const processK1ReceivedMessages = async <T extends K1StartWorkMessage | K
         messageId: received.message.messageId,
         k1DocumentId: received.message.k1DocumentId,
         deliveryCount: received.deliveryCount,
-        errorCode: (error as { code?: string }).code ?? 'K1_WORKER_HANDLER_ERROR',
+        errorCode: (error as { code?: string; name?: string }).code
+          ?? (error as { name?: string }).name ?? 'K1_WORKER_HANDLER_ERROR',
+        ...(error instanceof WorkloadAdmissionError ? {
+          reasonCode: error.reasonCode,
+          retryAfterSeconds: error.retryAfterSeconds,
+          workloadKey: error.workloadKey,
+        } : {}),
       }, 'K-1 queue message failed')
       emitK1Metric(log, {
         metric: 'WorkerErrors',
@@ -165,7 +172,7 @@ const main = async (): Promise<void> => {
   if (!isAsyncK1Extractor(extractor)) {
     throw Object.assign(new Error('K1_ASYNC_EXTRACTOR_REQUIRED'), { code: 'K1_ASYNC_EXTRACTOR_REQUIRED' })
   }
-  const localReconciler = queue.kind === 'local' && extractor.backend === 'aws_bda'
+  const reconciler = extractor.backend === 'aws_bda'
     ? new K1ExtractionReconciler({ extractor, queue })
     : null
   await runK1ExtractionWorker({
@@ -175,9 +182,10 @@ const main = async (): Promise<void> => {
       extractor,
       provider: extractor.backend === 'stub' ? 'STUB' : 'AWS_BDA',
       queue,
+      objectStore,
     }),
     handleCompletion: createK1CompletionHandler({ objectStore }),
-    reconcile: localReconciler ? () => localReconciler.runOnce() : undefined,
+    reconcile: reconciler ? () => reconciler.runOnce() : undefined,
   }, abortController.signal)
 }
 

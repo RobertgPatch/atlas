@@ -26,9 +26,23 @@ const policy = (
   authentication: 'session',
   scopeDimensions: ['source_prefix', 'user'],
   localRate: { scope: 'source_prefix', requests, windowSeconds: 60 },
+  localRates: [{
+    limitKey: 'general_api.source',
+    scope: 'source_prefix',
+    partition: 'source',
+    requests,
+    windowSeconds: 60,
+  }, {
+    limitKey: 'general_api.user',
+    scope: 'user',
+    partition: 'authenticated',
+    requests,
+    windowSeconds: 60,
+  }],
   durableRates: [],
   payloadLimits: { queryParameters: 30, pageSize: 250 },
   concurrencyLimit: null,
+  concurrencyClass: null,
   backlogLimit: null,
   idempotency: 'none',
   killSwitch: null,
@@ -139,6 +153,37 @@ describe('bounded local rate limiter', () => {
     expect(differentIpv4Source.statusCode).toBe(200)
   })
 
+  it('ignores rotating invalid cookies and shares class keys across routes', async () => {
+    const app = Fastify({ logger: false })
+    openApps.push(app)
+    registerLocalRateLimiter(app, {
+      enabled: true,
+      maximumBuckets: 8,
+      bucketTtlSeconds: 60,
+      fingerprintKey,
+      ipv6PrefixLength: 64,
+    })
+    const firstPolicy = policy('/first/:itemId', 1)
+    const secondPolicy = defineRouteProtectionPolicy({
+      ...policy('/second/:itemId', 1),
+      policyKey: 'items.second.read',
+    })
+    app.get(firstPolicy.routePattern, { config: { abuseProtection: firstPolicy } }, async () => ({ ok: true }))
+    app.get(secondPolicy.routePattern, { config: { abuseProtection: secondPolicy } }, async () => ({ ok: true }))
+
+    const first = await app.inject({
+      ...injectOptions('/first/one', '198.51.100.60'),
+      headers: { cookie: 'atlas_session=invalid-one' },
+    })
+    const rotatedCookieAndRoute = await app.inject({
+      ...injectOptions('/second/two', '198.51.100.60'),
+      headers: { cookie: 'atlas_session=invalid-two' },
+    })
+
+    expect(first.statusCode).toBe(200)
+    expect(rotatedCookieAndRoute.statusCode).toBe(429)
+  })
+
   it('returns the exact bounded 429 headers and body without running the handler', async () => {
     const app = Fastify({ logger: false })
     openApps.push(app)
@@ -196,7 +241,7 @@ describe('bounded local rate limiter', () => {
     expect(() => buildAbuseProtectionConfig({
       NODE_ENV: 'production',
       ABUSE_HMAC_ACTIVE_KEY: fingerprintKey,
-    }, 'production')).toThrow(/ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS.*explicit finite production value/)
+    }, 'production')).toThrow(/ABUSE_VIEWER_ADDRESS_HEADER.*explicitly require/)
     expect(() => buildAbuseProtectionConfig({
       ABUSE_LOCAL_MAX_BUCKETS: 'Infinity',
     }, 'test')).toThrow(/ABUSE_LOCAL_MAX_BUCKETS.*base-10 integer/)

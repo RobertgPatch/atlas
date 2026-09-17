@@ -42,11 +42,12 @@ run "always_on_right_sized_api" {
   assert {
     condition = (
       aws_ecs_service.api.desired_count == 1 &&
+      one(aws_ecs_cluster.this.setting).value == "disabled" &&
       aws_ecs_task_definition.api.cpu == "256" &&
       aws_ecs_task_definition.api.memory == "512" &&
       aws_ecs_task_definition.api.runtime_platform[0].cpu_architecture == "X86_64"
     )
-    error_message = "Routine production must keep one always-on x86 task at 256 CPU/512 MiB."
+    error_message = "Routine production must keep one always-on x86 task at 256 CPU/512 MiB without paid Container Insights."
   }
 
   assert {

@@ -17,7 +17,10 @@ import {
   updatePlaidInvestmentAccountsBodySchema,
 } from './plaid.zod.js'
 import { config } from '../../config.js'
-import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  authorizeCostSubjects,
+} from '../abuse-protection/costWorkloadAdmission.js'
 
 const sendValidationError = (reply: FastifyReply, error: ZodError) =>
   reply.status(400).send({ error: 'VALIDATION_ERROR', issues: error.issues })
@@ -63,7 +66,9 @@ export const createPlaidLinkTokenHandler = async (
     workloadKey: 'plaid_link_token',
     method: 'POST',
     routePattern: '/v1/plaid/link-token',
-    principal: request.authUser.userId,
+    subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
+      provider: 'plaid',
+    }),
     canonicalInputs: {
       mode: body.mode,
       connectionId: body.connectionId ?? null,
@@ -73,8 +78,8 @@ export const createPlaidLinkTokenHandler = async (
     },
     globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
     quotas: [
-      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.externalProvider.plaidLinkTokensPerUserDay },
-      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
+      { scopeKind: 'user', limit: config.abuseProtection.quotas.externalProvider.plaidLinkTokensPerUserDay },
+      { scopeKind: 'global', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
     ],
     leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
   })
@@ -134,12 +139,14 @@ export const exchangePlaidPublicTokenHandler = async (
     workloadKey: 'plaid_public_token_exchange',
     method: 'POST',
     routePattern: '/v1/plaid/exchange-public-token',
-    principal: request.authUser.userId,
+    subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
+      provider: 'plaid',
+    }),
     canonicalInputs: { publicToken: body.publicToken },
     globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
     quotas: [
-      { scopeKind: 'user', scopeValue: request.authUser.userId, limit: config.abuseProtection.quotas.externalProvider.plaidExchangesPerUserDay },
-      { scopeKind: 'global', scopeValue: 'atlas', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
+      { scopeKind: 'user', limit: config.abuseProtection.quotas.externalProvider.plaidExchangesPerUserDay },
+      { scopeKind: 'global', limit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay },
     ],
     leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.plaidProviderMs / 1_000),
   })

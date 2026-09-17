@@ -76,6 +76,7 @@ export const K1_OFFICIAL_FORM_FIELDS: K1OfficialFormFieldDefinition[] = [
   field('box_13_entries', 'Line 13 - Other deduction code and detail entries', 'coded'),
   field('box_14_entries', 'Line 14 - Self-employment earnings code and detail entries', 'coded'),
   field('box_15_entries', 'Line 15 - Credit code and detail entries', 'coded'),
+  field('box_16_entries', 'Historical line 16 - Foreign transactions', 'coded'),
   field('box_16_schedule_k3_attached', 'Line 16 - Schedule K-3 is attached', 'boolean'),
   field('box_17_entries', 'Line 17 - AMT code and detail entries', 'coded'),
   field('box_18_entries', 'Line 18 - Tax-exempt income and nondeductible expense code entries', 'coded'),

@@ -221,6 +221,7 @@ export interface K1IngestionBatch {
   id: string
   status: K1IngestionBatchStatus
   entityScopeId: string | null
+  createPartnershipIfMissing?: boolean
   createdAt: string
   closedAt: string | null
   counts: K1IngestionBatchCounts
@@ -258,6 +259,8 @@ export interface K1CreateBatchFile {
 
 export interface K1CreateIngestionBatchRequest {
   entityScopeId?: string | null
+  /** Create a partnership from extracted K-1 identity fields when no safe match exists. */
+  createPartnershipIfMissing?: boolean
   /** Unique user-initiated attempt; lets a deliberate re-upload create a new batch. */
   uploadAttemptId?: string
   files: K1CreateBatchFile[]

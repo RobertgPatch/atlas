@@ -5,7 +5,11 @@ import { lockoutService } from './lockout.service.js'
 import { totpService } from './totp.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
-import { buildRateLimitedResponse } from '../abuse-protection/protection.errors.js'
+import {
+  buildProtectionUnavailableResponse,
+  buildRateLimitedResponse,
+} from '../abuse-protection/protection.errors.js'
+import { normalizeSourcePrefix } from '../abuse-protection/subjectFingerprint.js'
 
 export const mfaEnrollCompleteHandler = async (
   request: FastifyRequest,
@@ -18,37 +22,43 @@ export const mfaEnrollCompleteHandler = async (
   }
 
   const enrollment = authRepository.getMfaEnrollment(payload.data.enrollmentToken)
-  if (!enrollment) {
-    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
-    return
-  }
-
-  const user = authRepository.getUserById(enrollment.userId)
-  if (!user || user.status === 'Inactive') {
-    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
-    return
-  }
-
-  const admission = request.server.authCostAdmission.acquireMfa(user.email)
+  const user = enrollment ? authRepository.getUserById(enrollment.userId) : undefined
+  const admission = await request.server.authCostAdmission.admit({
+    sourcePrefix: request.abuseProtectionSourcePrefix ?? normalizeSourcePrefix(
+      request.ip,
+      config.abuseProtection.localRates.ipv6PrefixLength,
+    ),
+    ...(user ? { accountIdentifier: user.email } : {}),
+  })
   if (!admission.allowed) {
-    const response = buildRateLimitedResponse({
-      code: 'RATE_LIMITED',
-      requestId: request.id,
-      retryAfterSeconds: admission.retryAfterSeconds,
-    })
+    const response = admission.reasonCode === 'AUTH_STORE_UNAVAILABLE'
+      ? buildProtectionUnavailableResponse({
+          code: 'PROTECTION_UNAVAILABLE',
+          requestId: request.id,
+          retryAfterSeconds: admission.retryAfterSeconds,
+        })
+      : buildRateLimitedResponse({
+          code: 'RATE_LIMITED',
+          requestId: request.id,
+          retryAfterSeconds: admission.retryAfterSeconds,
+        })
     reply.status(response.statusCode).headers(response.headers).send(response.body)
     return
   }
+  if (!enrollment || !user || user.status === 'Inactive') {
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
 
-  const lockout = await lockoutService.getLockout(user.email, 'MFA')
+  const lockout = await lockoutService.getLockout(user.email, 'MFA', user.id)
   if (lockout) {
-    reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
 
   const valid = totpService.verify(payload.data.code, enrollment.secret)
   if (!valid) {
-    const lockoutUntil = await lockoutService.recordFailure(user.email, 'MFA')
+    const lockoutUntil = await lockoutService.recordFailure(user.email, 'MFA', user.id)
 
     await auditRepository.record({
       actorUserId: user.id,
@@ -58,7 +68,7 @@ export const mfaEnrollCompleteHandler = async (
     })
 
     if (lockoutUntil) {
-      reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockoutUntil.toISOString() })
+      reply.status(401).send({ error: 'SIGN_IN_FAILED' })
       return
     }
 
@@ -66,7 +76,7 @@ export const mfaEnrollCompleteHandler = async (
     return
   }
 
-  await lockoutService.clear(user.email, 'MFA')
+  await lockoutService.clear(user.email, 'MFA', user.id)
   const enrolledUser = authRepository.completeMfaEnrollment(user.id, enrollment.secret)
   if (!enrolledUser) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
@@ -85,6 +95,10 @@ export const mfaEnrollCompleteHandler = async (
     eventName: 'auth.mfa.enroll.succeeded',
     objectType: 'user',
     objectId: user.id,
+    after: {
+      actorDisplayName: enrolledUser.displayName,
+      accessLevel: enrolledUser.accessLevel,
+    },
   })
 
   reply.setCookie(config.sessionCookieName, token, {
@@ -99,7 +113,9 @@ export const mfaEnrollCompleteHandler = async (
     user: {
       id: enrolledUser.id,
       email: enrolledUser.email,
+      displayName: enrolledUser.displayName,
       role: enrolledUser.role,
+      accessLevel: enrolledUser.accessLevel,
       status: enrolledUser.status === 'Invited' ? 'Active' : enrolledUser.status,
     },
     role: enrolledUser.role,

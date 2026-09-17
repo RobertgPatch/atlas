@@ -123,6 +123,23 @@ function Invoke-ProductionPlanPolicy {
   else {
     $breaker = @(Get-PolicyProperty $apiValues 'deployment_circuit_breaker') | Select-Object -First 1
     if (-not (Test-PolicyBoolean (Get-PolicyProperty $breaker 'enable') $true) -or -not (Test-PolicyBoolean (Get-PolicyProperty $breaker 'rollback') $true)) { Add-Finding 'ecs-rollback' 'ECS deployment circuit breaker and rollback must be enabled.' }
+    $network = @(Get-PolicyProperty $apiValues 'network_configuration') | Select-Object -First 1
+    if (-not (Test-PolicyBoolean (Get-PolicyProperty $network 'assign_public_ip') $false)) { Add-Finding 'public-api-task' 'The API task must not receive a public IP.' ([string](Get-PolicyProperty $apiService 'address')) }
+  }
+
+  foreach ($type in @('aws_apigatewayv2_api', 'aws_api_gateway_rest_api', 'aws_lambda_function_url')) {
+    foreach ($resource in @(Get-ResourcesByType $resources $type)) {
+      Add-Finding 'alternate-public-gateway' "Alternate public gateway type '$type' is prohibited." ([string](Get-PolicyProperty $resource 'address'))
+    }
+  }
+  foreach ($resource in @($resources | Where-Object { (Get-PolicyProperty $_ 'type') -match '^aws_appautoscaling_(target|policy)$' })) {
+    $values = Get-ResourceValues $resource
+    $identity = @(
+      [string](Get-PolicyProperty $resource 'address'),
+      [string](Get-PolicyProperty $values 'resource_id'),
+      [string](Get-PolicyProperty $values 'policy_type')
+    ) -join ' '
+    if ($identity -match '(?i)api|ecs') { Add-Finding 'request-autoscaling' 'Request-driven API autoscaling is prohibited; capacity must remain fixed.' ([string](Get-PolicyProperty $resource 'address')) }
   }
 
   $repositories = @(Get-ResourcesByType $resources 'aws_ecr_repository')
@@ -139,17 +156,74 @@ function Invoke-ProductionPlanPolicy {
     if (-not (Test-PolicyBoolean (Get-PolicyProperty $values 'internal') $true) -or -not (Test-PolicyBoolean (Get-PolicyProperty $values 'enable_deletion_protection') $true)) { Add-Finding 'alb-protection' 'ALB must be internal with deletion protection.' ([string](Get-PolicyProperty $loadBalancer 'address')) }
   }
 
+  $securityGroups = @(Get-ResourcesByType $resources 'aws_security_group')
+  foreach ($securityGroup in $securityGroups) {
+    $address = [string](Get-PolicyProperty $securityGroup 'address')
+    foreach ($ingress in @(Get-PolicyProperty (Get-ResourceValues $securityGroup) 'ingress')) {
+      $cidrs = @((Get-PolicyProperty $ingress 'cidr_blocks')) + @((Get-PolicyProperty $ingress 'ipv6_cidr_blocks'))
+      if ($cidrs -contains '0.0.0.0/0' -or $cidrs -contains '::/0') { Add-Finding 'broad-origin-ingress' 'Origin-chain ingress cannot accept a public CIDR.' $address }
+    }
+  }
+  foreach ($required in @(
+    @('module.network.aws_security_group.alb', 'prefix_list_ids'),
+    @('module.network.aws_security_group.api', 'security_groups'),
+    @('module.network.aws_security_group.rds', 'security_groups')
+  )) {
+    $group = $securityGroups | Where-Object { (Get-PolicyProperty $_ 'address') -eq $required[0] } | Select-Object -First 1
+    $ingress = @(Get-PolicyProperty (Get-ResourceValues $group) 'ingress')
+    if ($null -eq $group -or $ingress.Count -ne 1 -or @((Get-PolicyProperty $ingress[0] $required[1])).Count -ne 1) {
+      Add-Finding 'immediate-upstream-ingress' "Security group '$($required[0])' must accept exactly its immediate upstream identity." ([string]$required[0])
+    }
+  }
+
   $distributions = @(Get-ResourcesByType $resources 'aws_cloudfront_distribution')
-  if ($distributions.Count -eq 0) { Add-Finding 'cloudfront' 'CloudFront distribution is missing.' }
+  if ($distributions.Count -ne 1) { Add-Finding 'cloudfront' 'Exactly one CloudFront distribution is required.' }
   foreach ($distribution in $distributions) {
-    if ([string]::IsNullOrWhiteSpace([string](Get-PolicyProperty (Get-ResourceValues $distribution) 'web_acl_id'))) { Add-Finding 'cloudfront-waf' 'CloudFront must reference WAF.' ([string](Get-PolicyProperty $distribution 'address')) }
+    $values = Get-ResourceValues $distribution
+    $address = [string](Get-PolicyProperty $distribution 'address')
+    if ([string]::IsNullOrWhiteSpace([string](Get-PolicyProperty $values 'web_acl_id'))) { Add-Finding 'cloudfront-waf' 'CloudFront must reference WAF.' $address }
+    $apiOrigins = @((Get-PolicyProperty $values 'origin') | Where-Object { [string](Get-PolicyProperty $_ 'origin_id') -match 'api-origin' })
+    if ($apiOrigins.Count -ne 1 -or @(Get-PolicyProperty $apiOrigins[0] 'vpc_origin_config').Count -ne 1 -or @(Get-PolicyProperty $apiOrigins[0] 'custom_origin_config').Count -ne 0) { Add-Finding 'private-api-origin' 'CloudFront must use exactly one VPC API origin and no custom public API origin.' $address }
+    $behaviors = @(Get-PolicyProperty $values 'ordered_cache_behavior')
+    foreach ($requiredPath in @('/health', '/v1/*')) {
+      $matches = @($behaviors | Where-Object { (Get-PolicyProperty $_ 'path_pattern') -eq $requiredPath -and [string](Get-PolicyProperty $_ 'target_origin_id') -match 'api-origin' })
+      if ($matches.Count -ne 1) { Add-Finding 'api-cache-behavior' "CloudFront requires exactly one '$requiredPath' VPC-origin behavior." $address }
+    }
+    foreach ($behavior in $behaviors) {
+      if ([string](Get-PolicyProperty $behavior 'path_pattern') -match '^/internal') { Add-Finding 'internal-edge-forwarding' 'CloudFront must not forward an internal route behavior.' $address }
+    }
+    if (@(Get-PolicyProperty $values 'custom_error_response').Count -ne 0) { Add-Finding 'api-spa-substitution' 'Distribution-wide custom errors can convert API responses to SPA HTML and are prohibited.' $address }
+  }
+
+  $vpcOrigins = @(Get-ResourcesByType $resources 'aws_cloudfront_vpc_origin')
+  if ($vpcOrigins.Count -ne 1) { Add-Finding 'vpc-origin-count' 'Exactly one CloudFront VPC origin is required.' }
+  $publicBlocks = @(Get-ResourcesByType $resources 'aws_s3_bucket_public_access_block' | Where-Object { (Get-PolicyProperty $_ 'address') -match 'module\.edge\.' })
+  if ($publicBlocks.Count -ne 1) { Add-Finding 'private-static-origin' 'The static edge bucket requires one public-access block.' }
+  foreach ($block in $publicBlocks) {
+    $values = Get-ResourceValues $block
+    foreach ($name in @('block_public_acls', 'block_public_policy', 'ignore_public_acls', 'restrict_public_buckets')) {
+      if (-not (Test-PolicyBoolean (Get-PolicyProperty $values $name) $true)) { Add-Finding 'private-static-origin' "Static bucket control '$name' must be true." ([string](Get-PolicyProperty $block 'address')) }
+    }
+  }
+
+  foreach ($record in @(Get-ResourcesByType $resources 'aws_route53_record')) {
+    $values = Get-ResourceValues $record
+    $encoded = $values | ConvertTo-Json -Depth 20 -Compress
+    if ($encoded -match '(?i)elb\.amazonaws\.com|api-origin|internal-') { Add-Finding 'alternate-origin-dns' 'DNS must not expose or alias the private API origin.' ([string](Get-PolicyProperty $record 'address')) }
+  }
+  $outputChanges = Get-PolicyProperty $Plan 'output_changes'
+  if ($null -ne $outputChanges) {
+    foreach ($property in $outputChanges.PSObject.Properties) {
+      $encoded = $property.Value | ConvertTo-Json -Depth 20 -Compress
+      if ($property.Name -match '(?i)origin|load.?balancer|alb' -or $encoded -match '(?i)elb\.amazonaws\.com|api-origin|internal-') { Add-Finding 'origin-output' 'Plan outputs must not publish a private origin address.' $property.Name }
+    }
   }
 
   $wafs = @(Get-ResourcesByType $resources 'aws_wafv2_web_acl')
   if ($wafs.Count -ne 1) { Add-Finding 'waf' 'Exactly one CloudFront WAF ACL is required.' }
   foreach ($waf in $wafs) {
     $ruleNames = @((Get-PolicyProperty (Get-ResourceValues $waf) 'rule') | ForEach-Object { Get-PolicyProperty $_ 'name' })
-    foreach ($name in @('api_general_per_ip', 'auth_per_ip', 'paid_admission_per_ip', 'paid_admission_global_emergency')) {
+    foreach ($name in @('api_general_per_ip', 'api_general_global', 'auth_per_ip', 'auth_global', 'paid_admission_per_ip', 'paid_admission_global_emergency')) {
       if ($name -notin $ruleNames) { Add-Finding 'waf-rule' "Required WAF rule '$name' is missing." }
     }
   }

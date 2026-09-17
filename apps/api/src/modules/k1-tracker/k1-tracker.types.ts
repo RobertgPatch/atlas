@@ -56,6 +56,7 @@ export interface TrackerYearInput {
   revision: number
   status: K1TrackerWorkflowStatus
   values: Partial<Record<K1TrackerFieldKey, bigint | null>>
+  officialFormData?: K1TrackerOfficialFormData
 }
 
 export interface TrackerMutation {

@@ -59,4 +59,56 @@ $mfaDisabled.variables.mfa_login_enabled.value = $false
 $mfaDisabledResult = Invoke-ProductionPlanPolicy -Plan $mfaDisabled -PolicyMode Routine -PlanSha256 $sha -SourceCommit $sourceCommit -CostEstimate $cost -SecretContract $secrets
 Assert-True (-not $mfaDisabledResult.Passed) 'A production plan with login MFA disabled must fail.'
 
+function Copy-RoutinePlan { return ($routine | ConvertTo-Json -Depth 100 | ConvertFrom-Json) }
+function Assert-PlanRule {
+  param([object] $Plan, [string] $Rule, [string] $Message)
+  $result = Invoke-ProductionPlanPolicy -Plan $Plan -PolicyMode Routine -PlanSha256 $sha -SourceCommit $sourceCommit -CostEstimate $cost -SecretContract $secrets
+  Assert-True (-not $result.Passed) $Message
+  Assert-True (@($result.Findings | Where-Object { $_.rule -eq $Rule }).Count -gt 0) "Expected rule '$Rule' was not reported."
+}
+
+$publicDatabase = Copy-RoutinePlan
+($publicDatabase.planned_values.root_module.resources | Where-Object type -eq 'aws_db_instance').values.publicly_accessible = $true
+Assert-PlanRule $publicDatabase 'database-protection' 'A public database must fail.'
+
+$publicAlb = Copy-RoutinePlan
+($publicAlb.planned_values.root_module.resources | Where-Object type -eq 'aws_lb').values.internal = $false
+Assert-PlanRule $publicAlb 'alb-protection' 'A public ALB must fail.'
+
+$publicTask = Copy-RoutinePlan
+($publicTask.planned_values.root_module.resources | Where-Object type -eq 'aws_ecs_service').values.network_configuration[0].assign_public_ip = $true
+Assert-PlanRule $publicTask 'public-api-task' 'A public API task must fail.'
+
+$broadIngress = Copy-RoutinePlan
+($broadIngress.planned_values.root_module.resources | Where-Object address -eq 'module.network.aws_security_group.api').values.ingress[0].cidr_blocks = @('0.0.0.0/0')
+Assert-PlanRule $broadIngress 'broad-origin-ingress' 'Broad origin ingress must fail.'
+
+$alternateGateway = Copy-RoutinePlan
+$alternateGateway.planned_values.root_module.resources += [pscustomobject]@{ address = 'aws_apigatewayv2_api.public'; type = 'aws_apigatewayv2_api'; values = [pscustomobject]@{} }
+Assert-PlanRule $alternateGateway 'alternate-public-gateway' 'An alternate public gateway must fail.'
+
+$customOrigin = Copy-RoutinePlan
+$apiOrigin = (($customOrigin.planned_values.root_module.resources | Where-Object type -eq 'aws_cloudfront_distribution').values.origin | Where-Object origin_id -match 'api-origin')
+$apiOrigin.vpc_origin_config = @()
+$apiOrigin.custom_origin_config = @([pscustomobject]@{ origin_protocol_policy = 'https-only' })
+Assert-PlanRule $customOrigin 'private-api-origin' 'A custom public API origin must fail.'
+
+$missingWaf = Copy-RoutinePlan
+($missingWaf.planned_values.root_module.resources | Where-Object type -eq 'aws_cloudfront_distribution').values.web_acl_id = ''
+Assert-PlanRule $missingWaf 'cloudfront-waf' 'A distribution without WAF must fail.'
+
+$internalForwarding = Copy-RoutinePlan
+($internalForwarding.planned_values.root_module.resources | Where-Object type -eq 'aws_cloudfront_distribution').values.ordered_cache_behavior += [pscustomobject]@{ path_pattern = '/internal/*'; target_origin_id = 'atlas-api-origin' }
+Assert-PlanRule $internalForwarding 'internal-edge-forwarding' 'An internal edge behavior must fail.'
+
+$requestAutoscaling = Copy-RoutinePlan
+$requestAutoscaling.planned_values.root_module.resources += [pscustomobject]@{ address = 'module.api.aws_appautoscaling_target.api'; type = 'aws_appautoscaling_target'; values = [pscustomobject]@{ resource_id = 'service/atlas/api' } }
+Assert-PlanRule $requestAutoscaling 'request-autoscaling' 'Request-driven API autoscaling must fail.'
+
+$originOutput = Copy-RoutinePlan
+$originOutput | Add-Member -NotePropertyName output_changes -NotePropertyValue ([pscustomobject]@{
+  api_origin = [pscustomobject]@{ after = 'internal-api.us-west-2.elb.amazonaws.com' }
+})
+Assert-PlanRule $originOutput 'origin-output' 'A private origin output must fail.'
+
 Write-Output 'PASS production plan policy core fixtures.'

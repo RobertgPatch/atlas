@@ -4,6 +4,7 @@ import type { LightMyRequestResponse } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { config } from '../../src/config.js'
+import { pool } from '../../src/infra/db/client.js'
 import { auditRepository } from '../../src/modules/audit/audit.repository.js'
 import { authRepository } from '../../src/modules/auth/auth.repository.js'
 import { lockoutService } from '../../src/modules/auth/lockout.service.js'
@@ -13,6 +14,12 @@ import {
 } from '../../src/modules/auth/password.service.js'
 import { totpService } from '../../src/modules/auth/totp.service.js'
 import { createTestFixture, type TestFixture } from '../helpers/testApp.js'
+import {
+  AuthCostAdmissionService,
+  createInMemoryAuthAdmissionStore,
+  type AuthAdmissionStore,
+} from '../../src/modules/auth/authAdmission.service.js'
+import { TEST_FINGERPRINT_KEYRING } from '../helpers/abuseProtectionTestHelpers.js'
 
 const INVALID_PASSWORD = 'not-the-right-password'
 const invalidVerification: PasswordVerification = {
@@ -43,6 +50,13 @@ describe('authentication cost admission', () => {
 
   beforeEach(async () => {
     Object.assign(config, { mfaLoginEnabled: false })
+    await pool?.query(`truncate table
+      abuse_rate_windows,
+      workload_quota_counters,
+      workload_leases,
+      idempotent_operations,
+      protection_overrides
+      restart identity cascade`)
     fixture = await createTestFixture()
     vi.spyOn(lockoutService, 'getLockout').mockResolvedValue(null)
     vi.spyOn(lockoutService, 'recordFailure').mockResolvedValue(null)
@@ -166,8 +180,9 @@ describe('authentication cost admission', () => {
       `198.51.100.${50 + index}`,
     ))
 
-    for (let attempt = 0; attempt < 50 && passwordVerify.mock.calls.length < concurrency; attempt += 1) {
-      await new Promise<void>((resolve) => setImmediate(resolve))
+    const waitDeadline = Date.now() + 5_000
+    while (passwordVerify.mock.calls.length < concurrency && Date.now() < waitDeadline) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 10))
     }
     await new Promise<void>((resolve) => setImmediate(resolve))
     const hashesStartedBeforeRelease = passwordVerify.mock.calls.length
@@ -178,7 +193,7 @@ describe('authentication cost admission', () => {
     expect(passwordVerify).toHaveBeenCalledTimes(concurrency)
     expect(responses.filter((response) => response.statusCode === 401)).toHaveLength(concurrency)
     expect(responses.filter((response) => response.statusCode === 429)).toHaveLength(1)
-  })
+  }, 15_000)
 
   it('rejects repeated MFA challenges before extra TOTP and audit writes', async () => {
     authRepository.completeMfaEnrollment(fixture.admin.id, 'TESTTOTPMANUALKEY')
@@ -203,5 +218,121 @@ describe('authentication cost admission', () => {
     expect(totpVerify).toHaveBeenCalledTimes(allowed)
     expect(lockoutService.recordFailure).toHaveBeenCalledTimes(allowed)
     expect(auditWrite).toHaveBeenCalledTimes(allowed)
+  })
+})
+
+describe('durable authentication admission dimensions', () => {
+  const limits = {
+    global: { requests: 3, seconds: 300 },
+    globalDaily: { requests: 5, seconds: 86_400 },
+    source: { requests: 2, seconds: 300 },
+    account: { requests: 2, seconds: 900 },
+  }
+  const now = () => new Date('2026-08-29T12:00:00.000Z')
+
+  const service = (
+    store: AuthAdmissionStore,
+    configuredLimits: typeof limits = limits,
+  ) => new AuthCostAdmissionService({
+    fingerprintKeyring: TEST_FINGERPRINT_KEYRING,
+    environment: 'test',
+    limits: configuredLimits,
+    admissionStore: store,
+    now,
+  })
+
+  it('reserves global, daily-global, source, then account atomically', async () => {
+    const reserve = vi.fn<AuthAdmissionStore['reserve']>(async (input) => ({
+      allowed: true,
+      reservedScopes: input.rates.map((rate) => rate.scope),
+    }))
+    const result = await service({ reserve }).admit({
+      sourcePrefix: '198.51.100.0/24',
+      accountIdentifier: 'owner@example.test',
+    })
+
+    expect(result.allowed).toBe(true)
+    expect(reserve.mock.calls[0]?.[0].rates.map((rate) => rate.scope)).toEqual([
+      'global',
+      'global',
+      'source_prefix',
+      'account',
+    ])
+  })
+
+  it('shares restart/two-process state and bounds rotating source/account rows by the global cap', async () => {
+    const store = createInMemoryAuthAdmissionStore({ now })
+    const first = service(store)
+    const second = service(store)
+    const results = []
+    for (let index = 0; index < 100; index += 1) {
+      results.push(await (index % 2 === 0 ? first : second).admit({
+        sourcePrefix: `198.51.${index}.0/24`,
+        accountIdentifier: `rotating-${index}@example.test`,
+      }))
+    }
+
+    expect(results.filter((result) => result.allowed)).toHaveLength(3)
+    expect(results.at(-1)).toMatchObject({
+      allowed: false,
+      reasonCode: 'AUTH_GLOBAL_RATE',
+    })
+    expect(store.stats().subjectRows).toBeLessThanOrEqual(8)
+  })
+
+  it('enforces the independent daily global ceiling', async () => {
+    const store = createInMemoryAuthAdmissionStore({ now })
+    const admission = service(store, {
+      ...limits,
+      global: { requests: 100, seconds: 300 },
+      globalDaily: { requests: 5, seconds: 86_400 },
+      source: { requests: 100, seconds: 300 },
+      account: { requests: 100, seconds: 900 },
+    })
+    const results = []
+    for (let index = 0; index < 6; index += 1) {
+      results.push(await admission.admit({
+        sourcePrefix: `203.0.113.${index}/32`,
+        accountIdentifier: `daily-${index}@example.test`,
+      }))
+    }
+
+    expect(results.slice(0, 5).every((result) => result.allowed)).toBe(true)
+    expect(results[5]).toMatchObject({
+      allowed: false,
+      reasonCode: 'AUTH_GLOBAL_RATE',
+    })
+  })
+
+  it('enforces the daily cap and uses a deny-only local global-exhaustion circuit', async () => {
+    let calls = 0
+    const rejectingStore: AuthAdmissionStore = {
+      async reserve() {
+        calls += 1
+        return {
+          allowed: false,
+          reasonCode: 'AUTH_GLOBAL_RATE',
+          retryAfterSeconds: 120,
+        }
+      },
+    }
+    const admission = service(rejectingStore)
+    const input = { sourcePrefix: '203.0.113.0/24', accountIdentifier: 'owner@example.test' }
+
+    expect(await admission.admit(input)).toMatchObject({ reasonCode: 'AUTH_GLOBAL_RATE' })
+    expect(await admission.admit(input)).toMatchObject({ reasonCode: 'AUTH_GLOBAL_RATE' })
+    expect(calls).toBe(1)
+  })
+
+  it('fails closed with a fixed store reason and creates no workload/idempotency state', async () => {
+    const admission = service({ reserve: async () => { throw new Error('offline') } })
+    await expect(admission.admit({
+      sourcePrefix: '203.0.113.0/24',
+      accountIdentifier: 'owner@example.test',
+    })).resolves.toEqual({
+      allowed: false,
+      reasonCode: 'AUTH_STORE_UNAVAILABLE',
+      retryAfterSeconds: 30,
+    })
   })
 })

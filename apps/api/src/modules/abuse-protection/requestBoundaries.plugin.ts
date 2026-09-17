@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 
 import { config } from '../../config.js'
+import { buildProtectionUnavailableResponse } from './protection.errors.js'
 import type { PayloadLimits, RouteClass } from './protection.types.js'
 
 const requestTimers = new WeakMap<FastifyRequest, ReturnType<typeof setTimeout>>()
@@ -143,6 +144,20 @@ export const registerRequestBoundaries = (app: FastifyInstance): void => {
   app.addHook('onRequest', async (request, reply) => {
     const policy = request.routeOptions.config?.abuseProtection
     if (!policy) return
+    if (
+      config.abuseProtection.sourceIdentity.requireGeneratedHeader
+      && !request.abuseProtectionSourcePrefix
+    ) {
+      const response = buildProtectionUnavailableResponse({
+        code: 'PROTECTION_UNAVAILABLE',
+        requestId: request.id,
+        retryAfterSeconds: 30,
+      })
+      reply.status(response.statusCode)
+      for (const [name, value] of Object.entries(response.headers)) reply.header(name, value)
+      await reply.send(response.body)
+      return
+    }
     const timeoutMs = timeoutFor(policy.routeClass)
     const timer = setTimeout(() => {
       if (!reply.sent) {

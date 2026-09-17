@@ -6,7 +6,7 @@ or staging environment.
 
 | Runtime | Application | Database | Provider behavior | Durability |
 |---|---|---|---|---|
-| Local | npm/Vite/Fastify processes | Docker PostgreSQL on loopback | Deterministic stub/local adapters | Disposable developer data |
+| Local | npm/Vite/Fastify processes | Docker PostgreSQL on loopback | Deterministic stub/local adapters by default; optional K-1-only AWS BDA | Disposable developer data plus explicitly uploaded S3 evidence in BDA mode |
 | Production | Managed AWS stack | Private encrypted RDS PostgreSQL | Explicit production adapters | Backups, deletion protection, immutable releases |
 
 Historical specifications can retain earlier environment names as records, but
@@ -41,6 +41,31 @@ production AWS profiles/accounts, production Terraform markers, and AWS
 mutation flags before any child process or provider call. Merely having unused
 AWS credentials in the shell does not make the local flow depend on AWS.
 
+### Local K-1 processing with AWS BDA
+
+Real K-1 parsing is an explicit hybrid provider mode, not a third deployed
+environment. Copy `apps/api/local-bda.env.example` to the ignored
+`apps/api/.env.local-bda`, fill in the non-secret identifiers and small cost
+ceilings, refresh the approved short-lived AWS profile, then run:
+
+```powershell
+npm run dev:local:bda
+```
+
+The API, web server, PostgreSQL database, work queue, and completion reconciler
+remain local. Only the K-1 PDF/result objects, KMS operations, and asynchronous
+BDA job use AWS. Before starting Docker or any child process, the launcher
+verifies the exact AWS account, `us-west-2`, bucket owner and loopback CORS,
+enabled KMS key, and LIVE BDA project. It refuses production RDS/SQS endpoints,
+Terraform production markers, broad mutation flags, and unrelated providers.
+
+Provisioning or changing those K-1 AWS resources still goes through the normal
+reviewed production deployment. This local command never runs Terraform.
+Terraform exposes an unattached `k1_ingestion.local_bda_policy_arn` containing
+only the required K-1 object, bucket-preflight, KMS, BDA invocation/project, and
+status permissions. An operator attaches it to an approved short-lived role;
+the local workflow must not reuse the ECS worker role or an administrator role.
+
 Local data can be reset deliberately with:
 
 ```powershell
@@ -73,9 +98,10 @@ never rewinds production data or Terraform state.
 
 ## Provider and data policy
 
-- Local and CI use stubs, mocks, recorded fixtures, or isolated local services.
+- Local and CI use stubs, mocks, recorded fixtures, or isolated local services by default; CI never starts local BDA.
+- Explicit local BDA is limited to the approved K-1 S3/KMS/BDA resources and bounded manual document processing.
 - Real-provider, destructive, reset, load, and bounded-abuse tools must refuse production.
-- Local processes must never point to production databases, buckets, queues, provider projects, or endpoints.
+- Local processes must never point to production databases, queues, or unrelated providers. The only production-resource exception is the preflighted K-1 S3/KMS/BDA path described above.
 - Production values live in ignored operator inputs or AWS secret/configuration services, not committed `.env` files.
 - Production data is not copied to local development. Use synthetic fixtures.
 - Production recovery uses RDS backups and tested artifact rollback; local volume reset is unrelated.

@@ -235,6 +235,15 @@ export interface CreateDurableK1Input {
   uploadedBy: string
 }
 
+export interface ReplacementSourcePdfStorage {
+  storagePath: string
+  storageBucket?: string | null
+  storageVersionId?: string | null
+  mimeType: string
+  sizeBytes: number
+  sha256: string
+}
+
 /**
  * PostgreSQL source of truth for Feature 022 documents. All state-changing
  * helpers accept a transaction client or create their own transaction; worker,
@@ -254,6 +263,48 @@ export const durableK1Repository = {
       [id],
     )
     return result.rows[0] ? toDurableK1(result.rows[0]) : null
+  },
+
+  /**
+   * Move an existing K-1 to a recovered immutable source object without
+   * changing any review/extraction state. The old identity is a compare-and-
+   * set guard so two repair attempts cannot replace one another.
+   */
+  async replaceSourcePdfStorage(
+    client: pg.PoolClient,
+    id: string,
+    expected: Pick<DurableK1DocumentRecord, 'storagePath' | 'storageBucket' | 'storageVersionId'>,
+    replacement: ReplacementSourcePdfStorage,
+  ): Promise<boolean> {
+    const result = await client.query<{ id: string }>(
+      `update documents d
+          set storage_path = $5,
+              storage_bucket = $6,
+              storage_version_id = $7,
+              mime_type = $8,
+              size_bytes = $9,
+              sha256 = $10
+         from k1_documents kd
+        where kd.id = $1
+          and kd.document_id = d.id
+          and d.storage_path = $2
+          and d.storage_bucket is not distinct from $3
+          and d.storage_version_id is not distinct from $4
+        returning d.id`,
+      [
+        id,
+        expected.storagePath,
+        expected.storageBucket,
+        expected.storageVersionId,
+        replacement.storagePath,
+        replacement.storageBucket ?? null,
+        replacement.storageVersionId ?? null,
+        replacement.mimeType,
+        replacement.sizeBytes,
+        replacement.sha256,
+      ],
+    )
+    return Boolean(result.rows[0])
   },
 
   async createAccepted(input: CreateDurableK1Input, client?: pg.PoolClient): Promise<DurableK1DocumentRecord> {
@@ -404,6 +455,8 @@ export interface DurableK1IngestionItemRecord {
   batchId: string
   documentId: string | null
   k1DocumentId: string | null
+  partnershipIntakePartnershipId: string | null
+  partnershipIntakeSourceK1DocumentId: string | null
   fileName: string
   sizeBytes: number
   sha256: string
@@ -421,6 +474,7 @@ export interface DurableK1IngestionBatchRecord {
   id: string
   createdByUserId: string
   entityScopeId: string | null
+  createPartnershipIfMissing: boolean
   status: K1IngestionBatchStatus
   fileCount: number
   createdAt: Date
@@ -441,6 +495,7 @@ interface BatchRow {
   id: string
   created_by_user_id: string
   entity_scope_id: string | null
+  create_partnership_if_missing: boolean
   status: K1IngestionBatchStatus
   file_count: number
   created_at: Date
@@ -453,6 +508,8 @@ interface BatchItemRow {
   sequence_number: number
   document_id: string | null
   k1_document_id: string | null
+  partnership_intake_partnership_id: string | null
+  partnership_intake_source_k1_document_id: string | null
   client_file_name: string
   declared_size_bytes: string
   declared_sha256: string
@@ -478,6 +535,8 @@ const toBatchItem = (row: BatchItemRow): DurableK1IngestionItemRecord => ({
   batchId: row.batch_id,
   documentId: row.document_id,
   k1DocumentId: row.k1_document_id,
+  partnershipIntakePartnershipId: row.partnership_intake_partnership_id,
+  partnershipIntakeSourceK1DocumentId: row.partnership_intake_source_k1_document_id,
   fileName: row.client_file_name,
   sizeBytes: Number(row.declared_size_bytes),
   sha256: row.declared_sha256,
@@ -537,6 +596,7 @@ const loadBatch = async (
     id: batch.id,
     createdByUserId: batch.created_by_user_id,
     entityScopeId: batch.entity_scope_id,
+    createPartnershipIfMissing: batch.create_partnership_if_missing,
     status: batch.status,
     fileCount: batch.file_count,
     createdAt: batch.created_at,
@@ -552,6 +612,7 @@ export const durableK1BatchRepository = {
     id: string
     createdByUserId: string
     entityScopeId: string | null
+    createPartnershipIfMissing?: boolean
     items: Array<{
       id: string
       fileName: string
@@ -563,9 +624,9 @@ export const durableK1BatchRepository = {
     return withTransaction(async (client) => {
       await client.query(
         `insert into k1_ingestion_batches
-           (id, created_by_user_id, entity_scope_id, status, file_count)
-         values ($1, $2, $3, 'OPEN', $4)`,
-        [args.id, args.createdByUserId, args.entityScopeId, args.items.length],
+           (id, created_by_user_id, entity_scope_id, create_partnership_if_missing, status, file_count)
+         values ($1, $2, $3, $4, 'OPEN', $5)`,
+        [args.id, args.createdByUserId, args.entityScopeId, args.createPartnershipIfMissing ?? false, args.items.length],
       )
       for (const [sequenceNumber, item] of args.items.entries()) {
         await client.query(
@@ -603,7 +664,10 @@ export const durableK1BatchRepository = {
   }> {
     return withTransaction(async (client) => {
       const params: unknown[] = [args.isAdmin, args.actorUserId, args.authorizedEntityIds]
-      const where = [`($1::boolean or b.created_by_user_id = $2 or b.entity_scope_id = any($3::uuid[]))`]
+      const where = [
+        `($1::boolean or b.created_by_user_id = $2 or b.entity_scope_id = any($3::uuid[]))`,
+        'b.create_partnership_if_missing = false',
+      ]
       if (args.entityId) {
         params.push(args.entityId)
         where.push(`b.entity_scope_id = $${params.length}`)
@@ -1105,7 +1169,7 @@ export const k1Repository = {
       jurisdiction: args.jurisdiction?.trim() || null,
       taxId: args.taxId?.trim() || null,
       formedOn: args.formedOn?.trim() || null,
-      status: 'DRAFT',
+      status: 'ACTIVE',
       notes: null,
       registeredAgent: null,
       primaryContact: null,

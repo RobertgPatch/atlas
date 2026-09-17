@@ -261,7 +261,7 @@ export const aggregationResponseFixture: PartnershipAggregationResponse = {
     paidInCapital: { amount: '235000.00', knownCount: 3, totalCount: 4 },
     distributions: { amount: '50000.00', knownCount: 3, totalCount: 4 },
     latestNav: { amount: '270000.00', knownCount: 3, totalCount: 4 },
-    unfundedCommitment: { amount: '115000.00', knownCount: 3, totalCount: 4 },
+    unfundedCommitment: { amount: '120000.00', knownCount: 3, totalCount: 4 },
     unsettledActivity: { amount: '0.00', knownCount: 4, totalCount: 4 },
     dpi: { value: '0.21276596', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
     tvpi: { value: '1.36170213', status: 'PARTIAL_COVERAGE', numeratorKnownCount: 3, denominatorKnownCount: 3, totalCount: 4 },
@@ -280,7 +280,7 @@ export const aggregationResponseFixture: PartnershipAggregationResponse = {
     aggregateGroup(aggregateRow('p-alpha', 'Alpha Growth I', { id: 'e-1', name: 'Alder Family' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '100000.00', date: '2021-01-01' }, totalCapitalContributions: '60000.00', totalDistributions: '15000.00', latestNav: { amount: '75000.00', date: '2025-12-31' }, unfundedCommitmentAmount: '40000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
     aggregateGroup(aggregateRow('p-beacon', 'Beacon Credit', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'COMPLETE', warningCount: 0, currentCommittedCapital: { amount: '200000.00', date: '2022-01-01' }, totalCapitalContributions: '120000.00', totalDistributions: '30000.00', latestNav: { amount: '150000.00', date: '2026-03-31' }, unfundedCommitmentAmount: '80000.00', dpi: '0.25000000', tvpi: '1.50000000' })),
     aggregateGroup(aggregateRow('p-cedar', 'Cedar Legacy', { id: 'e-1', name: 'Alder Family' }, { ...unavailablePerformanceSummaryFixture, dataQuality: 'MISSING_DATA', warningCount: 0 })),
-    aggregateGroup(aggregateRow('p-delta', 'Delta Warning', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'WARNINGS', warningCount: 2, currentCommittedCapital: { amount: '50000.00', date: '2023-01-01' }, totalCapitalContributions: '55000.00', totalDistributions: '5000.00', latestNav: { amount: '45000.00', date: '2024-12-31' }, unfundedCommitmentAmount: '-5000.00' })),
+    aggregateGroup(aggregateRow('p-delta', 'Delta Warning', { id: 'e-2', name: 'Beacon Holdings' }, { dataQuality: 'WARNINGS', warningCount: 2, currentCommittedCapital: { amount: '50000.00', date: '2023-01-01' }, totalCapitalContributions: '55000.00', totalDistributions: '5000.00', latestNav: { amount: '45000.00', date: '2024-12-31' }, unfundedCommitmentAmount: '0.00' })),
   ],
   pageInfo: { page: 1, pageSize: 50, totalItems: 4, totalPages: 1, hasPreviousPage: false, hasNextPage: false },
 }

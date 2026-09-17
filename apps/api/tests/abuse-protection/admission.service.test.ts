@@ -27,6 +27,19 @@ const policy = (overrides: Partial<RouteProtectionPolicy> = {}): RouteProtection
   authentication: 'session',
   scopeDimensions: ['user', 'global'],
   localRate: null,
+  localRates: [{
+    limitKey: 'paid_work.source',
+    scope: 'source_prefix',
+    partition: 'source',
+    requests: 20,
+    windowSeconds: 300,
+  }, {
+    limitKey: 'paid_work.user',
+    scope: 'user',
+    partition: 'authenticated',
+    requests: 20,
+    windowSeconds: 300,
+  }],
   durableRates: [
     {
       policyLimitKey: 'market.refresh.user',
@@ -37,6 +50,7 @@ const policy = (overrides: Partial<RouteProtectionPolicy> = {}): RouteProtection
   ],
   payloadLimits: {},
   concurrencyLimit: 2,
+  concurrencyClass: 'workload.paid_work',
   backlogLimit: 4,
   idempotency: 'required',
   killSwitch: 'market_data_refresh',

@@ -21,6 +21,7 @@ const codedKeys = new Set<K1TrackerOfficialFormFieldKey>([
   'box_13_entries',
   'box_14_entries',
   'box_15_entries',
+  'box_16_entries',
   'box_17_entries',
   'box_18_entries',
   'box_19_entries',

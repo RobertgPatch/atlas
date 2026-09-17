@@ -9,8 +9,11 @@ import {
 import {
   fingerprintCanonicalRequest,
   fingerprintSubject,
+  fingerprintSubjectAliases,
   normalizeSourcePrefix,
+  stableGlobalSubject,
   SUBJECT_FINGERPRINT_BYTES,
+  validateFingerprintKeyring,
 } from '../../src/modules/abuse-protection/subjectFingerprint.js'
 import {
   RoutePolicyRegistry,
@@ -83,6 +86,37 @@ describe('subject fingerprints', () => {
     expect(first.equals(changed)).toBe(false)
     expect(first.byteLength).toBe(SUBJECT_FINGERPRINT_BYTES)
   })
+
+  it('returns active and retained aliases with explicit key versions', () => {
+    const aliases = fingerprintSubjectAliases({
+      active: { id: 'v2', key: 'active-test-hmac-key-material-00000002' },
+      retained: [{
+        id: 'v1',
+        key: 'retained-test-hmac-key-material-000001',
+        retireAfter: new Date('2026-09-01T00:00:00.000Z'),
+      }],
+    }, { scope: 'account', value: 'owner@example.test' })
+
+    expect(aliases.map((alias) => alias.keyVersion)).toEqual(['v2', 'v1'])
+    expect(aliases.every((alias) => alias.digest.byteLength === SUBJECT_FINGERPRINT_BYTES)).toBe(true)
+    expect(aliases[0]?.digest.equals(aliases[1]!.digest)).toBe(false)
+  })
+
+  it('uses a non-request global subject and rejects unsafe key retirement/version data', () => {
+    expect(stableGlobalSubject('production', 'auth')).toBe('production:auth:v1')
+    expect(stableGlobalSubject('production', 'auth')).toBe(stableGlobalSubject('production', 'auth'))
+    expect(() => stableGlobalSubject('production', 'viewer-input')).toThrow(/INVALID_GLOBAL_SUBJECT/)
+
+    expect(() => validateFingerprintKeyring({
+      active: { id: 'bad version', key: fingerprintKey },
+      retained: [],
+    }, { now: new Date('2026-08-29T00:00:00.000Z'), minimumRetainedUntil: new Date('2026-08-30T00:00:00.000Z') })).toThrow(/INVALID_FINGERPRINT_KEY_VERSION/)
+
+    expect(() => validateFingerprintKeyring({
+      active: { id: 'v2', key: fingerprintKey },
+      retained: [{ id: 'v1', key: 'retained-test-hmac-key-material-000001', retireAfter: new Date('2026-08-29T12:00:00.000Z') }],
+    }, { now: new Date('2026-08-29T00:00:00.000Z'), minimumRetainedUntil: new Date('2026-08-30T00:00:00.000Z') })).toThrow(/FINGERPRINT_KEY_RETIREMENT_TOO_EARLY/)
+  })
 })
 
 describe('bounded protection errors', () => {
@@ -98,6 +132,7 @@ describe('bounded protection errors', () => {
       headers: {
         'Retry-After': '86400',
         'X-Request-Id': 'req_test_12345678',
+        'Cache-Control': 'no-store',
       },
       body: {
         error: 'QUOTA_EXCEEDED',
@@ -137,6 +172,19 @@ const validPolicy = (
     authentication: 'session',
     scopeDimensions: ['user', 'global'],
     localRate: null,
+    localRates: [{
+      limitKey: 'heavy_read.source',
+      scope: 'source_prefix',
+      partition: 'source',
+      requests: 30,
+      windowSeconds: 60,
+    }, {
+      limitKey: 'heavy_read.user',
+      scope: 'user',
+      partition: 'authenticated',
+      requests: 30,
+      windowSeconds: 60,
+    }],
     durableRates: [
       {
         policyLimitKey: 'reports-heavy-user',
@@ -147,6 +195,7 @@ const validPolicy = (
     ],
     payloadLimits: { pageSize: 1_000 },
     concurrencyLimit: 8,
+    concurrencyClass: 'heavy_read',
     backlogLimit: null,
     idempotency: 'none',
     killSwitch: null,
@@ -247,8 +296,22 @@ describe('bounded local rate limiter', () => {
       method: 'GET',
       routePattern: '/items/:itemId',
       localRate: { scope: 'source_prefix', requests: 1, windowSeconds: 60 },
+      localRates: [{
+        limitKey: 'items.source',
+        scope: 'source_prefix',
+        partition: 'source',
+        requests: 1,
+        windowSeconds: 60,
+      }, {
+        limitKey: 'items.user',
+        scope: 'user',
+        partition: 'authenticated',
+        requests: 30,
+        windowSeconds: 60,
+      }],
       failureMode: 'low_cost_degraded_read',
       concurrencyLimit: null,
+      concurrencyClass: null,
     })
     app.get(
       '/items/:itemId',

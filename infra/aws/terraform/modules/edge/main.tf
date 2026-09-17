@@ -72,6 +72,64 @@ resource "aws_cloudfront_origin_access_control" "web" {
   signing_protocol                  = "sigv4"
 }
 
+resource "aws_cloudfront_origin_request_policy" "api" {
+  name    = "${var.name_prefix}-api-minimum-forwarding"
+  comment = "Forward only headers, the session cookie, and query strings required by the Atlas API."
+
+  cookies_config {
+    cookie_behavior = "whitelist"
+    cookies {
+      items = [var.session_cookie_name]
+    }
+  }
+
+  headers_config {
+    header_behavior = "whitelist"
+    headers {
+      items = [
+        "Accept",
+        "Accept-Language",
+        "Access-Control-Request-Headers",
+        "Access-Control-Request-Method",
+        "CloudFront-Viewer-Address",
+        "Content-Type",
+        "If-Match",
+        "If-None-Match",
+        "Origin",
+        "Range",
+        "Referer",
+        "User-Agent",
+        "X-Amz-Checksum-Sha256",
+        "X-Request-Id",
+      ]
+    }
+  }
+
+  query_strings_config {
+    query_string_behavior = "all"
+  }
+}
+
+resource "aws_cloudfront_function" "static_spa_rewrite" {
+  name    = "${var.name_prefix}-static-spa-rewrite"
+  runtime = "cloudfront-js-2.0"
+  comment = "Rewrite extensionless static deep links only; API behaviors never associate this function."
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var uri = request.uri;
+      if (uri === '/v1' || uri.startsWith('/v1/') || uri === '/health' || uri.startsWith('/assets/')) {
+        return request;
+      }
+      if (uri.endsWith('/') || !uri.split('/').pop().includes('.')) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_vpc_origin" "api" {
   vpc_origin_endpoint_config {
     name                   = "${var.name_prefix}-api-origin"
@@ -153,16 +211,22 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
     cache_policy_id        = var.static_cache_policy_id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.static_spa_rewrite.arn
+    }
   }
 
   ordered_cache_behavior {
-    path_pattern           = "/health"
-    target_origin_id       = local.api_origin_id
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-    allowed_methods        = ["GET", "HEAD", "OPTIONS"]
-    cached_methods         = ["GET", "HEAD"]
-    cache_policy_id        = var.static_cache_policy_id
+    path_pattern             = "/health"
+    target_origin_id         = local.api_origin_id
+    viewer_protocol_policy   = "redirect-to-https"
+    compress                 = true
+    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
+    cached_methods           = ["GET", "HEAD"]
+    cache_policy_id          = var.api_cache_policy_id
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
   }
 
   ordered_cache_behavior {
@@ -173,19 +237,7 @@ resource "aws_cloudfront_distribution" "this" {
     allowed_methods          = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods           = ["GET", "HEAD", "OPTIONS"]
     cache_policy_id          = var.api_cache_policy_id
-    origin_request_policy_id = var.api_origin_request_policy_id
-  }
-
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
+    origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
   }
 
   restrictions {

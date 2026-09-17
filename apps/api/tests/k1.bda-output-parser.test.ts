@@ -139,17 +139,16 @@ describe('BDA output parser', () => {
     expect(draft.values.find((value) => value.kind === 'MONEY')?.normalizedValue).toBe('-409615.00')
   })
 
-  it('keeps SEE STMT coded rows as valid statement references without inventing money', () => {
+  it('reports unresolved income SEE STMT as an issue instead of an input field', () => {
     const draft = mapBdaResult(result('MATCH', [{
-      canonical_path: 'official.box_20_entries',
+      canonical_path: 'official.box_11_entries',
       value_kind: 'CODE_ROW',
-      value: { code: '20 A', description: 'Other information', amount: 'SEE STMT' },
+      value: { code: '11 A', description: 'Other income', amount: 'SEE STMT' },
     }]))
 
-    expect(draft.values[0]?.normalizedValue).toEqual({
-      code: 'A', description: 'Other information', amount: null,
-    })
-    expect(draft.validationIssues).toEqual([])
+    expect(draft.values).toEqual([])
+    expect(draft.validationIssues).toHaveLength(1)
+    expect(draft.validationIssues.every(issue => issue.code === 'UNRESOLVED_K1_STATEMENT')).toBe(true)
   })
 
   it('accepts coded statement and printed placeholder rows with blank amounts', () => {
@@ -167,7 +166,6 @@ describe('BDA output parser', () => {
     ]))
 
     expect(draft.values.map((value) => value.normalizedValue)).toEqual([
-      { code: 'AG*', description: 'STMT', amount: null },
       { code: '', description: 'Self-employment earnings (loss)', amount: null },
     ])
     expect(draft.validationIssues).toEqual([])
@@ -222,8 +220,6 @@ describe('BDA output parser', () => {
     expect(draft.values.filter((value) => value.canonicalPath === 'official.box_20_entries')
       .map((value) => value.normalizedValue)).toEqual([
       { code: 'A', description: 'Other information', amount: '13816.00' },
-      { code: 'Z*', description: 'STMT', amount: null },
-      { code: 'AG*', description: 'STMT', amount: null },
     ])
     expect(draft.validationIssues).toEqual([])
   })
@@ -253,7 +249,6 @@ describe('BDA output parser', () => {
     expect(draft.values.filter((value) => value.canonicalPath === 'official.box_20_entries')
       .map((value) => value.normalizedValue)).toEqual([
       { code: 'A', description: 'Other information', amount: '12354.00' },
-      { code: 'Z*', description: 'STMT', amount: null },
     ])
     expect(draft.validationIssues).toEqual([])
   })
@@ -612,6 +607,25 @@ describe('BDA output parser', () => {
 
     expect(draft.values[0]?.normalizedValue).toBe('-190773.00')
     expect(draft.validationIssues).toEqual([])
+  })
+
+  it.each(['255,786', '255786.00', '(255,786)', '-255786.00', 255786])(
+    'keeps Section L withdrawals negative when the provider returns %s', raw => {
+      const draft = mapBdaResult(result('MATCH', [{
+        canonical_path: 'calculation.section_l_withdrawals_distributions',
+        value_kind: 'MONEY', value: raw,
+      }]))
+      expect(draft.values[0]?.rawValue).toBe(raw)
+      expect(draft.values[0]?.normalizedValue).toBe('-255786.00')
+    },
+  )
+
+  it('does not negate other positive capital values or zero withdrawals', () => {
+    const draft = mapBdaResult(result('MATCH', [
+      { canonical_path: 'calculation.capital_contributions', value_kind: 'MONEY', value: '255,786' },
+      { canonical_path: 'calculation.section_l_withdrawals_distributions', value_kind: 'MONEY', value: '0' },
+    ]))
+    expect(draft.values.map(value => value.normalizedValue)).toEqual(['255786.00', '0.00'])
   })
 
   it('blocks a package containing more than one Schedule K-1 Form 1065 page', () => {

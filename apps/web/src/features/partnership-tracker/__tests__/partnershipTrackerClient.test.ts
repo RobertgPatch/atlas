@@ -52,4 +52,21 @@ describe('partnership aggregation client', () => {
     await partnershipTrackerClient.delete('p-1')
     expect(fetchMock).toHaveBeenCalledWith('/v1/partnership-tracker/partnerships/p-1', expect.objectContaining({ credentials: 'include', method: 'DELETE' }))
   })
+
+  it('bypasses stale browser responses when loading a newly applied K-1 year', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ taxYear: 2025, revision: 2 }) })
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(partnershipTrackerClient.getYear('p-1', 2025)).resolves.toEqual({ taxYear: 2025, revision: 2 })
+    expect(fetchMock).toHaveBeenCalledWith('/v1/partnership-tracker/partnerships/p-1/years/2025', expect.objectContaining({ credentials: 'include', cache: 'no-store' }))
+  })
+
+  it('reports an invalid API response without exposing an HTML parsing error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<!doctype html><title>Jackson</title>', { status: 200, headers: { 'Content-Type': 'text/html' } })))
+    await expect(partnershipTrackerClient.getYear('p-1', 2025)).rejects.toMatchObject({ code: 'INVALID_API_RESPONSE', status: 200 })
+  })
+
+  it('preserves a missing-year API error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'TRACKER_NOT_FOUND' }), { status: 404, headers: { 'Content-Type': 'application/json' } })))
+    await expect(partnershipTrackerClient.getYear('p-1', 2020)).rejects.toMatchObject({ code: 'TRACKER_NOT_FOUND', status: 404 })
+  })
 })

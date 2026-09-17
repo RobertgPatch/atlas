@@ -80,6 +80,7 @@ export const K1_INGESTION_ERROR_CODES = [
   'PDF_ENCRYPTED',
   'PDF_PAGE_LIMIT_EXCEEDED',
   'DUPLICATE_K1_CONTENT',
+  'PARTNERSHIP_IMPORT_REQUIRES_REVIEW',
   'EXTRACTION_FAILED',
   'EXTRACTION_RESULT_INVALID',
   'EXTRACTION_THROTTLED',
@@ -107,6 +108,7 @@ export interface K1AuditMetadata {
   applicationId?: string
   entityId?: string
   actorUserId?: string
+  createPartnershipIfMissing?: boolean
   status?: string
   version?: number
   sha256Prefix?: string
@@ -198,6 +200,7 @@ export interface K1IngestionBatch {
   id: string
   status: K1IngestionBatchStatus
   entityScopeId: string | null
+  createPartnershipIfMissing?: boolean
   createdAt: string
   closedAt: string | null
   counts: K1IngestionBatchCounts

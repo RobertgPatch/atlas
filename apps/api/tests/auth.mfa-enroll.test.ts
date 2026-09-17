@@ -57,6 +57,7 @@ describe('MFA enrollment completion', () => {
   )
 
   it('rejects an unknown enrollment token without creating a session', async () => {
+    const admission = vi.spyOn(fixture.app.authCostAdmission, 'admit')
     const response = await fixture.app.inject({
       method: 'POST',
       url: '/v1/auth/mfa/enroll/complete',
@@ -65,6 +66,40 @@ describe('MFA enrollment completion', () => {
 
     expect(response.statusCode).toBe(401)
     expect(response.headers['set-cookie']).toBeUndefined()
+    expect(admission).toHaveBeenCalledWith(expect.objectContaining({
+      sourcePrefix: expect.any(String),
+    }))
+    expect(admission.mock.calls[0]?.[0]).not.toHaveProperty('accountIdentifier')
+  })
+
+  it('does no TOTP, lockout, audit, enrollment, or session work after durable rejection', async () => {
+    const enrollment = authRepository.createMfaEnrollment(
+      fixture.admin.id,
+      totpService.generateSecret(),
+    )
+    vi.spyOn(fixture.app.authCostAdmission, 'admit').mockResolvedValueOnce({
+      allowed: false,
+      reasonCode: 'AUTH_SOURCE_RATE',
+      retryAfterSeconds: 23,
+    })
+    const totpVerify = vi.spyOn(totpService, 'verify')
+    const auditWrite = vi.spyOn(auditRepository, 'record')
+    const completeEnrollment = vi.spyOn(authRepository, 'completeMfaEnrollment')
+    const createSession = vi.spyOn(authRepository, 'createSession')
+
+    const response = await fixture.app.inject({
+      method: 'POST',
+      url: '/v1/auth/mfa/enroll/complete',
+      payload: { enrollmentToken: enrollment.id, code: '123456' },
+    })
+
+    expect(response.statusCode).toBe(429)
+    expect(response.headers['retry-after']).toBe('23')
+    expect(totpVerify).not.toHaveBeenCalled()
+    expect(lockoutService.getLockout).not.toHaveBeenCalled()
+    expect(auditWrite).not.toHaveBeenCalled()
+    expect(completeEnrollment).not.toHaveBeenCalled()
+    expect(createSession).not.toHaveBeenCalled()
   })
 
   it('records an invalid TOTP and keeps the enrollment available for retry', async () => {

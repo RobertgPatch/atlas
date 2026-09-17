@@ -24,6 +24,19 @@
 - Allow production AWS resources in read-only local mode: rejected because identity and permission mistakes can turn an assumed read-only path into a production incident.
 - Remove all provider integration code: rejected because production still requires the integrations; only local activation changes.
 
+### 2026-08-30 amendment: explicitly scoped production-account BDA use
+
+**Superseding decision**: Keep deterministic `dev:local` as the default, but add `dev:local:bda` for ordinary one-user K-1 processing against the approved production-account S3/KMS/LIVE-BDA resources. This does not create an AWS development or staging runtime: application processes, PostgreSQL, and the durable queue remain local. The earlier sandbox-only restriction is superseded for this K-1-only mode.
+
+**Safety basis**: BDA PDF input/output must be in S3, and the application already has the required S3/BDA adapters plus a PostgreSQL queue/reconciler path. A dedicated command can therefore expose substantially less authority than a production runtime. It verifies STS account, region, bucket ownership/CORS, KMS key, and BDA project before child startup; refuses SQS, production RDS, Terraform mutation, and unrelated providers; uses short-lived credentials; and enforces small paid-work quotas. The browser still needs a checksum-bound, KMS-bound, short-lived presigned URL, so allowing loopback CORS does not grant anonymous bucket access.
+
+**Alternatives considered**:
+
+- Keep real parsing unavailable locally: rejected because it leaves uploaded K-1 work permanently queued or forces synthetic extraction that cannot validate the production provider flow.
+- Run a second AWS sandbox stack: rejected because it restores the staging/development cost and topology the feature removed.
+- Use the production SQS queue/ECS worker from local: rejected because local completion and database state would split across runtimes and could write to the wrong database.
+- Send the PDF bytes directly from local disk to BDA: rejected because asynchronous BDA requires S3 input/output URIs.
+
 ## Decision 3: Preserve the existing production account, region, backend, and physical identifiers
 
 **Decision**: This feature will not move the AWS region, backend key, state bucket, KMS key, or existing physical resources. Add a committed, non-secret production target descriptor that fixes the last committed production baseline at `us-west-2`, default Terraform workspace, and the separate `us-east-1` CloudFront certificate region. The production script must verify the descriptor, ignored production tfvars, provider/plan region, requested assertion, and availability zones agree. Project Jackson branding may change documentation, tags, metric namespaces, and defaults for genuinely new resources, but a plan that replaces a protected existing resource is blocked.

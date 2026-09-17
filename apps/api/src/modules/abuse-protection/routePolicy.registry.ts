@@ -5,6 +5,7 @@ import {
   FAILURE_MODES,
   HTTP_METHODS,
   IDEMPOTENCY_MODES,
+  LOCAL_RATE_PARTITIONS,
   ROUTE_CLASSES,
   SCOPE_DIMENSIONS,
   type HttpMethod,
@@ -42,6 +43,7 @@ const authenticationBoundaries = new Set<string>(AUTHENTICATION_BOUNDARIES)
 const scopeDimensions = new Set<string>(SCOPE_DIMENSIONS)
 const failureModes = new Set<string>(FAILURE_MODES)
 const idempotencyModes = new Set<string>(IDEMPOTENCY_MODES)
+const localRatePartitions = new Set<string>(LOCAL_RATE_PARTITIONS)
 
 const failClosedClasses = new Set<RouteProtectionPolicy['routeClass']>([
   'AUTH_ATTEMPT',
@@ -110,6 +112,53 @@ export const validateRouteProtectionPolicy = (
   if (policy.localRate) {
     positiveInteger(policy.localRate.requests, 'local_rate_requests')
     positiveInteger(policy.localRate.windowSeconds, 'local_rate_window')
+  }
+  const localRateKeys = new Set<string>()
+  for (const rate of policy.localRates) {
+    if (!/^[a-z0-9][a-z0-9._-]{2,127}$/.test(rate.limitKey)) {
+      throw new Error('INVALID_LOCAL_RATE_KEY')
+    }
+    if (!['source_prefix', 'user', 'session', 'global'].includes(rate.scope)) {
+      throw new Error('INVALID_LOCAL_RATE_SCOPE')
+    }
+    if (!localRatePartitions.has(rate.partition)) {
+      throw new Error('INVALID_LOCAL_RATE_PARTITION')
+    }
+    if (rate.scope === 'source_prefix' && rate.partition !== 'source') {
+      throw new Error('INVALID_SOURCE_RATE_PARTITION')
+    }
+    if ((rate.scope === 'user' || rate.scope === 'session') && rate.partition !== 'authenticated') {
+      throw new Error('INVALID_PRINCIPAL_RATE_PARTITION')
+    }
+    if (rate.scope === 'global' && rate.partition !== 'pinned_global') {
+      throw new Error('INVALID_GLOBAL_RATE_PARTITION')
+    }
+    positiveInteger(rate.requests, 'local_rate_requests')
+    positiveInteger(rate.windowSeconds, 'local_rate_window')
+    const key = `${rate.limitKey}:${rate.scope}`
+    if (localRateKeys.has(key)) throw new Error('DUPLICATE_LOCAL_RATE_DECISION')
+    localRateKeys.add(key)
+  }
+  if (
+    policy.routeClass !== 'PUBLIC_HEALTH'
+    && policy.routeClass !== 'INTERNAL_SCHEDULER'
+    && !policy.localRates.some((rate) => rate.scope === 'source_prefix')
+  ) {
+    throw new Error('EXTERNAL_ROUTE_MISSING_SOURCE_RATE')
+  }
+  if (
+    (policy.authentication === 'session' || policy.authentication === 'admin')
+    && !policy.localRates.some((rate) => rate.scope === 'user')
+  ) {
+    throw new Error('AUTHENTICATED_ROUTE_MISSING_USER_RATE')
+  }
+  if (policy.concurrencyClass !== null) {
+    if (!/^[a-z0-9][a-z0-9._-]{2,127}$/.test(policy.concurrencyClass)) {
+      throw new Error('INVALID_CONCURRENCY_CLASS')
+    }
+    if (policy.concurrencyLimit === null) {
+      throw new Error('CONCURRENCY_CLASS_MISSING_LIMIT')
+    }
   }
   for (const rate of policy.durableRates) {
     if (!rate.policyLimitKey.trim()) throw new Error('INVALID_DURABLE_RATE_KEY')

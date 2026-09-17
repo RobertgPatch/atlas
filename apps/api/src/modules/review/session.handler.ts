@@ -3,6 +3,7 @@ import { ZodError } from 'zod'
 import { k1Repository } from '../k1/k1.repository.js'
 import { durableK1Repository } from '../k1/k1.repository.js'
 import { getK1ObjectStore } from '../k1/storage/index.js'
+import { sendPdfStorageError } from './pdfStorageError.js'
 import { partnershipsRepository } from '../partnerships/partnerships.repository.js'
 import {
   durableReviewRepository,
@@ -15,7 +16,10 @@ import { k1MatchRepository } from '../k1/matching/k1Match.repository.js'
 import { pool, query } from '../../infra/db/client.js'
 import { k1ReviewParamsSchema } from './review.schemas.js'
 import { config } from '../../config.js'
-import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  authorizeCostSubjects,
+} from '../abuse-protection/costWorkloadAdmission.js'
 import type {
   K1ReviewSession,
   K1FieldValue,
@@ -410,18 +414,31 @@ export const sessionHandler = async (
 export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const parsed = k1ReviewParamsSchema.safeParse(request.params)
   if (!parsed.success) return sendZodError(reply, parsed.error)
-  await admitCostWorkload({
-    workloadKey: 'k1_document_download',
-    method: 'GET',
-    routePattern: '/v1/k1-documents/:k1DocumentId/pdf',
-    principal: request.authUser!.userId,
-    canonicalInputs: {
-      k1DocumentId: parsed.data.k1DocumentId,
-      range: request.headers.range ?? null,
-    },
-    globalDailyLimit: config.abuseProtection.quotas.documentDownload.userPerHour * 24,
-    leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.documentDownloadMs / 1_000),
-  })
+  const finishDownload = async (operation: Awaited<ReturnType<typeof admitCostWorkload>>) => {
+    await operation.succeed()
+    if (operation.operationId && operation.fencingToken != null) {
+      await query(
+        `update workload_leases set state = 'released', released_at = now()
+          where operation_id = $1 and fencing_token = $2 and state = 'active'`,
+        [operation.operationId, operation.fencingToken.toString()],
+      )
+    }
+  }
+  const admitDownload = async (entityId?: string | null) => admitCostWorkload({
+      workloadKey: 'k1_document_download',
+      method: 'GET',
+      routePattern: '/v1/k1-documents/:k1DocumentId/pdf',
+      subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
+        document: parsed.data.k1DocumentId,
+        ...(entityId ? { entity: entityId } : {}),
+      }),
+      canonicalInputs: {
+        k1DocumentId: parsed.data.k1DocumentId,
+        range: request.headers.range ?? null,
+      },
+      globalDailyLimit: config.abuseProtection.quotas.documentDownload.userPerHour * 24,
+      leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.documentDownloadMs / 1_000),
+    })
   if (pool) {
     const durable = await durableK1Repository.getById(parsed.data.k1DocumentId)
     if (durable) {
@@ -429,7 +446,25 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
         ? request.k1Scope?.entityIds.includes(durable.entityId)
         : isAdmin(request) || durable.uploadedBy === request.authUser?.userId
       if (!authorized) return reply.code(404).send({ error: 'NOT_FOUND' })
+      const operation = await admitDownload(durable.entityId)
       try {
+        const store = getK1ObjectStore()
+        const identity = {
+          key: durable.storagePath,
+          bucket: durable.storageBucket,
+          versionId: durable.storageVersionId,
+        }
+        if (request.method === 'HEAD') {
+          const metadata = await store.head(identity)
+          if (!metadata) return reply.code(404).send({ error: 'NOT_FOUND' })
+          return reply
+            .type(metadata.contentType ?? 'application/pdf')
+            .header('Content-Length', metadata.sizeBytes)
+            .header('Accept-Ranges', 'bytes')
+            .header('Cache-Control', 'private, no-store')
+            .header('X-Content-Type-Options', 'nosniff')
+            .send()
+        }
         const rangeHeader = request.headers.range
         let range: { start: number; end?: number } | undefined
         if (rangeHeader) {
@@ -440,9 +475,7 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
             return reply.code(416).header('Accept-Ranges', 'bytes').send({ error: 'INVALID_RANGE' })
           }
         }
-        const object = await getK1ObjectStore().read({
-          key: durable.storagePath, bucket: durable.storageBucket, versionId: durable.storageVersionId,
-        }, range)
+        const object = await store.read(identity, range)
         const response = reply.type(object.metadata.contentType ?? 'application/pdf')
           .header('Accept-Ranges', 'bytes')
           .header('Cache-Control', 'private, no-store')
@@ -451,22 +484,35 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
           response.code(206)
           if (object.contentRange) response.header('Content-Range', object.contentRange)
         }
-        return response.send(object.body)
+        return await response.send(object.body)
       } catch (error) {
+        await operation.fail('PDF_READ_FAILED')
         if ((error as { code?: string }).code === 'INVALID_OBJECT_RANGE') {
           return reply.code(416).header('Accept-Ranges', 'bytes').send({ error: 'INVALID_RANGE' })
         }
-        return reply.code(404).send({ error: 'NOT_FOUND' })
+        return sendPdfStorageError(request, reply, error)
+      } finally {
+        await finishDownload(operation)
       }
     }
   }
   const k = loadK1ForReview(request, reply, parsed.data.k1DocumentId)
   if (!k) return
-
   const storagePath = k1Repository.getDocumentStoragePath(k.id)
   if (!storagePath) return reply.code(404).send({ error: 'NOT_FOUND' })
-
+  const operation = await admitDownload(k.entityId)
   try {
+    const store = getK1ObjectStore()
+    if (request.method === 'HEAD') {
+      const metadata = await store.head({ key: storagePath })
+      if (!metadata) return reply.code(404).send({ error: 'NOT_FOUND' })
+      return reply
+        .type(metadata.contentType ?? 'application/pdf')
+        .header('Content-Length', metadata.sizeBytes)
+        .header('Accept-Ranges', 'bytes')
+        .header('Cache-Control', 'private, max-age=300')
+        .send()
+    }
     const rangeHeader = request.headers.range
     let range: { start: number; end?: number } | undefined
     if (rangeHeader) {
@@ -479,7 +525,7 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
         end: match[2] ? Number(match[2]) : undefined,
       }
     }
-    const object = await getK1ObjectStore().read({ key: storagePath }, range)
+    const object = await store.read({ key: storagePath }, range)
     const response = reply
       .type(object.metadata.contentType ?? 'application/pdf')
       .header('Accept-Ranges', 'bytes')
@@ -488,8 +534,11 @@ export const pdfHandler = async (request: FastifyRequest, reply: FastifyReply) =
       response.code(206)
       if (object.contentRange) response.header('Content-Range', object.contentRange)
     }
-    return response.send(object.body)
-  } catch {
-    return reply.code(404).send({ error: 'NOT_FOUND' })
+    return await response.send(object.body)
+  } catch (error) {
+    await operation.fail('PDF_READ_FAILED')
+    return sendPdfStorageError(request, reply, error)
+  } finally {
+    await finishDownload(operation)
   }
 }

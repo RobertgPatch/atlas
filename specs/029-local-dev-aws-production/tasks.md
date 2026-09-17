@@ -56,9 +56,9 @@
 - [X] T012 [P] [US1] Add a synchronous migration entry point using the existing ordered transaction and advisory-lock runner in apps/api/src/scripts/run-migrations.ts and expose it from apps/api/package.json
 - [X] T013 [P] [US1] Implement explicit local/production runtime validation plus stub extractor, local queue, and local object-store defaults in apps/api/src/config.ts
 - [X] T014 [US1] Start PostgreSQL, run migrations synchronously, start the API, require /internal/readiness, then start worker and web while treating any failure as fatal in scripts/dev-local.ps1
-- [X] T015 [US1] Make dev:local canonical, remove implicit BDA activation, and retain any real-provider launcher only as an explicitly sandbox-only production-refusing command in package.json
+- [X] T015 [US1] Make dev:local canonical and remove implicit BDA activation in package.json (the later T081-T090 amendment supersedes the original sandbox-only restriction with an explicit K-1-scoped production-account mode)
 - [X] T016 [P] [US1] Document safe local defaults and production-only variables without values in apps/api/.env.example
-- [X] T017 [P] [US1] Document clean local startup, migration failure behavior, stub adapters, and optional sandbox-only provider use in apps/api/README.md
+- [X] T017 [P] [US1] Document clean local startup, migration failure behavior, and stub adapters in apps/api/README.md (explicit local BDA use is documented by the later amendment)
 - [X] T018 [P] [US1] Rewrite the current environment strategy around local development and sole AWS production in docs/deployment/environment-strategy.md
 - [X] T019 [US1] Run the clean-volume startup, retained-flow reads, repeated migrations, and all production-refusal fixtures and record commands plus sanitized outcomes in specs/029-local-dev-aws-production/quickstart.md
 
@@ -182,6 +182,23 @@
 
 ---
 
+## Phase 8: 2026-08-30 Local-to-AWS BDA Amendment
+
+**Purpose**: Restore real K-1 parsing from the local application without reintroducing an AWS development/staging environment or granting local access to the production runtime.
+
+- [X] T081 Amend FR-001/FR-003 and add FR-028 through FR-033 plus SC-013/SC-014 in specs/029-local-dev-aws-production/spec.md; supersede the prior sandbox-only decision in research.md and update plan.md/contracts/environment-contract.md
+- [X] T082 Add fail-closed local BDA boundary validation for exact adapters, switches, account, region, KMS/BDA ARNs, local queue, and prohibited unrelated resources in apps/api/src/config.ts with fixtures in apps/api/tests/environment-boundary.test.ts
+- [X] T083 Add `dev:local:bda`, ignored dotenv loading, short-lived identity/resource/CORS preflight, local queue enforcement, worker startup failure detection, sanitized configuration template, and encrypted S3 promotion for pre-amendment queued local evidence
+- [X] T084 Add PowerShell fixtures for approved and rejected local BDA configurations without invoking AWS in scripts/dev-local.test.ps1
+- [X] T085 Add the two loopback origins to the Terraform K-1 presigned-upload CORS default, create an unattached least-privilege local BDA IAM policy, and expose its ARN plus BDA identifiers in non-secret K-1 Terraform outputs
+- [X] T086 Document setup, cost boundaries, queue/reconciliation behavior, credential handling, and production-resource exceptions in apps/api/README.md, docs/deployment/environment-strategy.md, and specs/029-local-dev-aws-production/quickstart.md
+- [ ] T087 With separately approved production deployment authority, enable/apply the production K-1 resources and loopback CORS, then create or configure a least-privilege short-lived profile that can access only the documented K-1 S3/KMS/BDA resources
+- [ ] T088 Populate ignored apps/api/.env.local-bda from reviewed non-secret Terraform outputs, refresh the AWS session, and pass the real read-only launcher preflight without printing identifiers or credentials into repository evidence
+- [ ] T089 Start `npm run dev:local:bda`, recover the existing queued K-1 item without a stub worker, and prove exactly one BDA invocation reaches a reviewable or explicit failed terminal state across a browser reload
+- [ ] T090 Record sanitized SC-014 evidence and the measured paid BDA usage/cost in specs/029-local-dev-aws-production/quickstart.md; do not mark the amendment operationally complete before T087-T089 pass
+
+---
+
 ## Dependencies and Execution Order
 
 ### Phase Dependencies
@@ -193,6 +210,7 @@
 - **Phase 5 - US3**: Depends on US2 because rollback consumes its manifest, immutable artifacts, CLI, and checkpoint format.
 - **Phase 6 - US4**: Governance implementation can start after Foundation; removal tasks T065-T067 wait for the tested US2 replacement path.
 - **Phase 7 - Polish**: Depends on all selected stories. T078 also depends on feature 028 merging; T079 depends on operator-supplied production identity/backend inputs.
+- **Phase 8 - Local BDA amendment**: Repository work T081-T086 is independent of AWS activation. T087 requires a separately reviewed production apply; T088 depends on T087 and operator credentials; T089 depends on T088; T090 depends on real execution evidence from T089.
 
 ### User Story Dependency Graph
 

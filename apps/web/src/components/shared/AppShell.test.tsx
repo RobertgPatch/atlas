@@ -130,4 +130,27 @@ describe('AppShell current navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(onSignOut).toHaveBeenCalledOnce()
   })
+
+  it('shows the operations destination only to the super admin', () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <AppShell currentPath="/dashboard" userRole="Admin" userAccessLevel="Admin">
+          <div>Dashboard</div>
+        </AppShell>
+      </MemoryRouter>,
+    )
+
+    expect(screen.queryByRole('link', { name: 'Operations' })).not.toBeInTheDocument()
+
+    rerender(
+      <MemoryRouter>
+        <AppShell currentPath="/admin" userRole="Admin" userAccessLevel="SuperAdmin">
+          <div>Operations console</div>
+        </AppShell>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'Operations' })).toHaveAttribute('href', '/admin')
+    expect(screen.getByText('SuperAdmin')).toBeInTheDocument()
+  })
 })

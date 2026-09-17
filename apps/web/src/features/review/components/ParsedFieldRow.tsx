@@ -4,6 +4,7 @@ import type {
 } from '../../../../../../packages/types/src/review-finalization'
 import { CONFIDENCE_COLOR } from '../hooks/useFieldEdits'
 import { getK1FieldDisplay } from '../k1FieldDisplay'
+import { CurrencyInput } from './CurrencyInput'
 
 interface Props {
   field: K1FieldValue
@@ -82,10 +83,23 @@ export const ParsedFieldRow = ({
             <input aria-label={`${display.title} code`} disabled={disabled} value={displayValue(codeRow.code)}
               onChange={(event) => onChange({ ...codeRow, code: event.target.value })}
               className="rounded-md border border-slate-300 px-2 py-1.5 font-mono text-sm focus:border-cyan-600 focus:ring-2 focus:ring-cyan-200" />
-            <input aria-label={`${display.title} amount`} disabled={disabled} value={displayValue(codeRow.value ?? codeRow.amount)}
-              onChange={(event) => onChange({ ...codeRow, value: event.target.value })}
+            <CurrencyInput aria-label={`${display.title} amount`} disabled={disabled} value={codeRow.value ?? codeRow.amount}
+              onValueChange={(amount) => onChange({ ...codeRow, value: amount ?? '' })}
               className="rounded-md border border-slate-300 px-3 py-1.5 font-mono text-sm focus:border-cyan-600 focus:ring-2 focus:ring-cyan-200" />
           </div>
+        ) : field.valueKind === 'MONEY' ? (
+          <CurrencyInput
+            disabled={disabled}
+            value={value}
+            onValueChange={onChange}
+            className={`w-full rounded-md border px-3 py-1.5 text-sm font-mono ${
+              disabled
+                ? 'bg-gray-50 text-gray-500 border-gray-200'
+                : 'bg-white border-gray-300 focus:ring-2 focus:ring-cyan-200 focus:border-cyan-600'
+            }`}
+            aria-label={display.title}
+            data-testid={`field-input-${field.fieldName}`}
+          />
         ) : (
           <input
             type="text"

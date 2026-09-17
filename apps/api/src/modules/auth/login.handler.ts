@@ -5,7 +5,38 @@ import { lockoutService } from './lockout.service.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { config } from '../../config.js'
 import { totpService } from './totp.service.js'
-import { buildRateLimitedResponse } from '../abuse-protection/protection.errors.js'
+import {
+  buildProtectionUnavailableResponse,
+  buildRateLimitedResponse,
+} from '../abuse-protection/protection.errors.js'
+import { normalizeSourcePrefix } from '../abuse-protection/subjectFingerprint.js'
+import { passwordHashSemaphore } from './password.service.js'
+import { passwordPolicySummary } from './passwordPolicy.js'
+
+const sourcePrefixFor = (request: FastifyRequest): string =>
+  request.abuseProtectionSourcePrefix ?? normalizeSourcePrefix(
+    request.ip,
+    config.abuseProtection.localRates.ipv6PrefixLength,
+  )
+
+const rejectAdmission = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+  rejection: { readonly reasonCode: string; readonly retryAfterSeconds: number },
+): void => {
+  const response = rejection.reasonCode === 'AUTH_STORE_UNAVAILABLE'
+    ? buildProtectionUnavailableResponse({
+        code: 'PROTECTION_UNAVAILABLE',
+        requestId: request.id,
+        retryAfterSeconds: rejection.retryAfterSeconds,
+      })
+    : buildRateLimitedResponse({
+        code: 'RATE_LIMITED',
+        requestId: request.id,
+        retryAfterSeconds: rejection.retryAfterSeconds,
+      })
+  reply.status(response.statusCode).headers(response.headers).send(response.body)
+}
 
 export const loginHandler = async (
   request: FastifyRequest,
@@ -18,37 +49,48 @@ export const loginHandler = async (
   }
 
   const { email, password } = payload.data
-  const admission = request.server.authCostAdmission.acquirePassword(email)
+  const admission = await request.server.authCostAdmission.admit({
+    sourcePrefix: sourcePrefixFor(request),
+    accountIdentifier: email,
+  })
   if (!admission.allowed) {
-    const response = buildRateLimitedResponse({
-      code: 'RATE_LIMITED',
-      requestId: request.id,
-      retryAfterSeconds: admission.retryAfterSeconds,
-    })
-    reply.status(response.statusCode).headers(response.headers).send(response.body)
-    return
-  }
-
-  try {
-  const lockout = await lockoutService.getLockout(email, 'PASSWORD')
-  if (lockout) {
-    reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockout.toISOString() })
+    rejectAdmission(request, reply, admission)
     return
   }
 
   const user = authRepository.findUserByEmail(email)
-  const passwordValid = await authRepository.verifyPassword(user, password)
+  const lockout = await lockoutService.getLockout(email, 'PASSWORD', user?.id)
+  if (lockout) {
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
+
+  const hashLease = passwordHashSemaphore.tryAcquire()
+  if (!hashLease) {
+    const response = buildRateLimitedResponse({
+      code: 'RATE_LIMITED',
+      requestId: request.id,
+      retryAfterSeconds: 1,
+    })
+    reply.status(response.statusCode).headers(response.headers).send(response.body)
+    return
+  }
+  let passwordValid: boolean
+  try {
+    passwordValid = await authRepository.verifyPassword(user, password)
+  } finally {
+    hashLease.release()
+  }
   if (!user || user.status === 'Inactive' || !passwordValid) {
-    const lockoutUntil = await lockoutService.recordFailure(email, 'PASSWORD')
+    const lockoutUntil = await lockoutService.recordFailure(email, 'PASSWORD', user?.id)
     await auditRepository.record({
       eventName: 'auth.login.failed',
       objectType: 'user',
       objectId: user?.id,
-      after: { email },
     })
 
     if (lockoutUntil) {
-      reply.status(423).send({ error: 'ACCOUNT_LOCKED', lockoutUntil: lockoutUntil.toISOString() })
+      reply.status(401).send({ error: 'SIGN_IN_FAILED' })
       return
     }
 
@@ -56,7 +98,28 @@ export const loginHandler = async (
     return
   }
 
-  await lockoutService.clear(email, 'PASSWORD')
+  await lockoutService.clear(email, 'PASSWORD', user.id)
+
+  if (user.passwordChangeRequired) {
+    const change = authRepository.createPasswordChange(user.id)
+    await auditRepository.record({
+      actorUserId: user.id,
+      eventName: 'auth.login.password_change_required',
+      objectType: 'user',
+      objectId: user.id,
+      after: {
+        actorDisplayName: user.displayName,
+        accessLevel: user.accessLevel,
+      },
+    })
+    reply.send({
+      status: 'PASSWORD_CHANGE_REQUIRED',
+      changeToken: change.token,
+      expiresAt: change.expiresAt.toISOString(),
+      policy: passwordPolicySummary,
+    })
+    return
+  }
 
   if (config.mfaLoginEnabled) {
     if (authRepository.isMfaEnrollmentRequired(user)) {
@@ -101,6 +164,10 @@ export const loginHandler = async (
     eventName: 'auth.login.succeeded',
     objectType: 'user',
     objectId: user.id,
+    after: {
+      actorDisplayName: user.displayName,
+      accessLevel: user.accessLevel,
+    },
   })
 
   reply.setCookie(config.sessionCookieName, token, {
@@ -115,7 +182,9 @@ export const loginHandler = async (
     user: {
       id: user.id,
       email: user.email,
+      displayName: user.displayName,
       role: user.role,
+      accessLevel: user.accessLevel,
       status: user.status,
     },
     role: user.role,
@@ -125,7 +194,4 @@ export const loginHandler = async (
       absoluteTimeoutSeconds: config.sessionAbsoluteTimeoutSeconds,
     },
   })
-  } finally {
-    admission.release()
-  }
 }

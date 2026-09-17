@@ -5,6 +5,69 @@ import { pathToFileURL } from 'node:url'
 const roundCurrency = (value) => Math.round((value + Number.EPSILON) * 100) / 100
 const isFiniteNonnegative = (value) => Number.isFinite(value) && value >= 0
 
+const sortedUnique = (values) => [...new Set(values)].sort()
+
+async function terraformFiles(root) {
+  const entries = await fs.readdir(root, { withFileTypes: true })
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const resolved = path.join(root, entry.name)
+    if (entry.isDirectory()) return terraformFiles(resolved)
+    return entry.isFile() && entry.name.endsWith('.tf') ? [resolved] : []
+  }))
+  return nested.flat()
+}
+
+/** Derive reviewed cost/security components from Terraform declarations. */
+export async function deriveTerraformCostInventory(terraformRoot) {
+  const files = await terraformFiles(path.resolve(terraformRoot))
+  const sources = await Promise.all(files.map(async (file) => ({
+    file,
+    text: await fs.readFile(file, 'utf8'),
+  })))
+  const joined = sources.map((source) => source.text).join('\n')
+  const resources = [...joined.matchAll(/resource\s+"([^"]+)"\s+"([^"]+)"\s*{/g)]
+    .map((match) => ({ type: match[1], name: match[2] }))
+  const wafRuleNames = sortedUnique([
+    ...joined.matchAll(/name\s*=\s*"(AWSManagedRules[^"]+|api_general_per_ip|api_general_global|auth_per_ip|auth_global|paid_admission_per_ip|paid_admission_global_emergency)"/g),
+  ].map((match) => match[1]))
+  const alarmResourceFamilies = sortedUnique(resources
+    .filter((resource) => resource.type === 'aws_cloudwatch_metric_alarm')
+    .map((resource) => resource.name))
+  const spaFunctions = sortedUnique(resources
+    .filter((resource) => resource.type === 'aws_cloudfront_function')
+    .map((resource) => resource.name))
+  const s3ProtectionTypes = new Set([
+    'aws_s3_bucket_lifecycle_configuration',
+    'aws_s3_bucket_policy',
+    'aws_s3_bucket_public_access_block',
+    'aws_s3_bucket_server_side_encryption_configuration',
+    'aws_s3_bucket_versioning',
+  ])
+  const s3ProtectionResources = sortedUnique(resources
+    .filter((resource) => s3ProtectionTypes.has(resource.type))
+    .map((resource) => `${resource.type}.${resource.name}`))
+  const customMetricNamespaces = sortedUnique([
+    ...joined.matchAll(/ProjectJackson\/[A-Za-z0-9_-]+/g),
+  ].map((match) => match[0]))
+  const prohibitedControls = sortedUnique([
+    ...(joined.match(/AWSManagedRulesBotControlRuleSet/gi) ?? []).map(() => 'bot-control'),
+    ...(joined.match(/resource\s+"aws_(?:elasticache|memorydb)[^"]*"/gi) ?? []).map(() => 'redis-cache'),
+    ...(joined.match(/\bcaptcha\s*{/gi) ?? []).map(() => 'captcha'),
+    ...(joined.match(/\bchallenge\s*{/gi) ?? []).map(() => 'challenge'),
+  ])
+  return {
+    wafRuleNames,
+    alarmResourceFamilies,
+    wafLogConfigurationCount: resources.filter(
+      (resource) => resource.type === 'aws_wafv2_web_acl_logging_configuration',
+    ).length,
+    customMetricNamespaces,
+    spaFunctions,
+    s3ProtectionResources,
+    prohibitedControls,
+  }
+}
+
 export function calculateProductionCost(profile, priceEvidence, options = {}) {
   const errors = []
   const unpriced = []
@@ -42,6 +105,17 @@ export function calculateProductionCost(profile, priceEvidence, options = {}) {
   if (!workloadProfileMatched) errors.push('Production workload or notification-only Budget profile drifted.')
   if (!isFiniteNonnegative(profile?.usageUpperBoundMonthlyUsd)) {
     errors.push('Usage upper bound must be a finite nonnegative number.')
+  }
+  const terraformInventory = options.terraformInventory
+  if (!terraformInventory) {
+    errors.push('Terraform-derived cost inventory is required.')
+  } else {
+    if (terraformInventory.prohibitedControls?.length > 0) {
+      errors.push(`Prohibited cost-amplifying controls detected: ${terraformInventory.prohibitedControls.join(', ')}.`)
+    }
+    if (JSON.stringify(terraformInventory) !== JSON.stringify(profile?.terraformInventory)) {
+      errors.push('Terraform WAF/alarm/metric-log/SPA/S3 inventory drifted from the reviewed profile.')
+    }
   }
 
   let fixedUnrounded = 0
@@ -132,7 +206,11 @@ async function main() {
       if (!response.ok) throw new Error(`Live price evidence request failed with HTTP ${response.status}.`)
       return response.json()
     })
-  const result = calculateProductionCost(profile, rates)
+  if (!args['terraform-root']) {
+    throw new Error('Expected --terraform-root so resource counts are derived from source.')
+  }
+  const terraformInventory = await deriveTerraformCostInventory(args['terraform-root'])
+  const result = calculateProductionCost(profile, rates, { terraformInventory })
   await fs.writeFile(path.resolve(args.output), `${JSON.stringify(result.evidence, null, 2)}\n`, { flag: 'wx' })
   if (!result.valid) {
     for (const error of result.errors) process.stderr.write(`cost-policy: ${error}\n`)

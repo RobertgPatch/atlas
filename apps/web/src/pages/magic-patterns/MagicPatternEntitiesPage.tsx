@@ -23,7 +23,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronsUpDown,
-  CircleDashed,
   Clock,
   Ellipsis,
   Handshake,
@@ -88,12 +87,12 @@ const EMPTY_FORM: CreateEntityInput = {
 
 const normalizeStatus = (value: string) => {
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'active') return 'validated'
+  if (normalized === 'active' || normalized === 'draft') return 'validated'
   if (normalized === 'inactive') return 'inactive'
   if (normalized === 'pending') return 'pending'
   if (normalized === 'error') return 'error'
   if (normalized === 'validated') return 'validated'
-  return 'draft'
+  return 'validated'
 }
 
 const formatCount = (value: number) => new Intl.NumberFormat('en-US').format(value)
@@ -299,7 +298,7 @@ function AddEntityDialog({
               <div className="min-w-0">
                 <DialogTitle className="text-base font-semibold text-slate-900">Add entity</DialogTitle>
                 <p className="mt-1 text-sm leading-5 text-slate-500">
-                  The entity is created as a draft. Link owners, partnerships, and investments after it is saved.
+                  The entity is available immediately. Link owners, partnerships, and investments after it is saved.
                 </p>
               </div>
               <button
@@ -549,11 +548,6 @@ function StatusChip({ status }: { status: string }) {
       style: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
       Icon: CheckCircle2,
     },
-    draft: {
-      label: 'Draft',
-      style: 'bg-slate-50 text-slate-600 ring-slate-500/20',
-      Icon: CircleDashed,
-    },
     pending: {
       label: 'Pending',
       style: 'bg-amber-50 text-amber-700 ring-amber-600/20',
@@ -710,6 +704,7 @@ export function MagicPatternEntitiesPage() {
     <AppShell
       currentPath="/entities"
       userRole={session?.role ?? 'User'}
+      userAccessLevel={session?.user.accessLevel}
       userEmail={session?.user.email}
       onSignOut={() => {
         void authClient.logout().finally(() => sessionStore.setUnauthenticated())

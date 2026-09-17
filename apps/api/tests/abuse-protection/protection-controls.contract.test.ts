@@ -297,13 +297,23 @@ describe('Admin protection-control contract', () => {
       headers: { cookie: fixture.cookie },
       payload: { mode: 'disable', reason: 'too short' },
     })
+    const nonExpiringDisable = await fixture.app.inject({
+      method: 'PUT',
+      url: '/v1/admin/protection-controls/report_exports',
+      headers: { cookie: fixture.cookie },
+      payload: {
+        mode: 'disable',
+        reason: 'Attempt to create a permanent runtime disable.',
+      },
+    })
 
     expect.soft(noExpiry.statusCode).toBe(409)
     expect.soft(shortReason.statusCode).toBe(400)
+    expect.soft(nonExpiringDisable.statusCode).toBe(400)
     expect.soft(auditEvents()).toHaveLength(0)
   })
 
-  it('returns an override conflict when a temporary allow exceeds the emergency ceiling', async () => {
+  it('rejects every temporary allow even with break-glass evidence', async () => {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1_000).toISOString()
     const response = await fixture.app.inject({
       method: 'PUT',
@@ -322,4 +332,71 @@ describe('Admin protection-control contract', () => {
     expect.soft(response.json()).toMatchObject({ error: 'OVERRIDE_CONFLICT' })
     expect.soft(auditEvents()).toHaveLength(0)
   })
+
+  it('only accepts an audited, expiring reduction beneath the configured global ceiling', async () => {
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1_000).toISOString()
+    const accepted = await fixture.app.inject({
+      method: 'PUT',
+      url: '/v1/admin/protection-controls/report_exports',
+      headers: { cookie: fixture.cookie },
+      payload: {
+        mode: 'lower_limit',
+        value: { globalDailyLimit: 1 },
+        reason: 'Reduce export spend while investigating elevated usage.',
+        ticketReference: 'INC-030',
+        expiresAt,
+      },
+    })
+    const unknownLimit = await fixture.app.inject({
+      method: 'PUT',
+      url: '/v1/admin/protection-controls/report_exports',
+      headers: { cookie: fixture.cookie },
+      payload: {
+        mode: 'lower_limit',
+        value: { concurrencyLimit: 1 },
+        reason: 'Attempt an unreviewed runtime limit dimension.',
+        expiresAt,
+      },
+    })
+
+    expect.soft(accepted.statusCode).toBe(200)
+    expect.soft(accepted.json()).toMatchObject({
+      controlKey: 'report_exports',
+      mode: 'lower_limit',
+      value: { globalDailyLimit: 1 },
+      expiresAt,
+    })
+    expect.soft(unknownLimit.statusCode).toBe(400)
+    expect.soft(auditEvents()).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        actorUserId: fixture.admin.id,
+        objectType: 'protection_control',
+        objectId: 'report_exports',
+        after: expect.objectContaining({
+          scopeKind: 'workload',
+          mode: 'lower_limit',
+          value: { globalDailyLimit: 1 },
+        }),
+      }),
+    ]))
+  })
+
+  it.each(['auth_global', 'paid_global'])(
+    'does not expose the hard %s ceiling as a runtime control',
+    async (controlKey) => {
+      const response = await fixture.app.inject({
+        method: 'PUT',
+        url: `/v1/admin/protection-controls/${controlKey}`,
+        headers: { cookie: fixture.cookie },
+        payload: {
+          mode: 'disable',
+          reason: 'Attempt to disable a hard global protection ceiling.',
+          expiresAt: new Date(Date.now() + 30 * 60 * 1_000).toISOString(),
+        },
+      })
+
+      expect.soft(response.statusCode).toBe(400)
+      expect.soft(auditEvents()).toHaveLength(0)
+    },
+  )
 })

@@ -21,6 +21,23 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
   ),
 }))
 
+vi.mock('../../../k1/components/K1UploadDialog', () => ({
+  K1UploadDialog: ({
+    open,
+    createPartnershipIfMissing,
+    onBatchCreated,
+  }: {
+    open: boolean
+    createPartnershipIfMissing?: boolean
+    onBatchCreated: (batch: { id: string }) => void
+  }) => open ? (
+    <div role="dialog" aria-label="Add partnership from K-1">
+      <output aria-label="K-1 partnership import">{String(createPartnershipIfMissing)}</output>
+      <button type="button" onClick={() => onBatchCreated({ id: 'batch-new' })}>Upload K-1</button>
+    </div>
+  ) : null,
+}))
+
 vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace', () => ({
   MagicPatternPartnershipWorkspace: ({
     detail,
@@ -33,7 +50,7 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
     detail: { id: string }
     area: string
     selectedYear?: number
-    onAreaChange: (area: 'valuations' | 'k1-history') => void
+    onAreaChange: (area: 'capital-activity' | 'k1-history') => void
     onYearChange: (year: number) => void
     onBack: () => void
   }) => (
@@ -43,7 +60,7 @@ vi.mock('../../../partnership-tracker/components/magic-patterns/MagicPatternPart
       data-year={selectedYear === undefined ? 'unset' : String(selectedYear)}
     >
       Workspace {detail.id}
-      <button type="button" onClick={() => onAreaChange('valuations')}>Open valuations</button>
+      <button type="button" onClick={() => onAreaChange('capital-activity')}>Open capital activity</button>
       <button type="button" onClick={() => onAreaChange('k1-history')}>Open K-1 history</button>
       <button type="button" onClick={() => onYearChange(2024)}>Choose 2024</button>
       <button type="button" onClick={onBack}>Investment tracker</button>
@@ -58,6 +75,10 @@ vi.mock('../../../partnership-tracker/hooks/usePartnershipTracker', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+}))
+
+vi.mock('../../../k1/hooks/useK1Queries', () => ({
+  useK1Batch: () => ({ data: undefined, isError: false, refetch: vi.fn() }),
 }))
 
 function CurrentLocation() {
@@ -99,9 +120,23 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
     renderTracker()
 
     await user.click(screen.getByRole('button', { name: 'Add partnership' }))
+    await user.click(screen.getByRole('button', { name: /Enter details manually/i }))
     await user.click(screen.getByRole('button', { name: 'Create partnership' }))
 
     expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveTextContent('Workspace p-new')
+  })
+
+  it('offers a K-1-first partnership creation path with duplicate safeguards', async () => {
+    const user = userEvent.setup()
+    renderTracker()
+
+    await user.click(screen.getByRole('button', { name: 'Add partnership' }))
+    expect(screen.getByText(/Existing records are reused automatically/i)).toBeInTheDocument()
+    expect(screen.getByText(/Conflicting matches stop for review/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Use a K-1 PDF/i }))
+    expect(screen.getByRole('dialog', { name: 'Add partnership from K-1' })).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'K-1 partnership import' })).toHaveTextContent('true')
   })
 
   it('does not show partnership creation in read-only mode', () => {
@@ -113,7 +148,8 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
   it.each([
     ['cash-activity', 'capital-activity'],
     ['k1', 'k1-history'],
-    ['capital', 'valuations'],
+    ['capital', 'capital-activity'],
+    ['valuations', 'capital-activity'],
     ['assets', 'underlying-assets'],
   ])('maps the legacy %s area alias to %s', (alias, expectedArea) => {
     renderTracker(true, `/investment-tracker?partnership=p-1&area=${alias}`)
@@ -150,11 +186,11 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
       '2025',
     )
 
-    await user.click(screen.getByRole('button', { name: 'Open valuations' }))
+    await user.click(screen.getByRole('button', { name: 'Open capital activity' }))
     let location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
     expect(location.pathname).toBe('/investment-tracker')
     expect(location.searchParams.get('partnership')).toBe('p-1')
-    expect(location.searchParams.get('area')).toBe('valuations')
+    expect(location.searchParams.get('area')).toBe('capital-activity')
     expect(location.searchParams.has('year')).toBe(false)
 
     await user.click(screen.getByRole('button', { name: 'Choose 2024' }))

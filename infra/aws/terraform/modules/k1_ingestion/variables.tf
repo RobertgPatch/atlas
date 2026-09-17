@@ -40,3 +40,25 @@ variable "upload_allowed_origins" {
   description = "Browser origins allowed by the K-1 document bucket."
   type        = list(string)
 }
+
+variable "upload_capability_ttl_seconds" {
+  description = "Maximum lifetime of an exact K-1 upload capability."
+  type        = number
+  validation {
+    condition     = var.upload_capability_ttl_seconds >= 60 && var.upload_capability_ttl_seconds <= 900
+    error_message = "upload_capability_ttl_seconds must be between 60 and 900."
+  }
+}
+
+variable "upload_signature_age_seconds" {
+  description = "Maximum SigV4 age accepted for quarantine PUT requests."
+  type        = number
+  validation {
+    condition = (
+      var.upload_signature_age_seconds >= 60
+      && var.upload_signature_age_seconds <= 900
+      && var.upload_signature_age_seconds >= var.upload_capability_ttl_seconds
+    )
+    error_message = "upload_signature_age_seconds must be 60-900 and at least the capability TTL."
+  }
+}

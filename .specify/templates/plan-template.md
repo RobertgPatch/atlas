@@ -48,10 +48,18 @@
 - **Legal and incident readiness**: [PASS/FAIL - applicability register impact,
   WISP/incident procedure, breach assessment, and required professional review]
 
-Any failed non-negotiable gate stops planning. Record unresolved facts as
-`NEEDS CLARIFICATION`; do not convert security, identity, tenancy, data,
-financial, recovery, or legal uncertainty into an assumption. Re-run every gate
-after Phase 1 design and cite the evidence that changed or confirmed the result.
+Any failed gate stops the affected scope unless a current, versioned exception
+explicitly authorizes that scope. Record unresolved facts as `NEEDS CLARIFICATION`;
+do not convert security, identity, tenancy, data, financial, recovery, or legal
+uncertainty into an assumption. Re-run every gate after Phase 1 design and cite
+the evidence that changed or confirmed the result.
+
+## Documented Exceptions
+
+State `None` when no exception applies. Otherwise cite each versioned exception
+record and summarize its requirement, exact scope, owner, compensating controls,
+remediation evidence, approval date, and expiration. Planning or implementation
+scope never implies merge or production authorization.
 
 ## Project Structure
 
@@ -119,8 +127,8 @@ directories captured above]
 > **Fill ONLY if Constitution Check has violations that must be justified**
 >
 > Complexity may be justified only when it is the smallest safe response to a
-> documented requirement. This table cannot waive a non-negotiable principle or
-> serve as a security deferral.
+> documented requirement. This table cannot waive a constitutional principle or
+> serve as a documented exception; cite the versioned exception record above.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|

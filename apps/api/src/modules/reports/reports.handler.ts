@@ -23,6 +23,7 @@ import {
 import { config } from "../../config.js";
 import {
   admitCostWorkload,
+  authorizeCostSubjects,
   runCostWorkload,
 } from "../abuse-protection/costWorkloadAdmission.js";
 
@@ -271,7 +272,9 @@ export const refreshConsolidatedHoldingsHandler = async (
         controlKey: "plaid_refresh",
         method: "POST",
         routePattern: "/v1/reports/consolidated-holdings/refresh",
-        principal: userId,
+        subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
+          provider: "plaid",
+        }),
         canonicalInputs: { forced },
         globalDailyLimit:
           config.abuseProtection.quotas.externalProvider
@@ -279,21 +282,19 @@ export const refreshConsolidatedHoldingsHandler = async (
         quotas: [
           {
             scopeKind: "user",
-            scopeValue: userId,
             limit:
               config.abuseProtection.quotas.externalProvider
                 .plaidRefreshesGlobalDay,
           },
           ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
             scopeKind: "account" as const,
-            scopeValue: account.id,
+            authorizedScopeValue: account.id,
             limit:
               config.abuseProtection.quotas.externalProvider
                 .plaidRefreshesPerAccountDay,
           })),
           {
             scopeKind: "global",
-            scopeValue: "atlas",
             limit:
               config.abuseProtection.quotas.externalProvider
                 .plaidRefreshesGlobalDay,
@@ -364,19 +365,20 @@ export const getReportsExportHandler = async (
       workloadKey: "report_export",
       method: "GET",
       routePattern: "/v1/reports/export",
-      principal: userId,
+      subjectContext: authorizeCostSubjects(
+        request.abuseProtectionSubjectContext,
+        query.entityId ? { entity: query.entityId } : {},
+      ),
       canonicalInputs: query,
       globalDailyLimit:
         config.abuseProtection.quotas.reportExport.globalExportsPerDay,
       quotas: [
         {
           scopeKind: "user",
-          scopeValue: userId,
           limit: config.abuseProtection.quotas.reportExport.userExportsPerDay,
         },
         {
           scopeKind: "global",
-          scopeValue: "atlas",
           limit: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
         },
       ],
@@ -428,19 +430,17 @@ export const getConsolidatedHoldingsExportHandler = async (
       workloadKey: "consolidated_holdings_export",
       method: "GET",
       routePattern: "/v1/reports/consolidated-holdings/export",
-      principal: userId,
+      subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext),
       canonicalInputs: query,
       globalDailyLimit:
         config.abuseProtection.quotas.reportExport.globalExportsPerDay,
       quotas: [
         {
           scopeKind: "user",
-          scopeValue: userId,
           limit: config.abuseProtection.quotas.reportExport.userExportsPerDay,
         },
         {
           scopeKind: "global",
-          scopeValue: "atlas",
           limit: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
         },
       ],

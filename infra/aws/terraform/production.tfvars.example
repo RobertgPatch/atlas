@@ -64,8 +64,12 @@ waf_log_retention_days = 30
 
 waf_rate_limit_requests_per_5_minutes                           = 1000
 waf_api_general_rate_action                                     = "block"
+waf_api_general_global_rate_limit_requests_per_5_minutes        = 5000
+waf_api_general_global_rate_action                              = "block"
 waf_auth_rate_limit_requests_per_5_minutes                      = 100
 waf_auth_rate_action                                            = "block"
+waf_auth_global_rate_limit_requests_per_5_minutes               = 500
+waf_auth_global_rate_action                                     = "block"
 waf_paid_admission_rate_limit_requests_per_5_minutes            = 100
 waf_paid_admission_rate_action                                  = "block"
 waf_paid_admission_global_emergency_requests_per_5_minutes      = 500
@@ -84,6 +88,8 @@ cloudfront_price_class = "PriceClass_100"
 # requires a refreshed cost estimate and active-component alarms.
 k1_aws_ingestion_enabled = false
 k1_worker_desired_count  = 0
+k1_upload_capability_ttl_seconds = 300
+k1_upload_signature_age_seconds  = 300
 
 additional_tags = {
   Workload = "liquidity"

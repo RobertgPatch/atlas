@@ -13,7 +13,7 @@ export interface TrackerFieldDefinition {
 
 const field = (definition: TrackerFieldDefinition) => definition
 
-export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v8-split-line-13-signed-section-l-withdrawals'
+export const K1_TRACKER_CALCULATION_VERSION = 'irs-k1-basis-v9-split-line-13-pre-2021-taxable-income'
 
 export const trackerFields: readonly TrackerFieldDefinition[] = [
   field({ key: 'opening_outside_basis', label: 'Opening outside basis', role: 'opening', workbookLabels: ['beginning tax basis'] }),

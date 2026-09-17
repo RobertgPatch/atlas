@@ -10,7 +10,9 @@ import type {
 import {
   fingerprintCanonicalRequest,
   fingerprintSubject,
+  fingerprintSubjectAliases,
   type CanonicalRequestFingerprintInput,
+  type FingerprintKeyring,
 } from '../../src/modules/abuse-protection/subjectFingerprint.js'
 
 const DEFAULT_TEST_TIME = '2026-01-15T12:00:00.000Z'
@@ -76,6 +78,37 @@ export const deterministicSubjectFingerprint = (
 export const deterministicRequestFingerprint = (
   input: CanonicalRequestFingerprintInput,
 ): Buffer => fingerprintCanonicalRequest(TEST_FINGERPRINT_KEY, input)
+
+export const TEST_FINGERPRINT_KEYRING: FingerprintKeyring = {
+  active: { id: 'test-v2', key: TEST_FINGERPRINT_KEY },
+  retained: [{
+    id: 'test-v1',
+    key: Buffer.from('atlas-abuse-protection-retained-test-key-v1', 'utf8'),
+    retireAfter: new Date('2099-01-01T00:00:00.000Z'),
+  }],
+}
+
+export const createSubjectFixture = (values: Partial<Record<ScopeDimension, string>> = {}) => {
+  const defaults: Record<ScopeDimension, string> = {
+    source_prefix: '198.51.100.0/24',
+    account: 'owner@example.test',
+    user: '00000000-0000-4000-8000-000000000001',
+    session: '00000000-0000-4000-8000-000000000002',
+    tenant: 'family-office',
+    entity: '00000000-0000-4000-8000-000000000003',
+    provider: 'stub-provider',
+    operation: '00000000-0000-4000-8000-000000000004',
+    global: 'test:auth:v1',
+  }
+  const resolved = { ...defaults, ...values }
+  return Object.fromEntries(Object.entries(resolved).map(([scope, value]) => [
+    scope,
+    fingerprintSubjectAliases(TEST_FINGERPRINT_KEYRING, {
+      scope: scope as ScopeDimension,
+      value,
+    }),
+  ])) as Record<ScopeDimension, ReturnType<typeof fingerprintSubjectAliases>>
+}
 
 export const fingerprintHex = (fingerprint: Uint8Array): string =>
   Buffer.from(fingerprint).toString('hex')
@@ -163,6 +196,9 @@ export const createInMemoryAdmissionStoreFixture = (options: {
 
 export const SIDE_EFFECT_KINDS = [
   'passwordHashes',
+  'mfaCalculations',
+  'sessionCreations',
+  'auditWrites',
   'uploadSlots',
   'objectWrites',
   'queueMessages',
@@ -170,6 +206,7 @@ export const SIDE_EFFECT_KINDS = [
   'exports',
   'backfills',
   'databaseWrites',
+  'heavyAggregations',
 ] as const
 
 export type SideEffectKind = (typeof SIDE_EFFECT_KINDS)[number]
@@ -184,6 +221,9 @@ export interface SideEffectTracker {
 
 const emptySideEffects = (): Record<SideEffectKind, number> => ({
   passwordHashes: 0,
+  mfaCalculations: 0,
+  sessionCreations: 0,
+  auditWrites: 0,
   uploadSlots: 0,
   objectWrites: 0,
   queueMessages: 0,
@@ -191,6 +231,7 @@ const emptySideEffects = (): Record<SideEffectKind, number> => ({
   exports: 0,
   backfills: 0,
   databaseWrites: 0,
+  heavyAggregations: 0,
 })
 
 export const createSideEffectTracker = (): SideEffectTracker => {
@@ -271,4 +312,39 @@ export const assertZeroSideEffects = (
   const nonZero = SIDE_EFFECT_KINDS.filter((kind) => snapshot[kind] !== 0)
     .map((kind) => `${kind}=${snapshot[kind]}`)
   assert.deepEqual(nonZero, [], `${message} Observed: ${nonZero.join(', ')}`)
+}
+
+export const createSharedAdmissionProcessFixtures = (
+  processCount: number,
+  options: Parameters<typeof createInMemoryAdmissionStoreFixture>[0] = {},
+): readonly InMemoryAdmissionStoreFixture[] => {
+  if (!Number.isSafeInteger(processCount) || processCount < 1 || processCount > 16) {
+    throw new Error('INVALID_TEST_PROCESS_COUNT')
+  }
+  const shared = createInMemoryAdmissionStoreFixture(options)
+  return Array.from({ length: processCount }, () => ({
+    get calls() {
+      return shared.calls
+    },
+    admit: (request) => shared.admit(request),
+    enqueueDecision: (...decisions) => shared.enqueueDecision(...decisions),
+    setDefaultDecision: (decision) => shared.setDefaultDecision(decision),
+    setFailure: (error) => shared.setFailure(error),
+    reset: () => shared.reset(),
+  }))
+}
+
+export const assertRedacted = (
+  artifact: unknown,
+  prohibitedValues: readonly string[],
+): void => {
+  const serialized = typeof artifact === 'string' ? artifact : JSON.stringify(artifact)
+  for (const value of prohibitedValues) {
+    if (!value) continue
+    assert.equal(
+      serialized.includes(value),
+      false,
+      `Restricted test value was present in artifact: ${value}`,
+    )
+  }
 }

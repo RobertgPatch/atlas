@@ -21,6 +21,25 @@ export interface SubjectFingerprintInput {
   readonly value: string
 }
 
+export interface ActiveFingerprintKey {
+  readonly id: string
+  readonly key: FingerprintKey
+}
+
+export interface RetainedFingerprintKey extends ActiveFingerprintKey {
+  readonly retireAfter?: Date
+}
+
+export interface FingerprintKeyring {
+  readonly active: ActiveFingerprintKey
+  readonly retained: readonly RetainedFingerprintKey[]
+}
+
+export interface VersionedSubjectFingerprint {
+  readonly keyVersion: string
+  readonly digest: Buffer
+}
+
 export interface CanonicalRequestFingerprintInput {
   readonly policyKey: string
   readonly method: HttpMethod
@@ -159,6 +178,75 @@ export const fingerprintSubject = (
   `subject:${input.scope}`,
   nonEmpty(input.value, 'EMPTY_SUBJECT_FINGERPRINT_VALUE'),
 )
+
+const validateKeyVersion = (value: string): string => {
+  if (!/^[A-Za-z0-9._-]{1,64}$/.test(value)) {
+    throw new Error('INVALID_FINGERPRINT_KEY_VERSION')
+  }
+  return value
+}
+
+export const validateFingerprintKeyring = (
+  keyring: FingerprintKeyring,
+  options: {
+    readonly now?: Date
+    readonly minimumRetainedUntil?: Date
+  } = {},
+): FingerprintKeyring => {
+  validateKeyVersion(keyring.active.id)
+  keyBytes(keyring.active.key)
+  if (keyring.retained.length > 4) throw new Error('TOO_MANY_RETAINED_FINGERPRINT_KEYS')
+
+  const ids = new Set([keyring.active.id])
+  const material = new Set([keyBytes(keyring.active.key).toString('base64')])
+  const now = options.now ?? new Date()
+  for (const retained of keyring.retained) {
+    validateKeyVersion(retained.id)
+    const encodedKey = keyBytes(retained.key).toString('base64')
+    if (ids.has(retained.id)) throw new Error('DUPLICATE_FINGERPRINT_KEY_VERSION')
+    if (material.has(encodedKey)) throw new Error('DUPLICATE_FINGERPRINT_KEY_MATERIAL')
+    ids.add(retained.id)
+    material.add(encodedKey)
+    if (retained.retireAfter && !Number.isFinite(retained.retireAfter.getTime())) {
+      throw new Error('INVALID_FINGERPRINT_KEY_RETIREMENT')
+    }
+    if (retained.retireAfter && retained.retireAfter <= now) {
+      throw new Error('EXPIRED_RETAINED_FINGERPRINT_KEY')
+    }
+    if (
+      options.minimumRetainedUntil
+      && (!retained.retireAfter || retained.retireAfter < options.minimumRetainedUntil)
+    ) {
+      throw new Error('FINGERPRINT_KEY_RETIREMENT_TOO_EARLY')
+    }
+  }
+  return keyring
+}
+
+export const fingerprintSubjectAliases = (
+  keyring: FingerprintKeyring,
+  input: SubjectFingerprintInput,
+): readonly VersionedSubjectFingerprint[] => {
+  validateFingerprintKeyring(keyring)
+  return [keyring.active, ...keyring.retained].map(({ id, key }) => ({
+    keyVersion: id,
+    digest: fingerprintSubject(key, input),
+  }))
+}
+
+const GLOBAL_SUBJECT_DOMAINS = new Set([
+  'api',
+  'auth',
+  'paid_work',
+  'upload_capability',
+])
+
+export const stableGlobalSubject = (environment: string, domain: string): string => {
+  if (!/^[a-z0-9][a-z0-9_-]{1,31}$/.test(environment) || !GLOBAL_SUBJECT_DOMAINS.has(domain)) {
+    throw new Error('INVALID_GLOBAL_SUBJECT')
+  }
+  return `${environment}:${domain}:v1`
+}
 
 const canonicalize = (value: CanonicalFingerprintValue | undefined): string => {
   if (value === undefined) return 'null'

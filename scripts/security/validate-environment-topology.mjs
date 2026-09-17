@@ -71,6 +71,32 @@ export function auditEnvironmentTopology(inputFiles) {
   if (productionCommands !== 1) findings.push(finding('package.json', files['package.json'] ?? '', 'production-command-cardinality', 'deploy:aws:production'))
   if (productionExamples !== 1) findings.push(finding('infra/aws/terraform/production.tfvars.example', files['infra/aws/terraform/production.tfvars.example'] ?? '', 'production-example-cardinality', 'production.tfvars.example'))
 
+  const edgeFile = 'infra/aws/terraform/modules/edge/main.tf'
+  const edge = files[edgeFile] ?? ''
+  const rootTerraformFile = 'infra/aws/terraform/main.tf'
+  const rootTerraform = files[rootTerraformFile] ?? ''
+  if (!/aws_cloudfront_origin_request_policy[\s\S]*CloudFront-Viewer-Address/.test(edge)) {
+    findings.push(finding(edgeFile, edge, 'generated-viewer-source-policy', 'CloudFront-Viewer-Address'))
+  }
+  for (const behavior of ['/health', '/v1/*']) {
+    const escaped = behavior.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    if (!new RegExp(`path_pattern\\s*=\\s*["']${escaped}["']`).test(edge)) {
+      findings.push(finding(edgeFile, edge, 'required-api-cache-behavior', behavior))
+    }
+  }
+  if (/custom_error_response\s*{/.test(edge)) {
+    findings.push(finding(edgeFile, edge, 'distribution-wide-spa-error', 'custom_error_response'))
+  }
+  if (!/aws_cloudfront_function[\s\S]*static_spa_rewrite[\s\S]*default_cache_behavior[\s\S]*function_association/.test(edge)) {
+    findings.push(finding(edgeFile, edge, 'static-only-spa-rewrite', 'static_spa_rewrite'))
+  }
+  if (/path_pattern\s*=\s*["']\/internal(?:\/\*)?["']/.test(edge)) {
+    findings.push(finding(edgeFile, edge, 'internal-edge-forwarding', '/internal'))
+  }
+  if (!/TRUSTED_PROXY_CIDRS\s*=\s*join\s*\(\s*["'],["']\s*,\s*var\.private_subnet_cidrs\s*\)/.test(rootTerraform)) {
+    findings.push(finding(rootTerraformFile, rootTerraform, 'narrowed-trusted-proxy-path', 'TRUSTED_PROXY_CIDRS'))
+  }
+
   findings.sort((left, right) => left.file.localeCompare(right.file) || left.line - right.line || left.column - right.column || left.rule.localeCompare(right.rule) || left.token.localeCompare(right.token))
   return {
     valid: findings.length === 0,

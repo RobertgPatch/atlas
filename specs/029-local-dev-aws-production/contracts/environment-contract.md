@@ -4,7 +4,7 @@
 
 | Target | Location | Database | Provider mode | Terraform | Mutating deployment command |
 |--------|----------|----------|---------------|-----------|-----------------------------|
-| `local` | Developer machine | Docker PostgreSQL on localhost | Stub/local by default | None | None |
+| `local` | Developer machine | Docker PostgreSQL on localhost | Stub/local by default; explicit K-1-only S3/KMS/BDA mode | None | None |
 | `production` | AWS | Private RDS PostgreSQL | Production providers | Required, remote S3 backend | `deploy:aws:production` |
 
 No active AWS target named `development`, `dev`, `staging`, `stage`, `test`, or `preview` is supported.
@@ -19,7 +19,9 @@ No active AWS target named `development`, `dev`, `staging`, `stage`, `test`, or 
 - Database, migration, or readiness failure is fatal; the launcher must not continue with a warning.
 - Normal local startup must not initialize Terraform, read production state, or invoke a production AWS mutation.
 - If AWS credentials happen to exist in the shell, they do not activate an AWS provider path implicitly.
-- Any explicit real-provider developer command is separate from `dev:local`, sandbox-only, and must reject the production account and production resource identifiers.
+- `npm run dev:local:bda` is the only supported local real-provider command. It may use only the operator-approved production-account K-1 S3/KMS/LIVE-BDA resources after read-only preflight; it keeps the queue in local PostgreSQL and rejects production RDS, SQS, Terraform mutation, and unrelated providers.
+- Local BDA identifiers and cost limits come from ignored `apps/api/.env.local-bda`; credentials come from a short-lived AWS session and are never written to that file.
+- Both loopback Vite origins must be present in the K-1 bucket CORS contract, but every upload still requires its exact short-lived presigned request.
 
 ## Production contract
 

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from '../../src/app.js'
@@ -10,9 +12,26 @@ import {
 import {
   canonicalRouteKey,
   canonicalRoutePattern,
+  assertRoutePolicyCoverage,
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
+import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 125
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 129
+
+interface AuthWafContract {
+  readonly schemaVersion: string
+  readonly method: string
+  readonly routes: readonly string[]
+  readonly regex: string
+}
+
+const authWafContract = JSON.parse(readFileSync(new URL(
+  '../../../../infra/aws/terraform/auth-route-scope.json',
+  import.meta.url,
+), 'utf8')) as AuthWafContract
+
+const escapeRegex = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const routeLabel = (route: ExternalRouteRegistration): string =>
   `${route.method} ${route.routePattern}`
@@ -31,7 +50,7 @@ describe('external route protection policy coverage', () => {
     return app
   }
 
-  it('inventories all 125 declared routes without double-counting Fastify auto-HEAD siblings', async () => {
+  it('inventories all 129 declared routes without double-counting Fastify auto-HEAD siblings', async () => {
     const app = await readyApp()
     const inventory = app.abuseProtectionRouteInventory
     const routeKeys = inventory.map((route) =>
@@ -54,7 +73,7 @@ describe('external route protection policy coverage', () => {
     expect(app.hasRoute({ method: 'HEAD', url: '/health' })).toBe(true)
   })
 
-  it('registers the retained operational surface without retired direct-management APIs', async () => {
+  it('registers the retained operational surface without retired development APIs', async () => {
     const app = await readyApp()
     const routeKeys = new Set(app.abuseProtectionRouteInventory.map((route) =>
       canonicalRouteKey(route.method, route.routePattern)))
@@ -65,6 +84,9 @@ describe('external route protection policy coverage', () => {
       { method: 'GET' as const, routePattern: '/v1/admin/production-readiness' },
       { method: 'GET' as const, routePattern: '/v1/admin/protection-controls' },
       { method: 'POST' as const, routePattern: '/v1/admin/plaid-refresh/run' },
+      { method: 'GET' as const, routePattern: '/v1/admin/users' },
+      { method: 'GET' as const, routePattern: '/v1/admin/application-logs' },
+      { method: 'POST' as const, routePattern: '/v1/auth/password/change' },
     ]) {
       expect(routeKeys.has(canonicalRouteKey(retained.method, retained.routePattern))).toBe(true)
     }
@@ -72,7 +94,6 @@ describe('external route protection policy coverage', () => {
     for (const retired of [
       { method: 'GET' as const, routePattern: '/v1/k1-tracker/partnerships' },
       { method: 'POST' as const, routePattern: '/v1/k1-tracker/imports/preview' },
-      { method: 'GET' as const, routePattern: '/v1/admin/users' },
       { method: 'GET' as const, routePattern: '/v1/admin/users/:userId' },
       { method: 'POST' as const, routePattern: '/v1/admin/dev/seed' },
     ]) {
@@ -124,5 +145,54 @@ describe('external route protection policy coverage', () => {
     }
 
     expect(issues.sort()).toEqual([])
+  })
+
+  it('keeps every credential-work route synchronized with the exact WAF contract', async () => {
+    const app = await readyApp()
+    const inventory = app.abuseProtectionRouteInventory
+    const authRoutes = inventory
+      .filter((route) => route.policy?.routeClass === 'AUTH_ATTEMPT')
+      .map((route) => route.routePattern)
+      .sort()
+    const credentialCandidates = inventory.filter((route) =>
+      route.routePattern.startsWith('/v1/auth/')
+      && /(login|mfa|password|recovery|recover|reset|forgot|credential)/i.test(route.routePattern))
+
+    expect(authWafContract.schemaVersion).toBe('1.0.0')
+    expect(authWafContract.method).toBe('POST')
+    expect(authRoutes).toEqual([...authWafContract.routes].sort())
+    expect(credentialCandidates.every(
+      (route) => route.method === 'POST' && route.policy?.routeClass === 'AUTH_ATTEMPT',
+    )).toBe(true)
+    expect(authWafContract.regex).toBe(
+      `^(?:${authRoutes.map(escapeRegex).join('|')})$`,
+    )
+  })
+
+  it('declares independent shared-class source and authenticated-principal limits', () => {
+    const first = defaultRouteProtectionPolicy('GET', '/v1/entities')
+    const second = defaultRouteProtectionPolicy('GET', '/v1/partnerships')
+
+    for (const policy of [first, second]) {
+      expect(policy.owner).toBeTruthy()
+      expect(policy.localRates.map((rate) => rate.scope)).toEqual([
+        'global',
+        'source_prefix',
+        'user',
+        'session',
+      ])
+      expect(policy.localRates.every((rate) => !rate.limitKey.includes('+'))).toBe(true)
+    }
+    expect(first.localRates[0]?.limitKey).toBe(second.localRates[0]?.limitKey)
+    expect(first.localRates[1]?.limitKey).toBe(second.localRates[1]?.limitKey)
+    expect(first.localRates[2]?.limitKey).toBe(second.localRates[2]?.limitKey)
+  })
+
+  it('keeps unclassified routes as a startup coverage failure', () => {
+    expect(() => assertRoutePolicyCoverage([{
+      method: 'GET',
+      routePattern: '/v1/new-unclassified-route',
+      policy: null,
+    }])).toThrow(/ABUSE_PROTECTION_ROUTE_COVERAGE_FAILED/)
   })
 })

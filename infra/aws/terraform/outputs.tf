@@ -125,11 +125,13 @@ output "k1_ingestion" {
     worker_service_name        = module.k1_ingestion.worker_service_name
     worker_log_group_name      = module.k1_ingestion.worker_log_group_name
     reconciler_rule_name       = module.k1_ingestion.reconciler_rule_name
+    bda_profile_arn            = local.k1_bda_profile_arn
     bda_blueprint_arn          = module.k1_ingestion.bda_blueprint_arn
     bda_fallback_blueprint_arn = module.k1_ingestion.bda_fallback_blueprint_arn
     bda_project_arn            = module.k1_ingestion.bda_project_arn
     bda_stage                  = module.k1_ingestion.bda_project_stage
     bda_blueprint_stage        = module.k1_ingestion.bda_blueprint_stage
+    local_bda_policy_arn       = module.k1_ingestion.local_bda_policy_arn
     mapping_schema_version     = var.k1_mapping_schema_version
   }
 }

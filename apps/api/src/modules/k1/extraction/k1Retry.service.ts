@@ -38,6 +38,17 @@ export const retryK1Extraction = async (args: {
   expectedDocumentVersion: number
   actorUserId: string
 }): Promise<K1RetryExtractionResult> => {
+  const priorAttempts = await k1ExtractionAttemptRepository.listForDocument(args.k1DocumentId)
+  const priorAttempt = priorAttempts.at(-1)
+  // Admission/authentication rejection never submitted paid work. The document already
+  // owns its admission slot; retry only reserves the bounded retry allowance.
+  // The worker still performs full provider rate/quota/cost admission.
+  const retryingAdmissionFailure = priorAttempt?.status === 'FAILED'
+    && !priorAttempt.providerJobId
+    && [
+      'RATE_LIMITED', 'QUOTA_EXCEEDED', 'CredentialsProviderError',
+      'AccessDeniedException', 'ExpiredTokenException',
+    ].includes(priorAttempt.errorCode ?? '')
   const userHash = fingerprintSubject(config.abuseProtection.hmac.activeKey, {
     scope: 'user', value: args.actorUserId,
   })
@@ -52,7 +63,7 @@ export const retryK1Extraction = async (args: {
     '/v1/k1-documents/:k1DocumentId/retry-extraction',
   )
   requireWorkloadAdmission(await admissionService.admit({
-    policy,
+    policy: retryingAdmissionFailure ? { ...policy, durableRates: [] } : policy,
     requestId: `k1-retry-${randomUUID()}`,
     subjectHashes: { user: userHash, operation: operationHash, global: globalHash },
     workload: {
@@ -71,8 +82,10 @@ export const retryK1Extraction = async (args: {
         reservedUnits: { document: 1, page: 1, provider_call: 1, queue_message: 1 },
       },
       quotas: [
-        { scopeKind: 'user', scopeHash: userHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
-        { scopeKind: 'global', scopeHash: globalHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+        ...(!retryingAdmissionFailure ? [
+          { scopeKind: 'user' as const, scopeHash: userHash, periodKind: 'utc_day' as const, units: 1, limit: config.abuseProtection.quotas.paidExtraction.userDocumentsPerDay },
+          { scopeKind: 'global' as const, scopeHash: globalHash, periodKind: 'utc_day' as const, units: 1, limit: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay },
+        ] : []),
         { scopeKind: 'entity', scopeHash: operationHash, periodKind: 'utc_day', units: 1, limit: config.abuseProtection.quotas.paidExtraction.retriesPerDocumentPerDay },
         { scopeKind: 'entity', scopeHash: operationHash, periodKind: 'billing_month', units: 1, limit: config.abuseProtection.quotas.paidExtraction.lifetimeRetriesPerDocument },
       ],
@@ -99,6 +112,9 @@ export const retryK1Extraction = async (args: {
     }
     const attempts = await k1ExtractionAttemptRepository.listForDocument(args.k1DocumentId, client)
     const previous = attempts.at(-1)
+    if (retryingAdmissionFailure && previous?.id !== priorAttempt?.id) {
+      throw Object.assign(new Error('STALE_K1_VERSION'), { code: 'STALE_K1_VERSION' })
+    }
     const retryableFailedAttempt = previous?.status === 'FAILED' && retryableFailure(previous.errorCode)
     const reprocessableSucceededAttempt = previous?.status === 'SUCCEEDED' && item.status !== 'FAILED'
     if (!previous || (!retryableFailedAttempt && !reprocessableSucceededAttempt)) {

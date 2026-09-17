@@ -7,6 +7,25 @@ terraform {
   }
 }
 
+locals {
+  rate_rule_labels = toset([
+    "atlas:rate:api-general-source",
+    "atlas:rate:api-general-global",
+    "atlas:rate:auth-source",
+    "atlas:rate:auth-global",
+    "atlas:rate:paid-source",
+    "atlas:rate:paid-global",
+  ])
+  count_observation_enabled = contains([
+    var.api_general_rate_action,
+    var.api_general_global_rate_action,
+    var.auth_rate_action,
+    var.auth_global_rate_action,
+    var.paid_admission_rate_action,
+    var.paid_admission_global_emergency_action,
+  ], "count")
+}
+
 resource "aws_cloudwatch_log_group" "waf" {
   provider = aws.us_east_1
 
@@ -128,23 +147,48 @@ resource "aws_wafv2_web_acl" "this" {
       }
     }
 
+    rule_label {
+      name = "atlas:rate:api-general-source"
+    }
+
     statement {
       rate_based_statement {
-        limit              = var.rate_limit_requests_per_5_minutes
-        aggregate_key_type = "IP"
+        limit                 = var.rate_limit_requests_per_5_minutes
+        aggregate_key_type    = "IP"
+        evaluation_window_sec = 300
 
         scope_down_statement {
-          byte_match_statement {
-            positional_constraint = "STARTS_WITH"
-            search_string         = "/v1/"
+          or_statement {
+            statement {
+              byte_match_statement {
+                positional_constraint = "STARTS_WITH"
+                search_string         = "/v1/"
 
-            field_to_match {
-              uri_path {}
+                field_to_match {
+                  uri_path {}
+                }
+
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
             }
 
-            text_transformation {
-              priority = 0
-              type     = "NONE"
+            statement {
+              byte_match_statement {
+                positional_constraint = "EXACTLY"
+                search_string         = "/health"
+
+                field_to_match {
+                  uri_path {}
+                }
+
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
             }
           }
         }
@@ -154,6 +198,71 @@ resource "aws_wafv2_web_acl" "this" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.name_prefix}-api-general-per-ip"
+      sampled_requests_enabled   = false
+    }
+  }
+
+  rule {
+    name     = "api_general_global"
+    priority = 105
+
+    action {
+      dynamic "block" {
+        for_each = var.api_general_global_rate_action == "block" ? [1] : []
+        content {}
+      }
+      dynamic "count" {
+        for_each = var.api_general_global_rate_action == "count" ? [1] : []
+        content {}
+      }
+    }
+
+    rule_label {
+      name = "atlas:rate:api-general-global"
+    }
+
+    statement {
+      rate_based_statement {
+        limit                 = var.api_general_global_rate_limit_requests_per_5_minutes
+        aggregate_key_type    = "CONSTANT"
+        evaluation_window_sec = 300
+
+        scope_down_statement {
+          or_statement {
+            statement {
+              byte_match_statement {
+                positional_constraint = "STARTS_WITH"
+                search_string         = "/v1/"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+            statement {
+              byte_match_statement {
+                positional_constraint = "EXACTLY"
+                search_string         = "/health"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name_prefix}-api-general-global"
       sampled_requests_enabled   = false
     }
   }
@@ -173,10 +282,15 @@ resource "aws_wafv2_web_acl" "this" {
       }
     }
 
+    rule_label {
+      name = "atlas:rate:auth-source"
+    }
+
     statement {
       rate_based_statement {
-        limit              = var.auth_rate_limit_requests_per_5_minutes
-        aggregate_key_type = "IP"
+        limit                 = var.auth_rate_limit_requests_per_5_minutes
+        aggregate_key_type    = "IP"
+        evaluation_window_sec = 300
 
         scope_down_statement {
           and_statement {
@@ -198,7 +312,7 @@ resource "aws_wafv2_web_acl" "this" {
 
             statement {
               regex_match_statement {
-                regex_string = "^/v1/auth/(login|mfa/(enroll/complete|verify))$"
+                regex_string = "^(?:/v1/auth/login|/v1/auth/mfa/enroll/complete|/v1/auth/mfa/verify|/v1/auth/password/change)$"
 
                 field_to_match {
                   uri_path {}
@@ -223,6 +337,70 @@ resource "aws_wafv2_web_acl" "this" {
   }
 
   rule {
+    name     = "auth_global"
+    priority = 115
+
+    action {
+      dynamic "block" {
+        for_each = var.auth_global_rate_action == "block" ? [1] : []
+        content {}
+      }
+      dynamic "count" {
+        for_each = var.auth_global_rate_action == "count" ? [1] : []
+        content {}
+      }
+    }
+
+    rule_label {
+      name = "atlas:rate:auth-global"
+    }
+
+    statement {
+      rate_based_statement {
+        limit                 = var.auth_global_rate_limit_requests_per_5_minutes
+        aggregate_key_type    = "CONSTANT"
+        evaluation_window_sec = 300
+
+        scope_down_statement {
+          and_statement {
+            statement {
+              byte_match_statement {
+                positional_constraint = "EXACTLY"
+                search_string         = "POST"
+                field_to_match {
+                  method {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+            statement {
+              regex_match_statement {
+                regex_string = "^(?:/v1/auth/login|/v1/auth/mfa/enroll/complete|/v1/auth/mfa/verify|/v1/auth/password/change)$"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name_prefix}-auth-global"
+      sampled_requests_enabled   = false
+    }
+  }
+
+  rule {
     name     = "paid_admission_per_ip"
     priority = 120
 
@@ -237,10 +415,15 @@ resource "aws_wafv2_web_acl" "this" {
       }
     }
 
+    rule_label {
+      name = "atlas:rate:paid-source"
+    }
+
     statement {
       rate_based_statement {
-        limit              = var.paid_admission_rate_limit_requests_per_5_minutes
-        aggregate_key_type = "IP"
+        limit                 = var.paid_admission_rate_limit_requests_per_5_minutes
+        aggregate_key_type    = "IP"
+        evaluation_window_sec = 300
 
         scope_down_statement {
           or_statement {
@@ -340,10 +523,15 @@ resource "aws_wafv2_web_acl" "this" {
       }
     }
 
+    rule_label {
+      name = "atlas:rate:paid-global"
+    }
+
     statement {
       rate_based_statement {
-        limit              = var.paid_admission_global_emergency_requests_per_5_minutes
-        aggregate_key_type = "CONSTANT"
+        limit                 = var.paid_admission_global_emergency_requests_per_5_minutes
+        aggregate_key_type    = "CONSTANT"
+        evaluation_window_sec = 300
 
         scope_down_statement {
           or_statement {
@@ -454,11 +642,52 @@ resource "aws_wafv2_web_acl_logging_configuration" "this" {
   }
 
   redacted_fields {
+    single_header {
+      name = "x-scheduler-token"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "x-csrf-token"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "x-idempotency-key"
+    }
+  }
+
+  redacted_fields {
     query_string {}
   }
 
   logging_filter {
     default_behavior = "DROP"
+
+    # Ordered before the broad BLOCK keep rule: high-volume custom rate-rule
+    # blocks are represented by rule metrics and alarms rather than one log row
+    # per rejected request. COUNT observations remain logged for tuning.
+    dynamic "filter" {
+      for_each = local.rate_rule_labels
+      content {
+        behavior    = "DROP"
+        requirement = "MEETS_ALL"
+
+        condition {
+          action_condition {
+            action = "BLOCK"
+          }
+        }
+
+        condition {
+          label_name_condition {
+            label_name = filter.value
+          }
+        }
+      }
+    }
 
     filter {
       behavior    = "KEEP"
@@ -476,17 +705,16 @@ resource "aws_wafv2_web_acl_logging_configuration" "this" {
         }
       }
 
-      condition {
-        action_condition {
-          action = "CAPTCHA"
-        }
-      }
+    }
+  }
 
-      condition {
-        action_condition {
-          action = "CHALLENGE"
-        }
-      }
+  lifecycle {
+    precondition {
+      condition = !local.count_observation_enabled || (
+        try(trimspace(var.count_observation_owner), "") != "" &&
+        var.count_observation_expires_at != null
+      )
+      error_message = "A WAF Count observation requires a named owner and RFC3339 expiry; validate the under-24-hour window before Apply."
     }
   }
 }

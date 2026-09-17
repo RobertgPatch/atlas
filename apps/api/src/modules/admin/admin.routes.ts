@@ -3,7 +3,11 @@ import {
   defaultRouteProtectionPolicy,
   type HttpMethod,
 } from '../abuse-protection/index.js'
-import { requireAdminAccess } from './admin.guard.js'
+import { requireAdminAccess, requireSuperAdminAccess } from './admin.guard.js'
+import {
+  listApplicationLogsHandler,
+  listUsersHandler,
+} from './identity-admin.handler.js'
 import {
   getPlaidRefreshStatusHandler,
   runPlaidRefreshHandler,
@@ -20,6 +24,14 @@ const abuseProtection = (method: HttpMethod, routePattern: string) => ({
 })
 
 export const registerAdminRoutes = async (app: FastifyInstance) => {
+  app.get('/admin/users', {
+    config: abuseProtection('GET', '/v1/admin/users'),
+    preHandler: [requireSuperAdminAccess],
+  }, listUsersHandler)
+  app.get('/admin/application-logs', {
+    config: abuseProtection('GET', '/v1/admin/application-logs'),
+    preHandler: [requireSuperAdminAccess],
+  }, listApplicationLogsHandler)
   app.get('/admin/plaid-refresh-status', {
     config: abuseProtection('GET', '/v1/admin/plaid-refresh-status'),
     preHandler: [requireAdminAccess],

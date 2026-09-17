@@ -114,6 +114,7 @@ export const K1_TRACKER_OFFICIAL_FORM_FIELD_KEYS = [
   'box_13_entries',
   'box_14_entries',
   'box_15_entries',
+  'box_16_entries',
   'box_16_schedule_k3_attached',
   'box_17_entries',
   'box_18_entries',

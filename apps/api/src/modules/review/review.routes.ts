@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify'
+import { config } from '../../config.js'
 import { defaultRouteProtectionPolicy } from '../abuse-protection/policy.defaults.js'
 import { withSession } from '../auth/session.middleware.js'
 import { requireAuthenticated } from '../auth/rbac.middleware.js'
 import { requireK1Scope } from '../k1/k1Scope.plugin.js'
 import { sessionHandler, pdfHandler } from './session.handler.js'
+import { sourcePdfRecoveryHandler } from './sourcePdfRecovery.handler.js'
 import { correctionsHandler } from './corrections.handler.js'
 import { mapEntityHandler, mapPartnershipHandler } from './map.handler.js'
 import { approveHandler } from './approve.handler.js'
@@ -25,6 +27,29 @@ export const registerReviewRoutes = async (app: FastifyInstance) => {
       abuseProtection: defaultRouteProtectionPolicy(method, `/v1${routePattern}`),
     },
   })
+  const sourcePdfRecovery = () => {
+    const policy = defaultRouteProtectionPolicy(
+      'PUT',
+      '/v1/k1-documents/:k1DocumentId/source-pdf',
+    )
+    return {
+      preHandler: [withSession, requireAuthenticated, requireK1Scope],
+      config: {
+        abuseProtection: {
+          ...policy,
+          costUnits: ['request', 'file', 'byte', 'storage_byte_day'] as const,
+          costDrivers: ['document_validation', 'object_write'],
+          payloadLimits: {
+            ...policy.payloadLimits,
+            files: 1,
+            fileBytes: config.k1Ingestion.uploadMaxBytes,
+            multipartFields: 0,
+            multipartParts: 1,
+          },
+        },
+      },
+    }
+  }
 
   // Typeahead lookups (no K1 scope required, just authenticated)
   app.get(
@@ -48,6 +73,11 @@ export const registerReviewRoutes = async (app: FastifyInstance) => {
     '/k1-documents/:k1DocumentId/pdf',
     gated('GET', '/k1-documents/:k1DocumentId/pdf'),
     pdfHandler,
+  )
+  app.put(
+    '/k1-documents/:k1DocumentId/source-pdf',
+    sourcePdfRecovery(),
+    sourcePdfRecoveryHandler,
   )
 
   // Corrections / mapping

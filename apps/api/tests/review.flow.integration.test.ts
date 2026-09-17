@@ -1,8 +1,11 @@
-import { randomUUID } from 'node:crypto'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createHash, randomUUID } from 'node:crypto'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createReviewFixture, type ReviewFixture } from './helpers/reviewFixture.js'
 import { pool } from '../src/infra/db/client.js'
 import { createDurableK1ReviewFixture, type DurableK1ReviewFixture } from './helpers/durableK1ReviewFixture.js'
+import { buildMultipart } from './helpers/multipart.js'
+import { getK1ObjectStore } from '../src/modules/k1/storage/index.js'
+import { durableK1Repository } from '../src/modules/k1/k1.repository.js'
 
 // T019, T020, T035-T039 — contract + integration for the review session + corrections flow.
 describe('Review session + corrections (US1/US2)', () => {
@@ -473,6 +476,115 @@ durable('Feature 022 durable review session and typed corrections', () => {
       method: 'GET', url: `/v1/k1-documents/${f.k1DocumentId}/pdf`, headers: { cookie: f.userCookie },
     })
     expect(denied.statusCode).toBe(404)
+  })
+
+  it('reattaches an identical missing source PDF without changing review state', async () => {
+    const originalPdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n')
+    const before = await durableK1Repository.getById(f.k1DocumentId)
+    await getK1ObjectStore().delete({ key: f.objectKey })
+
+    const missing = await f.app.inject({
+      method: 'HEAD',
+      url: `/v1/k1-documents/${f.k1DocumentId}/pdf`,
+      headers: { cookie: f.cookie },
+    })
+    expect(missing.statusCode).toBe(404)
+
+    const upload = buildMultipart([], [{
+      name: 'file',
+      filename: 'review-k1.pdf',
+      contentType: 'application/pdf',
+      data: originalPdf,
+    }])
+    const put = vi.spyOn(getK1ObjectStore(), 'put')
+    const repaired = await f.app.inject({
+      method: 'PUT',
+      url: `/v1/k1-documents/${f.k1DocumentId}/source-pdf`,
+      headers: { cookie: f.cookie, 'content-type': upload.contentType },
+      payload: upload.body,
+    })
+    expect(repaired.statusCode).toBe(200)
+    expect(put).toHaveBeenCalledWith(expect.objectContaining({ ifNoneMatch: '*' }))
+    put.mockRestore()
+    expect(repaired.json()).toMatchObject({ status: 'REATTACHED', k1DocumentId: f.k1DocumentId })
+
+    const after = await durableK1Repository.getById(f.k1DocumentId)
+    expect(after?.storagePath).not.toBe(before?.storagePath)
+    expect(after).toMatchObject({
+      version: before?.version,
+      processingStatus: before?.processingStatus,
+      sha256: createHash('sha256').update(originalPdf).digest('hex'),
+      sizeBytes: originalPdf.byteLength,
+    })
+
+    const available = await f.app.inject({
+      method: 'GET',
+      url: `/v1/k1-documents/${f.k1DocumentId}/pdf`,
+      headers: { cookie: f.cookie },
+    })
+    expect(available.statusCode).toBe(200)
+    expect(available.rawPayload).toEqual(originalPdf)
+
+    const audit = await pool!.query<{ event_name: string }>(
+      `select event_name from audit_events
+        where object_id = $1 and event_name = 'k1.source_pdf.reattached'`,
+      [f.k1DocumentId],
+    )
+    expect(audit.rows).toHaveLength(1)
+  })
+
+  it('reports storage failures as unavailable and never overwrites a source it cannot check', async () => {
+    const store = getK1ObjectStore()
+    const error = Object.assign(new Error('Expired session'), { name: 'Unknown', $metadata: { httpStatusCode: 400 } })
+    const head = vi.spyOn(store, 'head').mockRejectedValue(error)
+    const put = vi.spyOn(store, 'put')
+    try {
+      const probe = await f.app.inject({ method: 'HEAD', url: `/v1/k1-documents/${f.k1DocumentId}/pdf`,
+        headers: { cookie: f.cookie } })
+      expect(probe.statusCode).toBe(503)
+      const upload = buildMultipart([], [{ name: 'file', filename: 'source.pdf', contentType: 'application/pdf',
+        data: Buffer.from('%PDF-1.4\n%%EOF\n') }])
+      const response = await f.app.inject({ method: 'PUT', url: `/v1/k1-documents/${f.k1DocumentId}/source-pdf`,
+        headers: { cookie: f.cookie, 'content-type': upload.contentType }, payload: upload.body })
+      expect(response.statusCode).toBe(503)
+      expect(response.json()).toEqual({ error: 'PDF_STORAGE_UNAVAILABLE' })
+      expect(put).not.toHaveBeenCalled()
+    } finally { head.mockRestore(); put.mockRestore() }
+  })
+
+  it('releases completed PDF reads so repeated viewer probes do not fill the download queue', async () => {
+    // More requests than the configured queue capacity; each one must finish
+    // its durable operation and release its lease before the next read.
+    for (let index = 0; index < 36; index += 1) {
+      const response = await f.app.inject({ method: index % 2 ? 'GET' : 'HEAD',
+        url: `/v1/k1-documents/${f.k1DocumentId}/pdf`, headers: { cookie: f.cookie, range: 'bytes=0-7' } })
+      expect(response.statusCode).toBe(index % 2 ? 206 : 200)
+      await vi.waitFor(async () => {
+        const result = await pool!.query(`select count(*)::int as active from workload_leases l
+          join idempotent_operations o using (operation_id)
+          where o.workload_key = 'k1_document_download' and l.state = 'active' and l.expires_at > now()`)
+        expect(result.rows[0].active).toBe(0)
+      })
+    }
+  })
+
+  it('rejects a different PDF when recovering missing source evidence', async () => {
+    await getK1ObjectStore().delete({ key: f.objectKey })
+    const differentPdf = Buffer.from('%PDF-1.4\ndifferent source\n%%EOF\n')
+    const upload = buildMultipart([], [{
+      name: 'file', filename: 'different.pdf', contentType: 'application/pdf', data: differentPdf,
+    }])
+
+    const response = await f.app.inject({
+      method: 'PUT',
+      url: `/v1/k1-documents/${f.k1DocumentId}/source-pdf`,
+      headers: { cookie: f.cookie, 'content-type': upload.contentType },
+      payload: upload.body,
+    })
+
+    expect(response.statusCode).toBe(409)
+    expect(response.json()).toMatchObject({ error: 'SOURCE_PDF_CHECKSUM_MISMATCH' })
+    expect((await durableK1Repository.getById(f.k1DocumentId))?.storagePath).toBe(f.objectKey)
   })
 
   it('resolves every matching issue when the reviewer confirms the destination', async () => {

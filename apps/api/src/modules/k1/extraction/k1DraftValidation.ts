@@ -40,8 +40,9 @@ export const normalizeMoney = (raw: unknown): string | null => {
 }
 
 const normalizeDate = (raw: unknown): string | null => {
-  if (typeof raw !== 'string') return null
-  const value = raw.trim()
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null
+  const value = String(raw).trim()
+  if (/^(?:19|20)\d{2}$/.test(value)) return `${value}-01-01`
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value)
   const parts = iso ? [iso[1], iso[2], iso[3]] : us ? [us[3], us[1], us[2]] : null
@@ -116,7 +117,8 @@ export const isK1StatementReference = (raw: unknown): boolean => {
     : raw
   if (typeof candidate !== 'string') return false
   const value = candidate.trim()
-  return /^(?:see\s+)?(?:stmt|statement|attached|attachment)(?:\s+\d+)?\.?$/i.test(value)
+  return /^\*+$/.test(value)
+    || /^(?:see\s+)?(?:attached\s+)?(?:stmt|statement|attached|attachment)(?:\s+\d+)?\.?$/i.test(value)
     || /(?:amount|value)\s*:\s*(?:see\s+)?(?:stmt|statement|attached|attachment)\b/i.test(value)
 }
 
@@ -172,6 +174,10 @@ const normalizeCodeRow = (canonicalPath: string, raw: unknown): K1NormalizationR
     if (!code && !description) return blank()
     return { value: { code, description, amount: null } }
   }
+  if (canonicalPath === 'official.box_16_entries' && code.replace(/\*+$/, '') === 'A'
+    && typeof amountRaw === 'string') {
+    return { value: { code, description, amount: amountRaw.trim() } }
+  }
   const amount = normalizeMoney(amountRaw)
   if (!code && !description && amount === null) return blank()
   if (amount === null) {
@@ -212,6 +218,11 @@ export const normalizeK1ExtractedValue = (
   let value: unknown
   if (kind === 'MONEY' || (kind === 'NUMBER' && canonicalPath.startsWith('calculation.'))) {
     value = normalizeMoney(raw)
+    // Section L withdrawals reduce capital. BDA can omit the form's printed
+    // parentheses; use the same sign convention here as the application mapper
+    // so the review draft and the eventual applied value agree.
+    if (canonicalPath === 'calculation.section_l_withdrawals_distributions'
+      && typeof value === 'string' && Number(value) > 0) value = `-${value}`
   } else if (kind === 'DATE') {
     value = normalizeDate(raw)
   } else if (kind === 'PERCENTAGE') {

@@ -16,7 +16,10 @@ import type {
   MarketPriceObservation,
   MarketPriceStore,
 } from './market-data.types.js'
-import { admitCostWorkload } from '../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  createServiceCostSubjects,
+} from '../abuse-protection/costWorkloadAdmission.js'
 
 interface MarketDataServiceOptions {
   provider: MarketDataProvider | null
@@ -338,7 +341,9 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       workloadKey: 'market_data_closing_prices',
       method: 'POST',
       routePattern: '/v1/reports/consolidated-holdings/refresh',
-      principal: 'system:market-data',
+      subjectContext: createServiceCostSubjects('market-data', tradingDate, {
+        provider: 'market-data',
+      }),
       canonicalInputs: { tradingDate },
       globalDailyLimit: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
       leaseTtlSeconds: Math.ceil(config.abuseProtection.timeouts.marketDataProviderMs / 1_000),

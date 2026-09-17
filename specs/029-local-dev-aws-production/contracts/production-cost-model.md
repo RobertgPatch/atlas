@@ -25,6 +25,8 @@ This contract makes FR-026 and SC-011 reproducible. It is a planning estimate fo
 
 A plan that enables K-1 AWS ingestion, adds paid inference, exceeds these quantities, or introduces another recurring resource must add the corresponding line item before it can pass.
 
+The explicit `dev:local:bda` workflow does not change the always-on baseline: it runs no AWS API/ECS/RDS/SQS development stack. Its manual S3/KMS/BDA usage is variable production-account spend and is governed separately by the finite ceilings in ignored `apps/api/.env.local-bda`. The committed example permits five upload slots but only three BDA calls, one provider attempt per call, one in-flight call, and a $25 worst-case admission envelope per billing month. Actual BDA usage must be measured before those ceilings are raised and must be included in the next production cost refresh.
+
 ## 2026-08-29 accepted estimate
 
 Public on-demand rates were refreshed from the official AWS catalogs and pricing pages for `us-west-2` on 2026-08-29 and use 730 hours.
@@ -37,17 +39,17 @@ Public on-demand rates were refreshed from the official AWS catalogs and pricing
 | RDS PostgreSQL Single-AZ `db.t4g.micro` | $0.016/hour | 11.68 |
 | RDS gp3 storage | 20 GiB at $0.115/GiB-month | 2.30 |
 | Fargate API x86 | 0.25 vCPU/0.5 GiB, always on | 9.01 |
-| WAF | One ACL plus eight rule/group charges | 13.00 |
+| WAF | One ACL plus ten managed/custom rule charges, including two feature-030 global rules | 15.00 |
 | Secrets Manager | Thirteen secrets at $0.40 | 5.20 |
 | Customer-managed KMS | Two keys | 2.00 |
-| CloudWatch alarms | Nineteen active-component alarms at $0.10 | 1.90 |
-| **Fixed subtotal** |  | **98.02** |
+| CloudWatch alarms | Twenty-one active-component alarms at $0.10, including API/auth rate-rule alarms | 2.10 |
+| **Fixed subtotal** |  | **100.22** |
 
-The upper-bound low-traffic and recovery allowance for ALB LCUs, WAF/CloudFront requests, NAT processing, scheduled tasks, Route 53, ECR/S3 storage, KMS requests, CloudWatch ingestion, and recovery operations is $5.98. Automated RDS backup storage up to the allocated database storage is priced at $0 under the documented AWS allocation. A quarterly isolated two-hour restore contributes approximately $0.013/month when annualized: `db.t4g.micro` compute plus prorated 20 GiB gp3 storage. The accepted upper estimate is therefore **$104.00/month**. Usage beyond these bounds requires refreshed evidence and cannot silently reuse the allowance.
+The upper-bound low-traffic and recovery allowance for ALB LCUs, WAF/CloudFront requests, NAT processing, scheduled tasks, Route 53, ECR/S3 storage, KMS requests, CloudWatch ingestion, and recovery operations is $5.98. Automated RDS backup storage up to the allocated database storage is priced at $0 under the documented AWS allocation. A quarterly isolated two-hour restore contributes approximately $0.013/month when annualized: `db.t4g.micro` compute plus prorated 20 GiB gp3 storage. The accepted upper estimate is therefore **$106.20/month**. Usage beyond these bounds requires refreshed evidence and cannot silently reuse the allowance.
 
 The thirteen-secret cost row conservatively includes the existing `PLAID_ENV` secret metadata even after `PLAID_ENV` stops being wired as a secret. This feature's zero-deletion policy does not assume that legacy metadata is destroyed; a later reviewed cleanup can remove its $0.40/month after proving it is unreferenced.
 
-The current 0.5 vCPU/1 GiB task and all 33 alarms have an estimated fixed subtotal of $108.43 and expected total of $109-$113. That shape is not accepted merely because its midpoint is below $110.
+The prior 0.5 vCPU/1 GiB task and broad alarm shape remains rejected; feature 030 retains one 0.25 vCPU/0.5 GiB task and limits the active baseline to 21 alarms.
 
 ## Required safeguards and optimizations
 
@@ -72,9 +74,9 @@ The cost validator consumes the reviewed Terraform plan/configuration and emits 
   "region": "us-west-2",
   "pricingRetrievedAt": "2026-08-29T00:00:00Z",
   "hoursPerMonth": 730,
-  "fixedMonthlyUsd": 98.02,
+  "fixedMonthlyUsd": 100.22,
   "usageUpperBoundMonthlyUsd": 5.98,
-  "estimatedMonthlyUsd": 104.00,
+  "estimatedMonthlyUsd": 106.20,
   "targetMonthlyUsd": 110.00,
   "budgetThresholdUsd": 125.00,
   "budgetActionCount": 0,
@@ -94,6 +96,8 @@ Pass requires:
 - automated backup allocation and restore-test operations are explicitly priced;
 - paid features with a zero usage assumption are disabled in the plan;
 - API desired count is one in Routine mode.
+- WAF rules, alarm resource families, custom metric/log namespaces, the SPA function, and S3 protection resources match the inventory derived from Terraform source.
+- Bot Control, CAPTCHA, Challenge, Redis/ElastiCache, and unpriced protection resources remain absent unless a later approved ADR and cost row authorize them.
 
 Prices are rounded only after line-item multiplication. Tests use fixture rates; live price retrieval failure blocks production preparation rather than silently reusing an undated estimate.
 

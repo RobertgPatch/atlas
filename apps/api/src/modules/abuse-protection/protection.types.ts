@@ -43,6 +43,7 @@ export const SCOPE_DIMENSIONS = [
   'session',
   'tenant',
   'entity',
+  'document',
   'provider',
   'operation',
   'global',
@@ -91,13 +92,27 @@ export const IDEMPOTENCY_MODES = [
 
 export type IdempotencyMode = (typeof IDEMPOTENCY_MODES)[number]
 
-export interface LocalRateLimit {
+export const LOCAL_RATE_PARTITIONS = [
+  'pinned_global',
+  'authenticated',
+  'source',
+] as const
+
+export type LocalRatePartition = (typeof LOCAL_RATE_PARTITIONS)[number]
+
+export interface LegacyLocalRateLimit {
   readonly scope: ScopeDimension
   readonly requests: number
   readonly windowSeconds: number
 }
 
-export interface DurableRateLimit extends LocalRateLimit {
+export interface LocalRateLimit extends LegacyLocalRateLimit {
+  /** Shared class key; request paths and combined subject identities are prohibited. */
+  readonly limitKey: string
+  readonly partition: LocalRatePartition
+}
+
+export interface DurableRateLimit extends LegacyLocalRateLimit {
   readonly policyLimitKey: string
   readonly units?: number
 }
@@ -134,10 +149,14 @@ export interface RouteProtectionPolicy {
   readonly routePattern: string
   readonly authentication: AuthenticationBoundary
   readonly scopeDimensions: readonly ScopeDimension[]
-  readonly localRate: LocalRateLimit | null
+  /** Compatibility field consumed by the v1 Fastify limiter until T035-T037 cut over. */
+  readonly localRate: LegacyLocalRateLimit | null
+  /** Independent class-aggregated decisions required by the v2 policy contract. */
+  readonly localRates: readonly LocalRateLimit[]
   readonly durableRates: readonly DurableRateLimit[]
   readonly payloadLimits: PayloadLimits
   readonly concurrencyLimit: number | null
+  readonly concurrencyClass: string | null
   readonly backlogLimit: number | null
   readonly idempotency: IdempotencyMode
   readonly killSwitch: string | null

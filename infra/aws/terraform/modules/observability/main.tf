@@ -259,6 +259,31 @@ resource "aws_cloudwatch_metric_alarm" "waf_blocked_requests" {
   }
 }
 
+resource "aws_cloudwatch_metric_alarm" "waf_rate_rule_blocks" {
+  for_each = {
+    api  = "api_general_per_ip"
+    auth = "auth_per_ip"
+  }
+
+  alarm_name          = "${var.name_prefix}-waf-${each.key}-rate-blocks"
+  alarm_description   = "The ${each.key} source-rate WAF rule blocked requests within the five-minute operator-response window."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "BlockedRequests"
+  namespace           = "AWS/WAFV2"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = var.waf_blocked_requests_threshold
+  alarm_actions       = local.alarm_actions
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Region = "Global"
+    Rule   = each.value
+    WebACL = var.waf_web_acl_name
+  }
+}
+
 locals {
   k1_queues = var.k1_aws_ingestion_enabled ? { start = var.k1_start_queue_name, completion = var.k1_completion_queue_name } : {}
   k1_dlqs   = var.k1_aws_ingestion_enabled ? { start = "${var.k1_start_queue_name}-dlq", completion = "${var.k1_completion_queue_name}-dlq" } : {}
@@ -358,10 +383,10 @@ resource "aws_cloudwatch_metric_alarm" "k1_workflow" {
 
 locals {
   abuse_protection_alarms = {
-    protection-decisions = {
-      metric      = "AbuseProtectionDecision"
+    protection-critical = {
+      metric      = "AbuseProtectionCritical"
       threshold   = var.abuse_protection_decision_threshold
-      description = "Combined throttle, admission rejection, and protection-decision activity exceeded its five-minute envelope."
+      description = "Hash/store/eviction/HMAC/capability/backlog/quota/disable protection failures exceeded the five-minute envelope."
     }
     provider-calls = {
       metric      = "ProviderCalls"
@@ -421,6 +446,8 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
           ["AWS/WAFV2", "AllowedRequests", "WebACL", var.waf_web_acl_name, "Region", "Global", "Rule", "ALL", { stat = "Sum" }],
           ["AWS/WAFV2", "BlockedRequests", "WebACL", var.waf_web_acl_name, "Region", "Global", "Rule", "ALL", { stat = "Sum" }],
           ["AWS/WAFV2", "CountedRequests", "WebACL", var.waf_web_acl_name, "Region", "Global", "Rule", "ALL", { stat = "Sum" }],
+          ["AWS/WAFV2", "BlockedRequests", "WebACL", var.waf_web_acl_name, "Region", "Global", "Rule", "api_general_per_ip", { stat = "Sum" }],
+          ["AWS/WAFV2", "BlockedRequests", "WebACL", var.waf_web_acl_name, "Region", "Global", "Rule", "auth_per_ip", { stat = "Sum" }],
         ]
       }
     },
@@ -440,10 +467,9 @@ resource "aws_cloudwatch_dashboard" "k1_ingestion" {
     {
       type = "metric", width = 12, height = 6
       properties = {
-        title = "Application throttles, admissions, and authentication protection", region = data.aws_region.current.name, period = 300
+        title = "Critical application protection events", region = data.aws_region.current.name, period = 300
         metrics = [
-          ["ProjectJackson/AbuseProtection", "AbuseProtectionDecision", "Environment", var.environment_name, { stat = "Sum" }],
-          [{ expression = "SEARCH('{ProjectJackson/AbuseProtection} MetricName=\"AbuseProtectionDecision\" Environment=\"${var.environment_name}\"', 'Sum', 300)", id = "decision_detail", label = "Decision detail", region = data.aws_region.current.name }],
+          ["ProjectJackson/AbuseProtection", "AbuseProtectionCritical", "Environment", var.environment_name, { stat = "Sum" }],
         ]
       }
     },

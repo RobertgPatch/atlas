@@ -10,11 +10,21 @@ import {
   hasAmbiguousK1StatusCheckbox,
   type K1StatusCheckboxVerifier,
 } from '../extraction/bedrockCheckboxVerifier.js'
-import { admitCostWorkload } from '../../abuse-protection/costWorkloadAdmission.js'
+import {
+  admitCostWorkload,
+  createBackgroundCostSubjects,
+  createServiceCostSubjects,
+} from '../../abuse-protection/costWorkloadAdmission.js'
 import { k1ExtractionAttemptRepository } from '../extraction/k1ExtractionAttempt.repository.js'
 import { mapBdaResult } from '../extraction/mapBdaResult.js'
 import { durableK1BatchRepository, durableK1Repository } from '../k1.repository.js'
 import { k1MatchService } from '../matching/k1Match.service.js'
+import {
+  finalizeK1PartnershipIntake,
+  getK1PartnershipImportContext,
+  importPartnershipFromK1IfSafe,
+  isCompletedK1PartnershipIntake,
+} from '../matching/k1PartnershipImport.service.js'
 import type { K1ExtractionDraft } from '../k1.types.js'
 import type { K1CompletionMessage, K1ReceivedMessage } from '../queue/K1WorkQueue.js'
 import { readObjectToBuffer, type K1ObjectIdentity, type K1ObjectStore } from '../storage/K1ObjectStore.js'
@@ -125,23 +135,24 @@ export const loadBdaProviderResult = async (
   const outputSegments: Array<Record<string, unknown>> = []
   for (const [index, segment] of segmentMetadata.entries()) {
     const standardIdentity = parseManifestS3Uri(segment.standard_output_path, manifestIdentity)
-    const customIdentity = parseManifestS3Uri(segment.custom_output_path, manifestIdentity)
+    const customIdentity = segment.custom_output_status === 'NO_MATCH' && !segment.custom_output_path
+      ? null : parseManifestS3Uri(segment.custom_output_path, manifestIdentity)
     const remaining = maximum - totalBytes
     if (remaining <= 0) throw Object.assign(new Error('BDA_RAW_RESULT_TOO_LARGE'), { code: 'BDA_RAW_RESULT_TOO_LARGE' })
     const standard = await readRawResult(objectStore, standardIdentity, remaining)
     totalBytes += standard.bytes.byteLength
     const customRemaining = maximum - totalBytes
     if (customRemaining <= 0) throw Object.assign(new Error('BDA_RAW_RESULT_TOO_LARGE'), { code: 'BDA_RAW_RESULT_TOO_LARGE' })
-    const custom = await readRawResult(objectStore, customIdentity, customRemaining)
-    totalBytes += custom.bytes.byteLength
+    const custom = customIdentity ? await readRawResult(objectStore, customIdentity, customRemaining) : null
+    totalBytes += custom?.bytes.byteLength ?? 0
     integrity.update(`segment:${index}:standard:${standardIdentity.key}:${standard.sha256}\n`)
-    integrity.update(`segment:${index}:custom:${customIdentity.key}:${custom.sha256}\n`)
+    if (customIdentity && custom) integrity.update(`segment:${index}:custom:${customIdentity.key}:${custom.sha256}\n`)
     outputSegments.push({
       customOutputStatus: typeof segment.custom_output_status === 'string'
         ? segment.custom_output_status
         : 'UNKNOWN',
       standardOutput: parseJson(standard.bytes, 'BDA_STANDARD_OUTPUT_INVALID_JSON'),
-      customOutput: parseJson(custom.bytes, 'BDA_CUSTOM_OUTPUT_INVALID_JSON'),
+      customOutput: custom ? parseJson(custom.bytes, 'BDA_CUSTOM_OUTPUT_INVALID_JSON') : {},
     })
   }
 
@@ -217,16 +228,67 @@ const insertDraft = async (
 const terminalProviderFailure = (status: string): boolean =>
   ['ServiceError', 'ClientError', 'FAILED', 'FAILURE'].includes(status)
 
+const finishPartnershipIntake = async (args: {
+  dependencies: K1CompletionHandlerDependencies
+  k1DocumentId: string
+  sourceObject: K1ObjectIdentity
+  rawResultObject?: K1ObjectIdentity | null
+}): Promise<boolean> => {
+  const importContext = await getK1PartnershipImportContext(args.k1DocumentId)
+  if (!importContext) return false
+
+  const matched = await k1MatchService.propose(args.k1DocumentId, [importContext.entityScopeId])
+  let partnershipId = matched.proposal.safeToMatch ? matched.proposal.partnershipId : null
+  if (!partnershipId) {
+    const imported = await importPartnershipFromK1IfSafe({
+      k1DocumentId: args.k1DocumentId,
+      proposal: matched.proposal,
+      context: importContext,
+    })
+    if (imported.action === 'CREATED' || imported.action === 'EXISTING') {
+      partnershipId = imported.partnershipId
+    }
+  }
+
+  const finalized = await finalizeK1PartnershipIntake({
+    k1DocumentId: args.k1DocumentId,
+    partnershipId,
+  })
+  if (!finalized.completed) return false
+
+  const identities = [args.sourceObject, args.rawResultObject].filter(
+    (identity): identity is K1ObjectIdentity => Boolean(identity),
+  )
+  const deletions = await Promise.allSettled(
+    identities.map((identity) => args.dependencies.objectStore.delete(identity)),
+  )
+  if (deletions.some((result) => result.status === 'rejected')) {
+    console.warn('Partnership intake completed, but temporary extraction evidence cleanup was incomplete.')
+  }
+  return true
+}
+
 export const createK1CompletionHandler = (dependencies: K1CompletionHandlerDependencies) =>
   async (received: K1ReceivedMessage<K1CompletionMessage>, signal: AbortSignal): Promise<void> => {
     if (signal.aborted) throw Object.assign(new Error('K1_WORKER_ABORTED'), { code: 'K1_WORKER_ABORTED' })
     const message = received.message
     const attempt = await k1ExtractionAttemptRepository.getById(message.extractionAttemptId)
+    if (!attempt && await isCompletedK1PartnershipIntake(message.k1DocumentId)) return
     if (!attempt || attempt.k1DocumentId !== message.k1DocumentId || attempt.providerJobId !== message.providerJobId) {
       throw Object.assign(new Error('EXTRACTION_COMPLETION_IDENTITY_MISMATCH'), { code: 'EXTRACTION_COMPLETION_IDENTITY_MISMATCH' })
     }
     if (attempt.status === 'SUCCEEDED') {
       const completedDocument = await durableK1Repository.getById(message.k1DocumentId)
+      if (completedDocument && await finishPartnershipIntake({
+        dependencies,
+        k1DocumentId: message.k1DocumentId,
+        sourceObject: {
+          key: completedDocument.storagePath,
+          bucket: completedDocument.storageBucket,
+          versionId: completedDocument.storageVersionId,
+        },
+        rawResultObject: attempt.rawResultKey ? { key: attempt.rawResultKey } : null,
+      })) return
       if (completedDocument?.matchStatus === 'UNRESOLVED') {
         await k1MatchService.propose(message.k1DocumentId)
       }
@@ -238,6 +300,21 @@ export const createK1CompletionHandler = (dependencies: K1CompletionHandlerDepen
         errorCode: `BDA_${message.providerStatus.toUpperCase()}`,
         errorSummary: 'Bedrock Data Automation reported a terminal extraction failure.',
       })
+      const failedDocument = await durableK1Repository.getById(message.k1DocumentId)
+      if (failedDocument && await getK1PartnershipImportContext(message.k1DocumentId)) {
+        const finalized = await finalizeK1PartnershipIntake({
+          k1DocumentId: message.k1DocumentId,
+          partnershipId: null,
+        })
+        if (finalized.completed) {
+          await dependencies.objectStore.delete({
+            key: failedDocument.storagePath,
+            bucket: failedDocument.storageBucket,
+            versionId: failedDocument.storageVersionId,
+          }).catch(() => undefined)
+          return
+        }
+      }
       await withTransaction(async (client) => {
         const item = await client.query<{ id: string; status: string }>(
           `select id, status from k1_ingestion_items where k1_document_id = $1 for update`,
@@ -276,7 +353,17 @@ export const createK1CompletionHandler = (dependencies: K1CompletionHandlerDepen
           controlKey: 'k1_bedrock_checkbox',
           method: 'POST',
           routePattern: '/v1/k1-documents/:k1DocumentId/retry-extraction',
-          principal: message.k1DocumentId,
+          subjectContext: document.uploadedBy
+            ? createBackgroundCostSubjects(document.uploadedBy, message.messageId, {
+                ...(document.entityId ? { entity: document.entityId } : {}),
+                document: message.k1DocumentId,
+                provider: 'aws-bedrock',
+              })
+            : createServiceCostSubjects('k1-completion-worker', message.messageId, {
+                ...(document.entityId ? { entity: document.entityId } : {}),
+                document: message.k1DocumentId,
+                provider: 'aws-bedrock',
+              }),
           canonicalInputs: {
             k1DocumentId: message.k1DocumentId,
             extractionAttemptId: message.extractionAttemptId,
@@ -314,5 +401,15 @@ export const createK1CompletionHandler = (dependencies: K1CompletionHandlerDepen
         nextDocumentStatus,
       })
     })
+    if (await finishPartnershipIntake({
+      dependencies,
+      k1DocumentId: message.k1DocumentId,
+      sourceObject: {
+        key: document.storagePath,
+        bucket: document.storageBucket,
+        versionId: document.storageVersionId,
+      },
+      rawResultObject: message.output,
+    })) return
     await k1MatchService.propose(message.k1DocumentId)
   }

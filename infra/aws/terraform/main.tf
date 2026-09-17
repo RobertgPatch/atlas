@@ -69,9 +69,22 @@ locals {
 
   abuse_protection_environment_variables = {
     ABUSE_HMAC_KEY_ID                          = "terraform-v1"
-    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS   = "2500"
-    ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "50"
-    ABUSE_K1_BDA_CALLS_PER_MONTH               = "1"
+    ABUSE_VIEWER_ADDRESS_HEADER                = "cloudfront-viewer-address"
+    ABUSE_REQUIRE_GENERATED_VIEWER_ADDRESS     = "true"
+    ATLAS_DEPLOYMENT_TENANT_ID                 = "family-office-production"
+    ABUSE_API_STEADY_STATE_TASKS               = "1"
+    ABUSE_LOCAL_MAX_BUCKETS                    = "10000"
+    ABUSE_LOCAL_PINNED_GLOBAL_BUCKETS          = "64"
+    ABUSE_LOCAL_AUTHENTICATED_BUCKETS          = "2936"
+    ABUSE_LOCAL_SOURCE_BUCKETS                 = "7000"
+    ABUSE_AUTH_GLOBAL_REQUESTS                 = "50"
+    ABUSE_AUTH_GLOBAL_WINDOW_SECONDS           = "300"
+    ABUSE_AUTH_GLOBAL_DAILY_REQUESTS           = "200"
+    ABUSE_AUTH_GLOBAL_DAILY_WINDOW_SECONDS     = "86400"
+    ABUSE_PAID_WORKLOAD_DAILY_BUDGET_CENTS     = "2000"
+    ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS   = "62000"
+    ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "15500"
+    ABUSE_K1_BDA_CALLS_PER_MONTH               = "3100"
     ABUSE_K1_CHECKBOX_CALLS_PER_MONTH          = "4"
     ABUSE_PLAID_LINK_TOKENS_PER_MONTH          = "10"
     ABUSE_PLAID_EXCHANGES_PER_MONTH            = "5"
@@ -80,8 +93,19 @@ locals {
     ABUSE_EXPORTS_PER_MONTH                    = "40"
     ABUSE_BACKFILL_RUNS_PER_MONTH              = "1"
     ABUSE_AUTH_SOURCE_REQUESTS                 = "20"
+    ABUSE_AUTH_SOURCE_WINDOW_SECONDS           = "300"
+    ABUSE_AUTH_DURABLE_SOURCE_REQUESTS         = "20"
+    ABUSE_AUTH_DURABLE_SOURCE_WINDOW_SECONDS   = "300"
     ABUSE_AUTH_ACCOUNT_REQUESTS                = "5"
+    ABUSE_AUTH_ACCOUNT_WINDOW_SECONDS          = "900"
     ABUSE_AUTH_HASH_GLOBAL_CONCURRENCY         = "4"
+    ABUSE_API_SOURCE_REQUESTS                  = "300"
+    ABUSE_API_SOURCE_WINDOW_SECONDS            = "300"
+    ABUSE_API_GLOBAL_REQUESTS                  = "500"
+    ABUSE_API_GLOBAL_WINDOW_SECONDS            = "300"
+    ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS        = tostring(var.k1_upload_capability_ttl_seconds)
+    ABUSE_UPLOAD_SIGNATURE_AGE_SECONDS         = tostring(var.k1_upload_signature_age_seconds)
+    K1_UPLOAD_URL_TTL_SECONDS                  = tostring(var.k1_upload_capability_ttl_seconds)
     ABUSE_K1_USER_BATCHES_PER_HOUR             = "5"
     ABUSE_K1_USER_FILES_PER_DAY                = "100"
     ABUSE_K1_GLOBAL_FILES_PER_DAY              = "500"
@@ -133,47 +157,58 @@ locals {
   }
 
   api_environment_variables = merge({
-    NODE_ENV                        = "production"
-    ATLAS_RUNTIME                   = "production"
-    PORT                            = tostring(var.api_container_port)
-    REQUIRE_DURABLE_PERSISTENCE     = "true"
-    TRUSTED_PROXY_CIDRS             = var.vpc_cidr
-    WEB_ORIGIN                      = local.web_origin
-    SESSION_COOKIE_SECURE           = "true"
-    SESSION_COOKIE_SAMESITE         = "lax"
-    MFA_LOGIN_ENABLED               = tostring(var.mfa_login_enabled)
-    PLAID_ENV                       = "production"
-    PLAID_REFRESH_TIME_LOCAL        = var.plaid_refresh_time_local
-    PLAID_REFRESH_TIMEZONE          = var.plaid_refresh_timezone
-    PLAID_REFRESH_SCHEDULER_ENABLED = "true"
-    PLAID_REFRESH_SCHEDULER_MODE    = "eventbridge"
-    MARKET_DATA_PROVIDER            = var.market_data_provider
-    MARKET_PRICE_SCHEDULER_ENABLED  = tostring(var.market_price_scheduler_enabled)
-    MARKET_DATA_REFRESH_ON_READ     = tostring(var.market_data_refresh_on_read)
-    MARKET_DATA_MAX_AGE_SECONDS     = tostring(var.market_data_max_age_seconds)
-    MARKET_DATA_REQUEST_TIMEOUT_MS  = tostring(var.market_data_request_timeout_ms)
-    ALPACA_MARKET_DATA_BASE_URL     = var.alpaca_market_data_base_url
-    ALPACA_MARKET_DATA_FEED         = var.alpaca_market_data_feed
-    RATE_LIMIT_ENABLED              = "true"
-    API_SHARED_CACHE_POLICY         = "no_shared_cache"
-    AWS_REGION                      = var.aws_region
-    AWS_APP_DOMAIN                  = local.configured_app_domain == null ? "" : local.configured_app_domain
-    AWS_ENVIRONMENT_NAME            = var.environment_name
-    AWS_ENVIRONMENT_PROFILE         = var.environment_cost_profile
-    K1_AWS_INGESTION_ENABLED        = tostring(var.k1_aws_ingestion_enabled)
-    K1_WORKER_DESIRED_COUNT         = tostring(var.k1_worker_desired_count)
-    K1_EXTRACTOR                    = "aws_bda"
-    K1_OBJECT_STORE                 = "s3"
-    K1_QUEUE                        = "sqs"
-    K1_S3_BUCKET                    = local.k1_document_bucket_name
-    K1_KMS_KEY_ARN                  = local.k1_kms_alias_arn
-    K1_S3_INPUT_PREFIX              = var.k1_input_prefix
-    K1_S3_OUTPUT_PREFIX             = var.k1_output_prefix
-    K1_WORK_QUEUE_URL               = local.k1_start_queue_url
-    K1_COMPLETION_QUEUE_URL         = local.k1_completion_queue_url
-    K1_MAPPING_SCHEMA_VERSION       = var.k1_mapping_schema_version
-    PRODUCTION_LOG_RETENTION_DAYS   = tostring(var.log_retention_days)
-    PRODUCTION_ALARMS_CONFIGURED    = tostring(var.alarm_destination_confirmed)
+    NODE_ENV                         = "production"
+    ATLAS_RUNTIME                    = "production"
+    ADMIN_EMAIL                      = "tpatch@jspllc.com"
+    ADMIN_DISPLAY_NAME               = "Tony Patch"
+    SUPER_ADMIN_EMAIL                = "rpatch@jspllc.com"
+    SUPER_ADMIN_DISPLAY_NAME         = "Robert Patch"
+    PORT                             = tostring(var.api_container_port)
+    REQUIRE_DURABLE_PERSISTENCE      = "true"
+    TRUSTED_PROXY_CIDRS              = join(",", var.private_subnet_cidrs)
+    WEB_ORIGIN                       = local.web_origin
+    SESSION_COOKIE_SECURE            = "true"
+    SESSION_COOKIE_SAMESITE          = "lax"
+    MFA_LOGIN_ENABLED                = tostring(var.mfa_login_enabled)
+    PLAID_ENV                        = "production"
+    PLAID_REFRESH_TIME_LOCAL         = var.plaid_refresh_time_local
+    PLAID_REFRESH_TIMEZONE           = var.plaid_refresh_timezone
+    PLAID_REFRESH_SCHEDULER_ENABLED  = "true"
+    PLAID_REFRESH_SCHEDULER_MODE     = "eventbridge"
+    MARKET_DATA_PROVIDER             = var.market_data_provider
+    MARKET_PRICE_SCHEDULER_ENABLED   = tostring(var.market_price_scheduler_enabled)
+    MARKET_DATA_REFRESH_ON_READ      = tostring(var.market_data_refresh_on_read)
+    MARKET_DATA_MAX_AGE_SECONDS      = tostring(var.market_data_max_age_seconds)
+    MARKET_DATA_REQUEST_TIMEOUT_MS   = tostring(var.market_data_request_timeout_ms)
+    ALPACA_MARKET_DATA_BASE_URL      = var.alpaca_market_data_base_url
+    ALPACA_MARKET_DATA_FEED          = var.alpaca_market_data_feed
+    RATE_LIMIT_ENABLED               = "true"
+    API_SHARED_CACHE_POLICY          = "no_shared_cache"
+    AWS_REGION                       = var.aws_region
+    AWS_APP_DOMAIN                   = local.configured_app_domain == null ? "" : local.configured_app_domain
+    AWS_ENVIRONMENT_NAME             = var.environment_name
+    AWS_ENVIRONMENT_PROFILE          = var.environment_cost_profile
+    AWS_APPLICATION_LOG_VIEW_ENABLED = "true"
+    AWS_APPLICATION_LOG_GROUPS = join(",", [
+      "/aws/ecs/${local.name_prefix}/api",
+      "/aws/ecs/${local.name_prefix}/plaid-refresh",
+      "/aws/ecs/${local.name_prefix}/market-price-refresh",
+      "/aws/ecs/${local.name_prefix}/k1-worker",
+    ])
+    K1_AWS_INGESTION_ENABLED      = tostring(var.k1_aws_ingestion_enabled)
+    K1_WORKER_DESIRED_COUNT       = tostring(var.k1_worker_desired_count)
+    K1_EXTRACTOR                  = "aws_bda"
+    K1_OBJECT_STORE               = "s3"
+    K1_QUEUE                      = "sqs"
+    K1_S3_BUCKET                  = local.k1_document_bucket_name
+    K1_KMS_KEY_ARN                = local.k1_kms_alias_arn
+    K1_S3_INPUT_PREFIX            = var.k1_input_prefix
+    K1_S3_OUTPUT_PREFIX           = var.k1_output_prefix
+    K1_WORK_QUEUE_URL             = local.k1_start_queue_url
+    K1_COMPLETION_QUEUE_URL       = local.k1_completion_queue_url
+    K1_MAPPING_SCHEMA_VERSION     = var.k1_mapping_schema_version
+    PRODUCTION_LOG_RETENTION_DAYS = tostring(var.log_retention_days)
+    PRODUCTION_ALARMS_CONFIGURED  = tostring(var.alarm_destination_confirmed)
   }, local.abuse_protection_environment_variables)
 
   refresh_time_parts         = split(":", var.plaid_refresh_time_local)
@@ -272,21 +307,28 @@ module "secrets" {
 module "api" {
   source = "./modules/api"
 
-  name_prefix                          = local.name_prefix
-  aws_region                           = var.aws_region
-  vpc_id                               = module.network.vpc_id
-  private_subnet_ids                   = module.network.private_subnet_ids
-  alb_security_group_id                = module.network.alb_security_group_id
-  api_security_group_id                = module.network.api_security_group_id
-  container_name                       = var.api_container_name
-  container_port                       = var.api_container_port
-  health_check_path                    = var.api_health_check_path
-  api_image_tag                        = var.api_image_tag
-  task_cpu                             = var.api_task_cpu
-  task_memory                          = var.api_task_memory
-  desired_count                        = var.api_desired_count
-  runtime_capacity_guardrails          = module.security.runtime_capacity_guardrails
-  environment_variables                = local.api_environment_variables
+  name_prefix                 = local.name_prefix
+  aws_region                  = var.aws_region
+  aws_account_id              = data.aws_caller_identity.current.account_id
+  vpc_id                      = module.network.vpc_id
+  private_subnet_ids          = module.network.private_subnet_ids
+  alb_security_group_id       = module.network.alb_security_group_id
+  api_security_group_id       = module.network.api_security_group_id
+  container_name              = var.api_container_name
+  container_port              = var.api_container_port
+  health_check_path           = var.api_health_check_path
+  api_image_tag               = var.api_image_tag
+  task_cpu                    = var.api_task_cpu
+  task_memory                 = var.api_task_memory
+  desired_count               = var.api_desired_count
+  runtime_capacity_guardrails = module.security.runtime_capacity_guardrails
+  environment_variables       = local.api_environment_variables
+  application_log_group_names = [
+    "/aws/ecs/${local.name_prefix}/api",
+    "/aws/ecs/${local.name_prefix}/plaid-refresh",
+    "/aws/ecs/${local.name_prefix}/market-price-refresh",
+    "/aws/ecs/${local.name_prefix}/k1-worker",
+  ]
   create_task_execution_secrets_policy = true
   secret_arns = {
     for key, arn in module.secrets.secret_arns : key => arn
@@ -357,6 +399,8 @@ module "k1_ingestion" {
     var.k1_upload_allowed_origins,
     [module.edge.public_web_url],
   ))
+  upload_capability_ttl_seconds = var.k1_upload_capability_ttl_seconds
+  upload_signature_age_seconds  = var.k1_upload_signature_age_seconds
 }
 
 module "security" {
@@ -371,12 +415,18 @@ module "security" {
   environment_name                                       = var.environment_name
   rate_limit_requests_per_5_minutes                      = var.waf_rate_limit_requests_per_5_minutes
   api_general_rate_action                                = var.waf_api_general_rate_action
+  api_general_global_rate_limit_requests_per_5_minutes   = var.waf_api_general_global_rate_limit_requests_per_5_minutes
+  api_general_global_rate_action                         = var.waf_api_general_global_rate_action
   auth_rate_limit_requests_per_5_minutes                 = var.waf_auth_rate_limit_requests_per_5_minutes
   auth_rate_action                                       = var.waf_auth_rate_action
+  auth_global_rate_limit_requests_per_5_minutes          = var.waf_auth_global_rate_limit_requests_per_5_minutes
+  auth_global_rate_action                                = var.waf_auth_global_rate_action
   paid_admission_rate_limit_requests_per_5_minutes       = var.waf_paid_admission_rate_limit_requests_per_5_minutes
   paid_admission_rate_action                             = var.waf_paid_admission_rate_action
   paid_admission_global_emergency_requests_per_5_minutes = var.waf_paid_admission_global_emergency_requests_per_5_minutes
   paid_admission_global_emergency_action                 = var.waf_paid_admission_global_emergency_action
+  count_observation_owner                                = var.waf_count_observation_owner
+  count_observation_expires_at                           = var.waf_count_observation_expires_at
   waf_log_retention_days                                 = var.waf_log_retention_days
 }
 
@@ -388,18 +438,18 @@ module "edge" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  name_prefix                  = local.name_prefix
-  app_domain                   = local.configured_app_domain
-  route53_hosted_zone_id       = var.route53_hosted_zone_id
-  web_assets_bucket_name       = local.web_assets_bucket_name
-  api_origin_domain_name       = module.api.api_load_balancer_dns_name
-  api_origin_arn               = module.api.api_load_balancer_arn
-  web_acl_arn                  = module.security.web_acl_arn
-  acm_certificate_arn          = var.acm_certificate_arn
-  cloudfront_price_class       = var.cloudfront_price_class
-  static_cache_policy_id       = var.static_cache_policy_id
-  api_cache_policy_id          = var.api_cache_policy_id
-  api_origin_request_policy_id = var.api_origin_request_policy_id
+  name_prefix            = local.name_prefix
+  app_domain             = local.configured_app_domain
+  route53_hosted_zone_id = var.route53_hosted_zone_id
+  web_assets_bucket_name = local.web_assets_bucket_name
+  api_origin_domain_name = module.api.api_load_balancer_dns_name
+  api_origin_arn         = module.api.api_load_balancer_arn
+  web_acl_arn            = module.security.web_acl_arn
+  acm_certificate_arn    = var.acm_certificate_arn
+  cloudfront_price_class = var.cloudfront_price_class
+  static_cache_policy_id = var.static_cache_policy_id
+  api_cache_policy_id    = var.api_cache_policy_id
+  session_cookie_name    = "atlas_session"
 }
 
 module "scheduler" {

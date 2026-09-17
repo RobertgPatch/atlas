@@ -2,6 +2,7 @@
   "schemaVersion": "1.0.0",
   "routeDecisions": [
     { "route": "/", "decision": "edge-home" },
+    { "route": "/password/change", "decision": "auth-login" },
     { "route": "/mfa/setup", "decision": "auth-login" },
     { "route": "/mfa", "decision": "auth-login" },
     { "route": "/dashboard", "decision": "dashboard-read" },
@@ -13,7 +14,8 @@
     { "route": "/tic-registry", "decision": "tic-properties-read" },
     { "route": "/reports", "decision": "current-surface-contract" },
     { "route": "/k1", "decision": "current-surface-contract" },
-    { "route": "/k1/:id/review", "decision": "current-surface-contract" }
+    { "route": "/k1/:id/review", "decision": "current-surface-contract" },
+    { "route": "/admin", "decision": "current-surface-contract" }
   ],
   "requests": [
     { "name": "edge-home", "method": "GET", "path": "/" },

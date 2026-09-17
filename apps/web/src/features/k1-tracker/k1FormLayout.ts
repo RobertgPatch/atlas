@@ -148,6 +148,7 @@ export const K1_FORM_OFFICIAL_PLACEMENTS: K1FormOfficialPlacement[] = [
   officialPlacement('box_14_entries', 'part-iii-right', '14', 'Self-employment earnings (loss)', 1400),
   officialPlacement('box_15_entries', 'part-iii-right', '15', 'Credits', 1500),
   officialPlacement('box_16_schedule_k3_attached', 'part-iii-right', '16', 'Schedule K-3 is attached', 1600),
+  officialPlacement('box_16_entries', 'part-iii-right', '16', 'Historical foreign transactions', 1610),
   officialPlacement('box_17_entries', 'part-iii-right', '17', 'Alternative minimum tax items', 1700),
   officialPlacement('box_18_entries', 'part-iii-right', '18', 'Tax-exempt income and nondeductible expense code details', 1890),
   officialPlacement('box_19_entries', 'part-iii-right', '19', 'Distribution code and statement details', 1990),

@@ -15,7 +15,9 @@ import { CompareYearsDrawer } from './CompareYearsDrawer'
 import { DatedCashFlowPanel } from './DatedCashFlowPanel'
 import { YearRail } from './YearRail'
 
-const errorText = (error: unknown) => error instanceof PartnershipTrackerApiError && error.isStale
+const errorText = (error: unknown) => error instanceof PartnershipTrackerApiError && error.code === 'INVALID_API_RESPONSE'
+  ? 'The K-1 data could not be loaded. Refresh the page to try again.'
+  : error instanceof PartnershipTrackerApiError && error.isStale
   ? 'This K-1 year changed in another session. The latest revision has been reloaded.'
   : error instanceof PartnershipTrackerApiError && error.code === 'STALE_TRACKER_REVISION'
     ? 'This K-1 year changed in another session. The latest revision has been reloaded.'

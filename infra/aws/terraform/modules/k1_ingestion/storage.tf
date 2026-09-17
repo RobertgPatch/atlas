@@ -147,6 +147,36 @@ data "aws_iam_policy_document" "documents_bucket" {
       values   = [aws_kms_key.documents.arn, aws_kms_alias.documents.arn]
     }
   }
+  statement {
+    sid       = "DenyStaleQuarantineUploadSignatures"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.documents.arn}/${var.input_prefix}/quarantine/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "NumericGreaterThan"
+      variable = "s3:signatureAge"
+      values   = [tostring(var.upload_signature_age_seconds * 1000)]
+    }
+  }
+  statement {
+    sid       = "DenyQuarantineOverwriteWithoutCondition"
+    effect    = "Deny"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.documents.arn}/${var.input_prefix}/quarantine/*"]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Null"
+      variable = "s3:if-none-match"
+      values   = ["true"]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "documents" {

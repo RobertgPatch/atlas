@@ -3,12 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 let sessionStatus: 'authenticated' | 'unauthenticated' = 'authenticated'
 let userRole: 'Admin' | 'User' = 'Admin'
+let userAccessLevel: 'SuperAdmin' | 'Admin' | 'User' = 'Admin'
 
 vi.mock('./auth/sessionStore', () => ({
   useSession: () => ({
     status: sessionStatus,
     session: sessionStatus === 'authenticated'
-      ? { role: userRole, user: { email: `${userRole.toLowerCase()}@example.com` } }
+      ? { role: userRole, user: { email: `${userRole.toLowerCase()}@example.com`, accessLevel: userAccessLevel } }
       : null,
   }),
   sessionStore: {
@@ -25,6 +26,8 @@ const pageMocks = [
   ['./pages/LoginPage', 'LoginPage', 'Login'],
   ['./pages/MFAPage', 'MFAPage', 'MFA verification'],
   ['./pages/MFASetupPage', 'MFASetupPage', 'MFA setup'],
+  ['./pages/PasswordChangePage', 'PasswordChangePage', 'Password change'],
+  ['./pages/AdminOperationsPage', 'AdminOperationsPage', 'Application operations'],
   ['./pages/K1Dashboard', 'K1Dashboard', 'K1 dashboard'],
   ['./pages/K1ReviewWorkspace', 'K1ReviewWorkspace', 'K1 review'],
   ['./pages/EntityDetail', 'EntityDetail', 'Entity detail'],
@@ -46,6 +49,7 @@ const { BROWSER_ROUTE_PATTERNS } = await import('./routeContract')
 
 const retainedPatterns = [
   '/',
+  '/password/change',
   '/mfa/setup',
   '/mfa',
   '/dashboard',
@@ -58,6 +62,7 @@ const retainedPatterns = [
   '/reports',
   '/k1',
   '/k1/:id/review',
+  '/admin',
   '*',
 ]
 
@@ -70,12 +75,13 @@ describe('top-level application routing', () => {
   beforeEach(() => {
     sessionStatus = 'authenticated'
     userRole = 'Admin'
+    userAccessLevel = 'Admin'
     window.history.pushState({}, '', '/')
   })
 
   afterEach(() => cleanup())
 
-  it('exposes exactly the retained 13 routes plus wildcard', () => {
+  it('exposes exactly the retained routes plus password change and super-admin operations', () => {
     expect([...BROWSER_ROUTE_PATTERNS]).toEqual(retainedPatterns)
   })
 
@@ -92,6 +98,7 @@ describe('top-level application routing', () => {
   it.each([
     ['/mfa', 'MFA verification'],
     ['/mfa/setup', 'MFA setup'],
+    ['/password/change', 'Password change'],
   ])('keeps %s public before a session exists', (path, label) => {
     sessionStatus = 'unauthenticated'
     open(path)
@@ -112,6 +119,18 @@ describe('top-level application routing', () => {
   ])('renders the retained protected route %s', (path, label) => {
     open(path)
     expect(screen.getByText(label)).toBeInTheDocument()
+  })
+
+  it('restricts the operations console to the super admin', () => {
+    userAccessLevel = 'Admin'
+    open('/admin')
+    expect(screen.getByText('Dashboard')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/dashboard')
+
+    cleanup()
+    userAccessLevel = 'SuperAdmin'
+    open('/admin')
+    expect(screen.getByText('Application operations')).toBeInTheDocument()
   })
 
   it.each([

@@ -111,6 +111,14 @@ run "no_public_origin_output" {
     condition     = !contains(keys(output.api), "load_balancer_dns_name")
     error_message = "Root outputs must not publish the private API ALB DNS name."
   }
+
+  assert {
+    condition = (
+      contains(var.k1_upload_allowed_origins, "http://localhost:5173") &&
+      contains(var.k1_upload_allowed_origins, "http://127.0.0.1:5173")
+    )
+    error_message = "The presigned K-1 upload CORS contract must include both loopback Vite origins for explicit local BDA mode."
+  }
 }
 
 run "cloudfront_vpc_origin" {
@@ -126,15 +134,15 @@ run "cloudfront_vpc_origin" {
   }
 
   variables {
-    name_prefix                  = "atlas-test"
-    web_assets_bucket_name       = "atlas-test-web-assets"
-    api_origin_domain_name       = "internal-atlas-test.us-west-2.elb.amazonaws.com"
-    api_origin_arn               = "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/atlas-test/0000000000000000"
-    web_acl_arn                  = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/atlas-test/00000000-0000-0000-0000-000000000000"
-    cloudfront_price_class       = "PriceClass_100"
-    static_cache_policy_id       = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-    api_cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
-    api_origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    name_prefix            = "atlas-test"
+    web_assets_bucket_name = "atlas-test-web-assets"
+    api_origin_domain_name = "internal-atlas-test.us-west-2.elb.amazonaws.com"
+    api_origin_arn         = "arn:aws:elasticloadbalancing:us-west-2:123456789012:loadbalancer/app/atlas-test/0000000000000000"
+    web_acl_arn            = "arn:aws:wafv2:us-east-1:123456789012:global/webacl/atlas-test/00000000-0000-0000-0000-000000000000"
+    cloudfront_price_class = "PriceClass_100"
+    static_cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
+    api_cache_policy_id    = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    session_cookie_name    = "atlas_session"
   }
 
   assert {
@@ -155,6 +163,21 @@ run "cloudfront_vpc_origin" {
       ]) == 1
     ])
     error_message = "Both public liveness and /v1 API traffic must use the private CloudFront VPC origin."
+  }
+
+  assert {
+    condition = (
+      contains(aws_cloudfront_origin_request_policy.api.headers_config[0].headers[0].items, "CloudFront-Viewer-Address") &&
+      aws_cloudfront_origin_request_policy.api.cookies_config[0].cookie_behavior == "whitelist" &&
+      contains(aws_cloudfront_origin_request_policy.api.cookies_config[0].cookies[0].items, "atlas_session") &&
+      length(aws_cloudfront_distribution.this.custom_error_response) == 0 &&
+      length(aws_cloudfront_distribution.this.default_cache_behavior[0].function_association) == 1 &&
+      alltrue([
+        for behavior in aws_cloudfront_distribution.this.ordered_cache_behavior :
+        length(behavior.function_association) == 0
+      ])
+    )
+    error_message = "The edge must forward the generated viewer source through a minimum API policy and scope SPA rewriting to static requests only."
   }
 }
 
@@ -195,7 +218,9 @@ run "waf_managed_and_rate_rules" {
     condition = alltrue([
       for required_rule in [
         "api_general_per_ip",
+        "api_general_global",
         "auth_per_ip",
+        "auth_global",
         "paid_admission_per_ip",
         "paid_admission_global_emergency",
         ] : contains(
@@ -214,13 +239,40 @@ run "waf_managed_and_rate_rules" {
         lower(rule.name),
         ) ? (
         try(rule.statement[0].rate_based_statement[0].aggregate_key_type, "") == "IP" &&
+        try(rule.statement[0].rate_based_statement[0].evaluation_window_sec, 0) == 300 &&
         length(try(rule.statement[0].rate_based_statement[0].scope_down_statement, [])) == 1
-        ) : lower(rule.name) == "paid_admission_global_emergency" ? (
+        ) : contains(["api_general_global", "auth_global", "paid_admission_global_emergency"], lower(rule.name)) ? (
         try(rule.statement[0].rate_based_statement[0].aggregate_key_type, "") == "CONSTANT" &&
+        try(rule.statement[0].rate_based_statement[0].evaluation_window_sec, 0) == 300 &&
         length(try(rule.statement[0].rate_based_statement[0].scope_down_statement, [])) == 1
       ) : true
     ])
     error_message = "Per-source WAF rules must aggregate by IP and the paid emergency ceiling must aggregate globally; every rate rule must be route-scoped."
+  }
+
+  assert {
+    condition = (
+      alltrue(flatten([
+        for rule in aws_wafv2_web_acl.this.rule : [
+          for rate in try(rule.statement[0].rate_based_statement, []) :
+          length(rate.forwarded_ip_config) == 0
+        ]
+      ])) &&
+      alltrue([
+        for required_label in [
+          "atlas:rate:api-general-source",
+          "atlas:rate:api-general-global",
+          "atlas:rate:auth-source",
+          "atlas:rate:auth-global",
+          "atlas:rate:paid-source",
+          "atlas:rate:paid-global",
+          ] : strcontains(
+          jsonencode(aws_wafv2_web_acl.this.rule),
+          required_label,
+        )
+      ])
+    )
+    error_message = "Rate rules require explicit labels and direct IP/CONSTANT aggregation without FORWARDED_IP."
   }
 }
 
@@ -246,7 +298,7 @@ run "safe_waf_logging" {
     condition = (
       try(aws_wafv2_web_acl_logging_configuration.this.logging_filter[0].default_behavior, "") == "DROP" &&
       try(alltrue([
-        for required_action in ["BLOCK", "COUNT", "CAPTCHA", "CHALLENGE"] :
+        for required_action in ["BLOCK", "COUNT"] :
         contains(flatten([
           for filter in aws_wafv2_web_acl_logging_configuration.this.logging_filter[0].filter : [
             for condition in filter.condition :
@@ -256,7 +308,7 @@ run "safe_waf_logging" {
         ]), required_action)
       ]), false)
     )
-    error_message = "WAF logging must drop ordinary allows while retaining BLOCK, COUNT, CAPTCHA, and CHALLENGE events."
+    error_message = "WAF logging must drop ordinary allows and high-volume labeled rate blocks while retaining managed BLOCK and temporary COUNT evidence."
   }
 
   assert {
@@ -269,11 +321,18 @@ run "safe_waf_logging" {
         for field in aws_wafv2_web_acl_logging_configuration.this.redacted_fields :
         try(lower(field.single_header[0].name), "")
       ], "cookie") &&
+      alltrue([
+        for required_header in ["x-scheduler-token", "x-csrf-token", "x-idempotency-key"] :
+        contains([
+          for field in aws_wafv2_web_acl_logging_configuration.this.redacted_fields :
+          try(lower(field.single_header[0].name), "")
+        ], required_header)
+      ]) &&
       anytrue([
         for field in aws_wafv2_web_acl_logging_configuration.this.redacted_fields :
         length(try(field.query_string, [])) == 1
       ])
     )
-    error_message = "WAF logs must redact authorization, cookie, and query-string data."
+    error_message = "WAF logs must redact credentials, cookies, scheduler/CSRF/idempotency headers, and query strings; WAF request logs do not serialize inspected body content."
   }
 }

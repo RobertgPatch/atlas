@@ -42,14 +42,29 @@ async function upsertEntity(client: pg.PoolClient, name: string, type: string): 
 
 async function getOrCreateAdminUser(client: pg.PoolClient): Promise<string> {
   const res = await client.query<{ id: string }>(
-    `select id from users where role = 'Admin' limit 1`,
+    `select u.id
+       from users u
+       join user_roles ur on ur.user_id = u.id
+       join roles r on r.id = ur.role_id
+      where r.name in ('SuperAdmin', 'Admin')
+      order by case when r.name = 'SuperAdmin' then 0 else 1 end
+      limit 1`,
   )
   if (res.rows[0]) return res.rows[0].id
 
   const id = randomUUID()
   await client.query(
-    `insert into users (id, email, role, created_at, updated_at) values ($1, $2, $3, now(), now())`,
-    [id, 'seed-admin@example.com', 'Admin'],
+    `insert into users (
+       id, email, display_name, password_hash, mfa_enabled, is_active, status,
+       password_change_required, created_at, updated_at
+     ) values ($1, $2, $3, $4, false, true, 'Active', true, now(), now())`,
+    [id, 'seed-admin@example.com', 'Seed Administrator', 'seed-script-nonlogin'],
+  )
+  await client.query(
+    `insert into user_roles (id, user_id, role_id)
+     select gen_random_uuid(), $1, id from roles where name = 'Admin'
+     on conflict do nothing`,
+    [id],
   )
   return id
 }

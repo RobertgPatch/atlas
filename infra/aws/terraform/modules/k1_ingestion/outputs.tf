@@ -15,3 +15,4 @@ output "bda_fallback_blueprint_arn" { value = try(awscc_bedrock_blueprint.fallba
 output "bda_project_arn" { value = try(awscc_bedrock_data_automation_project.k1[0].project_arn, null) }
 output "bda_project_stage" { value = try(awscc_bedrock_data_automation_project.k1[0].project_stage, null) }
 output "bda_blueprint_stage" { value = try(awscc_bedrock_blueprint.k1[0].blueprint_stage, null) }
+output "local_bda_policy_arn" { value = aws_iam_policy.local_bda.arn }

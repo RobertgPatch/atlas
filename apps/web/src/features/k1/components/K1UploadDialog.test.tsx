@@ -143,4 +143,28 @@ describe('K1UploadDialog batch upload', () => {
       files: [expect.objectContaining({ name: 'redwood-2025.pdf' })],
     })))
   })
+
+  it('creates a one-file partnership import request and explains the duplicate failsafe', async () => {
+    mutateAsync.mockResolvedValue({
+      id: 'batch-import',
+      status: 'PROCESSING',
+      items: [{ id: 'item-import', fileName: 'new-fund.pdf', status: 'QUEUED', error: null }],
+    })
+    renderDialog({ createPartnershipIfMissing: true })
+
+    expect(screen.getByRole('heading', { name: 'Add partnership from K-1' })).toBeInTheDocument()
+    expect(screen.getByText(/A match reuses the existing record/i)).toBeInTheDocument()
+    expect(screen.getByText(/does not add the K-1 to annual history/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('PDF files')).not.toHaveAttribute('multiple')
+
+    await userEvent.selectOptions(screen.getByLabelText('Entity'), '11111111-1111-4111-8111-111111111111')
+    fireEvent.change(screen.getByLabelText('PDF files'), { target: { files: [pdf('new-fund.pdf')] } })
+    await userEvent.click(screen.getByRole('button', { name: 'Read K-1 and add partnership' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      entityScopeId: '11111111-1111-4111-8111-111111111111',
+      createPartnershipIfMissing: true,
+      files: [expect.objectContaining({ name: 'new-fund.pdf' })],
+    })))
+  })
 })
