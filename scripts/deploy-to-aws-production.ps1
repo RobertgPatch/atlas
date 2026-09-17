@@ -11,7 +11,6 @@ param(
   [string] $TerraformStateKmsKeyArn,
   [string] $ReleaseDirectory,
   [string] $ReleaseManifestPath,
-  [bool] $RunFullTests = $true,
   [string] $PriceEvidencePath
 )
 
@@ -73,6 +72,7 @@ function Get-StringSha256 {
 
 function Assert-ProductionTools {
   $required = @('git', 'node', 'npm.cmd', 'terraform', 'aws')
+  if ($Mode -ne 'Rollback') { $required += 'gh' }
   if ($Mode -eq 'Prepare') { $required += 'docker' }
   foreach ($command in $required) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
@@ -111,6 +111,34 @@ function Get-SourceIdentity {
   $branch = ((Invoke-ExternalCapture git @('-C', $RepoPath, 'rev-parse', '--abbrev-ref', 'HEAD') Preflight 'Unable to resolve the source branch.') -join '').Trim()
   $status = @(Invoke-ExternalCapture git @('-C', $RepoPath, 'status', '--porcelain') Preflight 'Unable to inspect the worktree.')
   return [pscustomobject]@{ commit = $commit; branch = $branch; clean = (Test-CleanWorktreeStatus $status) }
+}
+
+function Assert-GitHubMainSecurityGates {
+  param([object] $Source)
+  if ($Source.branch -cne 'main') { Stop-ProductionDeployment Approval 'Production source must be the main branch.' }
+  $origin = ((Invoke-ExternalCapture git @('-C', $RepoPath, 'remote', 'get-url', 'origin') Approval 'Unable to verify the GitHub origin.') -join '').Trim()
+  if ($origin -notmatch '^(https://github\.com/RobertgPatch/atlas(\.git)?|git@github\.com:RobertgPatch/atlas(\.git)?)$') {
+    Stop-ProductionDeployment Approval 'Production source must use the approved GitHub origin.'
+  }
+  $remoteMain = ((Invoke-ExternalCapture git @('-C', $RepoPath, 'ls-remote', 'origin', 'refs/heads/main') Approval 'Unable to verify remote main.') -join '').Trim()
+  if ($remoteMain -notmatch '^([a-f0-9]{40})\s+refs/heads/main$' -or $Matches[1] -cne $Source.commit) {
+    Stop-ProductionDeployment Approval 'Production source must equal the current remote main commit.'
+  }
+  $runJson = (Invoke-ExternalCapture gh @('run', 'list', '--repo', 'RobertgPatch/atlas', '--workflow', 'security-ci.yml', '--branch', 'main', '--commit', $Source.commit, '--event', 'push', '--limit', '20', '--json', 'databaseId,headSha,headBranch,event,status,conclusion,workflowName') Approval 'Unable to inspect the main-branch GitHub security workflow.') -join "`n"
+  try { $runs = @($runJson | ConvertFrom-Json) }
+  catch { Stop-ProductionDeployment Approval 'GitHub returned invalid security workflow metadata.' }
+  foreach ($run in $runs) {
+    if ($run.status -cne 'completed' -or $run.conclusion -cne 'success') { continue }
+    $jobsJson = (Invoke-ExternalCapture gh @('run', 'view', [string]$run.databaseId, '--repo', 'RobertgPatch/atlas', '--json', 'jobs') Approval 'Unable to inspect the GitHub security jobs.') -join "`n"
+    try { $jobs = @((($jobsJson | ConvertFrom-Json).jobs)) }
+    catch { Stop-ProductionDeployment Approval 'GitHub returned invalid security job metadata.' }
+    $candidate = [pscustomobject]@{
+      headSha = $run.headSha; headBranch = $run.headBranch; event = $run.event
+      workflowName = $run.workflowName; status = $run.status; conclusion = $run.conclusion; jobs = $jobs
+    }
+    if (Test-ProductionGitHubReleaseGate -SourceBranch $Source.branch -SourceCommit $Source.commit -RemoteMainCommit $Source.commit -Run $candidate) { return }
+  }
+  Stop-ProductionDeployment Approval 'Both named GitHub security gates must pass on the current main commit.'
 }
 
 function Get-ProductionReleaseRoot {
@@ -470,7 +498,10 @@ try {
   $identity = Get-AwsIdentity
   $source = Get-SourceIdentity
   if ($Mode -in @('Bootstrap', 'Prepare', 'Apply') -and -not $source.clean) { Stop-ProductionDeployment Preflight "$Mode requires a clean committed worktree." }
-  if ($Mode -eq 'Prepare' -and -not $RunFullTests) { Stop-ProductionDeployment Preflight 'Production Prepare cannot disable full tests.' }
+  if ($Mode -ne 'Rollback' -and -not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) {
+    Stop-ProductionDeployment Approval 'EX-030-002 is outside its approved production release window.'
+  }
+  if ($Mode -ne 'Rollback') { Assert-GitHubMainSecurityGates $source }
 
   $terraformRoot = Join-Path $RepoPath 'infra\aws\terraform'
   $tfvarsPath = Join-Path $terraformRoot 'production.tfvars'
@@ -514,6 +545,8 @@ try {
       schedulesEnabled = $false; webActivated = $false; preparedAt = [DateTime]::UtcNow.ToString('o')
     }
     Write-JsonFile $evidencePath $evidence
+    if (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) { Stop-ProductionDeployment Approval 'EX-030-002 expired before Bootstrap activation.' }
+    Assert-GitHubMainSecurityGates $source
     $confirmation = Read-Host "Type BOOTSTRAP PRODUCTION $($source.commit.Substring(0, 8)) to apply the create-only inactive shell"
     if (-not (Test-ExactProductionConfirmation -Mode Bootstrap -SourceCommit $source.commit -Confirmation $confirmation)) { Stop-ProductionDeployment Approval 'Bootstrap confirmation was rejected.' }
     Push-Location $terraformRoot
@@ -530,9 +563,6 @@ try {
     Push-Location $RepoPath
     try {
       Invoke-ExternalQuiet npm.cmd @('ci') Validation 'npm ci failed.'
-      Invoke-ExternalQuiet npm.cmd @('run', 'security:audit:runtime') Validation 'Runtime dependency audit failed.'
-      Invoke-ExternalQuiet npm.cmd @('run', 'test:api') Validation 'API tests failed.'
-      Invoke-ExternalQuiet npm.cmd @('run', 'test:web') Validation 'Web tests failed.'
       Invoke-ExternalQuiet npm.cmd @('run', 'build:api') Validation 'API build failed.'
       Invoke-ExternalQuiet npm.cmd @('run', 'build:web') Validation 'Web build failed.'
     }
@@ -641,6 +671,8 @@ try {
     [System.IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
     $currentCost = Invoke-CostValidation (Join-Path $temporaryRoot 'cost.json')
     if ($currentCost.estimatedMonthlyUsd -ne $manifest.costEstimate.estimatedMonthlyUsd -or $currentCost.estimatedMonthlyUsd -gt 110) { Stop-ProductionDeployment Validation 'Production cost evidence changed after Prepare.' }
+    if (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) { Stop-ProductionDeployment Approval 'EX-030-002 expired before Apply activation.' }
+    Assert-GitHubMainSecurityGates $source
     $confirmation = Read-Host "Type DEPLOY PRODUCTION $($source.commit.Substring(0, 8)) to apply the exact reviewed release"
     if (-not (Test-ExactProductionConfirmation -Mode Apply -SourceCommit $source.commit -Confirmation $confirmation)) { Stop-ProductionDeployment Approval 'Production deployment confirmation was rejected.' }
     $applyStartedAt = [DateTime]::UtcNow.ToString('o')

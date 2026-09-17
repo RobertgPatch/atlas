@@ -1,6 +1,6 @@
 # C1 and C2 follow-up remediation requirements
 
-This document defines the subsequent changes needed to close the two critical governance findings identified before feature 030 implementation. [EX-030-001](./EX-030-001.md) permits repository work while these items remain open; it does not authorize production.
+This document defines the subsequent changes needed to close the two critical governance findings identified before feature 030 implementation. [EX-030-001](./EX-030-001.md) permits repository work while these items remain open. The later, time-limited [EX-030-002](./EX-030-002.md) separately authorizes AWS production release from exact-main green GitHub security gates; it does not mark C1/C2 or the deferred operational work complete.
 
 ## C1 - separate implementation readiness from production activation
 
@@ -12,8 +12,8 @@ The plan correctly marks identity/MFA and legal/incident gates as `FAIL FOR REAL
 
 - Preserve separate gate states for planning, local implementation/testing, review/merge, production deployment, and continued production use.
 - For every failed or conditional gate, identify the exact blocked scope and cite either remediation evidence or an active exception ID.
-- Keep the feature 029 unique Tony/Robert identities, production MFA, K-1 inventory, WISP/incident readiness, applicability review, backup/restore, and operator cost acknowledgement as production activation blockers.
-- Ensure deployment scripts and production evidence fail closed when any production blocker or applicable exception has expired.
+- Keep the feature 029 unique Tony/Robert identities, production MFA, K-1 inventory, WISP/incident readiness, applicability review, backup/restore, and operator cost acknowledgement visible as open risks and remediation tasks. EX-030-002 temporarily removes their separate pre-deployment sign-off requirement; its expiry and revocation rules remain binding.
+- Ensure deployment scripts fail closed when the exact-main GitHub security jobs fail or EX-030-002 expires, and preserve AWS identity, plan, artifact, secret, cost, smoke, and rollback execution checks.
 - Remove the C1 exception reference only after the plan, release checklist, and automated/policy gates agree on these boundaries.
 
 ### Acceptance evidence

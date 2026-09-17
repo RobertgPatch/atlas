@@ -131,6 +131,7 @@ As the operator, I can observe low-cardinality rejection, saturation, and cost s
 ### Approved Exceptions
 
 - **EX-030-001**: Allows repository implementation, bounded local/CI testing, review, and merge while C1/C2 governance remediation is completed in subsequent changes. It does not authorize AWS production mutation, production traffic, or continued production handling of Restricted data. See [the exception record](./evidence/EX-030-001.md) and [remediation requirements](./evidence/c1-c2-remediation.md). Approved by Robert Patch on 2026-08-29; expires 2026-09-28.
+- **EX-030-002 (2026-09-16 amendment)**: Once merged to `main` with successful CI, temporarily supersedes EX-030-001's production prohibition for an exact current `main` commit whose GitHub `push` run passes both Application security gates and Terraform security gates. The identity, MFA, inventory, incident, legal, cost-acknowledgement, and restore evidence remain open risks rather than independent deployment-eligibility blockers. The [production exception record](./evidence/EX-030-002.md) defines its seven-day limit, revocation, containment, and AWS execution safeguards.
 
 ## Requirements *(mandatory)*
 

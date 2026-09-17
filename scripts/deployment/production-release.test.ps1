@@ -61,6 +61,30 @@ try {
   $sha = 'a' * 40
   $sha256 = 'b' * 64
 
+  $run = [ordered]@{
+    headSha = $sha; headBranch = 'main'; event = 'push'
+    workflowName = 'Security and cost guardrails'; status = 'completed'; conclusion = 'success'
+    jobs = @(
+      [ordered]@{ name = 'Application security gates'; status = 'completed'; conclusion = 'success' }
+      [ordered]@{ name = 'Terraform security gates'; status = 'completed'; conclusion = 'success' }
+    )
+  }
+  Assert-True (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit $sha -Run $run) 'Passing main security jobs were rejected.'
+  Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch feature -SourceCommit $sha -RemoteMainCommit $sha -Run $run)) 'Feature branch was accepted for production.'
+  Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit ('c' * 40) -Run $run)) 'Stale main commit was accepted.'
+  $run.jobs[1].conclusion = 'failure'
+  Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit $sha -Run $run)) 'Failed Terraform security gate was accepted.'
+  $run.jobs[1].conclusion = 'success'
+  $fullJobs = $run.jobs
+  $run.jobs = @($fullJobs[0])
+  Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit $sha -Run $run)) 'Missing Terraform security job was accepted.'
+  $run.jobs = $fullJobs
+  $run.event = 'pull_request'
+  Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit $sha -Run $run)) 'PR-only security result was accepted.'
+  $run.event = 'push'
+  Assert-True (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]'2026-09-17T00:00:00Z')) 'Active production exception was rejected.'
+  Assert-True (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]'2026-09-23T07:00:00Z'))) 'Expired production exception was accepted.'
+
   Assert-True (Test-ProductionToolVersion -Tool node -ActualVersion 'v22.20.0' -MinimumVersion '22.0.0') 'Supported Node version was rejected.'
   Assert-True (-not (Test-ProductionToolVersion -Tool terraform -ActualVersion '1.10.9' -MinimumVersion '1.11.0' -MaximumExclusiveVersion '2.0.0')) 'Old Terraform version was accepted.'
   Assert-True (-not (Test-ProductionToolVersion -Tool terraform -ActualVersion '2.0.0' -MinimumVersion '1.11.0' -MaximumExclusiveVersion '2.0.0')) 'Unsupported Terraform major version was accepted.'
@@ -127,7 +151,7 @@ try {
     schemaVersion = '1.0.0'
     releaseId = "$sha-20260829T000000Z"
     preparedAt = '2026-08-29T00:00:00Z'
-    source = [ordered]@{ commit = $sha; branch = '029-local-dev-aws-production'; cleanWorktree = $true }
+    source = [ordered]@{ commit = $sha; branch = 'main'; cleanWorktree = $true }
     target = [ordered]@{
       environment = 'production'; accountId = '111122223333'; callerArn = 'arn:aws:iam::111122223333:user/test'
       region = 'us-west-2'; certificateRegion = 'us-east-1'; regionAuthorityPath = 'infra/aws/production-target.json'
@@ -146,6 +170,9 @@ try {
 
   $validResult = Test-ProductionReleaseManifest -Manifest $manifest -RepoPath $repoPath
   Assert-True $validResult.Valid ("Valid manifest failed: {0}" -f ($validResult.Errors -join '; '))
+  $manifest.source.branch = 'feature'
+  Assert-True (-not (Test-ProductionReleaseManifest -Manifest $manifest -RepoPath $repoPath).Valid) 'Non-main manifest must fail validation.'
+  $manifest.source.branch = 'main'
   $manifest.costEstimate.estimatedMonthlyUsd = 111
   $invalidResult = Test-ProductionReleaseManifest -Manifest $manifest -RepoPath $repoPath
   Assert-True (-not $invalidResult.Valid) 'Over-budget manifest must fail validation.'

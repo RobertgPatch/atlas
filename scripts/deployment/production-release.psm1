@@ -92,6 +92,38 @@ function Test-CleanWorktreeStatus {
   return @($StatusLines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count -eq 0
 }
 
+function Test-ProductionGitHubReleaseGate {
+  [CmdletBinding()]
+  param(
+    [Parameter(Mandatory = $true)] [string] $SourceBranch,
+    [Parameter(Mandatory = $true)] [string] $SourceCommit,
+    [Parameter(Mandatory = $true)] [string] $RemoteMainCommit,
+    [AllowNull()] [object] $Run
+  )
+  if ($SourceBranch -cne 'main' -or -not (Test-GitShaValue $SourceCommit) -or $SourceCommit -cne $RemoteMainCommit) { return $false }
+  if ((Get-PropertyValue $Run 'headSha') -cne $SourceCommit -or
+      (Get-PropertyValue $Run 'headBranch') -cne 'main' -or
+      (Get-PropertyValue $Run 'event') -cne 'push' -or
+      (Get-PropertyValue $Run 'workflowName') -cne 'Security and cost guardrails' -or
+      (Get-PropertyValue $Run 'status') -cne 'completed' -or
+      (Get-PropertyValue $Run 'conclusion') -cne 'success') { return $false }
+  $jobs = @(Get-PropertyValue $Run 'jobs')
+  foreach ($name in @('Application security gates', 'Terraform security gates')) {
+    $matching = @($jobs | Where-Object { (Get-PropertyValue $_ 'name') -ceq $name })
+    if ($matching.Count -ne 1 -or (Get-PropertyValue $matching[0] 'status') -cne 'completed' -or (Get-PropertyValue $matching[0] 'conclusion') -cne 'success') { return $false }
+  }
+  return $true
+}
+
+function Test-ProductionReleaseExceptionWindow {
+  [CmdletBinding()]
+  param([Parameter(Mandatory = $true)] [DateTime] $NowUtc)
+  $effective = [DateTime]::Parse('2026-09-16T07:00:00Z').ToUniversalTime()
+  $expires = [DateTime]::Parse('2026-09-23T06:59:59Z').ToUniversalTime()
+  $now = $NowUtc.ToUniversalTime()
+  return $now -ge $effective -and $now -le $expires
+}
+
 function Test-ProductionToolVersion {
   [CmdletBinding()]
   param(
@@ -535,6 +567,7 @@ function Test-ProductionReleaseManifest {
   $source = Get-PropertyValue $Manifest 'source'
   if (-not (Test-GitShaValue (Get-PropertyValue $source 'commit'))) { $errors.Add('source.commit is invalid.') }
   if ((Get-PropertyValue $source 'cleanWorktree') -ne $true) { $errors.Add('source.cleanWorktree must be true.') }
+  if ((Get-PropertyValue $source 'branch') -cne 'main') { $errors.Add('source.branch must be main.') }
 
   $target = Get-PropertyValue $Manifest 'target'
   if ((Get-PropertyValue $target 'environment') -ne 'production') { $errors.Add('target.environment must be production.') }
@@ -586,4 +619,4 @@ function Test-ProductionReleaseManifest {
   return [pscustomobject]@{ Valid = $errors.Count -eq 0; Errors = $errors.ToArray() }
 }
 
-Export-ModuleMember -Function Get-Sha256, Resolve-ReleasePath, Get-BackendFingerprint, Protect-DeploymentText, Test-CleanWorktreeStatus, Test-ProductionToolVersion, Test-ProductionIdentityBinding, Test-ExactProductionConfirmation, Get-ProductionModeCapabilities, Get-ProductionExitCode, Test-ImmutableArtifactBinding, Get-ProductionTarget, Test-ProductionSecretPreflight, Test-ProductionRollbackCheckpoint, Add-ProductionExecutionRecord, New-ProductionRollbackCheckpoint, Invoke-ProductionSmokeContract, Test-ProductionReleaseManifest
+Export-ModuleMember -Function Get-Sha256, Resolve-ReleasePath, Get-BackendFingerprint, Protect-DeploymentText, Test-CleanWorktreeStatus, Test-ProductionGitHubReleaseGate, Test-ProductionReleaseExceptionWindow, Test-ProductionToolVersion, Test-ProductionIdentityBinding, Test-ExactProductionConfirmation, Get-ProductionModeCapabilities, Get-ProductionExitCode, Test-ImmutableArtifactBinding, Get-ProductionTarget, Test-ProductionSecretPreflight, Test-ProductionRollbackCheckpoint, Add-ProductionExecutionRecord, New-ProductionRollbackCheckpoint, Invoke-ProductionSmokeContract, Test-ProductionReleaseManifest

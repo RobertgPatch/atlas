@@ -3,6 +3,8 @@
 **Branch**: `030-user-ip-rate-limiting` | **Date**: 2026-08-29 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification from `/specs/030-user-ip-rate-limiting/spec.md`
 
+**2026-09-16 release-policy amendment**: The constitution-check findings below record the original design decision. [EX-030-002](./evidence/EX-030-002.md) later permits a time-limited AWS production release when the exact current `main` commit passes both named GitHub security jobs. The listed identity, MFA, inventory, incident, legal, and restore items remain open risks and remediation work, but are not separate pre-deployment sign-off gates during that exception. AWS release execution safeguards remain mandatory.
+
 ## Summary
 
 Harden the existing CloudFront/WAF, private ALB/ECS, and Fastify/PostgreSQL protection stack so every external request is independently bounded by a verified source identity and, after authentication, by the trusted user and session identities. Authentication receives atomic source, account, and global admission before password hashing or MFA work; resource-heavy and paid routes retain exact PostgreSQL-backed user, tenant, workload, concurrency, idempotency, and cost ceilings.

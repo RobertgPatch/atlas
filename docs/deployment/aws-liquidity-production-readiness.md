@@ -1,15 +1,15 @@
 # AWS production readiness
 
 This checklist covers the sole AWS application target, production. Development
-runs locally. A release is not authorized merely because repository tests pass.
+runs locally. During [EX-030-002](../../specs/030-user-ip-rate-limiting/evidence/EX-030-002.md)'s effective window, release eligibility is the exact canonical `main` commit with successful **Application security gates** and **Terraform security gates** on its GitHub `push` run. The AWS execution checks below still protect the release; deferred human and organizational evidence is tracked as risk, not a separate pre-deployment approval.
 
 ## Required launch evidence
 
 | Area | Required result |
 |---|---|
-| Identity | Expected production account and `us-west-2`; operator MFA active |
+| Identity | Expected production account and `us-west-2`; operator MFA evidence is deferred under EX-030-002 |
 | State | Preserved backend fingerprint; default workspace; native lock healthy |
-| Source | Clean immutable commit and feature 028 included |
+| Source | Clean immutable commit equal to canonical `main`; both named GitHub security jobs pass for its `push` run |
 | Plan | Exact saved plan; no protected deletion/replacement or naming drift |
 | Runtime | One 256/512 x86 API task; durable PostgreSQL readiness |
 | Database | Private encrypted Single-AZ `db.t4g.micro`, 20 GiB gp3, deletion protection, 35-day PITR, final snapshot |
@@ -17,8 +17,8 @@ runs locally. A release is not authorized merely because repository tests pass.
 | Edge | Private versioned web bucket, CloudFront, WAF, no shared API cache |
 | Operations | Scheduler/worker configuration, logs, active-component alarms, alert subscriptions confirmed |
 | Cost | Current `us-west-2` estimate at or below $110; $125 Budget notification only |
-| Users | Unique Tony and Robert identities, correct roles, MFA, and no shared credentials |
-| Governance | WISP, incident process, K-1 inventory, and recovery evidence approved |
+| Users | Unique Tony and Robert identities and MFA remain open remediation under EX-030-002, not launch sign-off |
+| Governance | WISP, incident process, K-1 inventory, and restore evidence remain open remediation under EX-030-002, not launch sign-off |
 
 Required production runtime values are injected through reviewed Terraform and
 Secrets Manager. Non-secret configuration includes `NODE_ENV=production`,
@@ -60,8 +60,8 @@ exercise copy.
 ## Security review
 
 - Admin diagnostics remain authorized and redacted; SQL stays parameterized.
-- `MFA_LOGIN_ENABLED` is the sole login-enforcement switch and must be enabled
-  for the named production users before approval.
+- `MFA_LOGIN_ENABLED` is the sole login-enforcement switch. Production MFA
+  remains required remediation but is not a separate deployment approval under EX-030-002.
 - Production reads use durable saved Plaid and market data; they never refresh
   a paid provider on read.
 - Local destructive/reset/bounded-abuse tools target loopback fixtures only and
@@ -82,7 +82,7 @@ Plan/policy/cost evidence passed:
 Secret VersionId attestation passed:
 API/ECS/edge stability passed:
 Named smoke checks passed:
-Backup/restore evidence current:
-Identity/MFA/WISP/K-1 inventory evidence current:
+Backup/restore evidence status (may be open under EX-030-002):
+Identity/MFA/WISP/K-1 inventory evidence status (may be open under EX-030-002):
 Open risks and explicit operator decision:
 ```
