@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { K1BasisWorkspace } from '../components/K1BasisWorkspace'
 import { usePartnershipTrackerActions, usePartnershipTrackerYear } from '../hooks/usePartnershipTracker'
-import { k1EntryDetailFixture, summaryFixture, yearSummaryFixtures } from './fixtures'
+import { investmentPerformanceFixture, k1EntryDetailFixture, summaryFixture, yearSummaryFixtures } from './fixtures'
 
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: vi.fn(),
@@ -22,6 +22,7 @@ vi.mock('../components/DatedCashFlowPanel', () => ({ DatedCashFlowPanel: () => <
 
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 const detail: PartnershipTrackerDetail = {
+  investmentPerformance: investmentPerformanceFixture,
   summary: summaryFixture,
   years: yearSummaryFixtures(4),
   cashFlowEvents: [],

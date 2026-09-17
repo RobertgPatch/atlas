@@ -30,6 +30,8 @@ type ValuationSource = (typeof valuationSources)[number][0]
 type ActivityDraftKind = K1TrackerCashFlowKind | 'VALUATION'
 
 interface CashActivityDraft {
+  feesAndCarry: string
+  isFinalLiquidation: boolean
   id: number
   kind: ActivityDraftKind
   activityDate: string
@@ -54,6 +56,8 @@ const cashActivityDraft = (
   kind: template?.kind ?? 'CAPITAL_CALL',
   activityDate: template?.activityDate ?? today(),
   amount: '',
+  feesAndCarry: '',
+  isFinalLiquidation: false,
   settlement: 'cash',
   ticker: '',
   securityName: '',
@@ -143,9 +147,10 @@ export function MagicPatternCashActivityDrawer({
   const updateDraft = (id: number, changes: Partial<CashActivityDraft>) => {
     setError(undefined)
     setDrafts((current) => current.map((draft) => {
-      if (draft.id !== id) return draft
+      if (draft.id !== id) return changes.isFinalLiquidation ? { ...draft, isFinalLiquidation: false } : draft
       const next = { ...draft, ...changes }
       if (next.kind === 'CAPITAL_CALL' || next.kind === 'VALUATION') next.settlement = 'cash'
+      if (next.kind !== 'DISTRIBUTION') next.isFinalLiquidation = false
       return next
     }))
     setRowErrors((current) => {
@@ -210,12 +215,17 @@ export function MagicPatternCashActivityDrawer({
       }
     }
 
+    const feesAndCarry = draft.feesAndCarry.trim().replace(/[$,\s]/g, '') || '0'
+    if (!/^\d{1,16}(\.\d{1,4})?$/.test(feesAndCarry)) return 'Enter nonnegative fees and carry with at most four decimal places.'
+    if (draft.kind === 'CAPITAL_CALL' && Number(feesAndCarry) > Number(resolvedAmount)) return 'Contribution fees cannot exceed the cash paid.'
     return {
       type: 'cash-flow',
       body: {
         kind: draft.kind,
         activityDate: draft.activityDate,
         amount: resolvedAmount,
+        ...(Number(feesAndCarry) > 0 ? { feesAndCarry } : {}),
+        ...(draft.isFinalLiquidation ? { isFinalLiquidation: true } : {}),
         ...(settlementStatus === 'ANNOUNCED' ? { settlementStatus } : {}),
         note: activityNote || null,
       },
@@ -351,10 +361,24 @@ export function MagicPatternCashActivityDrawer({
                         <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-sm text-slate-500">$</span>
                         <input required inputMode="decimal" value={draft.amount} onChange={(event) => updateDraft(draft.id, { amount: event.target.value })} className={`${mpInputClass} pl-7`} />
                       </span>
-                      <span className="mt-1 block text-xs font-normal leading-4 text-slate-500">{draft.kind === 'VALUATION' ? 'The newest valuation drives TVPI and IRR.' : 'Enter the absolute amount; direction comes from the activity type.'}</span>
+                      <span className="mt-1 block text-xs font-normal leading-4 text-slate-500">{draft.kind === 'VALUATION' ? 'The newest valuation drives TVPI and IRR.' : draft.kind === 'CAPITAL_CALL' ? 'Enter the gross capital contribution before fees; direction comes from the activity type.' : 'Enter the gross distribution before fees and carry. Net returns subtract the fees below.'}</span>
                     </label>
                   ) : null}
                 </div>
+
+                {draft.kind !== 'VALUATION' ? <label className={mpLabelClass}>
+                  Fees &amp; carry (USD)
+                  <input inputMode="decimal" value={draft.feesAndCarry} onChange={(event) => updateDraft(draft.id, { feesAndCarry: event.target.value })} placeholder="0" className={mpInputClass} />
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Enter actual fees and carry as a positive deduction from the gross amount above. Blank means zero.</span>
+                </label> : null}
+
+                {draft.kind === 'DISTRIBUTION' ? <label className="flex items-start gap-3 rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900">
+                  <input type="checkbox" checked={draft.isFinalLiquidation} onChange={(event) => {
+                    if (event.target.checked) setSettlementStatus('SETTLED')
+                    updateDraft(draft.id, { isFinalLiquidation: event.target.checked })
+                  }} className="mt-0.5 h-4 w-4 rounded border-slate-400 text-blue-600 focus:ring-focus" />
+                  <span><span className="block font-semibold">Final Liquidation</span><span className="mt-1 block text-xs font-normal leading-5 text-slate-600">Mark this settled distribution as the final liquidation. Its activity date will populate the Investment Performance table.</span></span>
+                </label> : null}
 
                 {draft.settlement === 'in-kind' ? (
                   <fieldset className="rounded-md border border-slate-300 bg-slate-50 p-4">
@@ -407,7 +431,7 @@ export function MagicPatternCashActivityDrawer({
           <p className="mt-1 text-sm text-slate-500">Unsettled activity is tracked separately and excluded from the position until it settles.</p>
           <div className="mt-3 flex flex-wrap gap-6">
             <RadioLine checked={settlementStatus === 'SETTLED'} name="magic-settlement-state" value="settled" label="Settled" onChange={() => setSettlementStatus('SETTLED')} />
-            <RadioLine checked={settlementStatus === 'ANNOUNCED'} name="magic-settlement-state" value="pending" label="Announced - awaiting settlement" onChange={() => setSettlementStatus('ANNOUNCED')} />
+            <RadioLine checked={settlementStatus === 'ANNOUNCED'} name="magic-settlement-state" value="pending" label="Announced - awaiting settlement" disabled={drafts.some((draft) => draft.isFinalLiquidation)} onChange={() => setSettlementStatus('ANNOUNCED')} />
           </div>
           <p className="mt-2 text-xs text-slate-500">Announced items remain in the ledger but do not affect paid-in capital, distributions, or performance until you record their settlement.</p>
         </fieldset> : null}

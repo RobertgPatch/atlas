@@ -58,6 +58,7 @@ export interface PartnershipTrackerIdentity {
   status: PartnershipStatus
   notes: string | null
   inceptionDate: string | null
+  finalLiquidationDate?: string | null
   managementFeeRate: PartnershipTrackerRatio | null
   ein: string | null
   fundManager: string | null
@@ -143,7 +144,31 @@ export interface PartnershipTrackerPermissions {
   canSignoff: boolean
 }
 
+export interface InvestmentPerformance {
+  finalLiquidationDate: string | null
+  committedCapital: string | null
+  residualValue: string
+  residualValueDate: string | null
+  paidInCapital: string
+  grossDistributions: string
+  feesAndCarry: string
+  netDistributions: string
+  commitmentCalled: string | null
+  grossMoic: string | null
+  netMoicDpi: string | null
+  grossXirr: string | null
+  netXirr: string | null
+  netGain: string
+  holdingPeriodYears: string | null
+  rvpi: string | null
+  tvpi: string | null
+  netXirrIncludingResidual: string | null
+  xirrTerminalDate: string | null
+  xirrStatus: { gross: PartnershipTrackerMetricAvailability; net: PartnershipTrackerMetricAvailability; includingResidual: PartnershipTrackerMetricAvailability }
+}
+
 export interface PartnershipTrackerDetail {
+  investmentPerformance: InvestmentPerformance
   summary: PartnershipTrackerSummary
   years: K1TrackerYearSummary[]
   cashFlowEvents: K1TrackerCashFlowEvent[]
@@ -292,6 +317,7 @@ export interface PartnershipAggregationResponse {
 }
 
 export interface CreateTrackedPartnershipRequest {
+  finalLiquidationDate?: string | null
   entityId: string
   name: string
   partnershipType: PartnershipType
@@ -316,6 +342,7 @@ export interface CreateTrackedPartnershipRequest {
 }
 
 export interface UpdateTrackedPartnershipRequest {
+  finalLiquidationDate?: string | null
   entityId?: string
   name?: string
   partnershipType?: PartnershipType
@@ -335,6 +362,8 @@ export interface UpdateTrackedPartnershipRequest {
 }
 
 export interface CreatePartnershipCashFlowRequest {
+  isFinalLiquidation?: boolean
+  feesAndCarry?: string
   kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
   activityDate: string
   amount: PartnershipTrackerMoney

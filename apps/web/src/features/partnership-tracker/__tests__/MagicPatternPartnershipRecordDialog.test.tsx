@@ -48,6 +48,19 @@ vi.mock('../../partnerships/hooks/useEntityQueries', () => ({
 }))
 
 describe('MagicPatternPartnershipRecordDialog', () => {
+  it('saves and clears the optional final liquidation date', async () => {
+    const onClose = vi.fn()
+    render(<MagicPatternPartnershipRecordDialog open mode="edit" summary={{ ...acBellPosition,
+      partnership: { ...acBellPosition.partnership, finalLiquidationDate: '2026-09-15' },
+    }} onClose={onClose} />)
+    expect(screen.getByLabelText(/Final liquidation date/)).toHaveValue('2026-09-15')
+    fireEvent.change(screen.getByLabelText(/Final liquidation date/), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(mutations.updatePartnership).toHaveBeenCalledWith(expect.objectContaining({
+      body: expect.objectContaining({ finalLiquidationDate: null }),
+    })))
+  })
+
   beforeEach(() => {
     mutations.createPartnership.mockReset().mockResolvedValue({
       partnership: {

@@ -249,6 +249,8 @@ export interface K1TrackerCashFlowEvent {
   activityDate: string
   settlementStatus: K1TrackerCashFlowSettlementStatus
   announcedDate: string | null
+  feesAndCarry?: string
+  isFinalLiquidation?: boolean
   amount: K1TrackerMoney
   note: string | null
   createdAt: string

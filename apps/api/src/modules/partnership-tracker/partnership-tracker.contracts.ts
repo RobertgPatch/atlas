@@ -37,6 +37,7 @@ export interface PartnershipTrackerSummary {
     status: 'ACTIVE' | 'PENDING' | 'LIQUIDATED' | 'CLOSED'
     notes: string | null
     inceptionDate: string | null
+    finalLiquidationDate?: string | null
     managementFeeRate: PartnershipTrackerRatio | null
     ein: string | null
     fundManager: string | null
@@ -81,7 +82,31 @@ export interface PartnershipNavEntry {
   id: string; partnershipId: string; amount: string; valuationDate: string; sourceType: PartnershipNavSource
   note: string | null; createdAt: string; updatedAt: string
 }
+export interface InvestmentPerformance {
+  finalLiquidationDate: string | null
+  committedCapital: string | null
+  residualValue: string
+  residualValueDate: string | null
+  paidInCapital: string
+  grossDistributions: string
+  feesAndCarry: string
+  netDistributions: string
+  commitmentCalled: string | null
+  grossMoic: string | null
+  netMoicDpi: string | null
+  grossXirr: string | null
+  netXirr: string | null
+  netGain: string
+  holdingPeriodYears: string | null
+  rvpi: string | null
+  tvpi: string | null
+  netXirrIncludingResidual: string | null
+  xirrTerminalDate: string | null
+  xirrStatus: { gross: PartnershipTrackerMetricAvailability; net: PartnershipTrackerMetricAvailability; includingResidual: PartnershipTrackerMetricAvailability }
+}
+
 export interface PartnershipTrackerDetail {
+  investmentPerformance: InvestmentPerformance
   summary: PartnershipTrackerSummary
   years: K1TrackerYearSummary[]
   cashFlowEvents: K1TrackerCashFlowEvent[]
@@ -162,7 +187,7 @@ export type PartnershipManagementFeeAvailability = (typeof PARTNERSHIP_MANAGEMEN
 export interface PartnershipManagementFeeAnnualRow { calendarYear: number; periodStart: string; periodEnd: string; activeDays: number; daysInYear: 365 | 366; weightedCommittedCapital: string | null; annualRate: string; estimatedFee: string | null }
 export interface PartnershipManagementFeeEstimate { partnershipId: string; inceptionDate: string | null; annualRate: string | null; asOfDate: string; status: PartnershipManagementFeeAvailability; annualRows: PartnershipManagementFeeAnnualRow[]; cumulativeEstimatedFee: string | null }
 
-export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
+export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; feesAndCarry?: string; isFinalLiquidation?: boolean; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
 export interface CreatePartnershipCashFlowsRequest { entries: CreatePartnershipCashFlowRequest[] }
 export interface SettlePartnershipCashFlowRequest { settlementDate: string; expectedUpdatedAt: string }
 

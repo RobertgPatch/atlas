@@ -101,6 +101,7 @@ const partnershipEinSchema = z.string().trim()
   .optional()
 
 export const createTrackedPartnershipBodySchema = z.object({
+  finalLiquidationDate: partnershipTrackerDateSchema.nullable().optional(),
   entityId: partnershipTrackerUuidSchema,
   name: z.string().trim().min(1).max(120),
   partnershipType: partnershipTrackerTypeSchema,
@@ -129,6 +130,7 @@ export const createTrackedPartnershipBodySchema = z.object({
   }
 })
 export const updateTrackedPartnershipBodySchema = z.object({
+  finalLiquidationDate: partnershipTrackerDateSchema.nullable().optional(),
   entityId: partnershipTrackerUuidSchema.optional(),
   name: z.string().trim().min(1).max(120).optional(),
   partnershipType: partnershipTrackerTypeSchema.optional(),
@@ -175,15 +177,26 @@ export const commitmentListQuerySchema = z.object({ asOfDate: partnershipTracker
 export const managementFeeQuerySchema = z.object({ asOfDate: partnershipTrackerDateSchema.optional() })
 
 export const createPartnershipCashFlowBodySchema = z.object({
+  isFinalLiquidation: z.boolean().optional(),
+  feesAndCarry: z.string().regex(/^\d{1,16}(\.\d{1,4})?$/, 'Fees must be nonnegative with at most four decimal places').optional(),
   kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION', 'RECALLABLE_DISTRIBUTION']),
   activityDate: partnershipTrackerDateSchema,
   amount: partnershipTrackerNonnegativeMoneySchema.refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
   settlementStatus: z.enum(['ANNOUNCED', 'SETTLED']).default('SETTLED'),
   note: z.string().trim().max(2_000).nullable().optional(),
+}).superRefine((body, context) => {
+  if (body.kind === 'CAPITAL_CALL' && Number(body.feesAndCarry ?? 0) > Number(body.amount)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['feesAndCarry'], message: 'Contribution fees cannot exceed the cash paid' })
+  }
+  if (body.isFinalLiquidation && (body.kind !== 'DISTRIBUTION' || body.settlementStatus !== 'SETTLED')) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['isFinalLiquidation'], message: 'Final liquidation must be a settled, non-recallable distribution' })
+  }
 })
 
 export const createPartnershipCashFlowsBodySchema = z.object({
   entries: z.array(createPartnershipCashFlowBodySchema).min(1).max(50),
+}).refine((body) => body.entries.filter((entry) => entry.isFinalLiquidation).length <= 1, {
+  path: ['entries'], message: 'A batch can contain only one final liquidation event',
 })
 
 export const settlePartnershipCashFlowBodySchema = z.object({

@@ -9,6 +9,7 @@ import { getK1ObjectStore } from '../k1/storage/index.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange, K1TrackerOfficialFormData } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
+  CreatePartnershipCashFlowRequest,
   PartnershipAggregationQuery,
   PartnershipAggregationResponse,
   PartnershipCommitmentEntry,
@@ -24,12 +25,14 @@ import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
 import { composePartnershipAggregation } from './partnership-aggregation.js'
 import { composePartnershipPerformance, type PartnershipAnnualPerformanceValue } from './partnership-performance.js'
 import { calculateManagementFeeEstimate } from './management-fee.js'
+import { calculateInvestmentPerformance } from './investment-performance.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
 
 type PartnershipRow = QueryResultRow & {
   id: string; aggregation_group_id: string; entity_id: string; entity_name: string; name: string; asset_class: string | null
   status: PartnershipTrackerSummary['partnership']['status']; notes: string | null
   inception_date: Date | string | null; management_fee_rate: string | null
+  final_liquidation_date: Date | string | null
   ein: string | null; fund_manager: string | null; address_line_1: string | null; address_line_2: string | null
   address_city: string | null; address_region: string | null; address_postal_code: string | null; address_country: string | null
   created_at: Date | string; updated_at: Date | string; current_commitment: string | null
@@ -107,6 +110,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
     notes: row.notes ?? null,
     inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
     managementFeeRate: ratio(row.management_fee_rate),
+    finalLiquidationDate: row.final_liquidation_date == null ? null : dateOnly(row.final_liquidation_date),
     ein: row.ein,
     fundManager: row.fund_manager,
     addressLine1: row.address_line_1,
@@ -166,7 +170,7 @@ const summaryRows = async (
   }
   return (await database().query<PartnershipRow>(`
     select p.id, p.aggregation_group_id, p.entity_id, e.name as entity_name, p.name, p.asset_class, p.status, p.notes,
-      p.inception_date, p.management_fee_rate, p.ein, p.fund_manager, p.address_line_1, p.address_line_2,
+      p.inception_date, p.final_liquidation_date, p.management_fee_rate, p.ein, p.fund_manager, p.address_line_1, p.address_line_2,
       p.address_city, p.address_region, p.address_postal_code, p.address_country, p.created_at, p.updated_at,
       commitment.commitment_amount as current_commitment,
       commitment.effective_date as current_commitment_date,
@@ -314,8 +318,15 @@ export const partnershipTrackerRepository = {
     const summary = summaries[0]
     if (!summary) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'Partnership was not found.')
     const canEdit = scope.isAdmin
+    const mappedSummary = mapSummary(summary)
     return {
-      summary: mapSummary(summary),
+      summary: mappedSummary,
+      investmentPerformance: calculateInvestmentPerformance({
+        cashFlowEvents,
+        committedCapital: mappedSummary.currentCommittedCapital?.amount ?? null,
+        latestNav: mappedSummary.latestNav,
+        finalLiquidationDate: mappedSummary.partnership.finalLiquidationDate,
+      }),
       years: k1.years.map((year) => ({ ...year, status: workflow(year.status)! })),
       cashFlowEvents,
       commitments: commitments.items,
@@ -324,7 +335,7 @@ export const partnershipTrackerRepository = {
     }
   },
 
-  async createPartnership(body: { entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; copyK1YearsFrom?: { partnershipId: string; taxYears: number[] }; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; initialValuationAmount?: string | null; initialValuationDate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  async createPartnership(body: { finalLiquidationDate?: string | null; entityId: string; name: string; partnershipType: PartnershipType; existingPartnershipId?: string; copyK1YearsFrom?: { partnershipId: string; taxYears: number[] }; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; initialValuationAmount?: string | null; initialValuationDate?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
     validateInceptionDate(body.inceptionDate)
     const id = await withTransaction(async (client) => {
       const entity = (await client.query<{ id: string }>('select id from entities where id = $1', [body.entityId])).rows[0]
@@ -337,6 +348,7 @@ export const partnershipTrackerRepository = {
         asset_class: string | null
         aggregation_group_id: string
         inception_date: Date | string | null
+        final_liquidation_date: Date | string | null
         management_fee_rate: string | null
         ein: string | null
         fund_manager: string | null
@@ -346,7 +358,7 @@ export const partnershipTrackerRepository = {
         address_region: string | null
         address_postal_code: string | null
         address_country: string | null
-      }>(`select id, entity_id, name, asset_class, aggregation_group_id, inception_date, management_fee_rate,
+      }>(`select id, entity_id, name, asset_class, aggregation_group_id, inception_date, final_liquidation_date, management_fee_rate,
           ein, fund_manager, address_line_1, address_line_2, address_city, address_region, address_postal_code, address_country
         from partnerships where id = $1 for share`, [body.existingPartnershipId])).rows[0]
       if (body.existingPartnershipId && !existing) throw new PartnershipTrackerError('PARTNERSHIP_NOT_FOUND', 404, 'The existing partnership was not found.')
@@ -362,14 +374,15 @@ export const partnershipTrackerRepository = {
       const row = (await client.query(`insert into partnerships (
           id, aggregation_group_id, entity_id, name, asset_class, status, notes, inception_date, management_fee_rate,
           ein, fund_manager, address_line_1, address_line_2, address_city, address_region, address_postal_code, address_country,
-          created_at, updated_at)
-        values ($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now(),now()) returning *`, [
+          final_liquidation_date, created_at, updated_at)
+        values ($1,$2,$3,$4,$5,'ACTIVE',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now(),now()) returning *`, [
         partnershipId, existing?.aggregation_group_id ?? partnershipId, body.entityId, resolvedName, resolvedType, body.notes ?? null,
         existing?.inception_date ?? body.inceptionDate ?? null, existing?.management_fee_rate ?? body.managementFeeRate ?? null,
         existing?.ein ?? body.ein ?? null, existing?.fund_manager ?? body.fundManager ?? null,
         existing?.address_line_1 ?? body.addressLine1 ?? null, existing?.address_line_2 ?? body.addressLine2 ?? null,
         existing?.address_city ?? body.addressCity ?? null, existing?.address_region ?? body.addressRegion ?? null,
         existing?.address_postal_code ?? body.addressPostalCode ?? null, existing?.address_country ?? body.addressCountry ?? null,
+        existing?.final_liquidation_date ?? body.finalLiquidationDate ?? null,
       ])).rows[0]
       if (body.initialValuationAmount && body.initialValuationDate) {
         await client.query(`insert into partnership_fmv_snapshots
@@ -394,7 +407,7 @@ export const partnershipTrackerRepository = {
     return { partnership: mapSummary(rows[0]!), nextAction: 'ADD_K1_YEAR' as const }
   },
 
-  async updatePartnership(partnershipId: string, patch: { entityId?: string; name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
+  async updatePartnership(partnershipId: string, patch: { finalLiquidationDate?: string | null; entityId?: string; name?: string; partnershipType?: PartnershipType; status?: PartnershipTrackerSummary['partnership']['status']; notes?: string | null; inceptionDate?: string | null; managementFeeRate?: string | null; ein?: string | null; fundManager?: string | null; addressLine1?: string | null; addressLine2?: string | null; addressCity?: string | null; addressRegion?: string | null; addressPostalCode?: string | null; addressCountry?: string | null; expectedUpdatedAt: string }, actorUserId: string, scope: PartnershipTrackerScope): Promise<PartnershipTrackerSummary> {
     validateInceptionDate(patch.inceptionDate)
     await withTransaction(async (client) => {
       await assertPartnership(partnershipId, scope, client)
@@ -423,6 +436,7 @@ export const partnershipTrackerRepository = {
           address_region = case when $22::boolean then $23 else address_region end,
           address_postal_code = case when $24::boolean then $25 else address_postal_code end,
           address_country = case when $26::boolean then $27 else address_country end,
+          final_liquidation_date = case when $29::boolean then $30::date else final_liquidation_date end,
           updated_at = now()
         where id = $1 and date_trunc('milliseconds', updated_at) = date_trunc('milliseconds', $28::timestamptz)
         returning *`, [
@@ -439,8 +453,14 @@ export const partnershipTrackerRepository = {
         Object.hasOwn(patch, 'addressPostalCode'), patch.addressPostalCode ?? null,
         Object.hasOwn(patch, 'addressCountry'), patch.addressCountry ?? null,
         patch.expectedUpdatedAt,
+        Object.hasOwn(patch, 'finalLiquidationDate'), patch.finalLiquidationDate ?? null,
       ])
       if (!result.rows[0]) throw new PartnershipTrackerError('STALE_PARTNERSHIP_REVISION', 409, 'The partnership was changed by another user. Reload and try again.')
+      if (Object.hasOwn(patch, 'finalLiquidationDate')) {
+        await client.query(`update capital_activity_events set is_final_liquidation = false, updated_at = now()
+          where partnership_id = $1 and is_final_liquidation and activity_date is distinct from $2::date`,
+        [partnershipId, patch.finalLiquidationDate ?? null])
+      }
       const childRowCounts: Record<string, number> = {}
       if (ownerChanged) {
         for (const table of ['document_versions', 'k1_reported_distributions', 'partnership_commitments', 'capital_activity_events', 'partnership_annual_activity'] as const) {
@@ -717,10 +737,10 @@ export const partnershipTrackerRepository = {
   deleteCashFlow(partnershipId: string, taxYear: number, cashFlowId: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.deleteCashFlow(partnershipId, taxYear, cashFlowId, expectedUpdatedAt, actorUserId, scope)
   },
-  createCapitalActivity(partnershipId: string, body: { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }, actorUserId: string, scope: PartnershipTrackerScope) {
+  createCapitalActivity(partnershipId: string, body: CreatePartnershipCashFlowRequest, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createOperationalCashFlow(partnershipId, body, actorUserId, scope)
   },
-  createCapitalActivities(partnershipId: string, entries: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }>, actorUserId: string, scope: PartnershipTrackerScope) {
+  createCapitalActivities(partnershipId: string, entries: CreatePartnershipCashFlowRequest[], actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createOperationalCashFlows(partnershipId, entries, actorUserId, scope)
   },
   settleCapitalActivity(partnershipId: string, cashFlowId: string, settlementDate: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {

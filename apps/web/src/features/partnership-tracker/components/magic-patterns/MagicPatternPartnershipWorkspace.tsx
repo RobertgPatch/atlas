@@ -19,6 +19,7 @@ import { PartnershipTrackerApiError } from '../../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions } from '../../hooks/usePartnershipTracker'
 import { K1BasisWorkspace } from '../K1BasisWorkspace'
 import { MagicPatternActivitySummaryTable } from './MagicPatternActivitySummaryTable'
+import { MagicPatternInvestmentPerformance } from './MagicPatternInvestmentPerformance'
 import { MagicPatternInKindPositionsCard } from './MagicPatternInKindPositionsCard'
 import { MagicPatternOperationalChart } from './MagicPatternOperationalChart'
 import { MagicPatternPartnershipRecordDialog } from './MagicPatternPartnershipRecordDialog'
@@ -26,7 +27,7 @@ import {
   MagicPatternCashActivityDrawer,
   MagicPatternValuationDrawer,
 } from './MagicPatternOperationalDrawers'
-import { extractActivitySource, inKindLotsFor } from './MagicPatternOperationalUtils'
+import { capitalActivityLedger, formatLedgerMoney } from './capitalActivityLedger'
 import { MagicPatternRelationshipsPanel } from './MagicPatternRelationshipsPanel'
 import { MagicPatternUnderlyingAssets } from './MagicPatternUnderlyingAssets'
 import {
@@ -66,8 +67,7 @@ function WorkspaceHeader({ detail, canEdit, onEdit, onActivity, onDelete }: { de
 export function WorkspaceNav({ area, counts, onChange }: { area: MagicWorkspaceArea; counts: { k1: number }; onChange: (area: MagicWorkspaceArea) => void }) {
   const investmentItems: Array<{ id: MagicWorkspaceArea; label: string; count?: number; disabled?: boolean }> = [{ id: 'overview', label: 'Overview' }, { id: 'capital-activity', label: 'Capital Activity' }]
   const k1Item = { id: 'k1-history' as const, label: 'K-1 History', count: counts.k1 }
-  const assetsItem = { id: 'underlying-assets' as const, label: 'Underlying Assets' }
-  return <nav aria-label="Partnership sections" className="sticky -top-4 z-20 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm sm:-top-6 lg:-top-8"><div className="flex w-full flex-wrap items-stretch"><span className="hidden items-center border-r border-slate-200 px-4 text-[0.6rem] font-semibold uppercase tracking-[0.13em] text-slate-500 xl:flex">Investment operations</span>{investmentItems.map((item) => <NavButton key={item.id} item={item} selected={area === item.id} onChange={onChange} />)}<span className="hidden items-center border-x border-slate-200 px-4 text-[0.6rem] font-semibold uppercase tracking-[0.13em] text-slate-500 xl:flex">Tax accounting</span><NavButton item={k1Item} selected={area === 'k1-history'} onChange={onChange} /><span className="hidden items-center border-x border-slate-200 px-4 text-[0.6rem] font-semibold uppercase tracking-[0.13em] text-slate-500 xl:flex">Estate planning</span><NavButton item={assetsItem} selected={area === 'underlying-assets'} onChange={onChange} /></div></nav>
+  return <nav aria-label="Partnership sections" className="sticky -top-4 z-20 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-sm sm:-top-6 lg:-top-8"><div className="flex w-full flex-wrap items-stretch"><span className="hidden items-center border-r border-slate-200 px-4 text-[0.6rem] font-semibold uppercase tracking-[0.13em] text-slate-500 xl:flex">Investment operations</span>{investmentItems.map((item) => <NavButton key={item.id} item={item} selected={area === item.id} onChange={onChange} />)}<span className="hidden items-center border-x border-slate-200 px-4 text-[0.6rem] font-semibold uppercase tracking-[0.13em] text-slate-500 xl:flex">Tax accounting</span><NavButton item={k1Item} selected={area === 'k1-history'} onChange={onChange} /></div></nav>
 }
 
 function NavButton({ item, selected, onChange }: { item: { id: MagicWorkspaceArea; label: string; count?: number; disabled?: boolean }; selected: boolean; onChange: (area: MagicWorkspaceArea) => void }) {
@@ -247,7 +247,7 @@ function SettlementDialog({ entry, partnershipId, onClose }: { entry: K1TrackerC
 
 export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawerOpen, onDrawerOpenChange }: { detail: PartnershipTrackerDetail; canEdit: boolean; drawerOpen: boolean; onDrawerOpenChange: (open: boolean) => void }) {
   const actions = usePartnershipTrackerActions()
-  const flows = [...detail.cashFlowEvents].sort((a, b) => b.activityDate.localeCompare(a.activityDate))
+  const flows = [...detail.cashFlowEvents].sort((a, b) => a.activityDate.localeCompare(b.activityDate))
   const valuations = [...detail.navEntries].sort((a, b) => b.valuationDate.localeCompare(a.valuationDate))
   const settledFlows = flows.filter((flow) => flow.settlementStatus !== 'ANNOUNCED')
   const announcedFlows = flows.filter((flow) => flow.settlementStatus === 'ANNOUNCED')
@@ -263,32 +263,10 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
   const visible = [
     ...visibleFlows.map((entry) => ({ type: 'cash-flow' as const, date: entry.activityDate, entry })),
     ...visibleValuations.map((entry) => ({ type: 'valuation' as const, date: entry.valuationDate, entry })),
-  ].sort((left, right) => right.date.localeCompare(left.date))
-  const total = (kind: K1TrackerCashFlowEvent['kind']) => settledFlows.filter((flow) => flow.kind === kind).reduce((sum, flow) => sum + Number(flow.amount), 0)
-  const inKindLots = inKindLotsFor(settledFlows)
-  const inKindValue = inKindLots.reduce((sum, lot) => sum + lot.security.shares * lot.security.fmvPerShare, 0)
-  const inKindBasis = inKindLots.reduce((sum, lot) => sum + lot.security.shares * lot.security.costBasisPerShare, 0)
-  const unsettledValue = announcedFlows.reduce((sum, flow) => sum + Number(flow.amount), 0)
+  ].sort((left, right) => left.date.localeCompare(right.date))
   const labels: Record<K1TrackerCashFlowEvent['kind'], string> = { CAPITAL_CALL: 'Capital call', DISTRIBUTION: 'Non-recallable distribution', RECALLABLE_DISTRIBUTION: 'Recallable distribution' }
   const latestValuation = valuations[0]
-  const previousValuation = valuations[1]
-  const earliestValuation = valuations.at(-1)
-  const latestValuationChange = latestValuation && previousValuation && Number(previousValuation.amount) !== 0
-    ? (Number(latestValuation.amount) - Number(previousValuation.amount)) / Number(previousValuation.amount)
-    : null
-  const capitalSummaryRows = [
-    { label: 'Capital called', value: money(String(total('CAPITAL_CALL')), true) ?? '$0.00', basis: 'Settled capital paid into the fund', context: 'All dates', valueTone: 'outflow' as const },
-    { label: 'Non-recallable distributions', value: money(String(total('DISTRIBUTION'))) ?? '$0.00', basis: 'Permanent cash returned; included in DPI and TVPI', context: 'All dates', valueTone: 'inflow' as const },
-    { label: 'Recallable distributions', value: money(String(total('RECALLABLE_DISTRIBUTION'))) ?? '$0.00', basis: 'May be called again; excluded from DPI and TVPI', context: 'All dates', valueTone: 'inflow' as const },
-    { label: 'Announced - awaiting settlement', value: money(String(unsettledValue)) ?? '$0.00', basis: 'Tracked in the ledger; excluded from financial calculations', context: announcedFlows.length ? `${announcedFlows.length} pending` : 'None pending' },
-    { label: 'Received in kind', value: inKindLots.length ? money(String(inKindValue)) ?? '$0.00' : '— Not available', basis: inKindLots.length ? `${inKindLots.length} lot${inKindLots.length === 1 ? '' : 's'} · cost basis ${money(String(inKindBasis))}` : 'No in-kind distributions recorded', context: 'All dates' },
-  ]
-  const valuationSummaryRows = [
-    { label: 'Latest NAV / FMV', value: latestValuation ? money(latestValuation.amount) ?? '— Not available' : '— Not available', basis: latestValuation ? `Source: ${sourceLabel(latestValuation)}` : 'No valuation on file', context: latestValuation ? date(latestValuation.valuationDate) : 'Not available', status: latestValuation ? 'Latest' : 'Not available', statusTone: latestValuation ? 'info' as const : 'neutral' as const },
-    { label: 'Change from previous', value: latestValuationChange == null ? '— Not available' : `${latestValuationChange >= 0 ? '+' : ''}${(latestValuationChange * 100).toFixed(1)}%`, basis: previousValuation ? `Compared with ${money(previousValuation.amount) ?? 'the prior valuation'}` : 'A second valuation is required for comparison', context: latestValuation ? date(latestValuation.valuationDate) : 'Not available', valueTone: latestValuationChange != null && latestValuationChange < 0 ? 'outflow' as const : 'inflow' as const },
-    { label: 'Earliest valuation', value: earliestValuation ? money(earliestValuation.amount) ?? '— Not available' : '— Not available', basis: earliestValuation ? `Source: ${sourceLabel(earliestValuation)}` : 'No valuation history', context: earliestValuation ? date(earliestValuation.valuationDate) : 'Not available' },
-    { label: 'Valuations on file', value: String(valuations.length), basis: valuations.length ? 'Dated NAV / FMV records in this partnership' : 'Choose Valuation from Add activity to begin', context: valuations.length ? `${date(earliestValuation!.valuationDate)} – ${date(latestValuation!.valuationDate)}` : 'Not available' },
-  ]
+  const ledgerAmounts = capitalActivityLedger(detail.cashFlowEvents, detail.investmentPerformance.residualValue)
   const filters = [
     ['all', 'All activity', flows.length + valuations.length],
     ['ANNOUNCED', 'Awaiting settlement', announcedFlows.length],
@@ -299,20 +277,76 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
   ] as const
 
   return <div className="space-y-6">
-    <MagicPatternActivitySummaryTable title="Capital activity summary" description="Capital activity and dated valuations for this partnership across all dates · USD. Settled cash activity and the latest valuation feed performance." ariaLabel={`Capital activity summary for ${detail.summary.partnership.name}`} groups={[{ label: 'Capital activity', rows: capitalSummaryRows }, { label: 'Valuations', rows: valuationSummaryRows }]} />
+    <MagicPatternInvestmentPerformance performance={detail.investmentPerformance} partnershipName={detail.summary.partnership.name} />
     <MagicCard className="overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-950">Capital activity</h2><p className="mt-1 text-xs text-slate-500">Capital calls, distributions, and valuations across all dates. Amounts in USD.</p></div>{canEdit ? <MagicButton type="button" onClick={() => onDrawerOpenChange(true)}><Plus className="h-4 w-4" />Add activity</MagicButton> : null}</div>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-950">Capital activity</h2><p className="mt-1 text-xs text-slate-500">Oldest first. Net amounts deduct fees and carry; valuations and pending activity are excluded from cumulative net.</p></div>{canEdit ? <MagicButton type="button" onClick={() => onDrawerOpenChange(true)}><Plus className="h-4 w-4" />Add activity</MagicButton> : null}</div>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-2.5" role="group" aria-label="Filter capital activity">{filters.map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-full border px-3 py-1 text-xs ${filter === value ? 'border-primary bg-primary-subtle text-primary' : 'border-slate-300 bg-white text-slate-700'}`}>{label} <span className="font-mono">{count}</span></button>)}</div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[66rem] text-left text-sm" aria-label="Capital activity: dated capital calls, distributions, and valuations in USD"><thead><tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600"><th className="px-4 py-2">Activity date</th><th className="px-4 py-2">Activity type</th><th className="px-4 py-2">Status</th><th className="px-4 py-2 text-right">Amount (USD)</th><th className="px-4 py-2">Source</th><th className="px-4 py-2">Note</th><th className="w-36 px-4 py-2"><span className="sr-only">Actions</span></th></tr></thead><tbody>{visible.map((row, index) => {
-        if (row.type === 'valuation') {
-          const entry = row.entry
-          return <tr key={`valuation-${entry.id}`} className={`border-b border-slate-200 ${entry.id === latestValuation?.id ? 'bg-blue-50' : index % 2 ? 'bg-slate-50' : 'bg-white'}`}><td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(entry.valuationDate)}{entry.id === latestValuation?.id ? <MagicStatusBadge className="ml-2" tone="info">Latest</MagicStatusBadge> : null}</td><td className="px-4 py-2.5"><MagicStatusBadge tone="info">Valuation</MagicStatusBadge></td><td className="px-4 py-2.5"><MagicStatusBadge tone="calculated">Recorded</MagicStatusBadge></td><td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-slate-900">{money(entry.amount)}</td><td className="max-w-[15rem] truncate px-4 py-2.5 text-slate-600" title={sourceLabel(entry)}>{sourceLabel(entry)}</td><td className="max-w-sm truncate px-4 py-2.5 text-slate-600" title={noteWithoutSource(entry)}>{noteWithoutSource(entry)}</td><td className="px-4 py-2.5"><div className="flex items-center justify-end gap-1">{canEdit ? <><button type="button" aria-label={`Edit valuation dated ${entry.valuationDate}`} onClick={() => setEditingValuation(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-600 hover:bg-white focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Pencil className="h-3.5 w-3.5" /></button><button type="button" aria-label={`Remove valuation dated ${entry.valuationDate}`} onClick={() => setRemovingValuation(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Trash2 className="h-3.5 w-3.5" /></button></> : null}</div></td></tr>
-        }
-        const flow = row.entry
-        const parsed = extractActivitySource(flow.note)
-        const awaitingSettlement = flow.settlementStatus === 'ANNOUNCED'
-        return <tr key={`cash-flow-${flow.id}`} className={`border-b border-slate-200 ${awaitingSettlement ? 'bg-amber-50/60' : index % 2 ? 'bg-slate-50' : 'bg-white'}`}><td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(flow.activityDate)}</td><td className="px-4 py-2.5"><MagicStatusBadge tone={flow.kind === 'CAPITAL_CALL' ? 'danger' : 'success'}>{flow.kind === 'CAPITAL_CALL' ? '↗' : '↙'} {labels[flow.kind]}</MagicStatusBadge></td><td className="px-4 py-2.5"><MagicStatusBadge tone={awaitingSettlement ? 'warning' : 'calculated'}>{awaitingSettlement ? 'Awaiting settlement' : 'Settled'}</MagicStatusBadge></td><td className={`px-4 py-2.5 text-right font-mono text-xs font-semibold ${awaitingSettlement ? 'text-amber-900' : flow.kind === 'CAPITAL_CALL' ? 'text-red-800' : 'text-emerald-700'}`}>{flow.kind === 'CAPITAL_CALL' ? money(flow.amount, true) : money(flow.amount)}</td><td className="max-w-[15rem] truncate px-4 py-2.5 text-slate-600" title={parsed.source}>{parsed.source}</td><td className="max-w-sm truncate px-4 py-2.5 text-slate-600" title={parsed.note}>{parsed.note}</td><td className="px-4 py-2.5"><div className="flex items-center justify-end gap-1">{canEdit && awaitingSettlement ? <button type="button" aria-label={`Settle ${labels[flow.kind].toLowerCase()} announced ${flow.activityDate}`} onClick={() => setSettling(flow)} className="min-h-8 rounded border border-emerald-300 bg-emerald-50 px-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2">Settle</button> : null}{canEdit ? <button type="button" aria-label={`Remove ${labels[flow.kind].toLowerCase()} from ${flow.activityDate}`} onClick={() => setRemoving(flow)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Trash2 className="h-3.5 w-3.5" /></button> : null}</div></td></tr>
-      })}{visible.length === 0 ? <tr><td colSpan={7} className="px-5 py-10 text-center text-sm text-slate-500">No activity matches this filter.</td></tr> : null}</tbody></table></div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[92rem] text-left text-sm" aria-label="Capital activity: dated capital calls, distributions, and valuations in USD">
+          <thead>
+            <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-2">Activity date</th>
+              <th className="px-4 py-2">Activity type</th>
+              <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2 text-right">Gross Amount</th>
+              <th className="px-4 py-2 text-right">Fees &amp; Carry</th>
+              <th className="px-4 py-2 text-right">Net Amount</th>
+              <th className="px-4 py-2 text-right">Cumulative Net</th>
+              <th className="px-4 py-2 text-right">Net Incl. Residual</th>
+              <th className="w-36 px-4 py-2"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((row, index) => {
+              if (row.type === 'valuation') {
+                const entry = row.entry
+                return (
+                  <tr key={'valuation-' + entry.id} className={'border-b border-slate-200 ' + (entry.id === latestValuation?.id ? 'bg-blue-50' : index % 2 ? 'bg-slate-50' : 'bg-white')}>
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(entry.valuationDate)}{entry.id === latestValuation?.id ? <MagicStatusBadge className="ml-2" tone="info">Latest</MagicStatusBadge> : null}</td>
+                    <td className="px-4 py-2.5"><MagicStatusBadge tone="info">Valuation</MagicStatusBadge></td>
+                    <td className="px-4 py-2.5"><MagicStatusBadge tone="calculated">Recorded</MagicStatusBadge></td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-slate-900">{money(entry.amount)}<span className="mt-1 block font-sans font-normal text-slate-500">NAV / FMV</span></td>
+                    <td className="px-4 py-2.5 text-right text-slate-400">—</td>
+                    <td className="px-4 py-2.5 text-right text-slate-400">—</td>
+                    <td className="px-4 py-2.5 text-right text-slate-400">—</td>
+                    <td className="px-4 py-2.5 text-right text-slate-400">—</td>
+                    <td className="px-4 py-2.5">
+                      {canEdit ? <div className="flex items-center justify-end gap-1">
+                        <button type="button" aria-label={'Edit valuation dated ' + entry.valuationDate} onClick={() => setEditingValuation(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-600 hover:bg-white focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Pencil className="h-3.5 w-3.5" /></button>
+                        <button type="button" aria-label={'Remove valuation dated ' + entry.valuationDate} onClick={() => setRemovingValuation(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-red-700 hover:bg-white focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div> : null}
+                    </td>
+                  </tr>
+                )
+              }
+
+              const flow = row.entry
+              const amounts = ledgerAmounts.get(flow.id)!
+              const awaitingSettlement = flow.settlementStatus === 'ANNOUNCED'
+              const amountTone = awaitingSettlement ? 'text-amber-900' : flow.kind === 'CAPITAL_CALL' ? 'text-red-800' : 'text-emerald-700'
+              return (
+                <tr key={'cash-flow-' + flow.id} className={'border-b border-slate-200 ' + (awaitingSettlement ? 'bg-amber-50/60' : index % 2 ? 'bg-slate-50' : 'bg-white')}>
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(flow.activityDate)}</td>
+                  <td className="px-4 py-2.5"><MagicStatusBadge tone={flow.isFinalLiquidation ? 'info' : flow.kind === 'CAPITAL_CALL' ? 'danger' : 'success'}>{flow.isFinalLiquidation ? 'Liquidating Distribution' : <>{flow.kind === 'CAPITAL_CALL' ? '↗' : '↙'} {labels[flow.kind]}</>}</MagicStatusBadge></td>
+                  <td className="px-4 py-2.5"><MagicStatusBadge tone={awaitingSettlement ? 'warning' : 'calculated'}>{awaitingSettlement ? 'Awaiting settlement' : 'Settled'}</MagicStatusBadge></td>
+                  <td className={'px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ' + amountTone}>{formatLedgerMoney(amounts.gross)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-700">{formatLedgerMoney(amounts.feesAndCarry)}</td>
+                  <td className={'px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ' + amountTone}>{formatLedgerMoney(amounts.net)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-800">{formatLedgerMoney(amounts.cumulativeNet)}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-800">{formatLedgerMoney(amounts.netIncludingResidual)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center justify-end gap-1">
+                      {canEdit && awaitingSettlement ? <button type="button" aria-label={'Settle ' + labels[flow.kind].toLowerCase() + ' announced ' + flow.activityDate} onClick={() => setSettling(flow)} className="min-h-8 rounded border border-emerald-300 bg-emerald-50 px-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2">Settle</button> : null}
+                      {canEdit ? <button type="button" aria-label={'Remove ' + labels[flow.kind].toLowerCase() + ' from ' + flow.activityDate} onClick={() => setRemoving(flow)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Trash2 className="h-3.5 w-3.5" /></button> : null}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {visible.length === 0 ? <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">No activity matches this filter.</td></tr> : null}
+          </tbody>
+        </table>
+      </div>
     </MagicCard>
     <MagicPatternInKindPositionsCard events={settledFlows} />
     {drawerOpen ? <MagicPatternCashActivityDrawer open onClose={() => onDrawerOpenChange(false)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} /> : null}
