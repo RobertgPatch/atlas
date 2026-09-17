@@ -6,6 +6,16 @@ export const ownerFixtures = [
   { id: 'e-2', name: 'Summit Holdings LLC' },
 ]
 
+// Expected results from Investment Anaylsis_Project Jackson.xlsx, No Target!B5:B22.
+export const investmentPerformanceFixture: import('../../../../../../packages/types/src/partnership-tracker').InvestmentPerformance = {
+  finalLiquidationDate: '2026-09-15', committedCapital: '600000.00', residualValue: '0.0000', residualValueDate: null,
+  paidInCapital: '641938.5500', grossDistributions: '1604846.3750', feesAndCarry: '-192581.5650',
+  netDistributions: '1412264.8100', commitmentCalled: '1.06989758', grossMoic: '2.50000000', netMoicDpi: '2.20000000',
+  grossXirr: '0.24604063', netXirr: '0.21479396', netGain: '770326.2600', holdingPeriodYears: '5.63287671',
+  rvpi: '0.00000000', tvpi: '2.20000000', netXirrIncludingResidual: '0.21479396', xirrTerminalDate: '2026-09-15',
+  xirrStatus: { gross: 'AVAILABLE', net: 'AVAILABLE', includingResidual: 'AVAILABLE' },
+}
+
 export const summaryFixture: PartnershipTrackerSummary = {
   partnership: { id: 'p-1', entity: { id: 'e-1', name: 'Jackson Family Trust' }, name: 'Redwood Fund', partnershipType: 'Real Estate', status: 'ACTIVE', notes: 'Core real estate holding', inceptionDate: '2022-01-01', managementFeeRate: '0.02000000', ein: '123456789', fundManager: 'Redwood Capital', addressLine1: '100 Market Street', addressLine2: null, addressCity: 'San Francisco', addressRegion: 'CA', addressPostalCode: '94105', addressCountry: 'United States', createdAt: '2024-01-01T00:00:00.000Z', updatedAt: '2024-01-01T00:00:00.000Z' },
   currentCommittedCapital: { amount: '1000000.00', date: '2024-01-01' },

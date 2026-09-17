@@ -23,8 +23,8 @@ import { k1OfficialRevisionRepository } from './k1OfficialRevision.repository.js
 
 type PartnershipRow = { id: string; entity_id: string; partnership_name: string; entity_name: string }
 type SignoffRow = { signoff_type: 'PREPARED' | 'REVIEWED' | 'INVALIDATED'; signed_by_email: string | null; created_at: Date | string; reason: string | null }
-type CashFlowRow = { id: string; partnership_id: string; activity_date: Date | string; event_type: 'funded_contribution' | 'distribution' | 'recallable_distribution'; settlement_status: 'ANNOUNCED' | 'SETTLED'; announced_date: Date | string | null; amount: string; notes: string | null; created_at: Date | string; updated_at: Date | string }
-type CashFlowWrite = { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
+type CashFlowRow = { id: string; partnership_id: string; activity_date: Date | string; event_type: 'funded_contribution' | 'distribution' | 'recallable_distribution'; settlement_status: 'ANNOUNCED' | 'SETTLED'; announced_date: Date | string | null; amount: string; fees_and_carry: string; is_final_liquidation: boolean; notes: string | null; created_at: Date | string; updated_at: Date | string }
+type CashFlowWrite = { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; feesAndCarry?: string; isFinalLiquidation?: boolean; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
 
 const db = (): NonNullable<typeof pool> => {
   if (!pool) throw new K1TrackerError('DATABASE_REQUIRED')
@@ -109,7 +109,7 @@ const activeValues = async (yearIds: string[], client: Queryable): Promise<Track
 
 const cashFlowEventsFor = async (partnershipId: string, taxYear: number | null, client: Queryable): Promise<K1TrackerCashFlowEvent[]> => {
   const rows = (await client.query<CashFlowRow>(`
-    select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, notes, created_at, updated_at
+    select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, fees_and_carry, is_final_liquidation, notes, created_at, updated_at
     from capital_activity_events
     where partnership_id = $1
       and ($2::int is null or (settlement_status = 'SETTLED' and extract(year from activity_date)::int = $2))
@@ -129,6 +129,8 @@ const cashFlowEventsFor = async (partnershipId: string, taxYear: number | null, 
       ? null
       : row.announced_date instanceof Date ? row.announced_date.toISOString().slice(0, 10) : String(row.announced_date).slice(0, 10),
     amount: centsToMoney(cents(row.amount))!,
+    feesAndCarry: row.fees_and_carry,
+    isFinalLiquidation: row.is_final_liquidation,
     note: row.notes,
     createdAt: iso(row.created_at)!,
     updatedAt: iso(row.updated_at)!,
@@ -435,9 +437,9 @@ export const copyK1TrackerYears = async (
     await client.query(`
       with copied_events as (
         insert into capital_activity_events
-          (id, entity_id, partnership_id, activity_date, event_type, amount, source_type, notes,
+          (id, entity_id, partnership_id, activity_date, event_type, amount, fees_and_carry, is_final_liquidation, source_type, notes,
            created_by_user_id, created_at, updated_at)
-        select gen_random_uuid(), $1, $2, activity_date, event_type, amount, 'manual', notes, $3, now(), now()
+        select gen_random_uuid(), $1, $2, activity_date, event_type, amount, fees_and_carry, is_final_liquidation, 'manual', notes, $3, now(), now()
         from capital_activity_events
         where partnership_id = $4
           and extract(year from activity_date)::int = $5
@@ -471,6 +473,9 @@ export const copyK1TrackerYears = async (
     }, client as never)
   }
 
+  await client.query(`update partnerships set final_liquidation_date = liquidation.activity_date, updated_at = now()
+    from (select activity_date from capital_activity_events where partnership_id = $1 and is_final_liquidation) liquidation
+    where partnerships.id = $1`, [destinationPartnershipId])
   await recomputeRecallableCommitments(client, destinationPartnershipId)
   await persistProjection(client, await yearRowsFor(destinationPartnershipId, client), actorUserId)
   return requestedYears
@@ -488,17 +493,35 @@ const createCashFlows = async (
   if (taxYear != null && entries.some((entry) => Number(entry.activityDate.slice(0, 4)) !== taxYear)) {
     throw new K1TrackerError('INVALID_IMPORT', 'Every activity date must fall within the selected tax year.')
   }
+  if (entries.filter((entry) => entry.isFinalLiquidation).length > 1 || entries.some((entry) => entry.isFinalLiquidation && (entry.kind !== 'DISTRIBUTION' || entry.settlementStatus === 'ANNOUNCED'))) {
+    throw new K1TrackerError('INVALID_IMPORT', 'Final liquidation must be one settled, non-recallable distribution.')
+  }
   return withTransaction(async (client) => {
     const partnership = await assertPartnership(partnershipId, scope, client)
+    const finalEntry = entries.find((entry) => entry.isFinalLiquidation)
+    if (finalEntry) {
+      // Serialize replacement so there is exactly one final event per partnership.
+      await client.query('select id from partnerships where id = $1 for update', [partnershipId])
+      const latestSettled = (await client.query<{ latest_date: Date | string | null }>(`
+        select max(activity_date) as latest_date from capital_activity_events
+        where partnership_id = $1 and settlement_status = 'SETTLED'
+          and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
+      `, [partnershipId])).rows[0]?.latest_date
+      const latestDate = latestSettled == null ? null : latestSettled instanceof Date ? latestSettled.toISOString().slice(0, 10) : String(latestSettled).slice(0, 10)
+      if ((latestDate != null && latestDate > finalEntry.activityDate) || entries.some((entry) => entry !== finalEntry && (entry.settlementStatus ?? 'SETTLED') === 'SETTLED' && entry.activityDate > finalEntry.activityDate)) {
+        throw new K1TrackerError('INVALID_IMPORT', 'Final liquidation must be on or after the latest settled cash activity.')
+      }
+      await client.query('update capital_activity_events set is_final_liquidation = false, updated_at = now() where partnership_id = $1 and is_final_liquidation', [partnershipId])
+    }
 
     const createdRows: CashFlowRow[] = []
     for (const entry of entries) {
       const settlementStatus = entry.settlementStatus ?? 'SETTLED'
       const row = (await client.query<CashFlowRow>(`
         insert into capital_activity_events
-          (id, entity_id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, source_type, notes, created_by_user_id, created_at, updated_at)
-        values ($1, $2, $3, $4, $5, $6, case when $6 = 'ANNOUNCED' then $4::date else null end, $7, 'manual', $8, $9, now(), now())
-        returning id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, notes, created_at, updated_at
+          (id, entity_id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, source_type, notes, created_by_user_id, fees_and_carry, is_final_liquidation, created_at, updated_at)
+        values ($1, $2, $3, $4, $5, $6, case when $6 = 'ANNOUNCED' then $4::date else null end, $7, 'manual', $8, $9, $10, $11, now(), now())
+        returning id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, fees_and_carry, is_final_liquidation, notes, created_at, updated_at
       `, [
         randomUUID(),
         partnership.entity_id,
@@ -509,8 +532,13 @@ const createCashFlows = async (
         entry.amount,
         entry.note ?? null,
         actorUserId,
+        entry.feesAndCarry ?? '0',
+        entry.isFinalLiquidation ?? false,
       ])).rows[0]!
       createdRows.push(row)
+      if (entry.isFinalLiquidation) {
+        await client.query('update partnerships set final_liquidation_date = $2::date, updated_at = now() where id = $1', [partnershipId, entry.activityDate])
+      }
       if (entry.kind === 'RECALLABLE_DISTRIBUTION' && settlementStatus === 'SETTLED') {
         await client.query(`
           insert into partnership_commitments
@@ -632,7 +660,7 @@ export const k1TrackerRepository = {
     return withTransaction(async (client) => {
       const partnership = await assertPartnership(partnershipId, scope, client)
       const before = (await client.query<CashFlowRow>(`
-        select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, notes, created_at, updated_at
+        select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, is_final_liquidation, notes, created_at, updated_at
         from capital_activity_events
         where id = $1 and partnership_id = $2
           and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
@@ -693,7 +721,7 @@ export const k1TrackerRepository = {
     await withTransaction(async (client) => {
       await assertPartnership(partnershipId, scope, client)
       const before = (await client.query<CashFlowRow>(`
-        select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, notes, created_at, updated_at
+        select id, partnership_id, activity_date, event_type, settlement_status, announced_date, amount, is_final_liquidation, notes, created_at, updated_at
         from capital_activity_events
         where id = $1 and partnership_id = $2
           and ($3::int is null or extract(year from activity_date)::int = $3)
@@ -703,6 +731,9 @@ export const k1TrackerRepository = {
       if (!before) throw new K1TrackerError('TRACKER_NOT_FOUND', 'Dated cash activity was not found.')
       if (iso(before.updated_at) !== new Date(expectedUpdatedAt).toISOString()) throw new K1TrackerError('STALE_TRACKER_REVISION')
       await client.query('delete from capital_activity_events where id = $1', [cashFlowId])
+      if (before.is_final_liquidation) {
+        await client.query('update partnerships set final_liquidation_date = null, updated_at = now() where id = $1 and final_liquidation_date = $2::date', [partnershipId, before.activity_date])
+      }
       if (before.event_type === 'recallable_distribution' && before.settlement_status === 'SETTLED') await recomputeRecallableCommitments(client, partnershipId)
       if (before.settlement_status === 'SETTLED') {
         const activityYear = Number((before.activity_date instanceof Date ? before.activity_date.toISOString() : String(before.activity_date)).slice(0, 4))

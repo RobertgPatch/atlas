@@ -65,21 +65,21 @@ const ratio = (numerator: bigint, denominator: bigint): string => {
   return `${sign}${scaled / ratioScale}.${String(scaled % ratioScale).padStart(8, '0')}`
 }
 
-const npv = (rate: number, flows: Array<{ at: number; cents: bigint }>, start: number): number => flows.reduce((total, flow) => {
-  const years = (flow.at - start) / (365.25 * millisecondsPerDay)
+const npv = (rate: number, flows: Array<{ at: number; cents: bigint }>, start: number, daysPerYear: number): number => flows.reduce((total, flow) => {
+  const years = (flow.at - start) / (daysPerYear * millisecondsPerDay)
   return total + Number(flow.cents) / Math.pow(1 + rate, years)
 }, 0)
 
-const bisect = (low: number, high: number, flows: Array<{ at: number; cents: bigint }>, start: number): number | null => {
-  let lowValue = npv(low, flows, start)
-  const highValue = npv(high, flows, start)
+const bisect = (low: number, high: number, flows: Array<{ at: number; cents: bigint }>, start: number, daysPerYear: number): number | null => {
+  let lowValue = npv(low, flows, start, daysPerYear)
+  const highValue = npv(high, flows, start, daysPerYear)
   if (!Number.isFinite(lowValue) || !Number.isFinite(highValue) || lowValue === 0 && highValue === 0) return null
   if (Math.sign(lowValue) === Math.sign(highValue)) return null
   let left = low
   let right = high
   for (let iteration = 0; iteration < 120; iteration += 1) {
     const mid = (left + right) / 2
-    const midValue = npv(mid, flows, start)
+    const midValue = npv(mid, flows, start, daysPerYear)
     if (!Number.isFinite(midValue)) return null
     if (Math.abs(midValue) < 1e-9) return mid
     if (Math.sign(lowValue) === Math.sign(midValue)) {
@@ -92,7 +92,7 @@ const bisect = (low: number, high: number, flows: Array<{ at: number; cents: big
   return (left + right) / 2
 }
 
-const solveIrr = (flows: Array<{ date: string; cents: bigint }>): { value: string | null; status: PartnershipTrackerMetricAvailability } => {
+export const solveIrr = (flows: Array<{ date: string; cents: bigint }>, daysPerYear = 365.25): { value: string | null; status: PartnershipTrackerMetricAvailability } => {
   const ordered = flows
     .filter((flow) => flow.cents !== zero)
     .map((flow) => ({ ...flow, at: utcTimestamp(flow.date) }))
@@ -107,7 +107,7 @@ const solveIrr = (flows: Array<{ date: string; cents: bigint }>): { value: strin
   for (let rate = 1.25; rate <= 1_000; rate = rate < 10 ? rate + 0.25 : rate < 100 ? rate + 2.5 : rate + 25) rates.push(rate)
   const roots: number[] = []
   for (let index = 1; index < rates.length; index += 1) {
-    const found = bisect(rates[index - 1]!, rates[index]!, ordered, start)
+    const found = bisect(rates[index - 1]!, rates[index]!, ordered, start, daysPerYear)
     if (found != null && !roots.some((root) => Math.abs(root - found) < 0.0000001)) roots.push(found)
   }
   if (roots.length !== 1) return { value: null, status: 'AMBIGUOUS_IRR' }

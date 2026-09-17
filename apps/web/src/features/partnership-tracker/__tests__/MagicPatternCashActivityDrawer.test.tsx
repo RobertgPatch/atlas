@@ -17,6 +17,47 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
 }))
 
 describe('MagicPatternCashActivityDrawer', () => {
+  it('marks a distribution as final liquidation and records its date in the activity request', async () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    expect(screen.queryByRole('checkbox', { name: /Final Liquidation/ })).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/Activity type/), { target: { value: 'DISTRIBUTION' } })
+    fireEvent.change(screen.getByLabelText(/Activity date/), { target: { value: '2026-09-15' } })
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: '1019307.11' } })
+    fireEvent.click(screen.getByRole('radio', { name: /Announced - awaiting settlement/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Final Liquidation/ }))
+    expect(screen.getByRole('radio', { name: 'Settled' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: /Announced - awaiting settlement/ })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+    await waitFor(() => expect(mutations.createCashFlows).toHaveBeenCalledWith({ id: 'partnership-1', body: {
+      entries: [{ kind: 'DISTRIBUTION', activityDate: '2026-09-15', amount: '1019307.11', isFinalLiquidation: true, note: null }],
+    } }))
+  })
+
+  it('allows only one final liquidation choice in a batch', () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    fireEvent.change(screen.getByLabelText(/Activity type/), { target: { value: 'DISTRIBUTION' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Final Liquidation/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add another activity' }))
+    fireEvent.change(screen.getAllByLabelText(/Activity type/)[1]!, { target: { value: 'DISTRIBUTION' } })
+    fireEvent.click(screen.getAllByRole('checkbox', { name: /Final Liquidation/ })[1]!)
+    const checkboxes = screen.getAllByRole('checkbox', { name: /Final Liquidation/ })
+    expect(checkboxes[0]).not.toBeChecked()
+    expect(checkboxes[1]).toBeChecked()
+  })
+
+  it('records gross distribution and actual fees separately at workbook precision', async () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    fireEvent.change(screen.getByLabelText(/Activity type/), { target: { value: 'DISTRIBUTION' } })
+    fireEvent.change(screen.getByLabelText(/Activity date/), { target: { value: '2026-09-15' } })
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: '1211888.68' } })
+    expect(screen.getByText(/Enter the gross distribution before fees and carry/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText(/Fees & carry \(USD\)/), { target: { value: '192581.565' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+    await waitFor(() => expect(mutations.createCashFlows).toHaveBeenCalledWith({ id: 'partnership-1', body: {
+      entries: [{ kind: 'DISTRIBUTION', activityDate: '2026-09-15', amount: '1211888.68', feesAndCarry: '192581.565', note: null }],
+    } }))
+  })
+
   beforeEach(() => {
     mutations.createCashFlows.mockClear()
     mutations.createNav.mockClear()

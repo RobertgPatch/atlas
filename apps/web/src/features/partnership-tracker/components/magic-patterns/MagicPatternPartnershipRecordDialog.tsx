@@ -55,6 +55,7 @@ export function MagicPatternPartnershipRecordDialog({
   const [fundManager, setFundManager] = useState(partnership?.fundManager ?? '')
   const [ein, setEin] = useState(formatEinInput(partnership?.ein))
   const [inceptionDate, setInceptionDate] = useState(partnership?.inceptionDate ?? today())
+  const [finalLiquidationDate, setFinalLiquidationDate] = useState(partnership?.finalLiquidationDate ?? '')
   const [addressLine1, setAddressLine1] = useState(partnership?.addressLine1 ?? '')
   const [addressLine2, setAddressLine2] = useState(partnership?.addressLine2 ?? '')
   const [addressCity, setAddressCity] = useState(partnership?.addressCity ?? '')
@@ -123,6 +124,7 @@ export function MagicPatternPartnershipRecordDialog({
             fundManager: fundManager.trim() || null,
             ein: ein.trim() || null,
             inceptionDate,
+            finalLiquidationDate: finalLiquidationDate || null,
             addressLine1: addressLine1.trim() || null,
             addressLine2: addressLine2.trim() || null,
             addressCity: addressCity.trim() || null,
@@ -151,6 +153,7 @@ export function MagicPatternPartnershipRecordDialog({
           ? { existingPartnershipId: inheritedFund.id }
           : {
               inceptionDate,
+              finalLiquidationDate: finalLiquidationDate || null,
               fundManager: fundManager.trim() || null,
               ein: ein.trim() || null,
               addressLine1: addressLine1.trim() || null,
@@ -389,6 +392,11 @@ export function MagicPatternPartnershipRecordDialog({
               Inception date <span className="text-red-700">*</span>
               <input type="date" required max={today()} value={inceptionDate} onChange={(event) => setInceptionDate(event.target.value)} className={mpInputClass} />
               <span className="mt-1 block text-xs font-normal text-slate-500">Sets the vintage year.</span>
+            </label>
+            <label className={mpLabelClass}>
+              Final liquidation date
+              <input type="date" value={finalLiquidationDate} onChange={(event) => setFinalLiquidationDate(event.target.value)} className={mpInputClass} />
+              <span className="mt-1 block text-xs font-normal text-slate-500">Optional. Used for the holding period and terminal residual value in Investment Performance.</span>
             </label>
           </MagicFieldGroup>
         ) : null}
