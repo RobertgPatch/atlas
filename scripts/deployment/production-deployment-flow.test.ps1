@@ -16,6 +16,8 @@ $cost = [pscustomobject]@{ region = 'us-west-2'; estimatedMonthlyUsd = 104; targ
 $secrets = [pscustomobject]@{ schemaVersion = '1.0.0'; secrets = @([pscustomobject]@{ key = 'SESSION_SECRET'; consumers = @('api') }) }
 $fixtureRoot = Join-Path $repoPath 'scripts\security\fixtures\production-plans'
 $deploymentScript = Get-Content -LiteralPath (Join-Path $repoPath 'scripts\deploy-to-aws-production.ps1') -Raw
+Assert-True ($deploymentScript -notmatch 'Test-ProductionReleaseExceptionWindow|Read-Host "Type (?:DEPLOY|BOOTSTRAP) PRODUCTION') 'A time limit or manual confirmation must not add a release approval beyond current main and its two successful GitHub jobs.'
+Assert-True ($deploymentScript -notmatch 'terraform @\(''test''\)|Invoke-TerraformGates') 'Local deployment must rely on the two successful GitHub jobs instead of rerunning Terraform security gates.'
 Assert-True ($deploymentScript -match 'SkipHttpErrorCheck\s*=\s*\$true') 'Live smoke HTTP requests must return expected non-2xx responses in PowerShell 7.'
 Assert-True ($deploymentScript -notmatch 'GetResponseStream') 'Live smoke handling must not use the legacy WebResponse stream API.'
 $githubGate = $deploymentScript.IndexOf('Assert-GitHubMainSecurityGates $source')

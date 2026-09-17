@@ -2,20 +2,20 @@
 
 **Re-checked**: 2026-09-16 (America/Los_Angeles)
 **Constitution**: Jackson Constitution 2.0.0  
-**Decision**: `EX-030-002 TEMPORARILY PERMITS AWS RELEASE FROM GREEN MAIN CI`
+**Decision**: `EX-030-003: CURRENT MAIN AND BOTH GREEN GITHUB SECURITY JOBS`
 
 ## Scope decision
 
-[EX-030-001](./EX-030-001.md) remains the C1/C2 implementation exception. The later, narrower [EX-030-002](./EX-030-002.md) temporarily supersedes its production prohibition. The two GitHub security jobs must succeed on the exact current `main` commit before the existing AWS release workflow may run:
+[EX-030-001](./EX-030-001.md) remains the C1/C2 implementation exception. [EX-030-003](./EX-030-003.md) supersedes the earlier time-limited release rule in EX-030-002. The two GitHub security jobs must succeed on the exact current `main` commit before the existing AWS release workflow may run:
 
 | State | Status | Basis |
 |---|---|---|
 | Local implementation and bounded tests | Allowed and complete | Constitution 2.0.0 exception process plus EX-030-001 |
 | Code review and merge | Allowed | EX-030-001 explicitly names both scopes |
-| Production deployment/activation | Conditionally allowed through 2026-09-22 | EX-030-002: exact `main` commit plus successful Application and Terraform security gates on its `push` run; AWS execution safeguards remain |
-| Continued single-tenant production handling of Restricted data | Temporarily excepted through 2026-09-22 | EX-030-002 records unresolved risks; it does not assert compliance |
+| Production deployment/activation | Eligible from green current `main` | EX-030-003: successful Application and Terraform security gates on its `push` run; execution must still succeed |
+| Continued single-tenant production handling of Restricted data | Open operational risk | EX-030-003 does not assert compliance or remediate EX-030-002's recorded risks |
 
-An expired, revoked, or missing EX-030-002 stops new production releases under this decision. PR-only or stale CI does not authorize Apply. The release script must also stop if AWS identity, target, saved plan, secrets, cost, artifacts, smoke, or rollback safeguards fail; these are execution checks, not additional manual approval gates.
+PR-only or stale CI does not authorize Apply. AWS identity, target, valid artifacts, runtime compatibility, and smoke results are execution checks, not additional manual approval gates.
 
 ## Deferred operational risks, not deployment-eligibility blockers
 
@@ -28,7 +28,7 @@ An expired, revoked, or missing EX-030-002 stops new production releases under t
 | Operator edge-cost acknowledgement | OPEN | Robert Patch must acknowledge that pay-as-you-go CloudFront/WAF request charges cannot be reduced to zero by origin rate limits, and accept the reviewed response/runbook and $106.20 monthly upper estimate. |
 | Production recovery evidence | OPEN | Prove 15-minute RPO, eight-hour RTO, 35-day PostgreSQL PITR, isolated encrypted recovery copies, alerting, and a production-shaped isolated restore. The disposable local 1.02-second restore is compatibility evidence only. |
 
-The legal/applicability register and approved retention schedule remain follow-up requirements. None of the rows above is represented as CI-passing or complete. Robert Patch directed a time-limited waiver of their *pre-deployment sign-off* in EX-030-002, with monitoring, containment, revocation, and expiry there.
+The legal/applicability register and approved retention schedule remain follow-up requirements. None of the rows above is represented as CI-passing or complete. EX-030-003 removes their separate pre-deployment sign-off while retaining them as open operational risks.
 
 ## Repository evidence and its limit
 
@@ -41,8 +41,8 @@ These results support the exact-main CI release decision. They do not establish 
 
 ## C1/C2 follow-up
 
-[c1-c2-remediation.md](./c1-c2-remediation.md) remains required in subsequent changes. C1 must distinguish repository readiness from the specific, temporary EX-030-002 production decision. C2 must add and validate the explicit actor/action/resource authorization matrix. Neither exception may be silently extended.
+[c1-c2-remediation.md](./c1-c2-remediation.md) remains required in subsequent changes. C1 must distinguish repository readiness from the owner-directed EX-030-003 release rule. C2 must add and validate the explicit actor/action/resource authorization matrix.
 
 ## Release decision
 
-During EX-030-002's effective window, production release eligibility requires the current canonical `main` SHA and a successful `push` run containing both named GitHub security jobs. The deferred evidence rows do not block `Plan`, `Prepare`, or `Apply`, but failed AWS execution safeguards or exception expiry do. Do not weaken the security jobs or use this decision to claim the deferred work complete.
+Production release eligibility requires the current canonical `main` SHA and a successful `push` run containing both named GitHub security jobs. The deferred evidence rows do not block `Plan`, `Prepare`, or `Apply`; a technical execution failure must still stop the release. Do not weaken the security jobs or use this decision to claim the deferred work complete.

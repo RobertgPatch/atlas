@@ -82,8 +82,6 @@ try {
   $run.event = 'pull_request'
   Assert-True (-not (Test-ProductionGitHubReleaseGate -SourceBranch main -SourceCommit $sha -RemoteMainCommit $sha -Run $run)) 'PR-only security result was accepted.'
   $run.event = 'push'
-  Assert-True (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]'2026-09-17T00:00:00Z')) 'Active production exception was rejected.'
-  Assert-True (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]'2026-09-23T07:00:00Z'))) 'Expired production exception was accepted.'
 
   Assert-True (Test-ProductionToolVersion -Tool node -ActualVersion 'v22.20.0' -MinimumVersion '22.0.0') 'Supported Node version was rejected.'
   Assert-True (-not (Test-ProductionToolVersion -Tool terraform -ActualVersion '1.10.9' -MinimumVersion '1.11.0' -MaximumExclusiveVersion '2.0.0')) 'Old Terraform version was accepted.'
