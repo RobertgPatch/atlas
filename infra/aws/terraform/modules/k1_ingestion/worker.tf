@@ -1,5 +1,6 @@
 locals {
   worker_environment = merge(var.environment_variables, {
+    ATLAS_PROCESS_ROLE            = "k1-worker"
     K1_AWS_INGESTION_ENABLED      = tostring(var.enabled)
     K1_EXTRACTOR                  = "aws_bda"
     K1_OBJECT_STORE               = "s3"

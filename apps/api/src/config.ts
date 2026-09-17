@@ -277,8 +277,8 @@ export const buildRuntimeBoundaryConfig = (
     if (env.REQUIRE_DURABLE_PERSISTENCE !== 'true') {
       throw configurationError('REQUIRE_DURABLE_PERSISTENCE', 'production requires exactly true')
     }
-    if ((env.AWS_REGION ?? env.AWS_DEFAULT_REGION) !== 'us-west-2') {
-      throw configurationError('AWS_REGION', 'production requires the committed us-west-2 target')
+    if (!['us-west-1', 'us-west-2'].includes(env.AWS_REGION ?? env.AWS_DEFAULT_REGION ?? '')) {
+      throw configurationError('AWS_REGION', 'production requires the live us-west-1 or planned us-west-2 target')
     }
   }
 
@@ -961,6 +961,14 @@ export const buildAbuseProtectionConfig = (
 }
 
 const nodeEnv = process.env.NODE_ENV ?? 'development'
+export const resolveProcessRole = (role = 'api'): 'api' | 'k1-worker' => {
+  if (role !== 'api' && role !== 'k1-worker') throw configurationError('ATLAS_PROCESS_ROLE', 'expected api or k1-worker')
+  return role
+}
+const processRole = resolveProcessRole(process.env.ATLAS_PROCESS_ROLE)
+export const requireProcessRole = (actual: 'api' | 'k1-worker', expected: 'api' | 'k1-worker'): void => {
+  if (actual !== expected) throw new Error(`Entrypoint requires ATLAS_PROCESS_ROLE=${expected}`)
+}
 const runtimeBoundary = buildRuntimeBoundaryConfig(process.env)
 const sessionCookieSecure = nodeEnv === 'production'
   ? strictBoolean(process.env, nodeEnv, 'SESSION_COOKIE_SECURE', false, true)
@@ -1020,6 +1028,7 @@ const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD
 
 export const config = {
   nodeEnv,
+  processRole,
   runtimeClass: runtimeBoundary.runtimeClass,
   port: asNumber(process.env.PORT, 3000),
   trustedProxyCidrs,
@@ -1257,7 +1266,15 @@ export const validateProductionSessionSettings = (
   }
 }
 
-if (nodeEnv === 'production') {
-  validateProductionSessionSettings(config)
-  validateProductionIdentitySettings(config)
+// Background workers do not consume human bootstrap credentials or sessions.
+// The API entrypoint separately enforces its process role before serving HTTP.
+export const validateProductionProcessSettings = (
+  settings: ProductionSessionSettings & ProductionIdentitySettings,
+  role: 'api' | 'k1-worker',
+): void => {
+  if (role === 'api') {
+    validateProductionSessionSettings(settings)
+    validateProductionIdentitySettings(settings)
+  }
 }
+if (nodeEnv === 'production') validateProductionProcessSettings(config, processRole)

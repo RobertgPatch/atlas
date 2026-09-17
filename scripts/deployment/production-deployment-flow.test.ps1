@@ -15,7 +15,7 @@ $hash = 'b' * 64
 $cost = [pscustomobject]@{ region = 'us-west-2'; estimatedMonthlyUsd = 104; targetMonthlyUsd = 110; budgetThresholdUsd = 125; budgetActionCount = 0; workloadProfileMatched = $true; unpricedRecurringResources = @() }
 $secrets = [pscustomobject]@{ schemaVersion = '1.0.0'; secrets = @([pscustomobject]@{ key = 'SESSION_SECRET'; consumers = @('api') }) }
 $fixtureRoot = Join-Path $repoPath 'scripts\security\fixtures\production-plans'
-$deploymentScript = Get-Content -LiteralPath (Join-Path $repoPath 'scripts\deploy-to-aws-production.ps1') -Raw
+$deploymentScript = Get-Content -LiteralPath (Join-Path $repoPath 'scripts\deployment\deploy-planned-terraform.ps1') -Raw
 Assert-True ($deploymentScript -notmatch 'Test-ProductionReleaseExceptionWindow|Read-Host "Type (?:DEPLOY|BOOTSTRAP) PRODUCTION') 'A time limit or manual confirmation must not add a release approval beyond current main and its two successful GitHub jobs.'
 Assert-True ($deploymentScript -notmatch 'terraform @\(''test''\)|Invoke-TerraformGates') 'Local deployment must rely on the two successful GitHub jobs instead of rerunning Terraform security gates.'
 Assert-True ($deploymentScript -match 'SkipHttpErrorCheck\s*=\s*\$true') 'Live smoke HTTP requests must return expected non-2xx responses in PowerShell 7.'

@@ -155,6 +155,12 @@ describe('runtime environment boundary', () => {
     })).toThrow(/PROJECT_JACKSON_SCHEDULER_TOKEN/i)
   })
 
+  it.each(['us-west-1', 'us-west-2'])('accepts the live or planned production region %s', (region) => {
+    expect(buildRuntimeBoundaryConfig({ NODE_ENV: 'production', ATLAS_RUNTIME: 'production',
+      DATABASE_URL: 'postgres://user:password@database.internal/atlas',
+      REQUIRE_DURABLE_PERSISTENCE: 'true', AWS_REGION: region }).runtimeClass).toBe('production')
+  })
+
   it.each([
     ['DATABASE_URL', ''],
     ['DATABASE_URL', localBase.DATABASE_URL],

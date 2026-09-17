@@ -1,0 +1,40 @@
+{
+  "accountId": "403454291976",
+  "awsProfile": "atlas-production",
+  "region": "us-west-1",
+  "domain": "projectjackson.family",
+  "cluster": "project-jackson-production-cluster",
+  "repository": "project-jackson-production-api",
+  "database": "project-jackson-production-postgres",
+  "distributionId": "E3JSGITQ701ESZ",
+  "webBucket": "project-jackson-production-web-assets",
+  "apiOriginId": "project-jackson-production-api-origin",
+  "originRequestPolicyName": "project-jackson-production-api-minimum-forwarding",
+  "bootstrapStack": "project-jackson-production-app-bootstrap",
+  "superAdminSecretName": "project-jackson-production/SUPER_ADMIN_PASSWORD",
+  "services": [
+    { "name": "project-jackson-production-api", "container": "project-jackson-api", "role": "api" },
+    { "name": "project-jackson-production-k1-worker", "container": "k1-worker", "role": "k1-worker" }
+  ],
+  "runtimeDefaults": {
+    "ATLAS_DEPLOYMENT_TENANT_ID": "family-office-production",
+    "ABUSE_API_STEADY_STATE_TASKS": "1",
+    "ABUSE_LOCAL_MAX_BUCKETS": "10000",
+    "ABUSE_LOCAL_PINNED_GLOBAL_BUCKETS": "64",
+    "ABUSE_LOCAL_AUTHENTICATED_BUCKETS": "2936",
+    "ABUSE_LOCAL_SOURCE_BUCKETS": "7000",
+    "ABUSE_AUTH_GLOBAL_REQUESTS": "50",
+    "ABUSE_AUTH_GLOBAL_WINDOW_SECONDS": "300",
+    "ABUSE_AUTH_GLOBAL_DAILY_REQUESTS": "200",
+    "ABUSE_AUTH_GLOBAL_DAILY_WINDOW_SECONDS": "86400",
+    "ABUSE_AUTH_SOURCE_WINDOW_SECONDS": "300",
+    "ABUSE_AUTH_DURABLE_SOURCE_REQUESTS": "20",
+    "ABUSE_AUTH_DURABLE_SOURCE_WINDOW_SECONDS": "300",
+    "ABUSE_API_SOURCE_REQUESTS": "300",
+    "ABUSE_API_SOURCE_WINDOW_SECONDS": "300",
+    "ABUSE_API_GLOBAL_REQUESTS": "500",
+    "ABUSE_API_GLOBAL_WINDOW_SECONDS": "300",
+    "ABUSE_UPLOAD_CAPABILITY_TTL_SECONDS": "300",
+    "ABUSE_UPLOAD_SIGNATURE_AGE_SECONDS": "300"
+  }
+}
