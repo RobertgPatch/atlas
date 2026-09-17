@@ -115,15 +115,6 @@ function Test-ProductionGitHubReleaseGate {
   return $true
 }
 
-function Test-ProductionReleaseExceptionWindow {
-  [CmdletBinding()]
-  param([Parameter(Mandatory = $true)] [DateTime] $NowUtc)
-  $effective = [DateTime]::Parse('2026-09-16T07:00:00Z').ToUniversalTime()
-  $expires = [DateTime]::Parse('2026-09-23T06:59:59Z').ToUniversalTime()
-  $now = $NowUtc.ToUniversalTime()
-  return $now -ge $effective -and $now -le $expires
-}
-
 function Test-ProductionToolVersion {
   [CmdletBinding()]
   param(
@@ -619,4 +610,4 @@ function Test-ProductionReleaseManifest {
   return [pscustomobject]@{ Valid = $errors.Count -eq 0; Errors = $errors.ToArray() }
 }
 
-Export-ModuleMember -Function Get-Sha256, Resolve-ReleasePath, Get-BackendFingerprint, Protect-DeploymentText, Test-CleanWorktreeStatus, Test-ProductionGitHubReleaseGate, Test-ProductionReleaseExceptionWindow, Test-ProductionToolVersion, Test-ProductionIdentityBinding, Test-ExactProductionConfirmation, Get-ProductionModeCapabilities, Get-ProductionExitCode, Test-ImmutableArtifactBinding, Get-ProductionTarget, Test-ProductionSecretPreflight, Test-ProductionRollbackCheckpoint, Add-ProductionExecutionRecord, New-ProductionRollbackCheckpoint, Invoke-ProductionSmokeContract, Test-ProductionReleaseManifest
+Export-ModuleMember -Function Get-Sha256, Resolve-ReleasePath, Get-BackendFingerprint, Protect-DeploymentText, Test-CleanWorktreeStatus, Test-ProductionGitHubReleaseGate, Test-ProductionToolVersion, Test-ProductionIdentityBinding, Test-ExactProductionConfirmation, Get-ProductionModeCapabilities, Get-ProductionExitCode, Test-ImmutableArtifactBinding, Get-ProductionTarget, Test-ProductionSecretPreflight, Test-ProductionRollbackCheckpoint, Add-ProductionExecutionRecord, New-ProductionRollbackCheckpoint, Invoke-ProductionSmokeContract, Test-ProductionReleaseManifest

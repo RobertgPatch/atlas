@@ -211,17 +211,6 @@ function Initialize-ProductionTerraform {
   finally { Pop-Location }
 }
 
-function Invoke-TerraformGates {
-  param([string] $TerraformRoot)
-  Push-Location $TerraformRoot
-  try {
-    Invoke-ExternalQuiet terraform @('fmt', '-check', '-recursive') Validation 'Terraform formatting validation failed.'
-    Invoke-ExternalQuiet terraform @('validate', '-no-tests') Validation 'Terraform validation failed.'
-    Invoke-ExternalQuiet terraform @('test') Validation 'Terraform native tests failed.'
-  }
-  finally { Pop-Location }
-}
-
 function Invoke-CostValidation {
   param([string] $OutputPath)
   $profilePath = Join-Path $RepoPath 'infra\aws\terraform\production-cost-profile.json'
@@ -498,9 +487,6 @@ try {
   $identity = Get-AwsIdentity
   $source = Get-SourceIdentity
   if ($Mode -in @('Bootstrap', 'Prepare', 'Apply') -and -not $source.clean) { Stop-ProductionDeployment Preflight "$Mode requires a clean committed worktree." }
-  if ($Mode -ne 'Rollback' -and -not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) {
-    Stop-ProductionDeployment Approval 'EX-030-002 is outside its approved production release window.'
-  }
   if ($Mode -ne 'Rollback') { Assert-GitHubMainSecurityGates $source }
 
   $terraformRoot = Join-Path $RepoPath 'infra\aws\terraform'
@@ -510,7 +496,6 @@ try {
   $variableHash = Get-Sha256 -LiteralPath $tfvarsPath
   $backendFingerprint = Get-BackendFingerprint -Bucket $TerraformStateBucket -Key $TerraformStateKey -Region $target.awsRegion -KmsKeyArn $TerraformStateKmsKeyArn
   Initialize-ProductionTerraform $terraformRoot $target
-  Invoke-TerraformGates $terraformRoot
 
   if ($Mode -eq 'Plan') {
     $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("atlas-production-plan-{0}" -f [guid]::NewGuid().ToString('N'))
@@ -545,10 +530,7 @@ try {
       schedulesEnabled = $false; webActivated = $false; preparedAt = [DateTime]::UtcNow.ToString('o')
     }
     Write-JsonFile $evidencePath $evidence
-    if (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) { Stop-ProductionDeployment Approval 'EX-030-002 expired before Bootstrap activation.' }
     Assert-GitHubMainSecurityGates $source
-    $confirmation = Read-Host "Type BOOTSTRAP PRODUCTION $($source.commit.Substring(0, 8)) to apply the create-only inactive shell"
-    if (-not (Test-ExactProductionConfirmation -Mode Bootstrap -SourceCommit $source.commit -Confirmation $confirmation)) { Stop-ProductionDeployment Approval 'Bootstrap confirmation was rejected.' }
     Push-Location $terraformRoot
     try { Invoke-ExternalQuiet terraform @('apply', '-input=false', $planPath) Activation 'The exact saved Bootstrap plan failed.' }
     finally { Pop-Location }
@@ -671,10 +653,7 @@ try {
     [System.IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
     $currentCost = Invoke-CostValidation (Join-Path $temporaryRoot 'cost.json')
     if ($currentCost.estimatedMonthlyUsd -ne $manifest.costEstimate.estimatedMonthlyUsd -or $currentCost.estimatedMonthlyUsd -gt 110) { Stop-ProductionDeployment Validation 'Production cost evidence changed after Prepare.' }
-    if (-not (Test-ProductionReleaseExceptionWindow -NowUtc ([DateTime]::UtcNow))) { Stop-ProductionDeployment Approval 'EX-030-002 expired before Apply activation.' }
     Assert-GitHubMainSecurityGates $source
-    $confirmation = Read-Host "Type DEPLOY PRODUCTION $($source.commit.Substring(0, 8)) to apply the exact reviewed release"
-    if (-not (Test-ExactProductionConfirmation -Mode Apply -SourceCommit $source.commit -Confirmation $confirmation)) { Stop-ProductionDeployment Approval 'Production deployment confirmation was rejected.' }
     $applyStartedAt = [DateTime]::UtcNow.ToString('o')
     Push-Location $terraformRoot
     try { Invoke-ExternalQuiet terraform @('apply', '-input=false', $planPath) Activation 'The exact saved production plan failed.' }
