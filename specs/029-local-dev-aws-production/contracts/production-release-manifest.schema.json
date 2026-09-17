@@ -39,8 +39,7 @@
           "$ref": "#/$defs/gitSha"
         },
         "branch": {
-          "type": "string",
-          "minLength": 1
+          "const": "main"
         },
         "cleanWorktree": {
           "const": true

@@ -80,6 +80,8 @@ That would weaken the strongest direct-origin bypass control to address a billin
 
 ## Production activation gates
 
+The list below is the original architecture decision. [EX-030-002](../evidence/EX-030-002.md) temporarily defers separate manual sign-off on the operator and recovery items. During its effective window, release eligibility is exact `main` plus successful Application and Terraform security jobs on that commit; the AWS execution checks still apply.
+
 - The actual Terraform-derived cost model stays within the approved envelope.
 - The operator acknowledges residual pay-as-you-go edge request exposure.
 - Count-mode evidence and retained-flow tests approve every new blocking threshold.

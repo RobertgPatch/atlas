@@ -18,6 +18,10 @@ $fixtureRoot = Join-Path $repoPath 'scripts\security\fixtures\production-plans'
 $deploymentScript = Get-Content -LiteralPath (Join-Path $repoPath 'scripts\deploy-to-aws-production.ps1') -Raw
 Assert-True ($deploymentScript -match 'SkipHttpErrorCheck\s*=\s*\$true') 'Live smoke HTTP requests must return expected non-2xx responses in PowerShell 7.'
 Assert-True ($deploymentScript -notmatch 'GetResponseStream') 'Live smoke handling must not use the legacy WebResponse stream API.'
+$githubGate = $deploymentScript.IndexOf('Assert-GitHubMainSecurityGates $source')
+$terraformInit = $deploymentScript.IndexOf('Initialize-ProductionTerraform $terraformRoot $target')
+Assert-True ($githubGate -gt 0 -and $terraformInit -gt $githubGate) 'Exact-main GitHub gates must be checked before production Terraform initialization.'
+Assert-True ($deploymentScript -notmatch "'run', 'test:api'|'run', 'test:web'") 'Production Prepare must use the already-passing GitHub test jobs.'
 
 $planCapabilities = Get-ProductionModeCapabilities Plan
 $routine = Get-Content -LiteralPath (Join-Path $fixtureRoot 'routine-pass.json') -Raw | ConvertFrom-Json
