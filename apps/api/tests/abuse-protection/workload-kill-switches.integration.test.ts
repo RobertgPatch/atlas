@@ -16,6 +16,7 @@ import {
 import type { AdmissionDecision } from '../../src/modules/abuse-protection/protection.types.js'
 import { BedrockK1StatusCheckboxVerifier } from '../../src/modules/k1/extraction/bedrockCheckboxVerifier.js'
 import { retryK1Extraction } from '../../src/modules/k1/extraction/k1Retry.service.js'
+import { k1ExtractionAttemptRepository } from '../../src/modules/k1/extraction/k1ExtractionAttempt.repository.js'
 import { createK1IngestionBatch } from '../../src/modules/k1/ingestion/k1Batch.service.js'
 import { durableK1BatchRepository } from '../../src/modules/k1/k1.repository.js'
 import { createMarketDataService } from '../../src/modules/market-data/market-data.service.js'
@@ -190,6 +191,7 @@ describe.each(decisionCases)(
     })
 
     it('blocks K-1 extraction transactions and queue work', async () => {
+      vi.spyOn(k1ExtractionAttemptRepository, 'listForDocument').mockResolvedValue([])
       vi.spyOn(database, 'withTransaction').mockImplementation(async () => {
         sideEffects.increment('databaseWrites')
         sideEffects.increment('queueMessages')

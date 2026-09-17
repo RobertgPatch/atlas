@@ -90,7 +90,7 @@ describe('abuse-protection configuration', () => {
 
     expect(() =>
       buildAbuseProtectionConfig(
-        { ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS: '2501' },
+        { ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS: '62001' },
         'development',
       ),
     ).toThrow(/ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS/)
