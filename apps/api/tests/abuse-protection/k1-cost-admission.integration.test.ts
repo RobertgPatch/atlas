@@ -37,6 +37,7 @@ import {
   BedrockK1StatusCheckboxVerifier,
 } from '../../src/modules/k1/extraction/bedrockCheckboxVerifier.js'
 import { retryK1Extraction } from '../../src/modules/k1/extraction/k1Retry.service.js'
+import { k1ExtractionAttemptRepository } from '../../src/modules/k1/extraction/k1ExtractionAttempt.repository.js'
 import {
   completeK1BatchUploads,
 } from '../../src/modules/k1/ingestion/k1UploadCompletion.service.js'
@@ -297,6 +298,7 @@ describe('K-1 cost admission', () => {
     'K1_DOCUMENT_RETRY_DAILY_LIMIT',
     'K1_DOCUMENT_RETRY_LIFETIME_LIMIT',
   ])('rejects %s before a retry transaction or queue message', async (reasonCode) => {
+    vi.spyOn(k1ExtractionAttemptRepository, 'listForDocument').mockResolvedValue([])
     const admit = vi.spyOn(admissionService, 'admit')
       .mockResolvedValue(quotaRejected(reasonCode))
     const transaction = vi.spyOn(database, 'withTransaction')

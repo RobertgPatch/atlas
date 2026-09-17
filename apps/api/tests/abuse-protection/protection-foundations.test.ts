@@ -93,7 +93,8 @@ describe('subject fingerprints', () => {
       retained: [{
         id: 'v1',
         key: 'retained-test-hmac-key-material-000001',
-        retireAfter: new Date('2026-09-01T00:00:00.000Z'),
+        // Keep this fixture valid as time passes; expiry is checked below with a fixed clock.
+        retireAfter: new Date(Date.now() + 365 * 24 * 60 * 60 * 1_000),
       }],
     }, { scope: 'account', value: 'owner@example.test' })
 
@@ -116,6 +117,11 @@ describe('subject fingerprints', () => {
       active: { id: 'v2', key: fingerprintKey },
       retained: [{ id: 'v1', key: 'retained-test-hmac-key-material-000001', retireAfter: new Date('2026-08-29T12:00:00.000Z') }],
     }, { now: new Date('2026-08-29T00:00:00.000Z'), minimumRetainedUntil: new Date('2026-08-30T00:00:00.000Z') })).toThrow(/FINGERPRINT_KEY_RETIREMENT_TOO_EARLY/)
+
+    expect(() => validateFingerprintKeyring({
+      active: { id: 'v2', key: fingerprintKey },
+      retained: [{ id: 'v1', key: 'retained-test-hmac-key-material-000001', retireAfter: new Date('2026-08-28T00:00:00.000Z') }],
+    }, { now: new Date('2026-08-29T00:00:00.000Z') })).toThrow(/EXPIRED_RETAINED_FINGERPRINT_KEY/)
   })
 })
 

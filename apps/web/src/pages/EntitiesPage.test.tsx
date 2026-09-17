@@ -117,7 +117,7 @@ describe('EntitiesPage current flow', () => {
     render(<MemoryRouter><EntitiesPage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Add entity' }))
     expect(screen.getByRole('dialog', { name: 'Add entity' })).toBeTruthy()
-    expect(screen.getByText(/created as a draft/i)).toBeTruthy()
+    expect(screen.getByText('The entity is available immediately. Link owners, partnerships, and investments after it is saved.')).toBeTruthy()
     expect(screen.getByText('Leave blank if the EIN letter has not been received.')).toBeTruthy()
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Create entity' })))
     expect(await screen.findByText('Legal name is required.')).toBeTruthy()
