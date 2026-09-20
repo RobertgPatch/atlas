@@ -2,10 +2,12 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { PartnershipTrackerDetail } from '../../../../../../packages/types/src/partnership-tracker'
 import { MagicPatternPartnershipWorkspace } from '../components/magic-patterns/MagicPatternPartnershipWorkspace'
-import { summaryFixture } from './fixtures'
+import { investmentPerformanceFixture, summaryFixture } from './fixtures'
 
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: () => ({
+    deleteCashFlow: { isPending: false, mutateAsync: vi.fn() },
+    deleteNav: { isPending: false, mutateAsync: vi.fn() },
     deletePartnership: { isPending: false, mutateAsync: vi.fn() },
     createCommitment: { isPending: false, mutateAsync: vi.fn() },
     updateCommitment: { isPending: false, mutateAsync: vi.fn() },
@@ -17,6 +19,7 @@ vi.mock('../components/magic-patterns/MagicPatternRelationshipsPanel', () => ({
 }))
 
 const detail = {
+  investmentPerformance: investmentPerformanceFixture,
   summary: summaryFixture,
   years: [],
   cashFlowEvents: [],

@@ -1,7 +1,6 @@
 import type { MagicWorkspaceArea } from '../partnership-tracker/components/magic-patterns/MagicPatternPartnershipWorkspace'
 
 const validAreas = new Set<MagicWorkspaceArea>([
-  'overview',
   'capital-activity',
   'k1-history',
   'underlying-assets',
@@ -14,7 +13,7 @@ export function canonicalInvestmentTrackerArea(rawArea: string | null): MagicWor
   if (rawArea === 'k1') return 'k1-history'
   if (rawArea === 'capital') return 'capital-activity'
   if (rawArea === 'assets') return 'underlying-assets'
-  return 'overview'
+  return 'capital-activity'
 }
 
 export function selectedInvestmentTrackerYear(rawYear: string | null): number | undefined {

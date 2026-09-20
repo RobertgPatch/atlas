@@ -129,7 +129,7 @@ export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: Par
     {
       label: 'Annualized cash-on-cash',
       value: formatPercent(rollup.annualizedCashOnCashYield.value) ?? humanize(rollup.annualizedCashOnCashYield.status),
-      basis: 'Trailing twelve months, distributions of record',
+      basis: 'Paid-in-weighted yield: called capital ÷ distributions ÷ years from inception to liquidation or today',
       context: formatDate(rollup.asOfDate),
       status: rollup.annualizedCashOnCashYield.value == null
         ? humanize(rollup.annualizedCashOnCashYield.status)

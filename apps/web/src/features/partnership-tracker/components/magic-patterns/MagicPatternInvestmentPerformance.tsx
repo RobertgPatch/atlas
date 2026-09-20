@@ -8,7 +8,7 @@ const multiple = (value: string | null) => value == null ? 'n/a' : `${Number(val
 const percent = (value: string | null) => value == null ? 'n/a' : `${(Number(value) * 100).toFixed(1)}%`
 const date = (value: string | null) => value ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00Z`)) : 'Not recorded'
 
-export function MagicPatternInvestmentPerformance({ performance: p, partnershipName }: { performance: InvestmentPerformance; partnershipName: string }) {
+export function MagicPatternInvestmentPerformance({ performance: p, partnershipName, cashOnCashYield = null, cashOnCashEndDate = null }: { performance: InvestmentPerformance; partnershipName: string; cashOnCashYield?: string | null; cashOnCashEndDate?: string | null }) {
   const xirrBasis = (kind: keyof InvestmentPerformance['xirrStatus'], basis: string) => p.xirrStatus[kind] === 'AVAILABLE'
     ? basis : p.xirrStatus[kind] === 'INSUFFICIENT_CASH_FLOWS'
       ? `${basis}; requires both inflows and outflows on different dates`
@@ -24,6 +24,7 @@ export function MagicPatternInvestmentPerformance({ performance: p, partnershipN
         { label: 'Residual / ending valuation ($)', value: money(p.residualValue), basis: 'Unrealized NAV remaining; defaults to zero when no valuation is recorded', context: p.residualValueDate ? date(p.residualValueDate) : 'No valuation; using $0' },
       ] },
       { label: 'Results', rows: [
+        { label: 'Cash-on-cash yield', value: percent(cashOnCashYield), basis: 'Called capital ÷ gross distributions (including recallable) ÷ years from inception (days ÷ 365.25)', context: `${p.finalLiquidationDate ? 'Through liquidation' : 'As of'} ${date(cashOnCashEndDate)}` },
         { label: 'Paid-in capital (contributions)', value: money(p.paidInCapital), basis: 'Total gross contributions', context: 'All settled dates' },
         { label: 'Gross distributions', value: money(p.grossDistributions), basis: 'Before fees & carry; includes recallable distributions', context: 'All settled dates' },
         { label: 'Fees & carry', value: money(p.feesAndCarry), basis: 'Actual deductions from the activity schedule; not estimated management fees', context: 'All settled dates' },

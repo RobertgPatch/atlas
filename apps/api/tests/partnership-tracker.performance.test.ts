@@ -166,7 +166,7 @@ describe('Partnership Tracker performance', () => {
       latestEndingOutsideBasis: '120000.00',
     })
 
-    expect(Number(result.annualizedCashOnCashYield)).toBeCloseTo(0.05, 4)
+    expect(Number(result.annualizedCashOnCashYield)).toBeCloseTo(10 / (731 / 365.25), 8)
     expect(result.performanceAsOfDate).toBe('2024-07-01')
     expect(result.unfundedCommitmentAmount).toBe('150000.00')
     expect(result.unfundedCommitmentPercentage).toBe('0.60000000')

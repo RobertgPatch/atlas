@@ -5,11 +5,12 @@ import { investmentPerformanceFixture } from './fixtures'
 
 describe('Investment Performance', () => {
   it('renders all spreadsheet rows in order with the same displayed figures', () => {
-    render(<MagicPatternInvestmentPerformance performance={investmentPerformanceFixture} partnershipName="Workbook example" />)
+    render(<MagicPatternInvestmentPerformance performance={investmentPerformanceFixture} partnershipName="Workbook example" cashOnCashYield="0.05" cashOnCashEndDate="2026-09-15" />)
     expect(screen.getByRole('heading', { name: 'Investment Performance' })).toBeInTheDocument()
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1)
     const expected = [
       ['Final liquidation date', '09/15/2026'], ['Committed capital ($)', '$600,000'], ['Residual / ending valuation ($)', '$0'],
+      ['Cash-on-cash yield', '5.0%'],
       ['Paid-in capital (contributions)', '$641,939'], ['Gross distributions', '$1,604,846'], ['Fees & carry', '($192,582)'],
       ['Net distributions to LP', '$1,412,265'], ['% of commitment called', '107.0%'], ['Gross MOIC (x)', '2.50x'],
       ['Net MOIC / DPI (x)', '2.20x'], ['Gross XIRR', '24.6%'], ['Net XIRR', '21.5%'], ['Net gain / (loss) ($)', '$770,326'],
@@ -31,7 +32,7 @@ describe('Investment Performance', () => {
     expect(screen.getByText('($100)')).toBeInTheDocument()
     expect(screen.getByText('Not recorded')).toBeInTheDocument()
     expect(screen.getByText('No valuation; using $0')).toBeInTheDocument()
-    expect(screen.getAllByText('n/a')).toHaveLength(5)
+    expect(screen.getAllByText('n/a')).toHaveLength(6)
     expect(screen.getByText(/requires both inflows and outflows/)).toBeInTheDocument()
   })
 })
