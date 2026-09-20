@@ -112,7 +112,7 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
     await user.click(screen.getByRole('button', { name: 'Open partnership row' }))
 
     expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveTextContent('Workspace p-row')
-    expect(screen.getByRole('status', { name: 'Current location' })).toHaveTextContent('/investment-tracker?partnership=p-row&area=overview')
+    expect(screen.getByRole('status', { name: 'Current location' })).toHaveTextContent('/investment-tracker?partnership=p-row&area=capital-activity')
   })
 
   it('creates a partnership and opens its management workspace', async () => {
@@ -146,6 +146,7 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
   })
 
   it.each([
+    ['overview', 'capital-activity'],
     ['cash-activity', 'capital-activity'],
     ['k1', 'k1-history'],
     ['capital', 'capital-activity'],

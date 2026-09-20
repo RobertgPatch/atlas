@@ -34,7 +34,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
   }, [params, setParams])
 
   const openPartnership = useCallback((partnershipId: string) => {
-    updateUrl({ partnership: partnershipId, area: 'overview', year: undefined })
+    updateUrl({ partnership: partnershipId, area: 'capital-activity', year: undefined })
   }, [updateUrl])
 
   if (selectedId && detail.isLoading) {

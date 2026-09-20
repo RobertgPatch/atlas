@@ -96,6 +96,7 @@ const mapSummary = (row: PartnershipRow): PartnershipTrackerSummary => {
     cashFlowEvents: Array.isArray(row.dated_cash_flows) ? row.dated_cash_flows : [],
     latestNav,
     inceptionDate: row.inception_date == null ? null : dateOnly(row.inception_date),
+    finalLiquidationDate: row.final_liquidation_date == null ? null : dateOnly(row.final_liquidation_date),
     currentCommitment: money(row.current_commitment),
     latestEndingOutsideBasis: money(row.latest_ending_basis),
   })

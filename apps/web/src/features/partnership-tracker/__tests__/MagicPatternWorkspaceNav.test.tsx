@@ -14,7 +14,7 @@ describe('MagicPattern partnership workspace navigation', () => {
     expect(navigation).not.toHaveClass('overflow-x-auto')
     expect(navigation.firstElementChild).toHaveClass('flex-wrap')
     expect(within(navigation).getAllByRole('button').map((button) => button.textContent)).toEqual([
-      'Overview', 'Capital Activity', 'K-1 History3',
+      'Capital Activity', 'K-1 History3',
     ])
     expect(within(navigation).queryByText('Estate planning')).not.toBeInTheDocument()
     expect(within(navigation).queryByRole('button', { name: 'Underlying Assets' })).not.toBeInTheDocument()

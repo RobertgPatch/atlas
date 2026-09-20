@@ -17,6 +17,7 @@ export type PartnershipPerformanceInput = {
   cashFlowEvents?: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }>
   latestNav: { amount: string; date: string } | null
   inceptionDate?: string | null
+  finalLiquidationDate?: string | null
   currentCommitment?: string | null
   latestEndingOutsideBasis?: string | null
   asOfDate?: string
@@ -119,6 +120,7 @@ export const composePartnershipPerformance = ({
   cashFlowEvents,
   latestNav,
   inceptionDate = null,
+  finalLiquidationDate = null,
   currentCommitment = null,
   latestEndingOutsideBasis = null,
   asOfDate = today(),
@@ -194,12 +196,17 @@ export const composePartnershipPerformance = ({
     status.annualizedCashOnCashYield = 'MISSING_INCEPTION_DATE'
   } else if (totalContributionCents == null || totalContributionCents <= zero) {
     status.annualizedCashOnCashYield = 'MISSING_CONTRIBUTIONS'
-  } else if (totalDistributionCents == null) {
+  } else if (totalDistributionCents == null || totalDistributionCents <= zero) {
     status.annualizedCashOnCashYield = 'MISSING_DISTRIBUTIONS'
   } else {
-    const elapsedDays = Math.max(1, Math.round((utcTimestamp(asOfDate) - utcTimestamp(inceptionDate)) / millisecondsPerDay))
-    annualizedCashOnCashYield = ratio(totalDistributionCents * 1461n, totalContributionCents * BigInt(elapsedDays) * 4n)
-    status.annualizedCashOnCashYield = 'AVAILABLE'
+    const elapsedDays = Math.round((utcTimestamp(finalLiquidationDate ?? asOfDate) - utcTimestamp(inceptionDate)) / millisecondsPerDay)
+    if (!Number.isFinite(elapsedDays) || elapsedDays <= 0) {
+      status.annualizedCashOnCashYield = 'INSUFFICIENT_CASH_FLOWS'
+    } else {
+      // Called capital / distributions / elapsed years, using a 365.25-day year.
+      annualizedCashOnCashYield = ratio(totalContributionCents * 1461n, totalDistributionCents * BigInt(elapsedDays) * 4n)
+      status.annualizedCashOnCashYield = 'AVAILABLE'
+    }
   }
 
   let unfundedCommitmentAmount: string | null = null
