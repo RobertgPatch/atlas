@@ -4,6 +4,7 @@ import { MagicPatternActivitySummaryTable } from './MagicPatternActivitySummaryT
 const money = (value: string | null) => value == null ? 'n/a' : new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', currencySign: 'accounting', maximumFractionDigits: 0, minimumFractionDigits: 0,
 }).format(Number(value))
+const nonNegativeMoney = (value: string | null) => value == null ? 'n/a' : money(String(Math.max(0, Number(value))))
 const multiple = (value: string | null) => value == null ? 'n/a' : `${Number(value).toFixed(2)}x`
 const percent = (value: string | null) => value == null ? 'n/a' : `${(Number(value) * 100).toFixed(1)}%`
 const date = (value: string | null) => value ? new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' }).format(new Date(`${value}T00:00:00Z`)) : 'Not recorded'
@@ -34,7 +35,7 @@ export function MagicPatternInvestmentPerformance({ performance: p, partnershipN
         { label: 'Net MOIC / DPI (x)', value: multiple(p.netMoicDpi), basis: 'Net distributions ÷ paid-in capital; excludes residual value', context: '' },
         { label: 'Gross XIRR', value: percent(p.grossXirr), basis: xirrBasis('gross', 'Before fees & carry; excludes residual value'), context: '' },
         { label: 'Net XIRR', value: percent(p.netXirr), basis: xirrBasis('net', 'After fees & carry; excludes residual value'), context: '' },
-        { label: 'Net gain / (loss) ($)', value: money(p.netGain), basis: 'Net distributions less paid-in capital; excludes residual value', context: '' },
+        { label: 'Net gain / (loss) ($)', value: nonNegativeMoney(p.netGain), basis: 'Net distributions less paid-in capital, with a minimum of zero; excludes residual value', context: '' },
         { label: 'Holding period to liquidation (years)', value: p.holdingPeriodYears == null ? 'n/a' : Number(p.holdingPeriodYears).toFixed(2), basis: 'Days from first settled cash flow to final liquidation ÷ 365', context: p.holdingPeriodYears == null ? 'Record a liquidation date on or after the last cash flow' : '' },
         { label: 'RVPI — residual value / paid-in (x)', value: multiple(p.rvpi), basis: 'Ending / residual valuation ÷ paid-in capital', context: '' },
         { label: 'TVPI — total value / paid-in (x)', value: multiple(p.tvpi), basis: 'Net DPI + RVPI; distributions plus residual value', context: '' },

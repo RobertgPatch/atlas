@@ -44,6 +44,7 @@ export function calculateInvestmentPerformance(input: {
   const grossDistributions = sum(flows.filter((flow) => !flow.contribution).map((flow) => flow.gross))
   const fees = -sum(flows.map((flow) => flow.fee))
   const netDistributions = grossDistributions + fees
+  const netGain = netDistributions > paidIn ? netDistributions - paidIn : 0n
   const residual = units(input.latestNav?.amount ?? '0')
   const gross = solveIrr(flows.map((flow) => ({ date: flow.date, cents: flow.gross })), 365)
   const netFlows = flows.map((flow) => ({ date: flow.date, cents: flow.net }))
@@ -69,7 +70,7 @@ export function calculateInvestmentPerformance(input: {
     netMoicDpi: ratio(netDistributions, paidIn),
     grossXirr: gross.value,
     netXirr: net.value,
-    netGain: money(netDistributions - paidIn),
+    netGain: money(netGain),
     holdingPeriodYears: finalDate && firstDate && finalDate >= flows.at(-1)!.date
       ? ((timestamp(finalDate) - timestamp(firstDate)) / (365 * 86_400_000)).toFixed(8) : null,
     rvpi: ratio(residual, paidIn),
