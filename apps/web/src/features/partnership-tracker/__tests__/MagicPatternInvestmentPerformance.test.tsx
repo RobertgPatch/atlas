@@ -24,12 +24,15 @@ describe('Investment Performance', () => {
     })
   })
 
-  it('shows loss signs and n/a rather than misleading zeros for missing inputs', () => {
+  it('floors net gain at zero and shows n/a for missing inputs', () => {
     render(<MagicPatternInvestmentPerformance partnershipName="Missing inputs" performance={{ ...investmentPerformanceFixture,
       committedCapital: null, finalLiquidationDate: null, holdingPeriodYears: null, grossMoic: null, commitmentCalled: null,
       netGain: '-100', grossXirr: null, xirrStatus: { ...investmentPerformanceFixture.xirrStatus, gross: 'INSUFFICIENT_CASH_FLOWS' },
     }} />)
-    expect(screen.getByText('($100)')).toBeInTheDocument()
+    const netGainRow = screen.getByRole('rowheader', { name: 'Net gain / (loss) ($)' }).closest('tr')
+    expect(netGainRow).not.toBeNull()
+    expect(within(netGainRow!).getByText('$0')).toBeInTheDocument()
+    expect(screen.getByText(/minimum of zero/)).toBeInTheDocument()
     expect(screen.getByText('Not recorded')).toBeInTheDocument()
     expect(screen.getByText('No valuation; using $0')).toBeInTheDocument()
     expect(screen.getAllByText('n/a')).toHaveLength(6)

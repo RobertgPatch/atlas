@@ -62,6 +62,20 @@ describe('Investment Performance workbook parity', () => {
     expect(result).toMatchObject({ paidInCapital: '110.0000', grossDistributions: '150.0000', feesAndCarry: '-30.0000', netDistributions: '120.0000', netGain: '10.0000', grossXirr: '0.36363636', netXirr: '0.08333333', tvpi: '1.09090909' })
   })
 
+  it('floors net gain at zero when paid-in capital has no distributions', () => {
+    const result = calculateInvestmentPerformance({ committedCapital: '1000', latestNav: null, cashFlowEvents: [
+      { kind: 'CAPITAL_CALL', activityDate: '2026-01-01', amount: '600.00' },
+      { kind: 'CAPITAL_CALL', activityDate: '2026-06-01', amount: '125.50' },
+    ] })
+
+    expect(result).toMatchObject({
+      paidInCapital: '725.5000',
+      grossDistributions: '0.0000',
+      netDistributions: '0.0000',
+      netGain: '0.0000',
+    })
+  })
+
   it('uses recorded gross distributions for the user-reported whole-dollar figures', () => {
     const result = calculateInvestmentPerformance({ committedCapital: '600000', latestNav: null, cashFlowEvents: [
       { kind: 'CAPITAL_CALL', activityDate: '2021-01-28', amount: '641938.00' },
