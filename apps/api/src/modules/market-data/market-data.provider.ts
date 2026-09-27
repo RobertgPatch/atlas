@@ -78,6 +78,10 @@ const withRetryBudget = (provider: MarketDataProvider): MarketDataProvider =>
   )
 
 export const resolveMarketDataProvider = (): MarketDataProviderResolution => {
+  if (!config.marketData.realTimeEquitiesEnabled) {
+    return { provider: null, warning: null }
+  }
+
   if (config.marketData.provider === 'none') {
     return { provider: null, warning: null }
   }

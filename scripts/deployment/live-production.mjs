@@ -22,7 +22,7 @@ export function releaseEligible({ branch, sha, remoteSha, run }) {
     });
 }
 
-export function candidateTask(task, service, target, image, proxyCidrs) {
+export function candidateTask(task, service, target, image, proxyCidrs, csvStorage) {
   assert.equal(task.family, service.name, 'Unexpected live task family');
   assert.match(image, new RegExp(`^${target.accountId}\\.dkr\\.ecr\\.${target.region}\\.amazonaws\\.com/${target.repository}@sha256:[a-f0-9]{64}$`));
   const fields = ['family', 'taskRoleArn', 'executionRoleArn', 'networkMode', 'containerDefinitions', 'volumes',
@@ -31,12 +31,27 @@ export function candidateTask(task, service, target, image, proxyCidrs) {
   const result = structuredClone(Object.fromEntries(fields.filter(key => task[key] !== undefined).map(key => [key, task[key]])));
   const container = result.containerDefinitions.find(item => item.name === service.container);
   assert.ok(container, 'Expected application container is missing');
-  const current = Object.fromEntries((container.environment ?? []).map(item => [item.name, item.value]));
-  const environment = { ...target.runtimeDefaults, ...current,
+  const retiredProviderKey = (name) => name === 'PROJECT_JACKSON_SCHEDULER_TOKEN'
+    || name.startsWith('PLAID_') || name.startsWith('ABUSE_PLAID_');
+  const current = Object.fromEntries((container.environment ?? [])
+    .filter(item => !retiredProviderKey(item.name))
+    .map(item => [item.name, item.value]));
+  const csvDefaults = csvStorage && service.role === 'api' ? {
+    LIQUIDITY_CSV_UPLOADS_ENABLED: 'true', LIQUIDITY_CSV_PARSING_ENABLED: 'true', LIQUIDITY_CSV_APPLY_ENABLED: 'true',
+    LIQUIDITY_CSV_OBJECT_STORE: 's3', LIQUIDITY_CSV_S3_BUCKET: csvStorage.bucket,
+    LIQUIDITY_CSV_KMS_KEY_ARN: csvStorage.kmsKeyArn, LIQUIDITY_CSV_S3_REGION: target.region,
+  } : {};
+  const environment = { REAL_TIME_EQUITIES_ENABLED: 'false', ...target.runtimeDefaults, ...csvDefaults, ...current,
     ATLAS_RUNTIME: 'production', ATLAS_PROCESS_ROLE: service.role, AWS_REGION: target.region,
     ABUSE_VIEWER_ADDRESS_HEADER: 'cloudfront-viewer-address', ABUSE_REQUIRE_GENERATED_VIEWER_ADDRESS: 'true',
     TRUSTED_PROXY_CIDRS: proxyCidrs.join(',') };
+  assert.ok(['true', 'false'].includes(environment.REAL_TIME_EQUITIES_ENABLED), 'Invalid REAL_TIME_EQUITIES_ENABLED');
+  if (environment.REAL_TIME_EQUITIES_ENABLED === 'false') environment.MARKET_PRICE_SCHEDULER_ENABLED = 'false';
+  if (service.role !== 'api') {
+    environment.LIQUIDITY_CSV_UPLOADS_ENABLED = 'false'; environment.LIQUIDITY_CSV_PARSING_ENABLED = 'false'; environment.LIQUIDITY_CSV_APPLY_ENABLED = 'false';
+  }
   container.environment = Object.entries(environment).map(([name, value]) => ({ name, value }));
+  container.secrets = (container.secrets ?? []).filter(item => !retiredProviderKey(item.name));
   container.image = image;
   if (service.role === 'api') {
     const port = Number(environment.PORT ?? 3000);
@@ -45,6 +60,35 @@ export function candidateTask(task, service, target, image, proxyCidrs) {
       command: ['CMD-SHELL', `node -e "fetch('http://127.0.0.1:${port}/internal/readiness').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"`] };
   }
   return result;
+}
+
+// A separate retained stack avoids touching K-1 resources or the execution role.
+export function liquidityCsvTemplate(target, taskRoleArn) {
+  assert.ok(taskRoleArn.startsWith(`arn:aws:iam::${target.accountId}:role/`), 'Unexpected API task role');
+  const bucket = target.liquidityCsv.bucket;
+  const objectArn = `arn:aws:s3:::${bucket}/liquidity-csv/*`;
+  return { AWSTemplateFormatVersion: '2010-09-09', Resources: {
+    CsvKey: { Type: 'AWS::KMS::Key', DeletionPolicy: 'Retain', UpdateReplacePolicy: 'Retain', Properties: {
+      EnableKeyRotation: true, Description: 'Liquidity CSV originals', KeyPolicy: { Version: '2012-10-17', Statement: [
+        { Effect: 'Allow', Principal: { AWS: `arn:aws:iam::${target.accountId}:root` }, Action: 'kms:*', Resource: '*' },
+      ] } } },
+    CsvBucket: { Type: 'AWS::S3::Bucket', DeletionPolicy: 'Retain', UpdateReplacePolicy: 'Retain', Properties: {
+      BucketName: bucket, OwnershipControls: { Rules: [{ ObjectOwnership: 'BucketOwnerEnforced' }] },
+      PublicAccessBlockConfiguration: { BlockPublicAcls: true, IgnorePublicAcls: true, BlockPublicPolicy: true, RestrictPublicBuckets: true },
+      VersioningConfiguration: { Status: 'Enabled' },
+      BucketEncryption: { ServerSideEncryptionConfiguration: [{ ServerSideEncryptionByDefault: { SSEAlgorithm: 'aws:kms', KMSMasterKeyID: { 'Fn::GetAtt': ['CsvKey', 'Arn'] } }, BucketKeyEnabled: true }] },
+      CorsConfiguration: { CorsRules: [{ AllowedOrigins: [`https://${target.domain}`], AllowedMethods: ['PUT'],
+        AllowedHeaders: ['content-type', 'if-none-match', 'x-amz-checksum-sha256', 'x-amz-server-side-encryption', 'x-amz-server-side-encryption-aws-kms-key-id'], ExposedHeaders: ['x-amz-version-id', 'etag'], MaxAge: 300 }] },
+    } },
+    CsvPolicy: { Type: 'AWS::S3::BucketPolicy', Properties: { Bucket: { Ref: 'CsvBucket' }, PolicyDocument: { Version: '2012-10-17', Statement: [
+      { Sid: 'RequireTLS', Effect: 'Deny', Principal: '*', Action: 's3:*', Resource: [`arn:aws:s3:::${bucket}`, `arn:aws:s3:::${bucket}/*`], Condition: { Bool: { 'aws:SecureTransport': 'false' } } },
+      { Sid: 'RequireConditionalCreate', Effect: 'Deny', Principal: '*', Action: 's3:PutObject', Resource: objectArn, Condition: { Null: { 's3:if-none-match': 'true' } } },
+    ] } } },
+    CsvAccess: { Type: 'AWS::IAM::Policy', Properties: { PolicyName: 'liquidity-csv-originals', Roles: [taskRoleArn.split('/').at(-1)], PolicyDocument: { Version: '2012-10-17', Statement: [
+      { Effect: 'Allow', Action: ['s3:PutObject', 's3:GetObject', 's3:GetObjectVersion'], Resource: objectArn },
+      { Effect: 'Allow', Action: ['kms:GenerateDataKey', 'kms:Decrypt'], Resource: { 'Fn::GetAtt': ['CsvKey', 'Arn'] }, Condition: { StringEquals: { 'kms:ViaService': `s3.${target.region}.amazonaws.com` }, StringLike: { 'kms:EncryptionContext:aws:s3:arn': [`arn:aws:s3:::${bucket}`, objectArn] } } },
+    ] } } },
+  }, Outputs: { Bucket: { Value: { Ref: 'CsvBucket' } }, KmsKeyArn: { Value: { 'Fn::GetAtt': ['CsvKey', 'Arn'] } } } };
 }
 
 export function originRequestPolicy(name, sessionCookie = 'atlas_session') {

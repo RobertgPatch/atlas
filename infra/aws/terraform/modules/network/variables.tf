@@ -29,7 +29,7 @@ variable "api_container_port" {
 }
 
 variable "enable_nat_gateway" {
-  description = "Create a single NAT gateway so private API tasks can reach ECR, Plaid, and AWS APIs."
+  description = "Create a single NAT gateway so private API tasks can reach ECR, market-data providers, and AWS APIs."
   type        = bool
 }
 

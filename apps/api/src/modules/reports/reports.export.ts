@@ -7,7 +7,9 @@ import type {
 import { reportsRepository, type ReportsScope } from './reports.repository.js'
 import { config } from '../../config.js'
 
-type ExportCell = string | number | boolean | null
+type ExportCell = string | number | boolean | null | { decimal: string }
+const exactCell = (value: string | null | undefined, fallback: number | null): ExportCell => value == null ? fallback : { decimal: value }
+export const safeExportText = (value: string): string => /^[\s\u0000-\u001f]*[=+\-@]|^[\t\r\n]/.test(value) ? `'${value}` : value
 
 interface TabularExportData {
   headers: string[]
@@ -26,7 +28,7 @@ const XLSX_MIME_TYPE =
 
 const toCsvCell = (value: ExportCell): string => {
   if (value == null) return ''
-  const str = String(value)
+  const str = typeof value === 'object' ? value.decimal : typeof value === 'string' ? safeExportText(value) : String(value)
   if (!/[",\n\r]/.test(str)) return str
   return `"${str.replace(/"/g, '""')}"`
 }
@@ -49,7 +51,7 @@ const toXlsxBuffer = async (
 
   worksheet.addRow(headers)
   for (const row of rows) {
-    worksheet.addRow(row)
+    worksheet.addRow(row.map(value => value && typeof value === 'object' ? value.decimal : typeof value === 'string' ? safeExportText(value) : value))
   }
 
   worksheet.views = [{ state: 'frozen', ySplit: 1 }]
@@ -314,32 +316,37 @@ const buildConsolidatedHoldingsExportData = async (
         : (query.sort as 'symbol' | 'type' | 'quantity' | 'costBasis' | 'unrealizedGainLoss' | 'marketValue'),
     direction: query.direction === undefined ? 'desc' : query.direction,
     page: 1,
-    pageSize: 250,
-    pricingMode: 'refresh',
+    pageSize: config.abuseProtection.payloadLimits.exportRows,
+    pricingMode: 'saved',
   }, {
     actorUserId,
     scope,
   })
 
   const rows: ExportCell[][] = []
+  if (response.rows.length < response.page.total) throw Object.assign(new Error('EXPORT_ROW_LIMIT_EXCEEDED'), { code: 'EXPORT_ROW_LIMIT_EXCEEDED' })
   for (const row of response.rows) {
     rows.push([
       'Aggregate',
       row.symbol,
       row.description,
       row.type,
-      row.costBasis,
+      exactCell(row.exact?.costBasis, row.costBasis),
       row.averageCostBasis,
-      row.unrealizedGainLoss,
+      exactCell(row.exact?.unrealizedGainLoss, row.unrealizedGainLoss),
       row.gainLossPercent,
       row.custodianSummary,
-      row.quantity,
-      row.institutionPrice,
+      exactCell(row.exact?.quantity, row.quantity),
+      exactCell(row.exact?.institutionPrice, row.institutionPrice),
       row.priceAsOfDate,
-      row.marketValue,
+      exactCell(row.exact?.marketValue, row.marketValue),
       row.identityConfidence,
       response.sync.dataAsOfDate,
       response.sync.dataFetchedAt,
+      response.pricingCapability.valuationMode,
+      row.currencyCode ?? null,
+      row.basisCoverage?.status ?? null,
+      row.gainCoverage?.status ?? null,
     ])
 
     for (const detail of row.details) {
@@ -348,18 +355,22 @@ const buildConsolidatedHoldingsExportData = async (
         detail.symbol,
         detail.description,
         detail.type,
-        detail.costBasis,
+        exactCell(detail.exact?.costBasis, detail.costBasis),
         detail.averageCostBasis,
-        detail.unrealizedGainLoss,
+        exactCell(detail.exact?.unrealizedGainLoss, detail.unrealizedGainLoss),
         detail.gainLossPercent,
         `${detail.custodian} ${detail.accountName}`,
-        detail.quantity,
-        detail.institutionPrice,
+        exactCell(detail.exact?.quantity, detail.quantity),
+        exactCell(detail.exact?.institutionPrice, detail.institutionPrice),
         detail.priceAsOfDate,
-        detail.marketValue,
+        exactCell(detail.exact?.marketValue, detail.marketValue),
         '',
-        response.sync.dataAsOfDate,
+        detail.sourceAsOfDate ?? response.sync.dataAsOfDate,
         response.sync.dataFetchedAt,
+        response.pricingCapability.valuationMode,
+        detail.currencyCode ?? null,
+        detail.costBasis == null ? 'UNAVAILABLE' : 'COMPLETE',
+        detail.unrealizedGainLoss == null ? 'UNAVAILABLE' : 'COMPLETE',
       ])
     }
   }
@@ -382,6 +393,10 @@ const buildConsolidatedHoldingsExportData = async (
       'Identity Confidence',
       'Snapshot Data As Of',
       'Snapshot Fetched At',
+      'Valuation Mode',
+      'Currency',
+      'Basis Coverage',
+      'Gain Coverage',
     ],
     rows,
   }

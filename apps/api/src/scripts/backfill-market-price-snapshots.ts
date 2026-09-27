@@ -3,7 +3,6 @@ import { config } from "../config.js";
 import { pool } from "../infra/db/client.js";
 import { runMigrations } from "../infra/db/migrate.js";
 import { marketDataService } from "../modules/market-data/market-data.service.js";
-import { plaidRepository } from "../modules/plaid/plaid.repository.js";
 import {
   createServiceCostSubjects,
   runCostWorkload,
@@ -159,7 +158,6 @@ export const runBackfill = async (
     },
     async () => {
       await runMigrations((message) => console.info(message));
-      await plaidRepository.bootstrapFromDatabase();
 
       let saved = 0;
       let skipped = 0;

@@ -37,10 +37,12 @@ function GainLossCell({
   value,
   percent,
   status,
+  currency = 'USD',
 }: {
   value: number | null
   percent: number | null
   status: 'complete' | 'partial' | 'missing'
+  currency?: string
 }) {
   if (status === 'missing' || value == null) {
     return <span className="text-sm text-gray-400">N/A</span>
@@ -54,7 +56,7 @@ function GainLossCell({
     <div className="flex flex-col items-end">
       <div className="flex items-center gap-1">
         <span className={`text-sm font-medium ${color}`}>
-          {formatCurrencyWithCents(value)}
+          {formatCurrencyWithCents(value,currency)}
         </span>
         {status === 'partial' && (
           <AlertCircleIcon className="h-3.5 w-3.5 text-amber-400" />
@@ -135,7 +137,7 @@ export function ConsolidatedHoldingsRow({
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
           {row.costBasis !== null ? (
             <div>
-              <div>{formatCurrencyWithCents(row.costBasis)}</div>
+              <div>{formatCurrencyWithCents(row.costBasis,row.currencyCode??'USD')}</div>
               {costBasisStatus === 'partial' ? (
                 <div className="mt-0.5 flex items-center justify-end gap-1">
                   <AlertCircleIcon className="h-3 w-3 text-amber-400" />
@@ -145,7 +147,7 @@ export function ConsolidatedHoldingsRow({
                 </div>
               ) : (
                 <div className="text-xs font-normal text-gray-400">
-                  Avg {formatCurrencyWithCents(row.averageCostBasis)}
+                  Avg {formatCurrencyWithCents(row.averageCostBasis,row.currencyCode??'USD')}
                 </div>
               )}
             </div>
@@ -155,6 +157,7 @@ export function ConsolidatedHoldingsRow({
         </td>
         <td className="px-3 py-3.5 text-right">
           <GainLossCell
+            currency={row.currencyCode??'USD'}
             value={row.unrealizedGainLoss}
             percent={row.gainLossPercent}
             status={costBasisStatus}
@@ -172,9 +175,9 @@ export function ConsolidatedHoldingsRow({
           {formatNumber(row.quantity)}
         </td>
         <td className="py-3.5 pl-3 pr-4 text-right text-sm font-semibold text-gray-900">
-          <div>{formatCurrencyWithCents(row.marketValue)}</div>
+          <div>{formatCurrencyWithCents(row.marketValue,row.currencyCode??'USD')}</div>
           <div className="text-xs font-normal text-gray-400">
-            {formatCurrencyWithCents(row.institutionPrice)}{' '}
+            {formatCurrencyWithCents(row.institutionPrice,row.currencyCode??'USD')}{' '}
             {formatPriceDate(row.priceAsOfDate)}
           </div>
         </td>
@@ -200,9 +203,9 @@ export function ConsolidatedHoldingsRow({
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
               {detail.costBasis !== null ? (
                 <div>
-                  <div>{formatCurrencyWithCents(detail.costBasis)}</div>
+                  <div>{formatCurrencyWithCents(detail.costBasis,detail.currencyCode??'USD')}</div>
                   <div className="text-gray-400">
-                    Avg {formatCurrencyWithCents(detail.averageCostBasis)}
+                    Avg {formatCurrencyWithCents(detail.averageCostBasis,detail.currencyCode??'USD')}
                   </div>
                 </div>
               ) : (
@@ -211,6 +214,7 @@ export function ConsolidatedHoldingsRow({
             </td>
             <td className="px-3 py-2.5 text-right">
               <GainLossCell
+                currency={detail.currencyCode??'USD'}
                 value={detail.unrealizedGainLoss}
                 percent={detail.gainLossPercent}
                 status={detail.costBasis == null ? 'missing' : 'complete'}
@@ -225,9 +229,9 @@ export function ConsolidatedHoldingsRow({
               {formatNumber(detail.quantity)}
             </td>
             <td className="py-2.5 pl-3 pr-4 text-right text-xs text-gray-600">
-              <div>{formatCurrencyWithCents(detail.marketValue)}</div>
+              <div>{formatCurrencyWithCents(detail.marketValue,detail.currencyCode??'USD')}</div>
               <div className="text-gray-400">
-                {formatCurrencyWithCents(detail.institutionPrice)}{' '}
+                {formatCurrencyWithCents(detail.institutionPrice,detail.currencyCode??'USD')}{' '}
                 {formatPriceDate(detail.priceAsOfDate)}
               </div>
             </td>

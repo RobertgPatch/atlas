@@ -1,4 +1,4 @@
-import type { PlaidInvestmentAccount, PlaidRefreshPolicy } from './plaid.js'
+import type { Coverage, PricingCapability } from './liquidity-statements.js'
 
 export type ReportView =
   | 'portfolio_summary'
@@ -72,7 +72,24 @@ export interface ConsolidatedHoldingsSyncMetadata {
   nextRefreshAt: string | null
   activeRefreshId: string | null
   refreshing: boolean
-  refreshPolicy: PlaidRefreshPolicy
+  refreshPolicy: { cadence: 'on_demand'; automaticRefreshEnabled: false; manualRefreshEnabled: false }
+}
+
+export interface LiquidityReportAccount {
+  id: string
+  name: string
+  officialName: string | null
+  mask: string | null
+  type: string
+  subtype: string | null
+  custodianName: string
+  selectedForHoldingsReport: boolean
+  syncStatus: 'never_synced' | 'pending' | 'success' | 'failed' | 'needs_user_action'
+  lastSyncedAt: string | null
+  entityId?: string
+  sourceKind?: 'CSV'
+  holdingsAsOfDate?: string | null
+  nextExpectedDate?: string | null
 }
 
 export interface ConsolidatedHoldingsKpis {
@@ -103,6 +120,8 @@ export interface ConsolidatedHoldingsPricingMetadata {
 }
 
 export interface CustodianHoldingDetailRow {
+  currencyCode?: string | null
+  sourceAsOfDate?: string | null
   id: string
   symbol: string | null
   securityIdentifier: string | null
@@ -124,6 +143,9 @@ export interface CustodianHoldingDetailRow {
 }
 
 export interface ConsolidatedHoldingRow {
+  currencyCode?: string | null
+  basisCoverage?: Coverage
+  gainCoverage?: Coverage
   id: string
   symbol: string | null
   securityIdentifier: string | null
@@ -145,6 +167,9 @@ export interface ConsolidatedHoldingRow {
 }
 
 export interface ConsolidatedHoldingsResponse {
+  pricingCapability?: PricingCapability
+  sourceRevision?: string
+  coverage?: { basis: Coverage; gain: Coverage; currencies: string[] }
   kpis: ConsolidatedHoldingsKpis
   rows: ConsolidatedHoldingRow[]
   page: {
@@ -152,7 +177,7 @@ export interface ConsolidatedHoldingsResponse {
     offset: number
     total: number
   }
-  selectedAccounts: PlaidInvestmentAccount[]
+  selectedAccounts: LiquidityReportAccount[]
   pricing: ConsolidatedHoldingsPricingMetadata
   sync: ConsolidatedHoldingsSyncMetadata
 }

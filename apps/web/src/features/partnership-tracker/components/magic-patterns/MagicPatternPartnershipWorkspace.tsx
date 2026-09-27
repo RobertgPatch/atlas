@@ -148,6 +148,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
   const [filter, setFilter] = useState<'all' | 'ANNOUNCED' | 'VALUATION' | K1TrackerCashFlowEvent['kind']>('all')
   const [removing, setRemoving] = useState<K1TrackerCashFlowEvent>()
   const [removingValuation, setRemovingValuation] = useState<PartnershipNavEntry>()
+  const [editingCashFlow, setEditingCashFlow] = useState<K1TrackerCashFlowEvent>()
   const [editingValuation, setEditingValuation] = useState<PartnershipNavEntry>()
   const [settling, setSettling] = useState<K1TrackerCashFlowEvent>()
   const visibleFlows = filter === 'all'
@@ -231,6 +232,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
                       {canEdit && awaitingSettlement ? <button type="button" aria-label={'Settle ' + labels[flow.kind].toLowerCase() + ' announced ' + flow.activityDate} onClick={() => setSettling(flow)} className="min-h-8 rounded border border-emerald-300 bg-emerald-50 px-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2">Settle</button> : null}
+                      {canEdit ? <button type="button" aria-label={'Edit ' + labels[flow.kind].toLowerCase() + ' from ' + flow.activityDate} onClick={() => setEditingCashFlow(flow)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-600 hover:bg-white focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Pencil className="h-3.5 w-3.5" /></button> : null}
                       {canEdit ? <button type="button" aria-label={'Remove ' + labels[flow.kind].toLowerCase() + ' from ' + flow.activityDate} onClick={() => setRemoving(flow)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-500 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2"><Trash2 className="h-3.5 w-3.5" /></button> : null}
                     </div>
                   </td>
@@ -244,6 +246,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
     </MagicCard>
     <MagicPatternInKindPositionsCard events={settledFlows} />
     {drawerOpen ? <MagicPatternCashActivityDrawer open onClose={() => onDrawerOpenChange(false)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} /> : null}
+    {editingCashFlow ? <MagicPatternCashActivityDrawer key={editingCashFlow.id} open onClose={() => setEditingCashFlow(undefined)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} entry={editingCashFlow} /> : null}
     {editingValuation ? <MagicPatternValuationDrawer key={editingValuation.id} open onClose={() => setEditingValuation(undefined)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} entry={editingValuation} /> : null}
     {settling ? <SettlementDialog entry={settling} partnershipId={detail.summary.partnership.id} onClose={() => setSettling(undefined)} /> : null}
     <MagicConfirmDialog open={Boolean(removing)} title={removing ? `Remove the ${labels[removing.kind].toLowerCase()} dated ${date(removing.activityDate)}?` : 'Remove activity?'} description={<>{removing?.settlementStatus === 'ANNOUNCED' ? 'The announced activity will be removed without changing performance figures.' : 'The dated activity will be removed and performance figures will be recalculated without it.'}</>} confirmLabel="Remove activity" pending={actions.deleteCashFlow.isPending} onClose={() => setRemoving(undefined)} onConfirm={async () => { if (!removing) return; await actions.deleteCashFlow.mutateAsync({ id: detail.summary.partnership.id, year: removing.taxYear, cashFlowId: removing.id, expectedUpdatedAt: removing.updatedAt }); setRemoving(undefined) }} />

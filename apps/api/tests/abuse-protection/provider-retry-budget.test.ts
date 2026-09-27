@@ -1,37 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { config } from '../../src/config.js'
 import { RetryBudgetMarketDataProvider } from '../../src/modules/market-data/market-data.provider.js'
 import type { MarketDataProvider } from '../../src/modules/market-data/market-data.types.js'
-import { callPlaidWithRetry } from '../../src/modules/plaid/plaid.client.js'
 
 describe('external provider retry budgets', () => {
-  it('uses one Plaid deadline signal across the finite attempt budget', async () => {
-    const signals: AbortSignal[] = []
-    const operation = vi.fn(async (signal: AbortSignal) => {
-      signals.push(signal)
-      if (signals.length < config.abuseProtection.retryBudgets.plaidMaximumAttempts) {
-        throw Object.assign(new Error('temporary failure'), { response: { status: 503 } })
-      }
-      return 'ok'
-    })
-
-    await expect(callPlaidWithRetry(operation)).resolves.toBe('ok')
-    expect(operation).toHaveBeenCalledTimes(config.abuseProtection.retryBudgets.plaidMaximumAttempts)
-    expect(signals).toHaveLength(config.abuseProtection.retryBudgets.plaidMaximumAttempts)
-    expect(new Set(signals).size).toBe(1)
-    expect(signals[0]).toBeInstanceOf(AbortSignal)
-  })
-
-  it('does not retry non-retryable Plaid failures', async () => {
-    const operation = vi.fn(async (_signal: AbortSignal) => {
-      throw Object.assign(new Error('bad request'), { response: { status: 400 } })
-    })
-
-    await expect(callPlaidWithRetry(operation)).rejects.toThrow('bad request')
-    expect(operation).toHaveBeenCalledTimes(1)
-  })
-
   it('owns one finite retry loop around the complete market-data operation', async () => {
     const getLatestPrices = vi.fn()
       .mockRejectedValueOnce(Object.assign(new Error('provider unavailable'), { status: 503 }))

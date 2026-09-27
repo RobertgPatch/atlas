@@ -1,7 +1,6 @@
 export * from './k1-ingestion.js'
 export * from './review-finalization.js'
 export * from './partnership-management.js'
-export * from './plaid.js'
 export * from './reports.js'
 export * from './tic-registry.js'
 export * from './k1-tracker.js'

@@ -8,7 +8,8 @@ import {
 import { formatCurrencyWithCents } from '../utils/formatters'
 
 interface PortfolioHeroProps {
-  totalValue: number
+  currencyCode?: string
+  totalValue: number | null
   totalCostBasis: number | null
   costBasisIsPartial: boolean
   totalGainLoss: number | null
@@ -25,6 +26,7 @@ export function PortfolioHero({
   totalGainLossPercent,
   totalPositions,
   connectedAccounts,
+  currencyCode = 'USD',
 }: PortfolioHeroProps) {
   const isPositive = (totalGainLoss ?? 0) >= 0
 
@@ -38,7 +40,7 @@ export function PortfolioHero({
         </p>
         <div className="flex flex-wrap items-baseline gap-4">
           <h2 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-            {formatCurrencyWithCents(totalValue)}
+            {formatCurrencyWithCents(totalValue, currencyCode)}
           </h2>
           {totalGainLoss !== null && totalGainLossPercent !== null ? (
             <div
@@ -54,7 +56,7 @@ export function PortfolioHero({
                 <TrendingDownIcon className="h-4 w-4" />
               )}
               {isPositive ? '+' : ''}
-              {formatCurrencyWithCents(totalGainLoss)}
+              {formatCurrencyWithCents(totalGainLoss, currencyCode)}
               <span className="text-xs opacity-80">
                 ({isPositive ? '+' : ''}
                 {totalGainLossPercent.toFixed(2)}%)
@@ -71,7 +73,7 @@ export function PortfolioHero({
             <div>
               <p className="text-xs font-medium text-gray-400">Cost Basis</p>
               <p className="text-sm font-semibold text-white">
-                {formatCurrencyWithCents(totalCostBasis)}
+                {formatCurrencyWithCents(totalCostBasis, currencyCode)}
                 {costBasisIsPartial && (
                   <span className="ml-1 text-xs font-medium text-amber-400">
                     Partial

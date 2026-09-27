@@ -1,11 +1,28 @@
-import type { ProductionReadinessDiagnostic } from '../../../../packages/types/src/plaid.js'
+interface ProductionReadinessDiagnostic {
+  environment: string
+  durablePersistence: { databaseConfigured: boolean; mode: string }
+  schedulerConfigured: boolean
+  operationalReadiness: {
+    databaseReachable: boolean
+    schedulers: { marketPriceEnabled: boolean }
+    worker: { enabled: boolean; desiredCount: number }
+    logs: { configured: boolean; retentionDays: number }
+    alarms: { configured: boolean }
+  }
+  retainedFlowChecks: string[]
+  secretsConfigured: { persistenceSecretKey: boolean; sessionSecret: boolean }
+  secureCookies: { secure: boolean; sameSite: string }
+  allowedOrigin: string
+  rateLimitConfigured: boolean
+  apiCachingPolicy: string
+  scopingStatus: { apiRepositoryScoping: string; postgresRls: string }
+  warnings: string[]
+  checkedAt: string
+}
 
 const secretKeyPatterns = [
   /database_url/i,
   /postgres:\/\/.+@/i,
-  /plaid_secret/i,
-  /access_token/i,
-  /scheduler_token/i,
   /persistence_secret/i,
 ]
 
@@ -21,7 +38,6 @@ export const buildProductionReadinessDiagnosticFixture = (
   operationalReadiness: {
     databaseReachable: true,
     schedulers: {
-      plaidEnabled: true,
       marketPriceEnabled: true,
     },
     worker: {
@@ -47,8 +63,6 @@ export const buildProductionReadinessDiagnosticFixture = (
   secretsConfigured: {
     persistenceSecretKey: true,
     sessionSecret: true,
-    plaidCredentials: true,
-    schedulerToken: true,
   },
   secureCookies: {
     secure: true,

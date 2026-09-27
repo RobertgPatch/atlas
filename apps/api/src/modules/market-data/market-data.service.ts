@@ -1,14 +1,9 @@
 import { config } from '../../config.js'
-import {
-  plaidRepository,
-  type SourceHoldingRecord,
-} from '../plaid/plaid.repository.js'
+import { readLiquiditySources } from '../liquidity-sources/liquidity-source.read.js'
+import type { SourceHoldingRecord } from '../liquidity-sources/liquidity-source.types.js'
+import { decimal,format,multiply,subtract } from '../liquidity-statements/csv/decimal.js'
+import { saveNeutralValuations } from './liquidity-valuation.repository.js'
 import { marketPriceRepository } from './market-data.repository.js'
-import {
-  liquidityValuationRepository,
-  type LiquidityValuationPositionInput,
-  type LiquidityValuationStore,
-} from './liquidity-valuation.repository.js'
 import { resolveMarketDataProvider } from './market-data.provider.js'
 import type {
   HoldingsPricingMetadata,
@@ -22,14 +17,14 @@ import {
 } from '../abuse-protection/costWorkloadAdmission.js'
 
 interface MarketDataServiceOptions {
+  enabled?: boolean | (() => boolean)
   provider: MarketDataProvider | null
   providerWarning?: string | null
   store: MarketPriceStore
   refreshOnRead: boolean
   maxAgeSeconds: number
   now?: () => Date
-  valuationStore?: LiquidityValuationStore
-  getSelectedHoldings?: () => SourceHoldingRecord[]
+  getSelectedHoldings?: () => SourceHoldingRecord[] | Promise<SourceHoldingRecord[]>
 }
 
 export interface PricedHoldingsResult {
@@ -51,10 +46,20 @@ export interface ClosingPriceRefreshResult {
 
 const validPublicSymbol = /^[A-Z0-9][A-Z0-9./-]{0,19}$/
 
+const quoteAfterSource=(holding:SourceHoldingRecord,price:MarketPriceObservation)=>{
+  if(holding.sourceKind!=='CSV')return true
+  if(price.currencyCode && price.currencyCode!=='USD')return false
+  const timestamp=Date.parse(price.providerTimestamp)
+  if(!Number.isFinite(timestamp))return false
+  if(holding.sourceAsOfAt)return timestamp>=Date.parse(holding.sourceAsOfAt)
+  return !holding.sourceAsOfDate || price.providerTimestamp.slice(0,10)>holding.sourceAsOfDate
+}
+
 const normalizedSymbolFor = (holding: SourceHoldingRecord): string | null => {
+  if (holding.sourceKind === 'CSV' && (!holding.quoteEligible || !holding.providerSymbol)) return null
   if (!holding.symbol || holding.quantity == null) return null
   if (holding.currencyCode && holding.currencyCode.toUpperCase() !== 'USD') return null
-  const symbol = holding.symbol.trim().toUpperCase()
+  const symbol = (holding.providerSymbol ?? holding.symbol).trim().toUpperCase()
   return validPublicSymbol.test(symbol) ? symbol : null
 }
 
@@ -102,6 +107,7 @@ const easternTradingDate = (date: Date): string => {
 const roundCurrency = (value: number): number => Math.round(value * 100) / 100
 
 export const createMarketDataService = (options: MarketDataServiceOptions) => {
+  const isEnabled = () => typeof options.enabled === 'function' ? options.enabled() : options.enabled ?? true
   const now = options.now ?? (() => new Date())
   const inFlightRefreshes = new Map<string, Promise<MarketPriceObservation[]>>()
   const inFlightClosingRefreshes = new Map<string, Promise<ClosingPriceRefreshResult>>()
@@ -127,6 +133,22 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       selectedAccountIds?: string[]
     } = {},
   ): Promise<PricedHoldingsResult> => {
+    if (!isEnabled()) {
+      return {
+        holdings: holdings.map((holding) => ({ ...holding })),
+        pricing: {
+          status: holdings.length === 0 ? 'unavailable' : 'fallback',
+          provider: null,
+          feed: null,
+          priceAsOf: null,
+          refreshedAt: null,
+          pricedHoldingCount: 0,
+          fallbackHoldingCount: holdings.length,
+          warnings: ['Real-time equity pricing is disabled; source values are in use.'],
+        },
+      }
+    }
+
     const symbols = [
       ...new Set(
         holdings
@@ -179,7 +201,7 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
           }
         }
         try {
-          await options.store.savePrices(refreshed)
+          if (isEnabled()) await options.store.savePrices(refreshed)
         } catch (error) {
           console.warn(
             JSON.stringify({
@@ -205,7 +227,18 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     const repriced = holdings.map((holding) => {
       const symbol = normalizedSymbolFor(holding)
       const price = symbol ? bySymbol.get(symbol) : undefined
-      if (!price || holding.quantity == null) return { ...holding }
+      if (!isEnabled() || !price || holding.quantity == null || !quoteAfterSource(holding,price)) return { ...holding }
+
+      if (holding.exact) {
+        try {
+          const q=decimal(holding.exact.quantity!),unit=decimal(String(price.price))
+          if(q==null||unit==null)return {...holding}
+          const value=multiply(q,unit),basis=holding.exact.costBasis==null?null:decimal(holding.exact.costBasis)
+          const gain=basis==null?null:subtract(value,basis)
+          usedPrices.push(price)
+          return {...holding,institutionPrice:price.price,marketValue:Number(format(value)),unrealizedGainLoss:gain==null?null:Number(format(gain)),asOfDate:price.providerTimestamp,exact:{...holding.exact,institutionPrice:format(unit),marketValue:format(value),unrealizedGainLoss:gain==null?null:format(gain)}}
+        } catch { return {...holding} }
+      }
 
       usedPrices.push(price)
       const marketValue = roundCurrency(holding.quantity * price.price)
@@ -264,70 +297,9 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       warnings,
     }
 
-    if (request.saveDailySnapshot && options.valuationStore && repriced.length > 0) {
-      const valuationDate = easternTradingDate(now())
-      const valuationKind =
-        usedPrices.length > 0 &&
-        usedPrices.every(
-          (price) =>
-            price.priceType === 'official_close' && price.tradingDate === valuationDate,
-        )
-          ? 'market_close'
-          : 'daily'
-      const positions: LiquidityValuationPositionInput[] = repriced.map((holding) => {
-        const symbol = normalizedSymbolFor(holding)
-        const price = symbol ? bySymbol.get(symbol) : undefined
-        return {
-          sourceHoldingId: holding.id,
-          accountId: holding.accountId,
-          symbol: holding.symbol,
-          description: holding.description,
-          securityType: holding.type,
-          currencyCode: holding.currencyCode,
-          quantity: holding.quantity,
-          costBasis: holding.costBasis,
-          closingPrice: holding.institutionPrice,
-          marketValue: holding.marketValue,
-          unrealizedGainLoss: holding.unrealizedGainLoss,
-          valuationSource: price
-            ? price.priceType === 'official_close'
-              ? 'official_close'
-              : 'market_price'
-            : 'custodian_fallback',
-          provider: price?.provider ?? null,
-          feed: price?.feed ?? null,
-          priceAsOf: price?.providerTimestamp ?? holding.asOfDate,
-        }
-      })
-
-      try {
-        await options.valuationStore.saveSnapshot({
-          valuationKind,
-          tradingDate: valuationDate,
-          selectedAccountIds:
-            request.selectedAccountIds ?? [
-              ...new Set(repriced.map((holding) => holding.accountId)),
-            ],
-          provider: pricing.provider,
-          feed: pricing.feed,
-          priceAsOf: pricing.priceAsOf,
-          capturedAt: now().toISOString(),
-          positions,
-          warnings,
-        })
-      } catch (error) {
-        console.warn(
-          JSON.stringify({
-            event: 'liquidity_daily_valuation_save_failed',
-            errorName: error instanceof Error ? error.name : 'UnknownError',
-          }),
-        )
-        warnings.push(
-          'Current market values were displayed but the daily valuation could not be saved.',
-        )
-      }
+    if (request.saveDailySnapshot && isEnabled() && repriced.some(h=>h.sourceKind==='CSV')) {
+      await saveNeutralValuations(repriced,usedPrices).catch(()=>{warnings.push('Price history could not be recorded.')})
     }
-
     return {
       holdings: repriced,
       pricing,
@@ -337,6 +309,20 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
   const performClosingPriceRefresh = async (
     tradingDate = easternTradingDate(now()),
   ): Promise<ClosingPriceRefreshResult> => {
+    if (!isEnabled()) {
+      return {
+        status: 'skipped',
+        provider: null,
+        tradingDate,
+        requestedSymbolCount: 0,
+        refreshedSymbolCount: 0,
+        valuationSnapshotId: null,
+        valuedHoldingCount: 0,
+        fallbackHoldingCount: 0,
+        warnings: ['Real-time equity pricing is disabled.'],
+      }
+    }
+
     await admitCostWorkload({
       workloadKey: 'market_data_closing_prices',
       method: 'POST',
@@ -363,8 +349,8 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     }
 
     const holdings =
-      options.getSelectedHoldings?.() ??
-      plaidRepository.listSourceHoldingsForSelectedAccounts()
+      await options.getSelectedHoldings?.() ??
+      (await readLiquiditySources({userId:'market-data',isAdmin:true,entityIds:[]})).holdings
     const symbols = [
       ...new Set(
         holdings
@@ -387,6 +373,7 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
     }
 
     const prices = await options.provider.getClosingPrices(symbols, tradingDate)
+    if (!isEnabled()) return {status:'skipped',provider:null,tradingDate,requestedSymbolCount:0,refreshedSymbolCount:0,valuationSnapshotId:null,valuedHoldingCount:0,fallbackHoldingCount:0,warnings:['Real-time equity pricing is disabled.']}
     await options.store.savePrices(prices)
     const closingPrices = latestPricesBySymbol(
       prices.filter(
@@ -408,7 +395,7 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
       }
     }
 
-    const positions: LiquidityValuationPositionInput[] = holdings.map((holding) => {
+    const positions = holdings.map((holding) => {
       const symbol = normalizedSymbolFor(holding)
       const price = symbol ? closingPrices.get(symbol) : undefined
       const marketValue =
@@ -460,30 +447,14 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
           .filter((feed): feed is string => Boolean(feed)),
       ),
     ]
-    const savedSnapshot = options.valuationStore
-      ? await options.valuationStore.saveSnapshot({
-          valuationKind: 'market_close',
-          tradingDate,
-          selectedAccountIds: [
-            ...new Set(holdings.map((holding) => holding.accountId)),
-          ],
-          provider: options.provider.id,
-          feed: usedFeeds.length === 1 ? usedFeeds[0]! : options.provider.feed,
-          priceAsOf: latestIso(
-            usedPrices.map((price) => price.providerTimestamp),
-          ),
-          capturedAt: now().toISOString(),
-          positions,
-          warnings,
-        })
-      : null
+    await saveNeutralValuations(holdings,prices)
     return {
       status: 'success',
       provider: options.provider.id,
       tradingDate,
       requestedSymbolCount: symbols.length,
       refreshedSymbolCount: closingPrices.size,
-      valuationSnapshotId: savedSnapshot?.id ?? null,
+      valuationSnapshotId: null,
       valuedHoldingCount: positions.length,
       fallbackHoldingCount,
       warnings,
@@ -507,10 +478,10 @@ export const createMarketDataService = (options: MarketDataServiceOptions) => {
 const providerResolution = resolveMarketDataProvider()
 
 export const marketDataService = createMarketDataService({
+  enabled: () => config.marketData.realTimeEquitiesEnabled,
   provider: providerResolution.provider,
   providerWarning: providerResolution.warning,
   store: marketPriceRepository,
   refreshOnRead: config.marketData.refreshOnRead,
   maxAgeSeconds: config.marketData.maxAgeSeconds,
-  valuationStore: liquidityValuationRepository,
 })

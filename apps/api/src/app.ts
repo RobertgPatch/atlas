@@ -256,7 +256,6 @@ export const buildApp = () => {
   app.addHook('onRequest', async (request, reply) => {
     if (config.nodeEnv !== 'production') return
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return
-    if (request.url.split('?', 1)[0] === '/v1/admin/plaid-refresh/run') return
     const cookieHeader = request.headers.cookie ?? ''
     const hasSessionCookie = cookieHeader.split(';').some((part) =>
       part.trimStart().startsWith(`${config.sessionCookieName}=`))

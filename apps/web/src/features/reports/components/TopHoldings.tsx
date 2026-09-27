@@ -10,6 +10,7 @@ import { focusRingClassName } from '../../../components/shared/colorRecipes'
 import type { TopHoldingDatum } from '../utils/consolidatedHoldingsAnalytics'
 
 interface TopHoldingsProps {
+  currencyCode?: string
   holdings: TopHoldingDatum[]
 }
 
@@ -47,7 +48,8 @@ const rankingViews: Array<{
   },
 ]
 
-function formatCompactCurrency(value: number): string {
+function formatCompactCurrency(value: number, currencyCode = 'USD'): string {
+  if (currencyCode !== 'USD') return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, notation: 'compact', maximumFractionDigits: 1 }).format(value)
   const absolute = Math.abs(value)
   const formatted =
     absolute >= 1_000_000
@@ -58,8 +60,8 @@ function formatCompactCurrency(value: number): string {
   return value < 0 ? `-${formatted}` : formatted
 }
 
-const formatSignedCurrency = (value: number): string =>
-  `${value > 0 ? '+' : ''}${formatCompactCurrency(value)}`
+const formatSignedCurrency = (value: number, currencyCode = 'USD'): string =>
+  `${value > 0 ? '+' : ''}${formatCompactCurrency(value, currencyCode)}`
 
 const formatSignedPercent = (value: number): string =>
   `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
@@ -96,7 +98,7 @@ const rankHoldings = (
     .slice(0, 5)
 }
 
-export function TopHoldings({ holdings }: TopHoldingsProps) {
+export function TopHoldings({ holdings, currencyCode = 'USD' }: TopHoldingsProps) {
   const [view, setView] = useState<RankingView>('market-value')
   const activeView = rankingViews.find((item) => item.id === view)!
   const rankedHoldings = useMemo(() => rankHoldings(holdings, view), [holdings, view])
@@ -194,10 +196,10 @@ export function TopHoldings({ holdings }: TopHoldingsProps) {
               const isGain = (gainLoss ?? 0) >= 0
               const metric =
                 view === 'market-value'
-                  ? formatCompactCurrency(holding.marketValue)
+                  ? formatCompactCurrency(holding.marketValue, currencyCode)
                   : view === 'return'
                     ? formatSignedPercent(holding.gainLossPercent ?? 0)
-                    : formatSignedCurrency(gainLoss ?? 0)
+                    : formatSignedCurrency(gainLoss ?? 0, currencyCode)
               const metricLabel =
                 view === 'market-value'
                   ? 'Market value'
@@ -298,7 +300,7 @@ export function TopHoldings({ holdings }: TopHoldingsProps) {
                       </span>
                     ) : (
                       <span className="shrink-0 font-medium text-gray-500">
-                        {formatCompactCurrency(holding.marketValue)} value
+                        {formatCompactCurrency(holding.marketValue, currencyCode)} value
                       </span>
                     )}
                   </div>

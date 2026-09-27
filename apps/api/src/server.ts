@@ -1,9 +1,9 @@
 import { buildApp } from './app.js'
+import { csvProcessingService } from './modules/liquidity-statements/csv-processing.service.js'
+import { drainLiquidityOutbox } from './modules/liquidity-sources/liquidity-source-invalidation.service.js'
 import { config, requireProcessRole } from './config.js'
 import { runMigrations } from './infra/db/migrate.js'
 import { authRepository } from './modules/auth/auth.repository.js'
-import { plaidRepository } from './modules/plaid/plaid.repository.js'
-import { plaidRefreshScheduler } from './modules/plaid/plaid.refresh-scheduler.js'
 
 const productionGuardrailWarnings = () => {
   if (config.nodeEnv !== 'production') return []
@@ -24,27 +24,24 @@ const productionGuardrailWarnings = () => {
     config.security.apiSharedCachePolicy === 'no_shared_cache'
       ? null
       : 'API_SHARED_CACHE_POLICY must prevent shared caching for /v1/* responses.',
-    config.plaid.clientId && config.plaid.secret
-      ? null
-      : 'Plaid credentials are not fully configured.',
-    config.marketData.provider !== 'none'
+    !config.marketData.realTimeEquitiesEnabled || config.marketData.provider !== 'none'
       ? null
       : 'MARKET_DATA_PROVIDER is not configured; Liquidity uses custodian prices.',
+    !config.marketData.realTimeEquitiesEnabled ||
     config.marketData.provider !== 'alpaca' ||
     (config.marketData.alpaca.keyId && config.marketData.alpaca.secret)
       ? null
       : 'Alpaca market-data credentials are not fully configured.',
-    !config.marketData.massive.enabled || config.marketData.massive.apiKey
+    !config.marketData.realTimeEquitiesEnabled ||
+    !config.marketData.massive.enabled ||
+    config.marketData.massive.apiKey
       ? null
       : 'Massive OTC fallback is enabled but MASSIVE_MARKET_DATA_API_KEY is missing.',
   ].filter((warning): warning is string => Boolean(warning))
 }
 
 const logStartupDiagnostics = (app: ReturnType<typeof buildApp>) => {
-  const warnings = [
-    ...plaidRefreshScheduler.getSchedulerWarnings(),
-    ...productionGuardrailWarnings(),
-  ]
+  const warnings = productionGuardrailWarnings()
 
   for (const warning of [...new Set(warnings)]) {
     app.log.warn({ diagnostic: 'startup_guardrail' }, warning)
@@ -66,8 +63,11 @@ const start = async () => {
       await runMigrations((msg) => app.log.info(msg))
       app.log.info('[migrate] migrations complete')
       await authRepository.bootstrapFromDatabase()
-      await plaidRepository.bootstrapFromDatabase()
-      app.log.info('[persistence] hydrated auth and Plaid state from Postgres')
+      csvProcessingService.start()
+      const csvOutboxTimer = setInterval(() => { void drainLiquidityOutbox().catch(() => {}) }, 5000)
+      csvOutboxTimer.unref()
+      app.addHook('onClose', async () => { clearInterval(csvOutboxTimer); await csvProcessingService.stop() })
+      app.log.info('[persistence] hydrated auth state from Postgres')
     } else {
       app.log.info('[migrate] DATABASE_URL not set, using in-memory storage')
       if (config.requireDurablePersistence) {

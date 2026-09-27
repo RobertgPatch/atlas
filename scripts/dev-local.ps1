@@ -102,11 +102,6 @@ function Test-LocalDevelopmentBoundary {
     }
   }
 
-  $plaidEnvironment = Get-LocalEnvironmentValue $Environment 'PLAID_ENV'
-  if ($plaidEnvironment -and $plaidEnvironment -ne 'sandbox') {
-    throw 'The local launcher refuses non-sandbox Plaid environments.'
-  }
-
   $alwaysRefusedResources = @(
     'AWS_APP_DOMAIN', 'AWS_CLOUDFRONT_DISTRIBUTION_ID', 'AWS_WEB_ASSETS_BUCKET'
   )
@@ -448,7 +443,6 @@ function Set-CanonicalLocalEnvironment {
     $env:AWS_REGION = 'us-west-2'
   }
   $env:MARKET_DATA_PROVIDER = 'none'
-  if (-not $env:PLAID_ENV) { $env:PLAID_ENV = 'sandbox' }
 }
 
 function Start-LocalDevelopment {

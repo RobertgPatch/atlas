@@ -31,6 +31,7 @@ import {
   listPartnershipTrackerHandler,
   signoffManualYearHandler,
   settleCapitalActivityHandler,
+  updateCapitalActivityHandler,
   updateCommitmentHandler,
   updateManualYearHandler,
   updateNavHandler,
@@ -63,6 +64,7 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   app.delete(`${root}/:partnershipId/nav/:navEntryId`, gated('DELETE', `${canonicalRoot}/:partnershipId/nav/:navEntryId`), deleteNavHandler)
   app.post(`${root}/:partnershipId/cash-flows`, gated('POST', `${canonicalRoot}/:partnershipId/cash-flows`), createCapitalActivityHandler)
   app.post(`${root}/:partnershipId/cash-flows/batch`, gated('POST', `${canonicalRoot}/:partnershipId/cash-flows/batch`), createCapitalActivitiesHandler)
+  app.patch(`${root}/:partnershipId/cash-flows/:cashFlowId`, gated('PATCH', `${canonicalRoot}/:partnershipId/cash-flows/:cashFlowId`), updateCapitalActivityHandler)
   app.patch(`${root}/:partnershipId/cash-flows/:cashFlowId/settlement`, gated('PATCH', `${canonicalRoot}/:partnershipId/cash-flows/:cashFlowId/settlement`), settleCapitalActivityHandler)
   app.delete(`${root}/:partnershipId/cash-flows/:cashFlowId`, gated('DELETE', `${canonicalRoot}/:partnershipId/cash-flows/:cashFlowId`), deleteCapitalActivityHandler)
   app.post(`${root}/:partnershipId/years`, gated('POST', `${canonicalRoot}/:partnershipId/years`), createManualYearHandler)

@@ -72,7 +72,7 @@ workers/schedules, and no web activation. Refuse replay.
 The ordered smoke suite checks edge home/assets; anonymous and authenticated
 session boundaries; dashboard; saved liquidity; investment aggregation; TIC
 properties; entity list/detail; readiness; and logout. It permits only reads
-plus session login/logout. It must never refresh Plaid/market providers, upload,
+plus session login/logout. It must never refresh market providers, upload,
 export, backfill, or mutate business data. Credentials and MFA are entered
 securely and never written to evidence.
 

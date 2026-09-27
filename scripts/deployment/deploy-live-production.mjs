@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
-import { releaseEligible, candidateTask, candidateDistribution, originRequestPolicy, waitForService, bootstrapTemplate } from './live-production.mjs';
+import { releaseEligible, candidateTask, candidateDistribution, originRequestPolicy, waitForService, bootstrapTemplate, liquidityCsvTemplate } from './live-production.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 let target = JSON.parse(readFileSync(resolve(root, 'infra/aws/live-production-target.json'), 'utf8'));
@@ -199,8 +199,19 @@ async function main() {
   assert.ok(superAdminSecretArn?.startsWith(`arn:aws:secretsmanager:${target.region}:${target.accountId}:secret:${target.superAdminSecretName}-`));
   const runtimeReports = [];
 
+  const csvFile = resolve(releaseDirectory, 'liquidity-csv.json');
+  save(csvFile, liquidityCsvTemplate(target, live.definitions[target.services[0].name].taskRoleArn));
+  command(awsCli, ['cloudformation', 'deploy', '--profile', profile, '--region', target.region,
+    '--stack-name', target.liquidityCsv.stack, '--template-file', csvFile, '--capabilities', 'CAPABILITY_NAMED_IAM',
+    '--no-fail-on-empty-changeset'], { inherit: true });
+  const csvOutputs = aws('cloudformation', 'describe-stacks', '--stack-name', target.liquidityCsv.stack).Stacks[0].Outputs;
+  const csvStorage = { bucket: csvOutputs.find(item => item.OutputKey === 'Bucket')?.OutputValue,
+    kmsKeyArn: csvOutputs.find(item => item.OutputKey === 'KmsKeyArn')?.OutputValue };
+  assert.equal(csvStorage.bucket, target.liquidityCsv.bucket);
+  assert.ok(csvStorage.kmsKeyArn?.startsWith(`arn:aws:kms:${target.region}:${target.accountId}:key/`));
+
   for (const spec of target.services) {
-    const task = candidateTask(live.definitions[spec.name], spec, target, image, live.proxyCidrs);
+    const task = candidateTask(live.definitions[spec.name], spec, target, image, live.proxyCidrs, csvStorage);
     if (spec.role === 'api') {
       const container = task.containerDefinitions.find(item => item.name === spec.container);
       container.secrets = [...(container.secrets ?? []).filter(item => item.name !== 'SUPER_ADMIN_PASSWORD'),

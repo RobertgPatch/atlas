@@ -1,9 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { K1TrackerCashFlowEvent } from '../../../../../../packages/types/src/k1-tracker'
 import { MagicPatternCashActivityDrawer } from '../components/magic-patterns/MagicPatternOperationalDrawers'
 
 const mutations = vi.hoisted(() => ({
   createCashFlows: vi.fn().mockResolvedValue({ created: [] }),
+  updateCashFlow: vi.fn().mockResolvedValue({ id: 'cash-flow-1' }),
   createNav: vi.fn().mockResolvedValue({ id: 'valuation-1' }),
   createYear: vi.fn().mockResolvedValue({ taxYear: 2026 }),
 }))
@@ -11,6 +13,7 @@ const mutations = vi.hoisted(() => ({
 vi.mock('../hooks/usePartnershipTracker', () => ({
   usePartnershipTrackerActions: () => ({
     createCashFlows: { mutateAsync: mutations.createCashFlows, isPending: false },
+    updateCashFlow: { mutateAsync: mutations.updateCashFlow, isPending: false },
     createNav: { mutateAsync: mutations.createNav, isPending: false },
     createYear: { mutateAsync: mutations.createYear, isPending: false },
   }),
@@ -60,6 +63,7 @@ describe('MagicPatternCashActivityDrawer', () => {
 
   beforeEach(() => {
     mutations.createCashFlows.mockClear()
+    mutations.updateCashFlow.mockClear()
     mutations.createNav.mockClear()
     mutations.createYear.mockClear()
   })
@@ -90,6 +94,66 @@ describe('MagicPatternCashActivityDrawer', () => {
       },
     }))
     expect(mutations.createYear).not.toHaveBeenCalled()
+  })
+
+  it('loads and updates every editable field for an existing capital activity', async () => {
+    const entry: K1TrackerCashFlowEvent = {
+      id: 'cash-flow-1',
+      partnershipId: 'partnership-1',
+      taxYear: 2026,
+      kind: 'DISTRIBUTION',
+      activityDate: '2026-06-30',
+      amount: '45000.0000',
+      feesAndCarry: '500.0000',
+      settlementStatus: 'SETTLED',
+      announcedDate: null,
+      isFinalLiquidation: false,
+      note: 'Source: Manager notice — Original note',
+      createdAt: '2026-07-01T00:00:00.000Z',
+      updatedAt: '2026-07-02T00:00:00.000Z',
+    }
+    render(
+      <MagicPatternCashActivityDrawer
+        open
+        onClose={vi.fn()}
+        partnershipId="partnership-1"
+        fundName="AC Bell Investors, LLC"
+        entry={entry}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Edit capital activity' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add another activity' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/Activity type/)).toHaveValue('DISTRIBUTION')
+    expect(screen.getByLabelText(/Activity date/)).toHaveValue('2026-06-30')
+    expect(screen.getByLabelText(/Amount \(USD\)/)).toHaveValue('45000.0000')
+    expect(screen.getByLabelText(/Fees & carry \(USD\)/)).toHaveValue('500.0000')
+    expect(screen.getByLabelText(/^Source/)).toHaveValue('Manager notice')
+    expect(screen.getByLabelText(/^Note/)).toHaveValue('Original note')
+
+    fireEvent.change(screen.getByLabelText(/Activity type/), { target: { value: 'CAPITAL_CALL' } })
+    fireEvent.change(screen.getByLabelText(/Activity date/), { target: { value: '2026-07-15' } })
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: '50000' } })
+    fireEvent.change(screen.getByLabelText(/Fees & carry \(USD\)/), { target: { value: '250' } })
+    fireEvent.change(screen.getByLabelText(/^Note/), { target: { value: 'Corrected amount' } })
+    fireEvent.click(screen.getByRole('radio', { name: /Announced - awaiting settlement/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(mutations.updateCashFlow).toHaveBeenCalledWith({
+      id: 'partnership-1',
+      cashFlowId: 'cash-flow-1',
+      body: {
+        kind: 'CAPITAL_CALL',
+        activityDate: '2026-07-15',
+        amount: '50000.00',
+        feesAndCarry: '250',
+        isFinalLiquidation: false,
+        settlementStatus: 'ANNOUNCED',
+        note: 'Source: Manager notice — Corrected amount',
+        expectedUpdatedAt: '2026-07-02T00:00:00.000Z',
+      },
+    }))
+    expect(mutations.createCashFlows).not.toHaveBeenCalled()
   })
 
   it('records a capital call and distribution together in one batch', async () => {

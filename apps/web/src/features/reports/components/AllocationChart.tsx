@@ -10,6 +10,7 @@ import {
 } from '../utils/consolidatedHoldingsAnalytics'
 
 interface AllocationChartProps {
+  currencyCode?: string
   assetData: AllocationDatum[]
   sectorData: AllocationDatum[]
   selectedSectors: EquitySector[]
@@ -18,7 +19,8 @@ interface AllocationChartProps {
 
 type AllocationView = 'asset' | 'sector'
 
-function formatCompactCurrency(value: number): string {
+function formatCompactCurrency(value: number, currencyCode = 'USD'): string {
+  if (currencyCode !== 'USD') return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, notation: 'compact', maximumFractionDigits: 1 }).format(value)
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
   if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}K`
   return `$${Math.round(value).toLocaleString()}`
@@ -75,6 +77,7 @@ function DonutChart({
 }
 
 export function AllocationChart({
+  currencyCode = 'USD',
   assetData,
   sectorData,
   selectedSectors,
@@ -168,7 +171,7 @@ export function AllocationChart({
                   className="mt-0.5 block text-xs font-medium tabular-nums text-gray-700"
                   aria-live="polite"
                 >
-                  Selected total: {formatCompactCurrency(selectedSectorValue)} ·{' '}
+                  Selected total: {formatCompactCurrency(selectedSectorValue, currencyCode)} ·{' '}
                   {selectedPercentage.toFixed(1)}%
                 </span>
               </div>
@@ -237,7 +240,7 @@ export function AllocationChart({
                         {sectorDatum ? `${sectorDatum.percentage.toFixed(1)}%` : '0.0%'}
                       </span>
                       <span className="block text-[10px] tabular-nums text-gray-400">
-                        {formatCompactCurrency(sectorDatum?.value ?? 0)}
+                        {formatCompactCurrency(sectorDatum?.value ?? 0, currencyCode)}
                       </span>
                     </span>
                   </label>
@@ -284,7 +287,7 @@ export function AllocationChart({
                       {datum.percentage.toFixed(1)}%
                     </span>
                     <span className="ml-2 text-xs text-gray-400">
-                      {formatCompactCurrency(datum.value)}
+                      {formatCompactCurrency(datum.value, currencyCode)}
                     </span>
                   </div>
                 </div>

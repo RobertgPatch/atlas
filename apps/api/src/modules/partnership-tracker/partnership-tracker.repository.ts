@@ -20,6 +20,7 @@ import type {
   PartnershipTrackerSummary,
   PartnershipTrackerWorkflowStatus,
   PartnershipType,
+  UpdatePartnershipCashFlowRequest,
 } from './partnership-tracker.contracts.js'
 import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
 import { composePartnershipAggregation } from './partnership-aggregation.js'
@@ -743,6 +744,9 @@ export const partnershipTrackerRepository = {
   },
   createCapitalActivities(partnershipId: string, entries: CreatePartnershipCashFlowRequest[], actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.createOperationalCashFlows(partnershipId, entries, actorUserId, scope)
+  },
+  updateCapitalActivity(partnershipId: string, cashFlowId: string, body: UpdatePartnershipCashFlowRequest, actorUserId: string, scope: PartnershipTrackerScope) {
+    return k1TrackerRepository.updateOperationalCashFlow(partnershipId, cashFlowId, body, actorUserId, scope)
   },
   settleCapitalActivity(partnershipId: string, cashFlowId: string, settlementDate: string, expectedUpdatedAt: string, actorUserId: string, scope: PartnershipTrackerScope) {
     return k1TrackerRepository.settleOperationalCashFlow(partnershipId, cashFlowId, settlementDate, expectedUpdatedAt, actorUserId, scope)

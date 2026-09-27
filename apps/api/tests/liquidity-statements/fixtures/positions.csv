@@ -1,0 +1,9 @@
+"Positions for account Synthetic ...1234 as of 09/01/2026 04:00 PM ET"
+
+Symbol,Description,Qty (Quantity),Price,Mkt Val (Market Value),Cost Basis,Gain $ (Gain/Loss $),Gain % (Gain/Loss %),Day Chng $ (Day Change $),Asset Type
+DEMO,"Synthetic, quoted equity",10,$80.00,$800.00,"$1,000.00",($200.00),-20.00%,N/A,Equity
+UNKNOWN,Synthetic incomplete equity,2,$50.00,$100.00,Incomplete,N/A,N/A,N/A,Equity
+SWEEP,Synthetic money market,50,$1.00,$50.00,N/A,$0.00,0.00%,N/A,Cash and Money Market
+SWEEP,Synthetic second sweep,25,$1.00,$25.00,N/A,$0.00,0.00%,N/A,Cash and Money Market
+Cash & Cash Investments,,,,125.00,N/A,N/A,N/A,N/A,Cash and Money Market
+Positions Total,,,,1100.00,,,,,

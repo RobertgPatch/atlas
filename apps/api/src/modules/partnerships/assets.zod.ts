@@ -3,7 +3,7 @@ import { z } from 'zod'
 const uuidSchema = z.string().uuid()
 const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Must be YYYY-MM-DD')
 
-export const partnershipAssetSourceSchema = z.enum(['manual', 'imported', 'plaid'])
+export const partnershipAssetSourceSchema = z.enum(['manual', 'imported'])
 
 export const partnershipAssetCategorySchema = z.enum([
   'real_estate',
@@ -21,7 +21,6 @@ export const assetFmvSourceSchema = z.enum([
   'valuation_409a',
   'k1',
   'imported',
-  'plaid',
 ])
 
 export const partnershipAssetParamsSchema = z.object({

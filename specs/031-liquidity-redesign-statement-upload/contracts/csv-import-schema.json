@@ -1,0 +1,496 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://projectjackson.family/schemas/liquidity-csv-import-v2.json",
+  "title": "Canonical liquidity CSV parse result",
+  "description": "Untrusted deterministic draft. No provider/confidence/page fields. Review and exact semantic validation are required before publication.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "adapter",
+    "sourceHash",
+    "recordCounts",
+    "accounts",
+    "issues"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "2.0.0"
+    },
+    "adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "positions_v1",
+            "merrill_holdings_v1",
+            "mapped_csv_v1"
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "sourceHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "recordCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "positions",
+        "controls",
+        "metadata",
+        "headers",
+        "blanks",
+        "unsupported"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "positions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "controls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "metadata": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unsupported": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "headers": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blanks": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "description": "Every parsed logical record has exactly one disposition; total equals the sum of positions, controls, metadata, headers, blanks and unsupported. Width/quote/encoding failures are explicit issues, never silently dropped records."
+    },
+    "accounts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/Account"
+      }
+    },
+    "issues": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/Issue"
+      }
+    }
+  },
+  "$defs": {
+    "Evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "record",
+        "lineStart",
+        "lineEnd",
+        "column",
+        "header"
+      ],
+      "properties": {
+        "record": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lineStart": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lineEnd": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "column": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "header": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "Derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "version",
+        "operands",
+        "estimated"
+      ],
+      "properties": {
+        "rule": {
+          "enum": [
+            "BASIS_FROM_VALUE_GAIN",
+            "GAIN_FROM_VALUE_BASIS",
+            "PERCENT_FROM_GAIN_BASIS",
+            "BASIS_FROM_PERCENT_ESTIMATE",
+            "CASH_AT_PAR",
+            "CASH_VALUE_BASIS",
+            "AVERAGE_UNIT_BASIS",
+            "VERIFIED_QUANTITY_PRICE"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "operands": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "estimated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "raw",
+        "origin",
+        "availability",
+        "evidence",
+        "derivation",
+        "reason"
+      ],
+      "properties": {
+        "value": {
+          "type": [
+            "string",
+            "boolean",
+            "null"
+          ]
+        },
+        "raw": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "origin": {
+          "enum": [
+            "IMPORTED",
+            "DERIVED",
+            "REVIEWED",
+            "UNAVAILABLE"
+          ]
+        },
+        "availability": {
+          "enum": [
+            "COMPLETE",
+            "INCOMPLETE",
+            "UNAVAILABLE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          }
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Derivation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "Semantic validation requires derivation for DERIVED, evidence for IMPORTED and null for unavailable fields."
+    },
+    "DecimalField": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/Field"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$"
+            }
+          }
+        }
+      ]
+    },
+    "RatioField": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/Field"
+        },
+        {
+          "properties": {
+            "value": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^-?(0|[1-9][0-9]{0,15})([.][0-9]{1,12})?$"
+            }
+          }
+        }
+      ]
+    },
+    "Account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrenceId",
+        "displayName",
+        "accountMask",
+        "currency",
+        "asOfDate",
+        "asOfAt",
+        "sourceZone",
+        "asOfPrecision",
+        "reportedTotal",
+        "positions"
+      ],
+      "properties": {
+        "occurrenceId": {
+          "type": "string"
+        },
+        "displayName": {
+          "$ref": "#/$defs/Field"
+        },
+        "accountMask": {
+          "$ref": "#/$defs/Field"
+        },
+        "currency": {
+          "$ref": "#/$defs/Field"
+        },
+        "asOfDate": {
+          "$ref": "#/$defs/Field"
+        },
+        "asOfAt": {
+          "$ref": "#/$defs/Field"
+        },
+        "sourceZone": {
+          "$ref": "#/$defs/Field"
+        },
+        "asOfPrecision": {
+          "enum": [
+            "DATE",
+            "INSTANT",
+            "UNRESOLVED"
+          ]
+        },
+        "reportedTotal": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "positions": {
+          "type": "array",
+          "maxItems": 25000,
+          "items": {
+            "$ref": "#/$defs/Position"
+          }
+        },
+        "reportedBasis": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "reportedGain": {
+          "$ref": "#/$defs/DecimalField"
+        }
+      }
+    },
+    "Position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrenceId",
+        "sourceRecord",
+        "description",
+        "symbol",
+        "cusip",
+        "brokerSecurityId",
+        "assetType",
+        "currency",
+        "quantity",
+        "price",
+        "marketValue",
+        "costBasis",
+        "unrealizedGainLoss",
+        "unrealizedGainLossRatio",
+        "dayChange",
+        "accruedInterest"
+      ],
+      "properties": {
+        "occurrenceId": {
+          "type": "string"
+        },
+        "sourceRecord": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "description": {
+          "$ref": "#/$defs/Field"
+        },
+        "symbol": {
+          "$ref": "#/$defs/Field"
+        },
+        "cusip": {
+          "$ref": "#/$defs/Field"
+        },
+        "isin": {
+          "$ref": "#/$defs/Field"
+        },
+        "brokerSecurityId": {
+          "$ref": "#/$defs/Field"
+        },
+        "assetType": {
+          "$ref": "#/$defs/Field"
+        },
+        "currency": {
+          "$ref": "#/$defs/Field"
+        },
+        "quantity": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "price": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "marketValue": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "costBasis": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "unrealizedGainLoss": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "unrealizedGainLossRatio": {
+          "$ref": "#/$defs/RatioField"
+        },
+        "dayChange": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "dayChangeRatio": {
+          "$ref": "#/$defs/RatioField"
+        },
+        "accruedInterest": {
+          "$ref": "#/$defs/DecimalField"
+        },
+        "sourceAssetType": {
+          "$ref": "#/$defs/Field"
+        },
+        "quoteMultiplier": {
+          "$ref": "#/$defs/DecimalField"
+        }
+      }
+    },
+    "Issue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "severity",
+        "accountOccurrenceId",
+        "fieldPath",
+        "sourceRecords"
+      ],
+      "properties": {
+        "code": {
+          "enum": [
+            "UNKNOWN_LAYOUT",
+            "MALFORMED_RECORD",
+            "UNSUPPORTED_RECORD",
+            "AMBIGUOUS_ACCOUNT",
+            "MISSING_DATE",
+            "AMBIGUOUS_DATE_ORDER",
+            "MISSING_CURRENCY",
+            "MISSING_VALUE",
+            "UNKNOWN_ASSET_TYPE",
+            "DUPLICATE_ROW",
+            "INCOMPLETE_BASIS",
+            "MISSING_BASIS",
+            "MISSING_DAY_CHANGE",
+            "TOTAL_NOT_PROVIDED",
+            "TOTAL_MISMATCH",
+            "FIELD_ARITHMETIC_MISMATCH",
+            "PERCENT_MISMATCH",
+            "ESTIMATED_BASIS",
+            "PARTIAL_SOURCE_COVERAGE",
+            "PARTIAL_EXPORT",
+            "EMPTY_ACCOUNT_CONFIRMATION",
+            "UNSUPPORTED_VALUATION_CONVENTION"
+          ]
+        },
+        "severity": {
+          "enum": [
+            "INFO",
+            "WARNING",
+            "BLOCKING"
+          ]
+        },
+        "accountOccurrenceId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fieldPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sourceRecords": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}

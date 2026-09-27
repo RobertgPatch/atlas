@@ -24,8 +24,6 @@ import type {
   MarketDataProvider,
   MarketPriceObservation,
 } from '../../src/modules/market-data/market-data.types.js'
-import { plaidApi } from '../../src/modules/plaid/plaid.client.js'
-import { plaidRepository } from '../../src/modules/plaid/plaid.repository.js'
 import { reportsExport } from '../../src/modules/reports/reports.export.js'
 import { marketDataService } from '../../src/modules/market-data/market-data.service.js'
 import { runBackfill } from '../../src/scripts/backfill-market-price-snapshots.js'
@@ -63,8 +61,6 @@ const holding = () => ({
   id: randomUUID(),
   syncSnapshotId: randomUUID(),
   accountId: randomUUID(),
-  plaidAccountId: 'plaid-account-test',
-  plaidSecurityId: 'plaid-security-test',
   symbol: 'AAPL',
   description: 'Apple Inc.',
   type: 'equity',
@@ -79,6 +75,18 @@ const holding = () => ({
   marketValue: 1_500,
   unrealizedGainLoss: 500,
   asOfDate: '2026-08-24',
+  sourceKind: 'CSV' as const,
+  sourceAsOfDate: '2026-08-24',
+  sourceAsOfAt: '2026-08-24T20:00:00.000Z',
+  quoteEligible: true,
+  providerSymbol: 'AAPL',
+  exact: {
+    quantity: '10',
+    costBasis: '1000',
+    institutionPrice: '150',
+    marketValue: '1500',
+    unrealizedGainLoss: '500',
+  },
 })
 
 const closingPrice = (): MarketPriceObservation => ({
@@ -102,15 +110,11 @@ describe.each(decisionCases)(
     let sideEffects: SideEffectTracker
     let fixture: TestFixture | null
     let admitSpy: ReturnType<typeof vi.spyOn>
-    let originalPlaidClientId: string
-    let originalPlaidSecret: string
     let originalDatabaseUrl: string
 
     beforeEach(() => {
       fixture = null
       sideEffects = createSideEffectTracker()
-      originalPlaidClientId = config.plaid.clientId
-      originalPlaidSecret = config.plaid.secret
       originalDatabaseUrl = config.databaseUrl
       admitSpy = vi.spyOn(admissionService, 'admit').mockImplementation(
         async (request: AdmissionRequest) => blockedDecision(decision, request),
@@ -118,10 +122,6 @@ describe.each(decisionCases)(
     })
 
     afterEach(async () => {
-      Object.assign(config.plaid, {
-        clientId: originalPlaidClientId,
-        secret: originalPlaidSecret,
-      })
       Object.assign(config, { databaseUrl: originalDatabaseUrl })
       await fixture?.app.close()
       vi.restoreAllMocks()
@@ -243,34 +243,6 @@ describe.each(decisionCases)(
       )
     })
 
-    it('blocks Plaid before provider calls', async () => {
-      fixture = await createTestFixture()
-      Object.assign(config.plaid, {
-        clientId: 'test-client-id',
-        secret: 'test-secret',
-      })
-      const provider = createProviderSpy<unknown, unknown>({
-        sideEffects,
-        implementation: async () => ({
-          data: {
-            link_token: 'link-test-token',
-            expiration: '2026-08-25T12:30:00.000Z',
-          },
-        }),
-      })
-      vi.spyOn(plaidApi, 'linkTokenCreate').mockImplementation(
-        async (input) => provider.invoke(input) as never,
-      )
-
-      await assertBlockedBeforeEffects('Plaid link-token creation', 'plaid_refresh', () =>
-        fixture!.app.inject({
-          method: 'POST',
-          url: '/v1/plaid/link-token',
-          headers: { cookie: fixture!.cookie },
-          payload: { mode: 'create' },
-        }))
-    })
-
     it('blocks market refresh before provider and price persistence', async () => {
       const providerCall = createProviderSpy<
         { symbols: string[]; tradingDate: string },
@@ -331,9 +303,6 @@ describe.each(decisionCases)(
       Object.assign(config, { databaseUrl: 'postgres://test-only/backfill' })
       vi.spyOn(console, 'info').mockImplementation(() => undefined)
       vi.spyOn(migrations, 'runMigrations').mockImplementation(async () => {
-        sideEffects.increment('databaseWrites')
-      })
-      vi.spyOn(plaidRepository, 'bootstrapFromDatabase').mockImplementation(async () => {
         sideEffects.increment('databaseWrites')
       })
       vi.spyOn(marketDataService, 'refreshClosingPrices').mockImplementation(async () => {

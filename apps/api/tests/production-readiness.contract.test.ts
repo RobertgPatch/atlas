@@ -12,11 +12,6 @@ describe('Production readiness diagnostics contract', () => {
     webOrigin: config.webOrigin,
     sessionCookieSecure: config.sessionCookieSecure,
     sessionCookieSameSite: config.sessionCookieSameSite,
-    plaidClientId: config.plaid.clientId,
-    plaidSecret: config.plaid.secret,
-    schedulerEnabled: config.plaidRefresh.schedulerEnabled,
-    schedulerMode: config.plaidRefresh.schedulerMode,
-    schedulerToken: config.plaidRefresh.schedulerToken,
     rateLimitEnabled: config.security.rateLimitEnabled,
     apiSharedCachePolicy: config.security.apiSharedCachePolicy,
   }
@@ -29,11 +24,6 @@ describe('Production readiness diagnostics contract', () => {
     config.webOrigin = originalConfig.webOrigin
     config.sessionCookieSecure = originalConfig.sessionCookieSecure
     config.sessionCookieSameSite = originalConfig.sessionCookieSameSite
-    config.plaid.clientId = originalConfig.plaidClientId
-    config.plaid.secret = originalConfig.plaidSecret
-    config.plaidRefresh.schedulerEnabled = originalConfig.schedulerEnabled
-    config.plaidRefresh.schedulerMode = originalConfig.schedulerMode
-    config.plaidRefresh.schedulerToken = originalConfig.schedulerToken
     config.security.rateLimitEnabled = originalConfig.rateLimitEnabled
     config.security.apiSharedCachePolicy = originalConfig.apiSharedCachePolicy
     if (fixture) {
@@ -73,7 +63,6 @@ describe('Production readiness diagnostics contract', () => {
       operationalReadiness: {
         databaseReachable: expect.any(Boolean),
         schedulers: {
-          plaidEnabled: expect.any(Boolean),
           marketPriceEnabled: expect.any(Boolean),
         },
         worker: {
@@ -99,8 +88,6 @@ describe('Production readiness diagnostics contract', () => {
       secretsConfigured: {
         persistenceSecretKey: expect.any(Boolean),
         sessionSecret: expect.any(Boolean),
-        plaidCredentials: expect.any(Boolean),
-        schedulerToken: expect.any(Boolean),
       },
       secureCookies: {
         secure: expect.any(Boolean),
@@ -124,8 +111,6 @@ describe('Production readiness diagnostics contract', () => {
       'postgres://atlas_user:super-secret-prod-db@db.example.com:5432/atlas',
       'persist-secret-value-production-readiness',
       'session-secret-value-production-readiness',
-      'plaid-secret-value-production-readiness',
-      'scheduler-secret-value-production-readiness',
     ]
     config.nodeEnv = 'production'
     config.databaseUrl = secretValues[0]!
@@ -134,11 +119,6 @@ describe('Production readiness diagnostics contract', () => {
     config.webOrigin = 'https://app.example.com'
     config.sessionCookieSecure = true
     config.sessionCookieSameSite = 'lax'
-    config.plaid.clientId = 'production-readiness-client-id'
-    config.plaid.secret = secretValues[3]!
-    config.plaidRefresh.schedulerEnabled = true
-    config.plaidRefresh.schedulerMode = 'eventbridge'
-    config.plaidRefresh.schedulerToken = secretValues[4]!
     config.security.rateLimitEnabled = true
     config.security.apiSharedCachePolicy = 'no_shared_cache'
 
@@ -153,12 +133,10 @@ describe('Production readiness diagnostics contract', () => {
       durablePersistence: {
         databaseConfigured: true,
       },
-      schedulerConfigured: true,
+      schedulerConfigured: false,
       secretsConfigured: {
         persistenceSecretKey: true,
         sessionSecret: true,
-        plaidCredentials: true,
-        schedulerToken: true,
       },
       secureCookies: {
         secure: true,

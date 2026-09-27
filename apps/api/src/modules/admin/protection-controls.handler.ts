@@ -89,7 +89,6 @@ const emergencyDailyCeiling = (controlKey: ProtectionControlKey): number => ({
   k1_uploads: config.abuseProtection.quotas.k1Upload.globalFilesPerDay,
   k1_extraction: config.abuseProtection.quotas.paidExtraction.globalDocumentsPerDay,
   k1_bedrock_checkbox: config.abuseProtection.quotas.paidExtraction.checkboxCallsGlobalPerDay,
-  plaid_refresh: config.abuseProtection.quotas.externalProvider.plaidRefreshesGlobalDay,
   market_data_refresh: config.abuseProtection.quotas.externalProvider.marketProviderCallsGlobalDay,
   report_exports: config.abuseProtection.quotas.reportExport.globalExportsPerDay,
   backfills: config.abuseProtection.quotas.backfill.globalRunsPerDay,

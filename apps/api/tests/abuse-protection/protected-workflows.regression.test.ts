@@ -30,7 +30,6 @@ describe('below-limit protected workflow regressions', () => {
       ['GET', '/v1/reports/portfolio'],
       ['GET', '/v1/partnerships'],
       ['GET', '/v1/k1-documents/:k1DocumentId/review-session'],
-      ['PATCH', '/v1/admin/plaid-investment-accounts'],
     ] as const
     for (const [method, route] of routes) {
       app.route({
@@ -50,7 +49,6 @@ describe('below-limit protected workflow regressions', () => {
       '/v1/reports/portfolio',
       '/v1/partnerships',
       '/v1/k1-documents/00000000-0000-4000-8000-000000000001/review-session',
-      '/v1/admin/plaid-investment-accounts',
     ]
     for (let index = 0; index < routes.length; index += 1) {
       const response = await app.inject({

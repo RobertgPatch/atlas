@@ -1,0 +1,1657 @@
+openapi: 3.1.0
+info:
+  title: Liquidity CSV Import API
+  version: 2.0.0
+  description: >-
+    Deterministic CSV uploads, review and complete-account snapshot publication. No PDF or AI path.
+    REAL_TIME_EQUITIES_ENABLED defaults false; existing reports expose effective valuation mode. Runtime default: 5,000
+    holdings per upload, configurable up to a 25,000 hard ceiling after capacity qualification. Local authenticated
+    content routes implement the same immutable upload semantics; production originals use S3.
+servers:
+  - url: /v1
+security:
+  - sessionCookie: []
+paths:
+  /liquidity-statements/upload-capability:
+    post:
+      operationId: createCsvUploadCapability
+      summary: Reserve bounded CSV upload; authorize entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+      responses:
+        '201':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadCapability'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/complete:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: completeCsvUpload
+      summary: Verify immutable bytes/version and queue bounded deterministic parse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+                - storageVersionId
+                - sha256
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                storageVersionId:
+                  type: string
+                sha256:
+                  $ref: '#/components/schemas/Sha256'
+      responses:
+        '202':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements:
+    get:
+      operationId: listCsvImports
+      summary: List scoped paginated imports
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - nextCursor
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ImportSummary'
+                  nextCursor:
+                    type:
+                      - string
+                      - 'null'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+  /liquidity-statements/{statementId}:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCsvImport
+      summary: Get authorized canonical draft and review state
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportDetail'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: cancelCsvImport
+      summary: Cancel only unapplied import; preserve evidence
+      responses:
+        '204':
+          description: Successful scoped result
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+        - name: expectedVersion
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+  /liquidity-statements/{statementId}/mapping:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    put:
+      operationId: setCsvMapping
+      summary: Save reviewed declarative profile revision and start new parse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+                - profile
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                profile:
+                  $ref: '#/components/schemas/MappingProfile'
+      responses:
+        '202':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/retry:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: retryCsvParse
+      summary: Retry eligible transient failure with a new bounded attempt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+      responses:
+        '202':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSummary'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/review:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: reviewCsvImport
+      summary: Append corrections; recompute dependent fields and issues
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+                - changes
+                - accountBindings
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                changes:
+                  type: array
+                  maxItems: 25000
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required:
+                      - fieldPath
+                      - value
+                      - reason
+                    properties:
+                      fieldPath:
+                        type: string
+                      value:
+                        type:
+                          - string
+                          - boolean
+                          - 'null'
+                      reason:
+                        type: string
+                        minLength: 1
+                        maxLength: 2000
+                accountBindings:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/AccountBinding'
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportDetail'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/application-preview:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: previewCsvApplication
+      summary: Compute exact account replacements, removals, coverage and chronology
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+                - accountBindings
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                accountBindings:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/AccountBinding'
+      responses:
+        '201':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationPreview'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/apply:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: applyCsvImport
+      summary: Publish atomically; repeated key returns original result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - previewId
+                - expectedVersion
+                - summaryHash
+                - idempotencyKey
+              properties:
+                previewId:
+                  type: string
+                  format: uuid
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                summaryHash:
+                  $ref: '#/components/schemas/Sha256'
+                idempotencyKey:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - applicationId
+                  - snapshotIds
+                  - currentAccountIds
+                properties:
+                  applicationId:
+                    type: string
+                    format: uuid
+                  snapshotIds:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+                  currentAccountIds:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-statements/{statementId}/source-download:
+    parameters:
+      - name: statementId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: getCsvSourceDownload
+      summary: Authorize short-lived original evidence access; never execute cells
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - url
+                  - expiresAt
+                properties:
+                  url:
+                    type: string
+                    format: uri
+                  expiresAt:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-source-accounts:
+    get:
+      operationId: listLiquiditySourceAccounts
+      summary: List included and available scoped accounts
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - pricing
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SourceAccount'
+                  pricing:
+                    $ref: '#/components/schemas/PricingCapability'
+                  legacyCandidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        mask:
+                          type:
+                            - string
+                            - 'null'
+                        custodian:
+                          type: string
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createLiquiditySourceAccount
+      summary: Create an entity-owned source account before binding imports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - entityId
+                - custodian
+                - name
+                - currency
+              properties:
+                entityId:
+                  type: string
+                  format: uuid
+                custodian:
+                  type: string
+                name:
+                  type: string
+                accountMask:
+                  type: string
+                currency:
+                  $ref: '#/components/schemas/Currency'
+                cadence:
+                  $ref: '#/components/schemas/Cadence'
+                legacyAccountId:
+                  type: string
+                  format: uuid
+                  description: Explicitly adopt this existing database account UUID and preserve its history.
+      responses:
+        '201':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceAccount'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /liquidity-source-accounts/{accountId}:
+    parameters:
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateLiquiditySourceAccount
+      summary: Change inclusion, display name or cadence with optimistic revision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - expectedVersion
+              properties:
+                expectedVersion:
+                  type: integer
+                  minimum: 1
+                name:
+                  type: string
+                included:
+                  type: boolean
+                cadence:
+                  $ref: '#/components/schemas/Cadence'
+      responses:
+        '200':
+          description: Successful scoped result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceAccount'
+        '400':
+          description: Invalid request; finite safe error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Action or entity scope denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Scoped resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Stale revision, duplicate conflict or state mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Unresolved mapping, financial or completeness issues
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Upload/parse/request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: atlas_session
+      description: >-
+        Use configured existing session cookie and current request-forgery protections; server session role/entity scope
+        is authoritative.
+  schemas:
+    Sha256:
+      type: string
+      pattern: ^[a-f0-9]{64}$
+    Currency:
+      type: string
+      pattern: ^[A-Z]{3}$
+    Cadence:
+      enum:
+        - EVERY_14_DAYS
+        - CALENDAR_MONTHLY
+        - ON_DEMAND
+      default: ON_DEMAND
+    Error:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        issueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    UploadRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - entityId
+        - fileName
+        - sizeBytes
+        - sha256
+        - contentType
+        - custodian
+      properties:
+        entityId:
+          type: string
+          format: uuid
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 10485760
+        sha256:
+          $ref: '#/components/schemas/Sha256'
+        contentType:
+          enum:
+            - text/csv
+            - application/csv
+            - text/plain
+            - application/vnd.ms-excel
+        profileId:
+          type: string
+        custodian:
+          type: string
+          minLength: 1
+          maxLength: 120
+      description: Type is a hint; server validates actual text/encoding/CSV. XLS/PDF bytes are rejected regardless of MIME.
+    UploadCapability:
+      type: object
+      additionalProperties: false
+      required:
+        - statementId
+        - version
+        - url
+        - expiresAt
+        - requiredHeaders
+      properties:
+        statementId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        url:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+        duplicate:
+          type: boolean
+    ImportStatus:
+      enum:
+        - UPLOAD_PENDING
+        - VALIDATING
+        - QUEUED
+        - PARSING
+        - NEEDS_MAPPING
+        - NEEDS_REVIEW
+        - READY_TO_APPLY
+        - APPLIED
+        - FAILED
+        - REJECTED
+        - CANCELLED
+    ImportSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - entityId
+        - version
+        - status
+        - uploadedAt
+        - custodian
+      properties:
+        id:
+          type: string
+          format: uuid
+        entityId:
+          type: string
+          format: uuid
+        version:
+          type: integer
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/ImportStatus'
+        uploadedAt:
+          type: string
+          format: date-time
+        adapterId:
+          type:
+            - string
+            - 'null'
+        safeErrorCode:
+          type:
+            - string
+            - 'null'
+        custodian:
+          type: string
+          minLength: 1
+          maxLength: 120
+    ImportDetail:
+      type: object
+      additionalProperties: false
+      required:
+        - summary
+        - canonicalDraft
+        - reviewRevision
+        - issues
+        - accountBindings
+        - reconciliations
+        - records
+      properties:
+        summary:
+          $ref: '#/components/schemas/ImportSummary'
+        canonicalDraft:
+          anyOf:
+            - $ref: ./csv-import-schema.json
+            - type: 'null'
+        reviewRevision:
+          type: integer
+          minimum: 0
+        issues:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - code
+              - severity
+              - acknowledged
+            properties:
+              id:
+                type: string
+                format: uuid
+              code:
+                enum:
+                  - UNKNOWN_LAYOUT
+                  - MALFORMED_RECORD
+                  - UNSUPPORTED_RECORD
+                  - AMBIGUOUS_ACCOUNT
+                  - MISSING_DATE
+                  - AMBIGUOUS_DATE_ORDER
+                  - MISSING_CURRENCY
+                  - MISSING_VALUE
+                  - UNKNOWN_ASSET_TYPE
+                  - DUPLICATE_ROW
+                  - INCOMPLETE_BASIS
+                  - MISSING_BASIS
+                  - MISSING_DAY_CHANGE
+                  - TOTAL_NOT_PROVIDED
+                  - TOTAL_MISMATCH
+                  - FIELD_ARITHMETIC_MISMATCH
+                  - PERCENT_MISMATCH
+                  - ESTIMATED_BASIS
+                  - PARTIAL_SOURCE_COVERAGE
+                  - PARTIAL_EXPORT
+                  - EMPTY_ACCOUNT_CONFIRMATION
+                  - UNSUPPORTED_VALUATION_CONVENTION
+              severity:
+                enum:
+                  - INFO
+                  - WARNING
+                  - BLOCKING
+              acknowledged:
+                type: boolean
+              accountOccurrenceId:
+                type:
+                  - string
+                  - 'null'
+              fieldPath:
+                type:
+                  - string
+                  - 'null'
+              sourceRecords:
+                type: array
+                items:
+                  type: integer
+                  minimum: 1
+        accountBindings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountBinding'
+        reconciliations:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Reconciliation'
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceRecord'
+    AccountBinding:
+      type: object
+      additionalProperties: false
+      required:
+        - occurrenceId
+        - accountId
+        - expectedAccountVersion
+        - completeAccount
+        - emptyAccountConfirmed
+      properties:
+        occurrenceId:
+          type: string
+        accountId:
+          type: string
+          format: uuid
+        expectedAccountVersion:
+          type: integer
+          minimum: 1
+        completeAccount:
+          const: true
+        emptyAccountConfirmed:
+          type: boolean
+        emptyReason:
+          type: string
+          maxLength: 2000
+        acknowledgedIssueIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        effectiveOrderDecision:
+          type: object
+          additionalProperties: false
+          required:
+            - kind
+            - reason
+          properties:
+            kind:
+              enum:
+                - SOURCE_ORDER
+                - HISTORICAL_ONLY
+                - CORRECTION
+            replacesSnapshotId:
+              type: string
+              format: uuid
+            reason:
+              type: string
+              minLength: 1
+              maxLength: 2000
+      description: >-
+        A file represents one custodian. Bind only complete accounts within that custodian and the authorized entity.
+        Publication replaces only bound source_account_id holdings; other accounts and same-ticker positions remain
+        unchanged. Absence removes a current holding while preserving history and does not establish realized sale
+        proceeds.
+    MappingProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - delimiter
+        - encoding
+        - headerRecord
+        - dateFormat
+        - percentUnit
+        - currency
+        - columns
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        delimiter:
+          enum:
+            - ','
+            - ;
+            - "\t"
+        encoding:
+          enum:
+            - UTF8
+            - UTF16LE
+            - UTF16BE
+            - WINDOWS1252
+        headerRecord:
+          type: integer
+          minimum: 1
+          maximum: 101
+        dateFormat:
+          enum:
+            - M/D/YYYY
+            - YYYY/MM/DD
+            - YYYY-MM-DD
+            - PROFILE_TITLE
+        sourceZone:
+          type: string
+        percentUnit:
+          enum:
+            - PERCENT_POINTS
+            - RATIO
+        currency:
+          $ref: '#/components/schemas/Currency'
+        columns:
+          type: array
+          maxItems: 128
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - sourceIndex
+              - sourceHeader
+              - target
+            properties:
+              sourceIndex:
+                type: integer
+                minimum: 0
+                maximum: 127
+              sourceHeader:
+                type: string
+              target:
+                enum:
+                  - accountIdentifier
+                  - accountName
+                  - asOfDate
+                  - description
+                  - symbol
+                  - cusip
+                  - isin
+                  - brokerSecurityId
+                  - assetType
+                  - quantity
+                  - price
+                  - marketValue
+                  - costBasis
+                  - unrealizedGainLoss
+                  - unrealizedGainLossRatio
+                  - dayChange
+                  - dayChangeRatio
+                  - accruedInterest
+                  - currency
+                  - ignoredEvidence
+                  - sourceAssetType
+                  - quoteMultiplier
+        asOfDate:
+          type: string
+          format: date
+      description: >-
+        No formulas/scripts. All bindings and encoded conventions are revalidated server-side; profile revision/hash is
+        persisted.
+    Coverage:
+      type: object
+      additionalProperties: false
+      required:
+        - knownRows
+        - unknownRows
+        - estimatedRows
+        - status
+        - knownSubtotal
+        - total
+      properties:
+        knownRows:
+          type: integer
+          minimum: 0
+        unknownRows:
+          type: integer
+          minimum: 0
+        estimatedRows:
+          type: integer
+          minimum: 0
+        status:
+          enum:
+            - COMPLETE
+            - PARTIAL
+            - UNAVAILABLE
+        knownSubtotal:
+          type:
+            - string
+            - 'null'
+          pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+        total:
+          type:
+            - string
+            - 'null'
+          pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+    ApplicationPreview:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - expectedVersion
+        - summaryHash
+        - expiresAt
+        - accounts
+        - canApply
+      properties:
+        id:
+          type: string
+          format: uuid
+        expectedVersion:
+          type: integer
+          minimum: 1
+        summaryHash:
+          $ref: '#/components/schemas/Sha256'
+        expiresAt:
+          type: string
+          format: date-time
+        canApply:
+          type: boolean
+        accounts:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - accountId
+              - asOfDate
+              - added
+              - removed
+              - changed
+              - reconciliation
+              - basisCoverage
+              - willBecomeCurrent
+              - previousValue
+              - nextValue
+            properties:
+              accountId:
+                type: string
+                format: uuid
+              asOfDate:
+                type: string
+                format: date
+              asOfAt:
+                type:
+                  - string
+                  - 'null'
+                format: date-time
+              added:
+                type: integer
+                minimum: 0
+              removed:
+                type: integer
+                minimum: 0
+              changed:
+                type: integer
+                minimum: 0
+              reconciliation:
+                enum:
+                  - MATCHED
+                  - NOT_PROVIDED
+                  - BLOCKED
+              basisCoverage:
+                $ref: '#/components/schemas/Coverage'
+              willBecomeCurrent:
+                type: boolean
+              previousValue:
+                type: string
+                pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+              nextValue:
+                type: string
+                pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+    SourceAccount:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - entityId
+        - custodian
+        - name
+        - accountMask
+        - currency
+        - included
+        - cadence
+        - version
+        - holdingsAsOfDate
+        - nextExpectedDate
+        - latestSnapshotId
+        - uploadedAt
+        - activeSource
+      properties:
+        id:
+          type: string
+          format: uuid
+        entityId:
+          type: string
+          format: uuid
+        custodian:
+          type: string
+        name:
+          type: string
+        accountMask:
+          type:
+            - string
+            - 'null'
+        currency:
+          $ref: '#/components/schemas/Currency'
+        included:
+          type: boolean
+        cadence:
+          $ref: '#/components/schemas/Cadence'
+        version:
+          type: integer
+          minimum: 1
+        holdingsAsOfDate:
+          type:
+            - string
+            - 'null'
+          format: date
+        nextExpectedDate:
+          type:
+            - string
+            - 'null'
+          format: date
+        latestSnapshotId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        uploadedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        activeSource:
+          enum:
+            - CSV
+            - PLAID_LEGACY
+    PricingCapability:
+      type: object
+      additionalProperties: false
+      required:
+        - realTimeEquitiesEnabled
+        - valuationMode
+        - revision
+      properties:
+        realTimeEquitiesEnabled:
+          type: boolean
+          default: false
+        valuationMode:
+          enum:
+            - CSV_ONLY
+            - CSV_WITH_EQUITY_QUOTES
+        revision:
+          type: string
+      description: >-
+        Derived from server REAL_TIME_EQUITIES_ENABLED only. Expose also on consolidated-holdings response. No user/API
+        toggle endpoint in this feature.
+    Reconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - totalValue
+        - difference
+        - basisCoverage
+        - gainCoverage
+      properties:
+        status:
+          enum:
+            - MATCHED
+            - NOT_PROVIDED
+            - BLOCKED
+        totalValue:
+          type: string
+          pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+        difference:
+          type:
+            - string
+            - 'null'
+          pattern: ^-?(0|[1-9][0-9]{0,19})([.][0-9]{1,8})?$
+        basisCoverage:
+          $ref: '#/components/schemas/Coverage'
+        gainCoverage:
+          $ref: '#/components/schemas/Coverage'
+    SourceRecord:
+      type: object
+      additionalProperties: false
+      required:
+        - ordinal
+        - lineStart
+        - lineEnd
+        - role
+        - cells
+      properties:
+        ordinal:
+          type: integer
+        lineStart:
+          type: integer
+        lineEnd:
+          type: integer
+        role:
+          enum:
+            - METADATA
+            - HEADER
+            - POSITION
+            - TOTAL
+            - BLANK
+            - UNSUPPORTED
+        cells:
+          type: array
+          items:
+            type: string

@@ -14,12 +14,7 @@ import type {
   MarketDataProvider,
   MarketPriceObservation,
 } from '../../src/modules/market-data/market-data.types.js'
-import { plaidApi } from '../../src/modules/plaid/plaid.client.js'
-import { plaidRefreshScheduler } from '../../src/modules/plaid/plaid.refresh-scheduler.js'
-import {
-  plaidRepository,
-  type SourceHoldingRecord,
-} from '../../src/modules/plaid/plaid.repository.js'
+import type { SourceHoldingRecord } from '../../src/modules/liquidity-sources/liquidity-source.types.js'
 import { reportsExport } from '../../src/modules/reports/reports.export.js'
 import { runBackfill } from '../../src/scripts/backfill-market-price-snapshots.js'
 import {
@@ -63,8 +58,6 @@ const holding = (): SourceHoldingRecord => ({
   id: randomUUID(),
   syncSnapshotId: randomUUID(),
   accountId: randomUUID(),
-  plaidAccountId: 'plaid-account-test',
-  plaidSecurityId: 'plaid-security-test',
   symbol: 'AAPL',
   description: 'Apple Inc.',
   type: 'equity',
@@ -79,6 +72,18 @@ const holding = (): SourceHoldingRecord => ({
   marketValue: 1_500,
   unrealizedGainLoss: 500,
   asOfDate: '2026-08-24',
+  sourceKind: 'CSV',
+  sourceAsOfDate: '2026-08-24',
+  sourceAsOfAt: '2026-08-24T20:00:00.000Z',
+  quoteEligible: true,
+  providerSymbol: 'AAPL',
+  exact: {
+    quantity: '10',
+    costBasis: '1000',
+    institutionPrice: '150',
+    marketValue: '1500',
+    unrealizedGainLoss: '500',
+  },
 })
 
 const closingPrice = (): MarketPriceObservation => ({
@@ -102,17 +107,11 @@ describe.each(decisionCases)(
     let fixture: TestFixture
     let sideEffects: SideEffectTracker
     let admitSpy: ReturnType<typeof vi.spyOn>
-    let originalPlaidClientId: string
-    let originalPlaidSecret: string
-    let originalSchedulerToken: string
     let originalDatabaseUrl: string
 
     beforeEach(async () => {
       fixture = await createTestFixture()
       sideEffects = createSideEffectTracker()
-      originalPlaidClientId = config.plaid.clientId
-      originalPlaidSecret = config.plaid.secret
-      originalSchedulerToken = config.plaidRefresh.schedulerToken
       originalDatabaseUrl = config.databaseUrl
 
       const admission = createInMemoryAdmissionStoreFixture()
@@ -126,11 +125,6 @@ describe.each(decisionCases)(
     })
 
     afterEach(async () => {
-      Object.assign(config.plaid, {
-        clientId: originalPlaidClientId,
-        secret: originalPlaidSecret,
-      })
-      Object.assign(config.plaidRefresh, { schedulerToken: originalSchedulerToken })
       Object.assign(config, { databaseUrl: originalDatabaseUrl })
       await fixture.app.close()
       vi.restoreAllMocks()
@@ -148,33 +142,6 @@ describe.each(decisionCases)(
         `${workflow} must not perform work after a ${kind} decision.`,
       )
     }
-
-    it('blocks Plaid provider calls', async () => {
-      Object.assign(config.plaid, {
-        clientId: 'test-client-id',
-        secret: 'test-secret',
-      })
-      const provider = createProviderSpy<unknown, unknown>({
-        sideEffects,
-        implementation: async () => ({
-          data: {
-            link_token: 'link-test-token',
-            expiration: '2026-08-25T12:30:00.000Z',
-          },
-        }),
-      })
-      vi.spyOn(plaidApi, 'linkTokenCreate').mockImplementation(
-        async (input) => provider.invoke(input) as never,
-      )
-
-      await expectAdmissionBeforeEffects('Plaid link-token creation', async () =>
-        fixture.app.inject({
-          method: 'POST',
-          url: '/v1/plaid/link-token',
-          headers: { cookie: fixture.cookie },
-          payload: { mode: 'create' },
-        }))
-    })
 
     it('blocks market-data provider and persistence calls', async () => {
       const providerCall = createProviderSpy<
@@ -209,34 +176,6 @@ describe.each(decisionCases)(
         service.refreshClosingPrices('2026-08-24'))
     })
 
-    it('blocks the scheduler before provider and refresh-attempt writes', async () => {
-      Object.assign(config.plaidRefresh, {
-        schedulerToken: 'test-scheduler-token-027',
-      })
-      const scheduledRefresh = createProviderSpy<unknown, unknown>({
-        sideEffects,
-        implementation: async () => {
-          sideEffects.increment('databaseWrites')
-          return {
-            id: randomUUID(),
-            status: 'success',
-            selectedAccountIds: [],
-          }
-        },
-      })
-      vi.spyOn(plaidRefreshScheduler, 'runScheduledRefresh').mockImplementation(
-        async (input) => scheduledRefresh.invoke(input) as never,
-      )
-
-      await expectAdmissionBeforeEffects('scheduled Plaid refresh', async () =>
-        fixture.app.inject({
-          method: 'POST',
-          url: '/v1/admin/plaid-refresh/run',
-          headers: { 'x-atlas-scheduler-token': config.plaidRefresh.schedulerToken },
-          payload: { scheduledFor: '2026-08-25T12:00:00.000Z' },
-        }))
-    })
-
     it('blocks report generation and its database reads', async () => {
       vi.spyOn(reportsExport, 'generateReportExport').mockImplementation(async () => {
         sideEffects.increment('exports')
@@ -259,9 +198,6 @@ describe.each(decisionCases)(
     it('blocks backfill initialization, providers, and snapshot writes', async () => {
       Object.assign(config, { databaseUrl: 'postgres://test-only/backfill' })
       vi.spyOn(console, 'info').mockImplementation(() => undefined)
-      vi.spyOn(plaidRepository, 'bootstrapFromDatabase').mockImplementation(async () => {
-        sideEffects.increment('databaseWrites')
-      })
       const refresh = createProviderSpy<string, unknown>({
         sideEffects,
         implementation: async (tradingDate) => {

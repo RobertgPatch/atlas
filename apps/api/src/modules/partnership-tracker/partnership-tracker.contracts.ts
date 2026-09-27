@@ -189,6 +189,7 @@ export interface PartnershipManagementFeeEstimate { partnershipId: string; incep
 
 export interface CreatePartnershipCashFlowRequest { kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; feesAndCarry?: string; isFinalLiquidation?: boolean; settlementStatus?: 'ANNOUNCED' | 'SETTLED'; note?: string | null }
 export interface CreatePartnershipCashFlowsRequest { entries: CreatePartnershipCashFlowRequest[] }
+export interface UpdatePartnershipCashFlowRequest extends CreatePartnershipCashFlowRequest { expectedUpdatedAt: string }
 export interface SettlePartnershipCashFlowRequest { settlementDate: string; expectedUpdatedAt: string }
 
 export type { K1TrackerCalculation, K1TrackerFieldChange, K1TrackerSignoffState, K1TrackerYearDetail }

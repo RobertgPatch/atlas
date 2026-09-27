@@ -4,6 +4,7 @@ import type { K1TrackerCashFlowEvent } from '../../../../../../../packages/types
 export interface MagicPatternInKindSecurity {
   ticker: string
   name: string
+  hasExplicitName: boolean
   shares: number
   costBasisPerShare: number
   fmvPerShare: number
@@ -66,9 +67,11 @@ export function parseInKindActivityNote(note: string | null): MagicPatternInKind
     return null
   }
 
+  const explicitName = match[5]?.trim() ?? ''
   return {
     ticker: match[2]!.trim().toUpperCase(),
-    name: match[5]?.trim() || match[2]!.trim().toUpperCase(),
+    name: explicitName || match[2]!.trim().toUpperCase(),
+    hasExplicitName: Boolean(explicitName),
     shares,
     costBasisPerShare,
     fmvPerShare,

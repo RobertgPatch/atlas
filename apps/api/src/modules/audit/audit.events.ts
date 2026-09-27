@@ -1,4 +1,12 @@
 // Feature 003 audit event names (K-1 Review and Finalization).
+export const LIQUIDITY_CSV_AUDIT_EVENTS = {
+  UPLOAD: 'liquidity.csv.upload', COMPLETE: 'liquidity.csv.complete', PARSE: 'liquidity.csv.parse',
+  REPROCESS: 'liquidity.csv.reprocess',
+  MAPPING: 'liquidity.csv.mapping', REVIEW: 'liquidity.csv.review', APPLY: 'liquidity.csv.apply',
+  CANCEL: 'liquidity.csv.cancel', RETRY: 'liquidity.csv.retry', DOWNLOAD: 'liquidity.csv.download',
+  ACCOUNT: 'liquidity.account.updated',
+} as const
+
 export const K1_AUDIT_EVENTS = {
   FIELD_CORRECTED: 'k1.field_corrected',
   ENTITY_MAPPED: 'k1.entity_mapped',
@@ -29,15 +37,6 @@ export const PARTNERSHIP_AUDIT_EVENTS = {
   REPORT_COMMITMENT_UNDONE: 'reports.portfolio_summary.commitment.undone',
   REPORT_ACTIVITY_DETAIL_EDITED: 'reports.activity_detail.row.edited',
   REPORT_ACTIVITY_DETAIL_UNDONE: 'reports.activity_detail.row.undone',
-  PLAID_CONNECTED: 'plaid.connected',
-  PLAID_RECONNECTED: 'plaid.reconnected',
-  PLAID_ACCOUNT_SELECTION_UPDATED: 'plaid.account_selection.updated',
-  PLAID_ACCOUNTS_CLEARED: 'plaid.accounts.cleared',
-  PLAID_REFRESH_MANUAL: 'plaid.refresh.manual',
-  PLAID_REFRESH_SCHEDULED: 'plaid.refresh.scheduled',
-  PLAID_REFRESH_SKIPPED: 'plaid.refresh.skipped',
-  PLAID_REFRESH_FAILED: 'plaid.refresh.failed',
-  PLAID_REFRESH_DUPLICATE: 'plaid.refresh.duplicate',
 } as const
 
 export type PartnershipAuditEventName =

@@ -2,7 +2,6 @@ import { config } from '../config.js'
 import { pool } from '../infra/db/client.js'
 import { runMigrations } from '../infra/db/migrate.js'
 import { marketDataService } from '../modules/market-data/market-data.service.js'
-import { plaidRepository } from '../modules/plaid/plaid.repository.js'
 
 const main = async () => {
   if (!config.databaseUrl && config.requireDurablePersistence) {
@@ -11,7 +10,6 @@ const main = async () => {
 
   if (config.databaseUrl) {
     await runMigrations((message) => console.info(message))
-    await plaidRepository.bootstrapFromDatabase()
   }
 
   const result = await marketDataService.refreshClosingPrices()

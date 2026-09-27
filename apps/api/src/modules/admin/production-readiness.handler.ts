@@ -1,7 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import { config } from '../../config.js'
 import { getPersistenceStatus } from '../../infra/persistence/persistenceStatus.js'
-import { plaidRefreshScheduler } from '../plaid/plaid.refresh-scheduler.js'
 
 type DurablePersistenceMode = 'durable' | 'temporary' | 'mixed' | 'unavailable'
 
@@ -27,18 +26,10 @@ export const getProductionReadinessHandler = async (
 ): Promise<void> => {
   const persistence = await getPersistenceStatus()
   const databaseConfigured = config.databaseUrl.length > 0
-  const plaidCredentialsConfigured = Boolean(
-    config.plaid.clientId && config.plaid.secret,
-  )
-  const schedulerConfigured =
-    config.plaidRefresh.schedulerEnabled &&
-    config.plaidRefresh.schedulerMode !== 'none' &&
-    Boolean(config.plaidRefresh.schedulerToken)
+  const schedulerConfigured = config.aws.marketPriceSchedulerEnabled
   const secretsConfigured = {
     persistenceSecretKey: config.persistenceSecretKey.length > 0,
     sessionSecret: config.sessionSecret.length > 0,
-    plaidCredentials: plaidCredentialsConfigured,
-    schedulerToken: config.plaidRefresh.schedulerToken.length > 0,
   }
   const secureCookies = {
     secure: config.sessionCookieSecure,
@@ -47,7 +38,6 @@ export const getProductionReadinessHandler = async (
   const operationalReadiness = {
     databaseReachable: persistence.databaseReachable,
     schedulers: {
-      plaidEnabled: config.plaidRefresh.schedulerEnabled,
       marketPriceEnabled: config.aws.marketPriceSchedulerEnabled,
     },
     worker: {
@@ -72,7 +62,6 @@ export const getProductionReadinessHandler = async (
   ] as const
   const warnings = uniqueWarnings([
     ...persistence.warnings,
-    ...plaidRefreshScheduler.getSchedulerWarnings(),
     databaseConfigured
       ? null
       : 'DATABASE_URL is not configured; durable persistence is unavailable.',
@@ -83,12 +72,6 @@ export const getProductionReadinessHandler = async (
       ? null
       : 'PERSISTENCE_SECRET_KEY is not configured.',
     secretsConfigured.sessionSecret ? null : 'SESSION_SECRET is not configured.',
-    secretsConfigured.plaidCredentials
-      ? null
-      : 'Plaid credentials are not fully configured.',
-    schedulerConfigured
-      ? null
-      : 'Automatic refresh scheduler is not fully configured.',
     config.nodeEnv === 'production' && !secureCookies.secure
       ? 'SESSION_COOKIE_SECURE must be true in production.'
       : null,

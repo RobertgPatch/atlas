@@ -1,10 +1,10 @@
 import { config } from '../../config.js'
-import {
-  plaidRepository,
-  type PlaidRefreshPolicy,
-  type SourceHoldingRecord,
-} from '../plaid/plaid.repository.js'
-import { evaluateSnapshotFreshness } from '../plaid/plaid.refresh-policy.js'
+import { readLiquiditySources } from '../liquidity-sources/liquidity-source.read.js'
+import type { ReportSourceAccount,SourceHoldingRecord } from '../liquidity-sources/liquidity-source.types.js'
+import type { Coverage,PricingCapability } from '../liquidity-statements/liquidity-statement.types.js'
+import { decimal,format,sum,divide } from '../liquidity-statements/csv/decimal.js'
+import { hash } from '../liquidity-statements/liquidity-statement.repository.js'
+import { recordCsvReportState } from '../liquidity-statements/csv-observability.js'
 import { marketDataService } from '../market-data/market-data.service.js'
 import type { HoldingsPricingMetadata } from '../market-data/market-data.types.js'
 import type { ConsolidatedHoldingsQuery } from './reports.zod.js'
@@ -35,6 +35,9 @@ interface ConsolidatedHoldingsKpis {
 }
 
 interface CustodianHoldingDetailRow {
+  exact?: SourceHoldingRecord['exact']
+  currencyCode?: string | null
+  sourceAsOfDate?: string | null
   id: string
   symbol: string | null
   securityIdentifier: string | null
@@ -56,6 +59,10 @@ interface CustodianHoldingDetailRow {
 }
 
 interface ConsolidatedHoldingRow {
+  exact?: SourceHoldingRecord['exact']
+  basisCoverage?: Coverage
+  gainCoverage?: Coverage
+  currencyCode?: string | null
   id: string
   symbol: string | null
   securityIdentifier: string | null
@@ -84,7 +91,10 @@ interface ConsolidatedHoldingsResponse {
     offset: number
     total: number
   }
-  selectedAccounts: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>
+  selectedAccounts: ReportSourceAccount[]
+  pricingCapability: PricingCapability
+  sourceRevision: string
+  coverage: { basis: Coverage; gain: Coverage; currencies: string[] }
   pricing: HoldingsPricingMetadata
   sync: {
     status: HoldingsSyncStatus
@@ -96,7 +106,7 @@ interface ConsolidatedHoldingsResponse {
     activeRefreshId: string | null
     refreshing: boolean
     warnings: string[]
-    refreshPolicy: PlaidRefreshPolicy
+    refreshPolicy: { cadence:'on_demand'; automaticRefreshEnabled:false; manualRefreshEnabled:false }
   }
 }
 
@@ -117,7 +127,6 @@ const hasSecurityIdentifier = (holding: SourceHoldingRecord): boolean =>
   Boolean(
     normalizeText(holding.cusip) ||
       normalizeText(holding.isin) ||
-      normalizeText(holding.plaidSecurityId) ||
       normalizeText(holding.symbol),
   )
 
@@ -127,9 +136,6 @@ const securityIdentifierFor = (holding: SourceHoldingRecord): string | null => {
 
   const isin = normalizeText(holding.isin)
   if (isin) return `ISIN ${isin}`
-
-  const plaidSecurityId = holding.plaidSecurityId?.trim()
-  if (plaidSecurityId) return `Plaid security ${plaidSecurityId}`
 
   return null
 }
@@ -147,28 +153,23 @@ const displaySymbolFor = (holding: SourceHoldingRecord): string | null => {
   return null
 }
 
-const identityKeyFor = (holding: SourceHoldingRecord): {
+export const holdingIdentityKeyFor = (holding: SourceHoldingRecord): {
   key: string
   confidence: 'high' | 'medium' | 'low'
 } => {
+  const symbol = normalizeText(holding.symbol)
+  if (symbol) {
+    return {
+      key: `SYMBOL:${symbol}`,
+      confidence: 'medium',
+    }
+  }
+
   const cusip = normalizeText(holding.cusip)
   if (cusip) return { key: `CUSIP:${cusip}`, confidence: 'high' }
 
   const isin = normalizeText(holding.isin)
   if (isin) return { key: `ISIN:${isin}`, confidence: 'high' }
-
-  const plaidSecurityId = normalizeText(holding.plaidSecurityId)
-  if (plaidSecurityId) {
-    return { key: `PLAID_SECURITY:${plaidSecurityId}`, confidence: 'medium' }
-  }
-
-  const symbol = normalizeText(holding.symbol)
-  if (symbol) {
-    return {
-      key: `SYMBOL:${symbol}:${normalizeText(holding.currencyCode)}:${normalizeText(holding.type)}`,
-      confidence: 'medium',
-    }
-  }
 
   if (isGenericUnknownDescription(holding.description) && !hasSecurityIdentifier(holding)) {
     return {
@@ -185,7 +186,7 @@ const identityKeyFor = (holding: SourceHoldingRecord): {
 
 const displayDescriptionFor = (
   holding: SourceHoldingRecord,
-  account: ReturnType<typeof plaidRepository.getSelectedInvestmentAccounts>[number] | undefined,
+  account: ReportSourceAccount | undefined,
 ): string => {
   if (!isGenericUnknownDescription(holding.description)) {
     return holding.description
@@ -203,6 +204,19 @@ const sumKnown = (values: Array<number | null>): number | null => {
   const known = values.filter((value): value is number => value != null)
   if (known.length === 0) return null
   return known.reduce((sum, value) => sum + value, 0)
+}
+
+const financialCoverage = (holdings: SourceHoldingRecord[], key: 'costBasis'|'unrealizedGainLoss'): Coverage => {
+  const known=holdings.map(h=>h.exact?.[key] ?? (h[key]==null?null:String(h[key]))).filter((v):v is string=>v!=null)
+  const subtotal=format(sum(known.map(v=>decimal(v)!))),unknown=holdings.length-known.length
+  const mixedCurrencies=new Set(holdings.map(h=>h.currencyCode??'UNKNOWN')).size>1
+  return {knownRows:known.length,unknownRows:unknown,estimatedRows:0,status:mixedCurrencies?'UNAVAILABLE':unknown===0?'COMPLETE':known.length?'PARTIAL':'UNAVAILABLE',knownSubtotal:mixedCurrencies?null:subtotal,total:unknown||mixedCurrencies?null:subtotal}
+}
+const exactTotal = (holdings: SourceHoldingRecord[], key: keyof NonNullable<SourceHoldingRecord['exact']>, complete=false): string|null => {
+  const values=holdings.map(h=>h.exact?.[key] ?? (h[key]==null?null:String(h[key])))
+  if(complete && values.some(v=>v==null))return null
+  const known=values.filter((v):v is string=>v!=null)
+  return known.length?format(sum(known.map(v=>decimal(v)!))):null
 }
 
 const latestDate = (values: Array<string | null>): string | null => {
@@ -260,13 +274,11 @@ export const buildConsolidatedHoldingsResponse = async (
     actorUserId: context.actorUserId,
     isAdmin: context.scope.isAdmin,
   }
-  const accounts = holdingsVisible
-    ? plaidRepository.getSelectedInvestmentAccounts(visibility)
-    : []
+  const sources = holdingsVisible ? await readLiquiditySources({userId:context.actorUserId,...context.scope}) : {accounts:[],holdings:[],neutralAccounts:[]}
+  const accounts = sources.accounts.filter(a=>(!query.accountId||a.id===query.accountId)&&(!query.custodian||a.custodianName===query.custodian))
   const accountById = new Map(accounts.map((account) => [account.id, account]))
   const selectedAccountIds = accounts.map((account) => account.id)
-  const filteredHoldings = plaidRepository
-    .listSourceHoldingsForSelectedAccounts(visibility)
+  const filteredHoldings = sources.holdings
     .filter((holding) => {
       const account = accountById.get(holding.accountId)
       if (!account) return false
@@ -302,7 +314,8 @@ export const buildConsolidatedHoldingsResponse = async (
   >()
 
   for (const holding of filteredSource) {
-    const identity = identityKeyFor(holding)
+    const identity = holdingIdentityKeyFor(holding)
+    identity.key += `:${holding.currencyCode ?? 'UNKNOWN'}`
     const group = groups.get(identity.key)
     if (group) {
       group.holdings.push(holding)
@@ -315,19 +328,14 @@ export const buildConsolidatedHoldingsResponse = async (
   const rows: ConsolidatedHoldingRow[] = [...groups.entries()].map(([key, group]) => {
     const first = group.holdings[0]!
     const firstAccount = accountById.get(first.accountId)
-    const quantity = sumKnown(group.holdings.map((holding) => holding.quantity))
-    const costBasis = sumKnown(group.holdings.map((holding) => holding.costBasis))
-    const marketValue = sumKnown(group.holdings.map((holding) => holding.marketValue))
-    const unrealizedGainLoss = sumKnown(
-      group.holdings.map((holding) => holding.unrealizedGainLoss),
-    )
-    const institutionPrice =
-      marketValue != null && quantity != null && quantity !== 0
-        ? marketValue / quantity
-        : first.institutionPrice
+    const exact={quantity:exactTotal(group.holdings,'quantity',true),costBasis:exactTotal(group.holdings,'costBasis',true),marketValue:exactTotal(group.holdings,'marketValue',true),unrealizedGainLoss:exactTotal(group.holdings,'unrealizedGainLoss',true),institutionPrice:null as string|null}
+    const quantity=exact.quantity==null?null:Number(exact.quantity),costBasis=exact.costBasis==null?null:Number(exact.costBasis),marketValue=exact.marketValue==null?null:Number(exact.marketValue),unrealizedGainLoss=exact.unrealizedGainLoss==null?null:Number(exact.unrealizedGainLoss)
+    const simpleUnits=group.holdings.every(h=>h.sourceKind!=='CSV'||['stock','equity','fund','cash','etf','mutual fund'].includes(h.type.toLowerCase()))
+    exact.institutionPrice=simpleUnits&&exact.marketValue!=null&&exact.quantity!=null&&decimal(exact.quantity)!==0n?format(divide(decimal(exact.marketValue)!,decimal(exact.quantity)!)):group.holdings.length===1?first.exact?.institutionPrice??null:null
+    const institutionPrice=exact.institutionPrice==null?first.institutionPrice:Number(exact.institutionPrice)
     const priceAsOfDate = latestDate(group.holdings.map((holding) => holding.asOfDate))
     const averageCostBasis =
-      quantity != null && quantity !== 0 && costBasis != null ? costBasis / quantity : null
+      simpleUnits && quantity != null && quantity !== 0 && costBasis != null ? Number(format(divide(decimal(exact.costBasis!)!,decimal(exact.quantity!)!))) : null
     const gainLossPercent =
       costBasis != null && costBasis !== 0 && unrealizedGainLoss != null
         ? (unrealizedGainLoss / costBasis) * 100
@@ -336,7 +344,7 @@ export const buildConsolidatedHoldingsResponse = async (
     const details: CustodianHoldingDetailRow[] = group.holdings.map((holding) => {
       const account = accountById.get(holding.accountId)
       const detailAverage =
-        holding.quantity != null && holding.quantity !== 0 && holding.costBasis != null
+        simpleUnits && holding.quantity != null && holding.quantity !== 0 && holding.costBasis != null
           ? holding.costBasis / holding.quantity
           : null
       const detailGainLossPercent =
@@ -348,6 +356,9 @@ export const buildConsolidatedHoldingsResponse = async (
 
       return {
         id: holding.id,
+        exact:holding.exact,
+        currencyCode:holding.currencyCode,
+        sourceAsOfDate:holding.sourceAsOfDate ?? holding.asOfDate,
         symbol: displaySymbolFor(holding),
         securityIdentifier: securityIdentifierFor(holding),
         description: displayDescriptionFor(holding, account),
@@ -372,6 +383,10 @@ export const buildConsolidatedHoldingsResponse = async (
 
     return {
       id: key,
+      exact,
+      basisCoverage:financialCoverage(group.holdings,'costBasis'),
+      gainCoverage:financialCoverage(group.holdings,'unrealizedGainLoss'),
+      currencyCode:first.currencyCode,
       symbol: displaySymbolFor(first),
       securityIdentifier: securityIdentifierFor(first),
       description: displayDescriptionFor(first, firstAccount),
@@ -412,8 +427,8 @@ export const buildConsolidatedHoldingsResponse = async (
 
   const kpis: ConsolidatedHoldingsKpis = {
     totalMarketValue: sumKnown(gainFiltered.map((row) => row.marketValue)),
-    totalCostBasis: sumKnown(gainFiltered.map((row) => row.costBasis)),
-    totalUnrealizedGainLoss: sumKnown(gainFiltered.map((row) => row.unrealizedGainLoss)),
+    totalCostBasis: gainFiltered.some(row=>row.costBasis==null)?null:sumKnown(gainFiltered.map((row) => row.costBasis)),
+    totalUnrealizedGainLoss: gainFiltered.some(row=>row.unrealizedGainLoss==null)?null:sumKnown(gainFiltered.map((row) => row.unrealizedGainLoss)),
     gainLossPercent: null,
     uniqueAssetCount: gainFiltered.length,
     selectedAccountCount: accounts.length,
@@ -425,44 +440,22 @@ export const buildConsolidatedHoldingsResponse = async (
       ? (kpis.totalUnrealizedGainLoss / kpis.totalCostBasis) * 100
       : null
 
-  const [refreshPolicy, latestSnapshot, activeRefresh] = await Promise.all([
-    plaidRepository.getRefreshPolicy(),
-    selectedAccountIds.length > 0
-      ? plaidRepository.getLatestHoldingsSnapshotMetadata({
-          dashboardEligible: true,
-          selectedAccountIds,
-          successfulOnly: true,
-        })
-      : Promise.resolve(null),
-    selectedAccountIds.length > 0
-      ? plaidRepository.getActiveRefreshAttempt(selectedAccountIds)
-      : Promise.resolve(null),
-  ])
-  const freshness = evaluateSnapshotFreshness({
-    policy: refreshPolicy,
-    snapshot: latestSnapshot,
-    activeAttempt: activeRefresh,
-  })
-  const failedAccounts = accounts.filter((account) => account.syncStatus === 'failed')
-  const needsAction = accounts.filter(
-    (account) => account.syncStatus === 'needs_user_action',
-  )
-  const status: HoldingsSyncStatus =
-    needsAction.length > 0
-      ? 'needs_user_action'
-      : failedAccounts.length > 0
-        ? rows.length > 0
-          ? 'partial_success'
-          : 'failed'
-        : latestSnapshot?.status === 'success' || latestSnapshot?.status === 'partial_success'
-          ? latestSnapshot.status
-          : accounts.length === 0
-            ? 'never_synced'
-            : 'never_synced'
-  const accountWarnings = [
-    ...failedAccounts.map((account) => `${account.custodianName} ${account.name} failed to sync.`),
-    ...needsAction.map((account) => `${account.custodianName} ${account.name} needs reconnection.`),
-  ]
+  const hasNeutral=sources.neutralAccounts.length>0
+  recordCsvReportState(config.marketData.realTimeEquitiesEnabled,sources.neutralAccounts.filter(a=>a.nextExpectedDate&&a.nextExpectedDate<new Date().toISOString().slice(0,10)).length)
+  const selectedRows=new Set(gainFiltered.flatMap(r=>r.details.map(d=>d.id)))
+  const coverageHoldings=filteredSource.filter(h=>selectedRows.has(h.id))
+  const currencyCodes=[...new Set(coverageHoldings.map(h=>h.currencyCode??'UNKNOWN'))]
+  const basisCoverage=financialCoverage(coverageHoldings,'costBasis'),gainCoverage=financialCoverage(coverageHoldings,'unrealizedGainLoss')
+  const missingSourceAccounts=sources.neutralAccounts.filter(a=>selectedAccountIds.includes(a.id)&&!a.latestSnapshotId)
+  // Accounts with no snapshot have no values to add yet. Keep their coverage
+  // warning, but do not hide the exact total from accounts that do have an
+  // approved snapshot.
+  kpis.totalMarketValue=currencyCodes.length>1?null:Number(exactTotal(coverageHoldings,'marketValue',true)??(hasNeutral&&coverageHoldings.length===0?'0':'NaN'))
+  if(Number.isNaN(kpis.totalMarketValue))kpis.totalMarketValue=null
+  kpis.totalCostBasis=currencyCodes.length>1||missingSourceAccounts.length||basisCoverage.total==null?null:Number(basisCoverage.total)
+  kpis.totalUnrealizedGainLoss=currencyCodes.length>1||missingSourceAccounts.length||gainCoverage.total==null?null:Number(gainCoverage.total)
+  kpis.gainLossPercent=kpis.totalCostBasis!=null&&kpis.totalCostBasis>0&&kpis.totalUnrealizedGainLoss!=null?Number(format(divide(decimal(gainCoverage.total!)!,decimal(basisCoverage.total!)!,12),12))*100:null
+  const refreshPolicy={cadence:'on_demand',automaticRefreshEnabled:false,manualRefreshEnabled:false} as const
 
   return {
     kpis,
@@ -473,18 +466,20 @@ export const buildConsolidatedHoldingsResponse = async (
       total: gainFiltered.length,
     },
     selectedAccounts: accounts,
+    pricingCapability:{realTimeEquitiesEnabled:config.marketData.realTimeEquitiesEnabled,valuationMode:config.marketData.realTimeEquitiesEnabled?'CSV_WITH_EQUITY_QUOTES':'CSV_ONLY',revision:config.marketData.realTimeEquitiesEnabled?'equity-quotes-v1':'csv-only-v1'},
+    sourceRevision:hash(sources.neutralAccounts.map(a=>[a.id,a.version,a.latestSnapshotId])),
+    coverage:{basis:basisCoverage,gain:gainCoverage,currencies:currencyCodes},
     pricing,
     sync: {
-      status,
-      freshnessStatus: freshness.status,
-      dataAsOfDate: freshness.dataAsOfDate,
-      dataFetchedAt: freshness.dataFetchedAt,
-      lastSuccessfulSyncAt:
-        latestSnapshot?.completedAt ?? latestSnapshot?.fetchedAt ?? null,
-      nextRefreshAt: freshness.nextRefreshAt,
-      activeRefreshId: activeRefresh?.id ?? null,
-      refreshing: activeRefresh?.status === 'pending',
-      warnings: [...freshness.warnings, ...accountWarnings],
+      status: sources.neutralAccounts.some(a=>a.latestSnapshotId)?'success':'never_synced',
+      freshnessStatus: sources.neutralAccounts.some(a=>a.nextExpectedDate&&a.nextExpectedDate<new Date().toISOString().slice(0,10))?'stale':sources.neutralAccounts.some(a=>a.latestSnapshotId)?'fresh':'unavailable',
+      dataAsOfDate: sources.neutralAccounts.map(a=>a.holdingsAsOfDate).filter((v):v is string=>v!=null).sort().at(-1)??null,
+      dataFetchedAt: sources.neutralAccounts.map(a=>a.uploadedAt).filter((v):v is string=>v!=null).sort().at(-1)??null,
+      lastSuccessfulSyncAt: sources.neutralAccounts.map(a=>a.uploadedAt).filter((v):v is string=>v!=null).sort().at(-1)??null,
+      nextRefreshAt: null,
+      activeRefreshId: null,
+      refreshing: false,
+      warnings: [...(currencyCodes.length>1?['Multiple currencies are present; portfolio totals are unavailable without an FX convention.']:[]),...(missingSourceAccounts.length?[`${missingSourceAccounts.length} included account${missingSourceAccounts.length===1?' has':'s have'} no saved snapshot; totals include accounts with approved snapshots only.`]:[]),...sources.neutralAccounts.filter(a=>a.nextExpectedDate&&a.nextExpectedDate<new Date().toISOString().slice(0,10)).map(a=>`${a.custodian} ${a.name} is due for a new CSV.`)],
       refreshPolicy,
     },
   }

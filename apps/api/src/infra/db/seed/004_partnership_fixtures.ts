@@ -15,7 +15,7 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL })
 const ASSET_CLASSES = ['Private Equity', 'Real Estate', 'Hedge Fund', 'Venture Capital', 'Credit']
 const STATUSES = ['ACTIVE', 'ACTIVE', 'ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED']
 const FMV_SOURCES = ['manager_statement', 'valuation_409a', 'k1', 'manual']
-const ASSET_SOURCES = ['manual', 'imported', 'plaid']
+const ASSET_SOURCES = ['manual', 'imported']
 
 function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]

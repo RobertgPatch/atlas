@@ -447,7 +447,7 @@ resource "aws_wafv2_web_acl" "this" {
 
                 statement {
                   regex_match_statement {
-                    regex_string = "^/v1/(k1-ingestion-batches(?:/[^/]+/complete-uploads)?|k1-documents/[^/]+/(reparse|retry-extraction)|plaid/(link-token|exchange-public-token)|reports/consolidated-holdings/refresh)$"
+                    regex_string = "^/v1/(k1-ingestion-batches(?:/[^/]+/complete-uploads)?|k1-documents/[^/]+/(reparse|retry-extraction)|reports/consolidated-holdings/refresh)$"
 
                     field_to_match {
                       uri_path {}
@@ -555,7 +555,7 @@ resource "aws_wafv2_web_acl" "this" {
 
                 statement {
                   regex_match_statement {
-                    regex_string = "^/v1/(k1-ingestion-batches(?:/[^/]+/complete-uploads)?|k1-documents/[^/]+/(reparse|retry-extraction)|plaid/(link-token|exchange-public-token)|reports/consolidated-holdings/refresh)$"
+                    regex_string = "^/v1/(k1-ingestion-batches(?:/[^/]+/complete-uploads)?|k1-documents/[^/]+/(reparse|retry-extraction)|reports/consolidated-holdings/refresh)$"
 
                     field_to_match {
                       uri_path {}

@@ -292,29 +292,6 @@ variable "secret_rotation_interval_days" {
   default     = 90
 }
 
-variable "plaid_refresh_time_local" {
-  description = "Local daily Plaid refresh time."
-  type        = string
-  default     = "05:00"
-
-  validation {
-    condition     = can(regex("^[0-2][0-9]:[0-5][0-9]$", var.plaid_refresh_time_local))
-    error_message = "plaid_refresh_time_local must be HH:MM."
-  }
-}
-
-variable "plaid_refresh_timezone" {
-  description = "IANA timezone for the daily Plaid refresh."
-  type        = string
-  default     = "America/Los_Angeles"
-}
-
-variable "scheduler_enabled" {
-  description = "Whether the EventBridge Scheduler rule is enabled."
-  type        = bool
-  default     = true
-}
-
 variable "market_data_provider" {
   description = "Server-side public-market data provider. Set to alpaca after populating its Secrets Manager credentials."
   type        = string
@@ -324,6 +301,12 @@ variable "market_data_provider" {
     condition     = contains(["none", "alpaca"], var.market_data_provider)
     error_message = "market_data_provider must be none or alpaca."
   }
+}
+
+variable "real_time_equities_enabled" {
+  description = "Whether Liquidity may use current market quotes instead of uploaded source values. Defaults off and disables the market-price schedule when false."
+  type        = bool
+  default     = false
 }
 
 variable "market_data_refresh_on_read" {

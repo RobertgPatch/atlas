@@ -257,6 +257,7 @@ export function ConsolidatedHoldingsTable({
         }
       }
       group.accountCount = accounts.size
+      group.hasGainLoss = group.rows.every(row=>row.unrealizedGainLoss!=null) && new Set(group.rows.map(row=>row.currencyCode??'USD')).size===1
       group.rows.sort((a, b) => compareRowsBySort(a, b, sort, direction))
     }
 
@@ -490,7 +491,7 @@ export function ConsolidatedHoldingsTable({
                               }`}
                             >
                               {gainLossPositive ? '+' : ''}
-                              {formatCurrencyWithCents(group.totalGainLoss)}
+                              {formatCurrencyWithCents(group.totalGainLoss,group.rows[0]?.currencyCode??'USD')}
                             </span>
                           ) : null}
                         </div>
@@ -501,7 +502,7 @@ export function ConsolidatedHoldingsTable({
                           {group.accountCount}
                         </span>
                         <span className="text-right text-sm font-bold text-gray-900">
-                          {formatCurrencyWithCents(group.totalValue)}
+                          {new Set(group.rows.map(row=>row.currencyCode??'USD')).size>1?'Mixed currencies':formatCurrencyWithCents(group.totalValue,group.rows[0]?.currencyCode??'USD')}
                         </span>
                       </div>
                     </td>

@@ -33,7 +33,7 @@ export function validateProductionSmokeContract(routeSource, contract) {
   for (const request of requests) {
     const permittedSessionMutation = request.sessionOnlyMutation === true && request.method === 'POST' && ['/v1/auth/login', '/v1/auth/logout'].includes(request.path)
     if (request.method !== 'GET' && !permittedSessionMutation) findings.push({ rule: 'prohibited-smoke-method', token: `${request.method} ${request.path}` })
-    if (/(?:pricingMode=refresh|\/refresh(?:[/?]|$)|plaid\/link-token|k1.*(?:ingest|upload))/i.test(request.path)) findings.push({ rule: 'prohibited-provider-path', token: request.path })
+    if (/(?:pricingMode=refresh|\/refresh(?:[/?]|$)|k1.*(?:ingest|upload))/i.test(request.path)) findings.push({ rule: 'prohibited-provider-path', token: request.path })
   }
   const requestNames = requests.map((request) => request.name)
   for (const name of coreSmokeNames) {

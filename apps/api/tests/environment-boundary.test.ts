@@ -96,7 +96,6 @@ describe('runtime environment boundary', () => {
     ['K1_QUEUE', 'sqs'],
     ['K1_AWS_INGESTION_ENABLED', 'true'],
     ['MARKET_DATA_PROVIDER', 'alpaca'],
-    ['PLAID_ENV', 'production'],
     ['K1_S3_BUCKET', 'atlas-production-documents'],
     ['AWS_APP_DOMAIN', 'app.example.com'],
   ])('rejects implicit provider activation through %s', (key, value) => {

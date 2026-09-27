@@ -76,3 +76,27 @@ is recorded when migrations were pending. If another release modifies the same
 service or web index concurrently, recovery stops rather than overwriting it;
 use the recorded checkpoint to reconcile that release. CloudFront's generated
 viewer forwarding remains compatible with the previous API and is retained.
+
+## Liquidity CSV release (feature 031)
+
+The live release now creates the retained `project-jackson-production-liquidity-csv`
+stack in us-west-1 before building the API task candidate. Its private, versioned,
+KMS-encrypted originals bucket and prefix-limited task access are separate from
+K-1 resources. Stack outputs provide `LIQUIDITY_CSV_S3_BUCKET`,
+`LIQUIDITY_CSV_KMS_KEY_ARN`, and `LIQUIDITY_CSV_S3_REGION`; the API gets explicit
+upload/parse/apply defaults and finite limits. CSV is disabled on the K-1 worker.
+
+`REAL_TIME_EQUITIES_ENABLED` is explicitly injected as `false` when absent.
+Existing valid task-environment values take precedence; invalid booleans stop
+candidate creation. False also suppresses the market-price scheduler. Changes
+require a new task deployment, and changing planned Terraform tfvars does not
+alter this live environment. A later enablement must intentionally restore any
+desired scheduler switch as well as the equities flag and existing provider controls.
+
+The measured deployment default is 5,000 positions and 10 MiB per CSV; 25,000 is
+only a configurable ceiling for separately verified larger API resources. See
+[liquidity-csv-runbook.md](./liquidity-csv-runbook.md) for account adoption,
+replacement/review, native currencies, operational kill switches, recovery and
+the forward-only provider-data removal migration. After CSV publication, recovery must
+use an image that understands neutral CSV snapshots. Local implementation tests
+do not establish that the live stack or variables have been deployed.

@@ -15,7 +15,7 @@ export type CapitalActivityEventType =
   | 'distribution'
   | 'other_adjustment'
 
-export type PartnershipAssetSource = 'manual' | 'imported' | 'plaid'
+export type PartnershipAssetSource = 'manual' | 'imported'
 
 export type PartnershipAssetCategory =
   | 'real_estate'
@@ -32,7 +32,6 @@ export type AssetFmvSource =
   | 'valuation_409a'
   | 'k1'
   | 'imported'
-  | 'plaid'
 
 export interface EntitySummary {
   id: string

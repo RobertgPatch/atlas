@@ -6,7 +6,6 @@ const CONTROL_KEYS = [
   'k1_uploads',
   'k1_extraction',
   'k1_bedrock_checkbox',
-  'plaid_refresh',
   'market_data_refresh',
   'report_exports',
   'backfills',
@@ -16,7 +15,6 @@ const ENABLED_ENVIRONMENT = {
   K1_UPLOADS_ENABLED: 'true',
   K1_EXTRACTION_ENABLED: 'true',
   K1_BEDROCK_CHECKBOX_ENABLED: 'true',
-  PLAID_REFRESH_ENABLED: 'true',
   MARKET_DATA_REFRESH_ENABLED: 'true',
   REPORT_EXPORTS_ENABLED: 'true',
   BACKFILLS_ENABLED: 'true',
@@ -284,16 +282,16 @@ describe('Admin protection-control contract', () => {
   it('rejects invalid or unbounded overrides without creating audit growth', async () => {
     const noExpiry = await fixture.app.inject({
       method: 'PUT',
-      url: '/v1/admin/protection-controls/plaid_refresh',
+      url: '/v1/admin/protection-controls/market_data_refresh',
       headers: { cookie: fixture.cookie },
       payload: {
         mode: 'temporary_allow',
-        reason: 'Temporarily restore a reviewed Plaid refresh window.',
+        reason: 'Temporarily restore a reviewed market refresh window.',
       },
     })
     const shortReason = await fixture.app.inject({
       method: 'PUT',
-      url: '/v1/admin/protection-controls/plaid_refresh',
+      url: '/v1/admin/protection-controls/market_data_refresh',
       headers: { cookie: fixture.cookie },
       payload: { mode: 'disable', reason: 'too short' },
     })
@@ -317,7 +315,7 @@ describe('Admin protection-control contract', () => {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1_000).toISOString()
     const response = await fixture.app.inject({
       method: 'PUT',
-      url: '/v1/admin/protection-controls/plaid_refresh',
+      url: '/v1/admin/protection-controls/market_data_refresh',
       headers: { cookie: fixture.cookie },
       payload: {
         mode: 'temporary_allow',

@@ -2,6 +2,7 @@ import { ClockIcon } from 'lucide-react'
 import type { CustodianBreakdownDatum } from '../utils/consolidatedHoldingsAnalytics'
 
 interface CustodianBreakdownProps {
+  currencyCode?: string
   custodians: CustodianBreakdownDatum[]
 }
 
@@ -15,7 +16,8 @@ const barColors: Record<string, string> = {
   'Merrill Lynch': 'bg-blue-700',
 }
 
-function formatCompactCurrency(value: number): string {
+function formatCompactCurrency(value: number, currencyCode = 'USD'): string {
+  if (currencyCode !== 'USD') return new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, notation: 'compact', maximumFractionDigits: 1 }).format(value)
   if (Math.abs(value) >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
   if (Math.abs(value) >= 1_000) return `$${(value / 1_000).toFixed(1)}K`
   return `$${Math.round(value).toLocaleString()}`
@@ -32,7 +34,7 @@ function timeAgo(dateStr: string | null): string {
   return `${Math.floor(diffHours / 24)}d ago`
 }
 
-export function CustodianBreakdown({ custodians }: CustodianBreakdownProps) {
+export function CustodianBreakdown({ custodians, currencyCode = 'USD' }: CustodianBreakdownProps) {
   return (
     <div className="h-full rounded-xl border border-gray-200 bg-white p-6">
       <div className="mb-5 flex items-center justify-between">
@@ -67,7 +69,7 @@ export function CustodianBreakdown({ custodians }: CustodianBreakdownProps) {
               </div>
               <div className="flex flex-shrink-0 items-center gap-3">
                 <span className="text-sm font-semibold text-gray-900">
-                  {formatCompactCurrency(custodian.totalValue)}
+                  {formatCompactCurrency(custodian.totalValue, currencyCode)}
                 </span>
                 <span className="w-12 text-right text-xs text-gray-400">
                   {custodian.percentage.toFixed(1)}%
