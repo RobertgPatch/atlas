@@ -25,6 +25,10 @@ api_image_tag     = "0000000000000000000000000000000000000000"
 api_desired_count = 1
 api_task_cpu      = "256"
 api_task_memory   = "512"
+# CSV originals use their own private versioned bucket; no AI/queue service.
+liquidity_csv_uploads_enabled = true
+liquidity_csv_parsing_enabled = true
+liquidity_csv_apply_enabled   = true
 # Production activation requires MFA; local development tests the same flow separately.
 mfa_login_enabled           = true
 ecr_force_delete            = false
@@ -46,12 +50,9 @@ database_manage_master_user_password = true
 
 secret_recovery_window_days = 30
 
-plaid_refresh_time_local = "05:00"
-plaid_refresh_timezone   = "America/Los_Angeles"
-scheduler_enabled        = true
-
 # Populate the generated Alpaca Secrets Manager entries before deployment.
 market_data_provider               = "alpaca"
+real_time_equities_enabled         = false
 alpaca_market_data_feed            = "sip"
 market_data_refresh_on_read        = false
 market_data_max_age_seconds        = 60

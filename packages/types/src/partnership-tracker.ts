@@ -375,6 +375,10 @@ export interface CreatePartnershipCashFlowsRequest {
   entries: CreatePartnershipCashFlowRequest[]
 }
 
+export interface UpdatePartnershipCashFlowRequest extends CreatePartnershipCashFlowRequest {
+  expectedUpdatedAt: string
+}
+
 export interface SettlePartnershipCashFlowRequest {
   settlementDate: string
   expectedUpdatedAt: string

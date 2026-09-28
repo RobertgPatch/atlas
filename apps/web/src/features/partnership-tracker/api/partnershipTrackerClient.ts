@@ -24,6 +24,7 @@ import type {
   PartnershipTrackerYearDetail,
   SettlePartnershipCashFlowRequest,
   PartnershipType,
+  UpdatePartnershipCashFlowRequest,
   UpdatePartnershipCommitmentEntryRequest,
   UpdatePartnershipNavEntryRequest,
   UpdatePartnershipTrackerYearRequest,
@@ -177,6 +178,9 @@ export const partnershipTrackerClient = {
   },
   createCashFlows(partnershipId: string, body: CreatePartnershipCashFlowsRequest): Promise<K1TrackerCashFlowEvent[]> {
     return request(`${root}/${partnershipId}/cash-flows/batch`, { method: 'POST', body: JSON.stringify({ entries: body.entries.map((entry) => ({ ...entry, amount: serializeTrackerMoney(entry.amount) })) }) })
+  },
+  updateCashFlow(partnershipId: string, cashFlowId: string, body: UpdatePartnershipCashFlowRequest): Promise<K1TrackerCashFlowEvent> {
+    return request(`${root}/${partnershipId}/cash-flows/${cashFlowId}`, { method: 'PATCH', body: JSON.stringify({ ...body, amount: serializeTrackerMoney(body.amount) }) })
   },
   deleteCashFlow(partnershipId: string, cashFlowId: string, expectedUpdatedAt: string): Promise<void> {
     return request(`${root}/${partnershipId}/cash-flows/${cashFlowId}?expectedUpdatedAt=${encodeURIComponent(expectedUpdatedAt)}`, { method: 'DELETE' })

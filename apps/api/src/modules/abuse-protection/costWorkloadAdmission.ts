@@ -168,25 +168,6 @@ const monthlyCostProfile = (workloadKey: string, bdaPageCount?: number | null): 
         familyLimit: monthly.k1CheckboxCalls,
         maximumCentsPerUnit: 25 * attempts.bedrockCheckboxMaximumAttempts,
       };
-    case "plaid_link_token":
-      return {
-        familyKey: "plaid_link_token",
-        familyLimit: monthly.plaidLinkTokens,
-        maximumCentsPerUnit: 5 * attempts.plaidMaximumAttempts,
-      };
-    case "plaid_public_token_exchange":
-      return {
-        familyKey: "plaid_token_exchange",
-        familyLimit: monthly.plaidExchanges,
-        maximumCentsPerUnit: 25 * attempts.plaidMaximumAttempts,
-      };
-    case "plaid_holdings_refresh":
-    case "plaid_scheduled_refresh":
-      return {
-        familyKey: "plaid_refresh",
-        familyLimit: monthly.plaidRefreshes,
-        maximumCentsPerUnit: 100 * attempts.plaidMaximumAttempts,
-      };
     case "market_data_closing_prices":
       return {
         familyKey: "market_provider_call",
@@ -213,7 +194,7 @@ const monthlyCostProfile = (workloadKey: string, bdaPageCount?: number | null): 
 };
 
 const providerSubjectRequired = (workloadKey: string): boolean =>
-  /(?:bda|bedrock|plaid|market_data|market_provider)/.test(workloadKey);
+  /(?:bda|bedrock|market_data|market_provider)/.test(workloadKey);
 
 const requireSubjectHash = (
   context: ValidatedSubjectContext,

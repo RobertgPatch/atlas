@@ -1,18 +1,19 @@
 locals {
-  production_target          = jsondecode(file("${path.module}/../production-target.json"))
-  production_secret_contract = jsondecode(file("${path.module}/production-secrets.contract.json"))
-  name_prefix                = "${var.project_name}-${var.environment_name}"
-  configured_app_domain      = var.app_domain == null ? null : trimspace(var.app_domain)
-  custom_domain_enabled      = local.configured_app_domain == null ? false : local.configured_app_domain != ""
-  web_origin                 = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
-  k1_document_bucket_name    = "${local.name_prefix}-k1-documents-${data.aws_caller_identity.current.account_id}"
-  k1_kms_alias_name          = "alias/${local.name_prefix}-k1-documents"
-  k1_kms_alias_arn           = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.k1_kms_alias_name}"
-  k1_start_queue_name        = "${local.name_prefix}-k1-start"
-  k1_completion_queue_name   = "${local.name_prefix}-k1-completion"
-  k1_start_queue_url         = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_start_queue_name}"
-  k1_completion_queue_url    = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_completion_queue_name}"
-  k1_bda_profile_arn         = var.k1_bda_profile_arn == null ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:data-automation-profile/us.data-automation-v1" : var.k1_bda_profile_arn
+  production_target                        = jsondecode(file("${path.module}/../production-target.json"))
+  production_secret_contract               = jsondecode(file("${path.module}/production-secrets.contract.json"))
+  name_prefix                              = "${var.project_name}-${var.environment_name}"
+  configured_app_domain                    = var.app_domain == null ? null : trimspace(var.app_domain)
+  custom_domain_enabled                    = local.configured_app_domain == null ? false : local.configured_app_domain != ""
+  web_origin                               = local.custom_domain_enabled ? "https://${local.configured_app_domain}" : ""
+  k1_document_bucket_name                  = "${local.name_prefix}-k1-documents-${data.aws_caller_identity.current.account_id}"
+  k1_kms_alias_name                        = "alias/${local.name_prefix}-k1-documents"
+  k1_kms_alias_arn                         = "arn:aws:kms:${var.aws_region}:${data.aws_caller_identity.current.account_id}:${local.k1_kms_alias_name}"
+  k1_start_queue_name                      = "${local.name_prefix}-k1-start"
+  k1_completion_queue_name                 = "${local.name_prefix}-k1-completion"
+  k1_start_queue_url                       = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_start_queue_name}"
+  k1_completion_queue_url                  = "https://sqs.${var.aws_region}.amazonaws.com/${data.aws_caller_identity.current.account_id}/${local.k1_completion_queue_name}"
+  k1_bda_profile_arn                       = var.k1_bda_profile_arn == null ? "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:data-automation-profile/us.data-automation-v1" : var.k1_bda_profile_arn
+  market_price_scheduler_effective_enabled = var.real_time_equities_enabled && var.market_price_scheduler_enabled
 
   common_tags = merge(
     {
@@ -20,7 +21,7 @@ locals {
       Environment        = var.environment_name
       EnvironmentProfile = var.environment_cost_profile
       ManagedBy          = "terraform"
-      Feature            = "plaid-refresh-policy"
+      Feature            = "liquidity-csv"
     },
     local.custom_domain_enabled ? { AppDomain = local.configured_app_domain } : {},
     var.additional_tags,
@@ -41,9 +42,7 @@ locals {
 
   secret_requirement_enabled = {
     always                  = true
-    plaidEnabled            = true
-    plaidSchedulerEnabled   = var.scheduler_enabled
-    marketDataAlpacaEnabled = var.market_data_provider == "alpaca"
+    marketDataAlpacaEnabled = var.real_time_equities_enabled && var.market_data_provider == "alpaca"
     k1AwsIngestionEnabled   = var.k1_aws_ingestion_enabled
   }
   active_secret_contract_rows = [
@@ -53,10 +52,6 @@ locals {
   api_secret_keys = toset([
     for secret in local.active_secret_contract_rows : secret.key
     if contains(secret.consumers, "api")
-  ])
-  plaid_scheduler_secret_keys = toset([
-    for secret in local.active_secret_contract_rows : secret.key
-    if contains(secret.consumers, "plaid-scheduler")
   ])
   market_scheduler_secret_keys = toset([
     for secret in local.active_secret_contract_rows : secret.key
@@ -86,9 +81,6 @@ locals {
     ABUSE_K1_GLOBAL_FILES_PER_MONTH            = "15500"
     ABUSE_K1_BDA_CALLS_PER_MONTH               = "3100"
     ABUSE_K1_CHECKBOX_CALLS_PER_MONTH          = "4"
-    ABUSE_PLAID_LINK_TOKENS_PER_MONTH          = "10"
-    ABUSE_PLAID_EXCHANGES_PER_MONTH            = "5"
-    ABUSE_PLAID_REFRESHES_PER_MONTH            = "2"
     ABUSE_MARKET_PROVIDER_CALLS_PER_MONTH      = "25"
     ABUSE_EXPORTS_PER_MONTH                    = "40"
     ABUSE_BACKFILL_RUNS_PER_MONTH              = "1"
@@ -118,10 +110,6 @@ locals {
     ABUSE_K1_EXTRACTION_GLOBAL_IN_FLIGHT       = "5"
     ABUSE_K1_EXTRACTION_GLOBAL_BACKLOG         = "100"
     ABUSE_K1_CHECKBOX_CALLS_GLOBAL_PER_DAY     = "50"
-    ABUSE_PLAID_LINK_TOKENS_USER_PER_DAY       = "5"
-    ABUSE_PLAID_EXCHANGES_USER_PER_DAY         = "5"
-    ABUSE_PLAID_REFRESHES_ACCOUNT_PER_DAY      = "4"
-    ABUSE_PLAID_REFRESHES_GLOBAL_PER_DAY       = "25"
     ABUSE_MARKET_REFRESH_RUNS_GLOBAL_PER_DAY   = "24"
     ABUSE_MARKET_PROVIDER_CALLS_GLOBAL_PER_DAY = "200"
     ABUSE_PROVIDER_GLOBAL_CONCURRENCY          = "2"
@@ -138,60 +126,66 @@ locals {
     ABUSE_SCHEDULER_GLOBAL_CONCURRENCY         = "1"
     ABUSE_BDA_MAX_ATTEMPTS                     = "3"
     ABUSE_BEDROCK_MAX_ATTEMPTS                 = "2"
-    ABUSE_PLAID_MAX_ATTEMPTS                   = "2"
     ABUSE_MARKET_DATA_MAX_ATTEMPTS             = "2"
     ABUSE_SQS_MAX_RECEIVES                     = "5"
     ABUSE_BDA_TIMEOUT_MS                       = "60000"
     ABUSE_BEDROCK_TIMEOUT_MS                   = "30000"
-    ABUSE_PLAID_TIMEOUT_MS                     = "10000"
     ABUSE_MARKET_DATA_TIMEOUT_MS               = "10000"
     ABUSE_EXPORT_TIMEOUT_MS                    = "30000"
     ABUSE_BACKFILL_TIMEOUT_MS                  = "60000"
     K1_UPLOADS_ENABLED                         = "false"
     K1_EXTRACTION_ENABLED                      = "false"
     K1_BEDROCK_CHECKBOX_ENABLED                = "false"
-    PLAID_REFRESH_ENABLED                      = "false"
     MARKET_DATA_REFRESH_ENABLED                = "false"
     REPORT_EXPORTS_ENABLED                     = "false"
     BACKFILLS_ENABLED                          = "false"
   }
 
   api_environment_variables = merge({
-    NODE_ENV                         = "production"
-    ATLAS_RUNTIME                    = "production"
-    ADMIN_EMAIL                      = "tpatch@jspllc.com"
-    ADMIN_DISPLAY_NAME               = "Tony Patch"
-    SUPER_ADMIN_EMAIL                = "rpatch@jspllc.com"
-    SUPER_ADMIN_DISPLAY_NAME         = "Robert Patch"
-    PORT                             = tostring(var.api_container_port)
-    REQUIRE_DURABLE_PERSISTENCE      = "true"
-    TRUSTED_PROXY_CIDRS              = join(",", var.private_subnet_cidrs)
-    WEB_ORIGIN                       = local.web_origin
-    SESSION_COOKIE_SECURE            = "true"
-    SESSION_COOKIE_SAMESITE          = "lax"
-    MFA_LOGIN_ENABLED                = tostring(var.mfa_login_enabled)
-    PLAID_ENV                        = "production"
-    PLAID_REFRESH_TIME_LOCAL         = var.plaid_refresh_time_local
-    PLAID_REFRESH_TIMEZONE           = var.plaid_refresh_timezone
-    PLAID_REFRESH_SCHEDULER_ENABLED  = "true"
-    PLAID_REFRESH_SCHEDULER_MODE     = "eventbridge"
-    MARKET_DATA_PROVIDER             = var.market_data_provider
-    MARKET_PRICE_SCHEDULER_ENABLED   = tostring(var.market_price_scheduler_enabled)
-    MARKET_DATA_REFRESH_ON_READ      = tostring(var.market_data_refresh_on_read)
-    MARKET_DATA_MAX_AGE_SECONDS      = tostring(var.market_data_max_age_seconds)
-    MARKET_DATA_REQUEST_TIMEOUT_MS   = tostring(var.market_data_request_timeout_ms)
-    ALPACA_MARKET_DATA_BASE_URL      = var.alpaca_market_data_base_url
-    ALPACA_MARKET_DATA_FEED          = var.alpaca_market_data_feed
-    RATE_LIMIT_ENABLED               = "true"
-    API_SHARED_CACHE_POLICY          = "no_shared_cache"
-    AWS_REGION                       = var.aws_region
-    AWS_APP_DOMAIN                   = local.configured_app_domain == null ? "" : local.configured_app_domain
-    AWS_ENVIRONMENT_NAME             = var.environment_name
-    AWS_ENVIRONMENT_PROFILE          = var.environment_cost_profile
-    AWS_APPLICATION_LOG_VIEW_ENABLED = "true"
+    LIQUIDITY_CSV_UPLOADS_ENABLED              = tostring(var.liquidity_csv_uploads_enabled)
+    LIQUIDITY_CSV_PARSING_ENABLED              = tostring(var.liquidity_csv_parsing_enabled)
+    LIQUIDITY_CSV_APPLY_ENABLED                = tostring(var.liquidity_csv_apply_enabled)
+    LIQUIDITY_CSV_OBJECT_STORE                 = "s3"
+    LIQUIDITY_CSV_S3_BUCKET                    = aws_s3_bucket.liquidity_csv.id
+    LIQUIDITY_CSV_KMS_KEY_ARN                  = aws_kms_key.liquidity_csv.arn
+    LIQUIDITY_CSV_S3_REGION                    = var.aws_region
+    LIQUIDITY_CSV_MAX_BYTES                    = "10485760"
+    LIQUIDITY_CSV_MAX_ROWS                     = "5000"
+    LIQUIDITY_CSV_PARSE_CONCURRENCY            = "1"
+    LIQUIDITY_CSV_PARSE_TIMEOUT_MS             = "30000"
+    LIQUIDITY_CSV_MAX_RETRIES                  = "2"
+    LIQUIDITY_CSV_MAX_QUEUED_JOBS              = "20"
+    LIQUIDITY_CSV_MAX_OUTSTANDING_CAPABILITIES = "10"
+    NODE_ENV                                   = "production"
+    ATLAS_RUNTIME                              = "production"
+    ADMIN_EMAIL                                = "tpatch@jspllc.com"
+    ADMIN_DISPLAY_NAME                         = "Tony Patch"
+    SUPER_ADMIN_EMAIL                          = "rpatch@jspllc.com"
+    SUPER_ADMIN_DISPLAY_NAME                   = "Robert Patch"
+    PORT                                       = tostring(var.api_container_port)
+    REQUIRE_DURABLE_PERSISTENCE                = "true"
+    TRUSTED_PROXY_CIDRS                        = join(",", var.private_subnet_cidrs)
+    WEB_ORIGIN                                 = local.web_origin
+    SESSION_COOKIE_SECURE                      = "true"
+    SESSION_COOKIE_SAMESITE                    = "lax"
+    MFA_LOGIN_ENABLED                          = tostring(var.mfa_login_enabled)
+    MARKET_DATA_PROVIDER                       = var.market_data_provider
+    REAL_TIME_EQUITIES_ENABLED                 = tostring(var.real_time_equities_enabled)
+    MARKET_PRICE_SCHEDULER_ENABLED             = tostring(local.market_price_scheduler_effective_enabled)
+    MARKET_DATA_REFRESH_ON_READ                = tostring(var.market_data_refresh_on_read)
+    MARKET_DATA_MAX_AGE_SECONDS                = tostring(var.market_data_max_age_seconds)
+    MARKET_DATA_REQUEST_TIMEOUT_MS             = tostring(var.market_data_request_timeout_ms)
+    ALPACA_MARKET_DATA_BASE_URL                = var.alpaca_market_data_base_url
+    ALPACA_MARKET_DATA_FEED                    = var.alpaca_market_data_feed
+    RATE_LIMIT_ENABLED                         = "true"
+    API_SHARED_CACHE_POLICY                    = "no_shared_cache"
+    AWS_REGION                                 = var.aws_region
+    AWS_APP_DOMAIN                             = local.configured_app_domain == null ? "" : local.configured_app_domain
+    AWS_ENVIRONMENT_NAME                       = var.environment_name
+    AWS_ENVIRONMENT_PROFILE                    = var.environment_cost_profile
+    AWS_APPLICATION_LOG_VIEW_ENABLED           = "true"
     AWS_APPLICATION_LOG_GROUPS = join(",", [
       "/aws/ecs/${local.name_prefix}/api",
-      "/aws/ecs/${local.name_prefix}/plaid-refresh",
       "/aws/ecs/${local.name_prefix}/market-price-refresh",
       "/aws/ecs/${local.name_prefix}/k1-worker",
     ])
@@ -211,8 +205,6 @@ locals {
     PRODUCTION_ALARMS_CONFIGURED  = tostring(var.alarm_destination_confirmed)
   }, local.abuse_protection_environment_variables)
 
-  refresh_time_parts         = split(":", var.plaid_refresh_time_local)
-  refresh_schedule_cron      = "cron(${tonumber(local.refresh_time_parts[1])} ${tonumber(local.refresh_time_parts[0])} * * ? *)"
   market_price_time_parts    = split(":", var.market_price_refresh_time_local)
   market_price_schedule_cron = "cron(${tonumber(local.market_price_time_parts[1])} ${tonumber(local.market_price_time_parts[0])} ? * MON-FRI *)"
   web_assets_bucket_name     = "${local.name_prefix}-web-assets"
@@ -237,9 +229,6 @@ locals {
     log_retention_days            = var.log_retention_days
     waf_log_retention_days        = var.waf_log_retention_days
     monthly_budget_limit_usd      = var.monthly_budget_limit_usd
-    plaid_refresh_time_local      = var.plaid_refresh_time_local
-    plaid_refresh_timezone        = var.plaid_refresh_timezone
-    scheduler_expression          = local.refresh_schedule_cron
     market_data_provider          = var.market_data_provider
     market_price_refresh_time     = var.market_price_refresh_time_local
     market_price_refresh_timezone = var.market_price_refresh_timezone
@@ -325,7 +314,6 @@ module "api" {
   environment_variables       = local.api_environment_variables
   application_log_group_names = [
     "/aws/ecs/${local.name_prefix}/api",
-    "/aws/ecs/${local.name_prefix}/plaid-refresh",
     "/aws/ecs/${local.name_prefix}/market-price-refresh",
     "/aws/ecs/${local.name_prefix}/k1-worker",
   ]
@@ -337,7 +325,6 @@ module "api" {
   additional_secret_arns = distinct(concat(
     compact([module.database.master_user_secret_arn]),
     [for key, arn in module.secrets.secret_arns : arn if contains(toset(concat(
-      tolist(local.plaid_scheduler_secret_keys),
       tolist(local.market_scheduler_secret_keys),
       tolist(local.k1_worker_secret_keys),
     )), key)],
@@ -458,7 +445,7 @@ module "scheduler" {
   name_prefix             = local.name_prefix
   aws_region              = var.aws_region
   ecs_cluster_arn         = module.api.ecs_cluster_arn
-  container_name          = "plaid-refresh"
+  container_name          = "market-price-refresh"
   container_image         = module.api.api_container_image
   task_execution_role_arn = module.api.api_task_execution_role_arn
   task_role_arn           = module.api.api_task_role_arn
@@ -467,20 +454,13 @@ module "scheduler" {
   private_subnet_ids      = module.network.private_subnet_ids
   security_group_ids      = [module.network.api_security_group_id]
   environment_variables   = local.api_environment_variables
-  plaid_secret_arns = {
-    for key, arn in module.secrets.secret_arns : key => arn
-    if contains(local.plaid_scheduler_secret_keys, key)
-  }
   market_price_secret_arns = {
     for key, arn in module.secrets.secret_arns : key => arn
     if contains(local.market_scheduler_secret_keys, key)
   }
-  schedule_expression              = local.refresh_schedule_cron
-  schedule_timezone                = var.plaid_refresh_timezone
-  scheduler_enabled                = var.scheduler_enabled
   market_price_schedule_expression = local.market_price_schedule_cron
   market_price_schedule_timezone   = var.market_price_refresh_timezone
-  market_price_scheduler_enabled   = var.market_price_scheduler_enabled
+  market_price_scheduler_enabled   = local.market_price_scheduler_effective_enabled
   log_retention_days               = var.log_retention_days
 }
 
@@ -509,7 +489,6 @@ module "observability" {
   rds_cpu_threshold_percent                = var.rds_cpu_threshold_percent
   rds_free_storage_threshold_bytes         = var.rds_free_storage_threshold_bytes
   rds_connections_threshold                = var.rds_connections_threshold
-  scheduler_schedule_name                  = module.scheduler.schedule_name
   market_price_scheduler_schedule_name     = module.scheduler.market_price_schedule_name
   waf_web_acl_name                         = module.security.web_acl_name
   waf_blocked_requests_threshold           = var.waf_blocked_requests_threshold

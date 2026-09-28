@@ -38,7 +38,7 @@ export const getPersistenceStatus = async (): Promise<PersistenceStatus> => {
       warnings.push('DATABASE_URL is configured but Postgres is not reachable.')
     }
   } else {
-    warnings.push('DATABASE_URL is not configured; auth and Plaid state are temporary.')
+    warnings.push('DATABASE_URL is not configured; authentication state is temporary.')
   }
 
   if (databaseReachable && !isDedicatedSecretKeyConfigured()) {

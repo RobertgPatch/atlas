@@ -1,10 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { releaseEligible, requiredJobs, candidateTask, candidateDistribution, originRequestPolicy, waitForService, bootstrapTemplate } from './live-production.mjs';
+import { releaseEligible, requiredJobs, candidateTask, candidateDistribution, originRequestPolicy, waitForService, bootstrapTemplate, liquidityCsvTemplate } from './live-production.mjs';
 const target = JSON.parse(readFileSync(new URL('../../infra/aws/live-production-target.json', import.meta.url), 'utf8'));
 const sha = 'a'.repeat(40);
 const image = `${target.accountId}.dkr.ecr.${target.region}.amazonaws.com/${target.repository}@sha256:${'b'.repeat(64)}`;
+test('CSV storage and price flag use the live API defaults and preserve intentional overrides', () => {
+  const storage = { bucket: target.liquidityCsv.bucket, kmsKeyArn: `arn:aws:kms:${target.region}:${target.accountId}:key/test` };
+  for (const spec of target.services) for (const value of [undefined, 'true', 'false']) {
+    const task = { family: spec.name, containerDefinitions: [{ name: spec.container, environment: value ? [{ name: 'REAL_TIME_EQUITIES_ENABLED', value }] : [] }] };
+    const result = candidateTask(task, spec, target, image, [], storage);
+    const env = Object.fromEntries(result.containerDefinitions[0].environment.map(item => [item.name, item.value]));
+    assert.equal(env.REAL_TIME_EQUITIES_ENABLED, value ?? 'false');
+    assert.equal(env.LIQUIDITY_CSV_PARSING_ENABLED, spec.role === 'api' ? 'true' : 'false');
+    if (spec.role === 'api') { assert.equal(env.LIQUIDITY_CSV_S3_BUCKET, storage.bucket); assert.equal(env.LIQUIDITY_CSV_S3_REGION, 'us-west-1'); }
+    if (value !== 'true') assert.equal(env.MARKET_PRICE_SCHEDULER_ENABLED, 'false');
+  }
+  const template = liquidityCsvTemplate(target, `arn:aws:iam::${target.accountId}:role/api`);
+  const resources = template.Resources;
+  assert.equal(resources.CsvBucket.Properties.VersioningConfiguration.Status, 'Enabled');
+  assert.equal(resources.CsvBucket.DeletionPolicy, 'Retain');
+  assert.deepEqual(resources.CsvAccess.Properties.Roles, ['api']);
+  assert.ok(resources.CsvAccess.Properties.PolicyDocument.Statement[0].Resource.endsWith('/liquidity-csv/*'));
+  assert.ok(!JSON.stringify(template).includes('bedrock'));
+  assert.ok(!JSON.stringify(template).includes('DeleteObject'));
+});
 test('only the current main push with both completed named jobs is eligible', () => {
   const input = { branch: 'main', sha, remoteSha: sha, run: { headSha: sha, headBranch: 'main', event: 'push',
     status: 'completed', conclusion: 'success', jobs: requiredJobs.map(name => ({ name, status: 'completed', conclusion: 'success' })) } };
@@ -21,8 +41,9 @@ test('candidate task preserves split-region K-1, paid limits, roles, and secret 
       cpu: '512', memory: '1024', containerDefinitions: [{ name: spec.container, image: 'old-image',
         command: ['node', spec.role === 'api' ? 'dist/server.js' : 'dist/workers/k1-extraction-worker.js'],
         environment: [{ name: 'K1_S3_REGION', value: 'us-west-2' }, { name: 'K1_BDA_REGION', value: 'us-west-2' },
-          { name: 'ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS', value: '62000' }, { name: 'ABUSE_HMAC_KEY_ID', value: 'existing-v1' }],
-        secrets: [{ name: 'DATABASE_URL', valueFrom: 'existing-secret-arn' }] }] };
+          { name: 'ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS', value: '62000' }, { name: 'ABUSE_HMAC_KEY_ID', value: 'existing-v1' },
+          { name: 'PLAID_ENV', value: 'production' }, { name: 'ABUSE_PLAID_TIMEOUT_MS', value: '10000' }],
+        secrets: [{ name: 'DATABASE_URL', valueFrom: 'existing-secret-arn' }, { name: 'PLAID_SECRET', valueFrom: 'retired-secret-arn' }] }] };
     const result = candidateTask(task, spec, target, image, ['10.42.10.0/24']);
     const container = result.containerDefinitions[0];
     const env = Object.fromEntries(container.environment.map(item => [item.name, item.value]));
@@ -33,7 +54,9 @@ test('candidate task preserves split-region K-1, paid limits, roles, and secret 
     assert.equal(env.K1_BDA_REGION, 'us-west-2');
     assert.equal(env.ABUSE_PAID_WORKLOAD_MONTHLY_BUDGET_CENTS, '62000');
     assert.equal(env.ABUSE_HMAC_KEY_ID, 'existing-v1');
-    assert.deepEqual(container.secrets, task.containerDefinitions[0].secrets);
+    assert.deepEqual(container.secrets, [{ name: 'DATABASE_URL', valueFrom: 'existing-secret-arn' }]);
+    assert.equal(env.PLAID_ENV, undefined);
+    assert.equal(env.ABUSE_PLAID_TIMEOUT_MS, undefined);
     assert.deepEqual(container.command, task.containerDefinitions[0].command);
     assert.equal(result.revision, undefined);
     assert.equal(result.taskRoleArn, task.taskRoleArn);

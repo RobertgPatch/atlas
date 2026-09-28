@@ -29,7 +29,7 @@ export function DataQualityBanner({
       <div className="flex-shrink-0">
         <div className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-600">
           <InfoIcon className="h-3 w-3" />
-          Plaid API
+          CSV source
         </div>
       </div>
     </div>

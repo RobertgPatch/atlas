@@ -58,24 +58,9 @@ variable "environment_variables" {
   type        = map(string)
 }
 
-variable "plaid_secret_arns" {
-  description = "Plaid scheduler secret environment variables mapped to exact Secrets Manager ARNs."
-  type        = map(string)
-}
-
 variable "market_price_secret_arns" {
   description = "Market-price scheduler secret environment variables mapped to exact Secrets Manager ARNs."
   type        = map(string)
-}
-
-variable "schedule_expression" {
-  description = "EventBridge Scheduler cron or rate expression."
-  type        = string
-}
-
-variable "schedule_timezone" {
-  description = "Timezone for the scheduler expression."
-  type        = string
 }
 
 variable "market_price_schedule_expression" {
@@ -88,11 +73,6 @@ variable "market_price_schedule_timezone" {
   type        = string
 }
 
-variable "scheduler_enabled" {
-  description = "Whether the EventBridge schedule is enabled."
-  type        = bool
-}
-
 variable "market_price_scheduler_enabled" {
   description = "Whether the end-of-day market price schedule is enabled."
   type        = bool
@@ -101,26 +81,6 @@ variable "market_price_scheduler_enabled" {
 variable "log_retention_days" {
   description = "CloudWatch log retention in days."
   type        = number
-}
-
-output "schedule_arn" {
-  description = "EventBridge Scheduler schedule ARN."
-  value       = aws_scheduler_schedule.plaid_refresh.arn
-}
-
-output "schedule_name" {
-  description = "EventBridge Scheduler schedule name."
-  value       = aws_scheduler_schedule.plaid_refresh.name
-}
-
-output "refresh_task_definition_arn" {
-  description = "Refresh task definition ARN."
-  value       = aws_ecs_task_definition.refresh.arn
-}
-
-output "refresh_log_group_name" {
-  description = "Refresh task log group name."
-  value       = aws_cloudwatch_log_group.refresh.name
 }
 
 output "market_price_schedule_arn" {

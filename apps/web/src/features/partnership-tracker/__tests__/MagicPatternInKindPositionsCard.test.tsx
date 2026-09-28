@@ -39,6 +39,7 @@ describe('Magic Patterns securities received in kind', () => {
     expect(parseInKindActivityNote(note)).toEqual({
       ticker: 'NVDA',
       name: 'NVIDIA Corporation',
+      hasExplicitName: true,
       shares: 100,
       costBasisPerShare: 25,
       fmvPerShare: 40,

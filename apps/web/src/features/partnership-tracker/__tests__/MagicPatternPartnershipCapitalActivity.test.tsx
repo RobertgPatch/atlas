@@ -21,6 +21,24 @@ const detail = {
 } as unknown as PartnershipTrackerDetail
 
 describe('MagicPatternPartnershipCapitalActivity', () => {
+  it('offers an edit action for every cash activity and valuation row', () => {
+    render(
+      <MagicPatternPartnershipCapitalActivity
+        detail={detail}
+        canEdit
+        drawerOpen={false}
+        onDrawerOpenChange={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Edit capital call from 2024-03-01' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit non-recallable distribution from 2024-12-15' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit recallable distribution from 2024-11-30' })).toBeInTheDocument()
+    for (const valuation of navFixtures) {
+      expect(screen.getByRole('button', { name: `Edit valuation dated ${valuation.valuationDate}` })).toBeInTheDocument()
+    }
+  })
+
   it('keeps the ledger scoped to the selected partnership', () => {
     render(
       <MagicPatternPartnershipCapitalActivity

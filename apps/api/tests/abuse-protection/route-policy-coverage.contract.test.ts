@@ -16,7 +16,7 @@ import {
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
 import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 129
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 138
 
 interface AuthWafContract {
   readonly schemaVersion: string
@@ -50,7 +50,7 @@ describe('external route protection policy coverage', () => {
     return app
   }
 
-  it('inventories all 129 declared routes without double-counting Fastify auto-HEAD siblings', async () => {
+  it('inventories declared routes without double-counting Fastify auto-HEAD siblings', async () => {
     const app = await readyApp()
     const inventory = app.abuseProtectionRouteInventory
     const routeKeys = inventory.map((route) =>
@@ -83,7 +83,6 @@ describe('external route protection policy coverage', () => {
       { method: 'PATCH' as const, routePattern: '/v1/partnership-tracker/partnerships/:partnershipId/years/:taxYear' },
       { method: 'GET' as const, routePattern: '/v1/admin/production-readiness' },
       { method: 'GET' as const, routePattern: '/v1/admin/protection-controls' },
-      { method: 'POST' as const, routePattern: '/v1/admin/plaid-refresh/run' },
       { method: 'GET' as const, routePattern: '/v1/admin/users' },
       { method: 'GET' as const, routePattern: '/v1/admin/application-logs' },
       { method: 'POST' as const, routePattern: '/v1/auth/password/change' },
@@ -96,6 +95,8 @@ describe('external route protection policy coverage', () => {
       { method: 'POST' as const, routePattern: '/v1/k1-tracker/imports/preview' },
       { method: 'GET' as const, routePattern: '/v1/admin/users/:userId' },
       { method: 'POST' as const, routePattern: '/v1/admin/dev/seed' },
+      { method: 'POST' as const, routePattern: '/v1/plaid/link-token' },
+      { method: 'POST' as const, routePattern: '/v1/plaid/exchange-public-token' },
     ]) {
       expect(routeKeys.has(canonicalRouteKey(retired.method, retired.routePattern))).toBe(false)
     }

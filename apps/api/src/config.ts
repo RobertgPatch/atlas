@@ -1,4 +1,5 @@
 import dotenv from 'dotenv'
+import { buildLiquidityCsvConfig } from './modules/liquidity-statements/liquidity-statement.config.js'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -156,7 +157,6 @@ export const buildRuntimeBoundaryConfig = (
 
     const nonK1RemoteSettings: Array<[string, boolean]> = [
       ['MARKET_DATA_PROVIDER', (env.MARKET_DATA_PROVIDER ?? 'none') !== 'none'],
-      ['PLAID_ENV', !['', 'sandbox'].includes(env.PLAID_ENV ?? '')],
       ['AWS_APP_DOMAIN', Boolean(env.AWS_APP_DOMAIN?.trim())],
       ['AWS_CLOUDFRONT_DISTRIBUTION_ID', Boolean(env.AWS_CLOUDFRONT_DISTRIBUTION_ID?.trim())],
       ['AWS_WEB_ASSETS_BUCKET', Boolean(env.AWS_WEB_ASSETS_BUCKET?.trim())],
@@ -343,6 +343,12 @@ const strictBoolean = (
   if (raw === 'false') return false
   throw configurationError(name, 'expected exactly true or false')
 }
+
+export const resolveRealTimeEquitiesEnabled = (
+  env: EnvironmentSource,
+  environment = env.NODE_ENV ?? 'development',
+): boolean =>
+  strictBoolean(env, environment, 'REAL_TIME_EQUITIES_ENABLED', false)
 
 const strictIdentifier = (
   env: EnvironmentSource,
@@ -771,9 +777,6 @@ export const buildAbuseProtectionConfig = (
         k1UploadFiles: strictInteger(env, environment, 'ABUSE_K1_GLOBAL_FILES_PER_MONTH', 50, productionPaidLimit),
         k1BdaProviderCalls: strictInteger(env, environment, 'ABUSE_K1_BDA_CALLS_PER_MONTH', 1, productionPaidLimit),
         k1CheckboxCalls: strictInteger(env, environment, 'ABUSE_K1_CHECKBOX_CALLS_PER_MONTH', 4, productionPaidLimit),
-        plaidLinkTokens: strictInteger(env, environment, 'ABUSE_PLAID_LINK_TOKENS_PER_MONTH', 10, productionPaidLimit),
-        plaidExchanges: strictInteger(env, environment, 'ABUSE_PLAID_EXCHANGES_PER_MONTH', 5, productionPaidLimit),
-        plaidRefreshes: strictInteger(env, environment, 'ABUSE_PLAID_REFRESHES_PER_MONTH', 2, productionPaidLimit),
         marketProviderCalls: strictInteger(env, environment, 'ABUSE_MARKET_PROVIDER_CALLS_PER_MONTH', 25, productionPaidLimit),
         reportExports: strictInteger(env, environment, 'ABUSE_EXPORTS_PER_MONTH', 40, productionPaidLimit),
         backfillRuns: strictInteger(env, environment, 'ABUSE_BACKFILL_RUNS_PER_MONTH', 1, productionPaidLimit),
@@ -814,10 +817,6 @@ export const buildAbuseProtectionConfig = (
         checkboxCallsGlobalPerDay: strictInteger(env, environment, 'ABUSE_K1_CHECKBOX_CALLS_GLOBAL_PER_DAY', 50, productionPaidLimit),
       },
       externalProvider: {
-        plaidLinkTokensPerUserDay: strictInteger(env, environment, 'ABUSE_PLAID_LINK_TOKENS_USER_PER_DAY', 5, productionPaidLimit),
-        plaidExchangesPerUserDay: strictInteger(env, environment, 'ABUSE_PLAID_EXCHANGES_USER_PER_DAY', 5, productionPaidLimit),
-        plaidRefreshesPerAccountDay: strictInteger(env, environment, 'ABUSE_PLAID_REFRESHES_ACCOUNT_PER_DAY', 4, productionPaidLimit),
-        plaidRefreshesGlobalDay: strictInteger(env, environment, 'ABUSE_PLAID_REFRESHES_GLOBAL_PER_DAY', 25, productionPaidLimit),
         marketRefreshRunsGlobalDay: strictInteger(env, environment, 'ABUSE_MARKET_REFRESH_RUNS_GLOBAL_PER_DAY', 24, productionPaidLimit),
         marketProviderCallsGlobalDay: strictInteger(env, environment, 'ABUSE_MARKET_PROVIDER_CALLS_GLOBAL_PER_DAY', 200, productionPaidLimit),
         globalConcurrency: strictInteger(env, environment, 'ABUSE_PROVIDER_GLOBAL_CONCURRENCY', 2, productionPaidLimit),
@@ -843,7 +842,6 @@ export const buildAbuseProtectionConfig = (
     retryBudgets: {
       bdaMaximumAttempts: strictInteger(env, environment, 'ABUSE_BDA_MAX_ATTEMPTS', 3, { ...productionPaidLimit, max: 10 }),
       bedrockCheckboxMaximumAttempts: strictInteger(env, environment, 'ABUSE_BEDROCK_MAX_ATTEMPTS', 2, { ...productionPaidLimit, max: 10 }),
-      plaidMaximumAttempts: strictInteger(env, environment, 'ABUSE_PLAID_MAX_ATTEMPTS', 2, { ...productionPaidLimit, max: 10 }),
       marketDataMaximumAttempts: strictInteger(env, environment, 'ABUSE_MARKET_DATA_MAX_ATTEMPTS', 2, { ...productionPaidLimit, max: 10 }),
       sqsMaximumReceives: strictInteger(env, environment, 'ABUSE_SQS_MAX_RECEIVES', 5, { ...productionPaidLimit, max: 100 }),
       baseDelayMs: strictInteger(env, environment, 'ABUSE_RETRY_BASE_DELAY_MS', 200, { max: 60_000 }),
@@ -872,7 +870,6 @@ export const buildAbuseProtectionConfig = (
       k1UploadsEnabled: strictBoolean(env, environment, 'K1_UPLOADS_ENABLED', false, true),
       k1ExtractionEnabled: strictBoolean(env, environment, 'K1_EXTRACTION_ENABLED', false, true),
       k1BedrockCheckboxEnabled: strictBoolean(env, environment, 'K1_BEDROCK_CHECKBOX_ENABLED', false, true),
-      plaidRefreshEnabled: strictBoolean(env, environment, 'PLAID_REFRESH_ENABLED', false, true),
       marketDataRefreshEnabled: strictBoolean(env, environment, 'MARKET_DATA_REFRESH_ENABLED', false, true),
       reportExportsEnabled: strictBoolean(env, environment, 'REPORT_EXPORTS_ENABLED', false, true),
       backfillsEnabled: strictBoolean(env, environment, 'BACKFILLS_ENABLED', false, true),
@@ -915,7 +912,6 @@ export const buildAbuseProtectionConfig = (
       documentDownloadMs: strictInteger(env, environment, 'ABUSE_DOWNLOAD_TIMEOUT_MS', 30_000, { max: 300_000 }),
       bdaProviderMs: strictInteger(env, environment, 'ABUSE_BDA_TIMEOUT_MS', 60_000, { ...productionPaidLimit, max: 300_000 }),
       bedrockProviderMs: strictInteger(env, environment, 'ABUSE_BEDROCK_TIMEOUT_MS', 30_000, { ...productionPaidLimit, max: 300_000 }),
-      plaidProviderMs: strictInteger(env, environment, 'ABUSE_PLAID_TIMEOUT_MS', 10_000, { ...productionPaidLimit, max: 300_000 }),
       marketDataProviderMs: strictInteger(env, environment, 'ABUSE_MARKET_DATA_TIMEOUT_MS', 10_000, { ...productionPaidLimit, max: 300_000 }),
       exportMs: strictInteger(env, environment, 'ABUSE_EXPORT_TIMEOUT_MS', 30_000, { ...productionPaidLimit, max: 300_000 }),
       backfillMs: strictInteger(env, environment, 'ABUSE_BACKFILL_TIMEOUT_MS', 60_000, { ...productionPaidLimit, max: 300_000 }),
@@ -943,9 +939,6 @@ export const buildAbuseProtectionConfig = (
   }
   if (config.quotas.paidExtraction.retriesPerDocumentPerDay > config.quotas.paidExtraction.lifetimeRetriesPerDocument) {
     throw configurationError('ABUSE_K1_RETRIES_PER_DOCUMENT_PER_DAY', 'must not exceed the lifetime retry ceiling')
-  }
-  if (config.quotas.externalProvider.plaidRefreshesPerAccountDay > config.quotas.externalProvider.plaidRefreshesGlobalDay) {
-    throw configurationError('ABUSE_PLAID_REFRESHES_ACCOUNT_PER_DAY', 'must not exceed the global daily ceiling')
   }
   if (config.quotas.reportExport.userExportsPerDay > config.quotas.reportExport.globalExportsPerDay) {
     throw configurationError('ABUSE_EXPORT_USER_PER_DAY', 'must not exceed the global daily ceiling')
@@ -994,14 +987,6 @@ if (nodeEnv === 'production' && trustedProxyCidrs.length === 0) {
   )
 }
 const databaseUrl = runtimeBoundary.databaseUrl
-const plaidClientId =
-  nodeEnv === 'test'
-    ? (process.env.ATLAS_TEST_PLAID_CLIENT_ID ?? '')
-    : (process.env.PLAID_CLIENT_ID ?? '')
-const plaidSecret =
-  nodeEnv === 'test'
-    ? (process.env.ATLAS_TEST_PLAID_SECRET ?? '')
-    : (process.env.PLAID_SECRET ?? '')
 const alpacaMarketDataKeyId =
   nodeEnv === 'test'
     ? (process.env.ATLAS_TEST_ALPACA_MARKET_DATA_KEY_ID ?? '')
@@ -1027,6 +1012,7 @@ const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD
   ?? 'password123'
 
 export const config = {
+  liquidityCsv: buildLiquidityCsvConfig(nodeEnv === 'test' ? {} : process.env, runtimeBoundary.runtimeClass === 'production'),
   nodeEnv,
   processRole,
   runtimeClass: runtimeBoundary.runtimeClass,
@@ -1115,17 +1101,8 @@ export const config = {
       maxDocumentBytes: asNumber(process.env.K1_BEDROCK_CHECKBOX_MAX_BYTES, 5 * 1024 * 1024),
     },
   },
-  plaidRefresh: {
-    timeLocal: process.env.PLAID_REFRESH_TIME_LOCAL ?? '05:00',
-    timezone: process.env.PLAID_REFRESH_TIMEZONE ?? 'America/Los_Angeles',
-    schedulerEnabled: asBoolean(process.env.PLAID_REFRESH_SCHEDULER_ENABLED),
-    schedulerMode: (process.env.PLAID_REFRESH_SCHEDULER_MODE ?? 'none') as
-      | 'none'
-      | 'eventbridge'
-      | 'manual',
-    schedulerToken: process.env.PROJECT_JACKSON_SCHEDULER_TOKEN ?? '',
-  },
   marketData: {
+    realTimeEquitiesEnabled: resolveRealTimeEquitiesEnabled(process.env, nodeEnv),
     provider: (process.env.MARKET_DATA_PROVIDER ?? 'none') as 'none' | 'alpaca',
     // Production reads must serve durable observations only. Refreshes run
     // through the separately admitted scheduler/manual mutation paths.
@@ -1178,14 +1155,6 @@ export const config = {
     alarmsConfigured: asBoolean(process.env.PRODUCTION_ALARMS_CONFIGURED),
     applicationLogGroups: asList(process.env.AWS_APPLICATION_LOG_GROUPS, ''),
     applicationLogViewEnabled: asBoolean(process.env.AWS_APPLICATION_LOG_VIEW_ENABLED),
-  },
-  plaid: {
-    clientId: plaidClientId,
-    secret: plaidSecret,
-    env: (process.env.PLAID_ENV ?? 'sandbox') as 'sandbox' | 'development' | 'production',
-    products: asList(process.env.PLAID_PRODUCTS, 'investments'),
-    countryCodes: asList(process.env.PLAID_COUNTRY_CODES, 'US'),
-    redirectUri: process.env.PLAID_REDIRECT_URI ?? '',
   },
 }
 

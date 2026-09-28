@@ -238,8 +238,6 @@ function Test-FeatureEnabled {
   param([string] $Condition)
   switch ($Condition) {
     'always' { return $true }
-    'plaidEnabled' { return $true }
-    'plaidSchedulerEnabled' { return $true }
     'marketDataAlpacaEnabled' { return $true }
     'k1AwsIngestionEnabled' { return $false }
     default { Stop-ProductionDeployment Validation "Unknown production secret feature condition '$Condition'." }
@@ -279,7 +277,7 @@ function Get-LiveSecretAttestation {
     }
   }
 
-  $consumerMap = [ordered]@{ api = @(); 'plaid-scheduler' = @(); 'market-scheduler' = @(); 'k1-worker' = @() }
+  $consumerMap = [ordered]@{ api = @(); 'market-scheduler' = @(); 'k1-worker' = @() }
   foreach ($row in $requiredRows) {
     foreach ($consumer in @($row.consumers)) { $consumerMap[$consumer] += $row.key }
   }
@@ -294,7 +292,7 @@ function Get-LiveSecretAttestation {
     iamWildcard = $false
     retiredKeys = @()
   }
-  $features = [pscustomobject]@{ plaidEnabled = $true; plaidSchedulerEnabled = $true; marketDataAlpacaEnabled = $true; k1AwsIngestionEnabled = $false }
+  $features = [pscustomobject]@{ marketDataAlpacaEnabled = $true; k1AwsIngestionEnabled = $false }
   $result = Test-ProductionSecretPreflight -Contract $Contract -Inventory $inventory.ToArray() -Wiring $wiring -Features $features -ExpectedAccountId $ExpectedAccountId -ExpectedRegion 'us-west-2' -PreparedAttestation $PreparedAttestation
   $inventory = $null
   if (-not $result.Valid) { Stop-ProductionDeployment Validation (Protect-DeploymentText ($result.Errors -join '; ')) }

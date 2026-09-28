@@ -42,6 +42,8 @@ const isAdminManagedMutation = (
     '/v1/partnerships',
     '/v1/partnership-tracker',
     '/v1/tic-registry',
+    '/v1/liquidity-source-accounts',
+    '/v1/liquidity-statements',
   ].some((root) => routePattern === root || routePattern.startsWith(`${root}/`))
 }
 
@@ -50,8 +52,8 @@ const authenticationFor = (
   routePattern: string,
 ): AuthenticationBoundary => {
   if (routePattern === '/health' || isAuthenticationWorkRoute(routePattern)) return 'public'
-  if (routePattern === '/v1/admin/plaid-refresh/run') return 'scheduler'
   if (routePattern.startsWith('/v1/admin/')) return 'admin'
+  if (routePattern.startsWith('/v1/liquidity-statements')) return 'admin'
   if (isReviewFinalizationRoute(routePattern)) return 'admin'
   if (isK1ApplicationAdminRoute(routePattern)) return 'admin'
   if (isAdminManagedMutation(method, routePattern)) return 'admin'
@@ -71,7 +73,6 @@ const classFor = (
     || routePattern.startsWith('/v1/auth/session/')
     || routePattern === '/v1/auth/logout'
   ) return 'AUTHENTICATED_READ'
-  if (routePattern === '/v1/admin/plaid-refresh/run') return 'INTERNAL_SCHEDULER'
   if (isReviewFinalizationRoute(routePattern)) return 'ADMIN_WRITE'
   if (routePattern === '/v1/k1-documents/:k1DocumentId/apply') return 'ADMIN_WRITE'
   if (isAdminManagedMutation(method, routePattern)) return 'ADMIN_WRITE'
@@ -105,8 +106,6 @@ const classFor = (
   if (
     method === 'POST'
     && routeContains(routePattern, [
-      '/plaid/link-token',
-      '/plaid/exchange-public-token',
       '/reports/consolidated-holdings/refresh',
     ])
   ) return 'EXTERNAL_PROVIDER'
@@ -131,7 +130,6 @@ const ownerFor = (routePattern: string): string => {
   }
   if (routePattern.startsWith('/v1/admin/')) return 'platform-operations'
   if (routeContains(routePattern, ['/k1-', '/k1/', '/review/'])) return 'tax-documents'
-  if (routePattern.startsWith('/v1/plaid/')) return 'financial-integrations'
   if (routePattern.startsWith('/v1/reports/')) return 'reporting'
   if (routePattern.startsWith('/v1/tic-registry/')) return 'tic-registry'
   return 'partnerships'
@@ -270,7 +268,7 @@ const ordinarySettings = (
     ],
   }
   if (routeClass === 'INTERNAL_SCHEDULER') return {
-    killSwitch: 'plaid_refresh',
+    killSwitch: 'market_data_refresh',
     idempotency: 'server_content',
     concurrencyLimit: config.abuseProtection.quotas.scheduler.globalConcurrency,
     backlogLimit: config.abuseProtection.quotas.scheduler.globalConcurrency,
@@ -453,9 +451,7 @@ export const defaultRouteProtectionPolicy = (
   ]).has(routeClass)
     ? paidSettings(routeClass)
     : ordinarySettings(routeClass)
-  const routeKillSwitch = routeClass === 'EXTERNAL_PROVIDER'
-    ? (routePattern.startsWith('/v1/plaid/') ? 'plaid_refresh' : 'market_data_refresh')
-    : classSettings.killSwitch
+  const routeKillSwitch = routeClass === 'EXTERNAL_PROVIDER' ? 'market_data_refresh' : classSettings.killSwitch
 
   const localRates = localRatesFor(routeClass, authentication)
 

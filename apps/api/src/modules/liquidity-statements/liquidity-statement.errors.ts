@@ -1,0 +1,25 @@
+export const csvErrors = {
+  NOT_FOUND: [404, 'The requested import or account was not found.'],
+  FORBIDDEN: [403, 'This action is not permitted.'],
+  INVALID_REQUEST: [400, 'Check the submitted fields.'],
+  STALE_VERSION: [409, 'The import or account changed. Reload and review it again.'],
+  INVALID_STATE: [409, 'This action is unavailable in the current state.'],
+  DUPLICATE_IMPORT: [409, 'These bytes already belong to an import in this entity.'],
+  QUOTA_EXCEEDED: [429, 'The upload capacity limit has been reached. Try again later.'],
+  DISABLED: [503, 'CSV processing is temporarily disabled.'],
+  STORAGE_UNAVAILABLE: [503, 'The protected file store is unavailable.'],
+  STORAGE_MISMATCH: [422, 'The uploaded object does not match its authorized content.'],
+  CAPABILITY_EXPIRED: [409, 'The upload authorization expired. Start a new upload.'],
+  MALFORMED_CSV: [422, 'The file contains malformed CSV records.'],
+  RESOURCE_LIMIT: [422, 'The file exceeds a CSV processing limit.'],
+  UNSUPPORTED_ENCODING: [422, 'Choose a supported text encoding for this file.'],
+  BLOCKING_ISSUES: [422, 'Resolve the blocking issues and acknowledge warnings before applying.'],
+  RETRY_EXHAUSTED: [409, 'No further transient retries are available.'],
+  TRANSIENT_FAILURE: [503, 'Processing was interrupted. Retry the import.'],
+} as const
+export type CsvErrorCode = keyof typeof csvErrors
+export class CsvError extends Error {
+  readonly statusCode: number
+  constructor(readonly code: CsvErrorCode) { super(csvErrors[code][1]); this.statusCode = csvErrors[code][0] }
+}
+export const assertCsv = (value: unknown, code: CsvErrorCode): asserts value => { if (!value) throw new CsvError(code) }

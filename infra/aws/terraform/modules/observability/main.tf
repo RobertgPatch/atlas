@@ -207,23 +207,6 @@ resource "aws_cloudwatch_metric_alarm" "ecs_utilization" {
   }
 }
 
-resource "aws_cloudwatch_metric_alarm" "scheduler_target_errors" {
-  alarm_name          = "${var.name_prefix}-scheduler-target-errors"
-  comparison_operator = "GreaterThanOrEqualToThreshold"
-  evaluation_periods  = 1
-  metric_name         = "TargetErrorCount"
-  namespace           = "AWS/Scheduler"
-  period              = 300
-  statistic           = "Sum"
-  threshold           = 1
-  alarm_actions       = local.alarm_actions
-
-  dimensions = {
-    ScheduleGroup = "default"
-    ScheduleName  = var.scheduler_schedule_name
-  }
-}
-
 resource "aws_cloudwatch_metric_alarm" "market_price_scheduler_target_errors" {
   alarm_name          = "${var.name_prefix}-market-price-scheduler-target-errors"
   comparison_operator = "GreaterThanOrEqualToThreshold"

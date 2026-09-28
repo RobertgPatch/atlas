@@ -12,11 +12,29 @@
   "originRequestPolicyName": "project-jackson-production-api-minimum-forwarding",
   "bootstrapStack": "project-jackson-production-app-bootstrap",
   "superAdminSecretName": "project-jackson-production/SUPER_ADMIN_PASSWORD",
+  "liquidityCsv": {
+    "stack": "project-jackson-production-liquidity-csv",
+    "bucket": "project-jackson-production-liquidity-csv-403454291976"
+  },
   "services": [
     { "name": "project-jackson-production-api", "container": "project-jackson-api", "role": "api" },
     { "name": "project-jackson-production-k1-worker", "container": "k1-worker", "role": "k1-worker" }
   ],
   "runtimeDefaults": {
+    "REAL_TIME_EQUITIES_ENABLED": "false",
+    "LIQUIDITY_CSV_MAX_BYTES": "10485760",
+    "LIQUIDITY_CSV_MAX_ROWS": "5000",
+    "LIQUIDITY_CSV_MAX_COLUMNS": "128",
+    "LIQUIDITY_CSV_MAX_RECORD_BYTES": "65536",
+    "LIQUIDITY_CSV_MAX_FIELD_BYTES": "16384",
+    "LIQUIDITY_CSV_MAX_METADATA_RECORDS": "100",
+    "LIQUIDITY_CSV_PARSE_CONCURRENCY": "1",
+    "LIQUIDITY_CSV_PARSE_TIMEOUT_MS": "30000",
+    "LIQUIDITY_CSV_MAX_RETRIES": "2",
+    "LIQUIDITY_CSV_FILES_PER_30_DAYS": "200",
+    "LIQUIDITY_CSV_CAPABILITIES_PER_HOUR": "10",
+    "LIQUIDITY_CSV_MAX_QUEUED_JOBS": "20",
+    "LIQUIDITY_CSV_MAX_OUTSTANDING_CAPABILITIES": "10",
     "ATLAS_DEPLOYMENT_TENANT_ID": "family-office-production",
     "ABUSE_API_STEADY_STATE_TASKS": "1",
     "ABUSE_LOCAL_MAX_BUCKETS": "10000",

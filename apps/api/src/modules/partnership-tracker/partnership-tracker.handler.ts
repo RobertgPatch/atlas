@@ -28,6 +28,7 @@ import {
   updateCommitmentBodySchema,
   updateManualYearBodySchema,
   updateNavBodySchema,
+  updatePartnershipCashFlowBodySchema,
   updateTrackedPartnershipBodySchema,
 } from './partnership-tracker.zod.js'
 
@@ -204,6 +205,18 @@ export const createCapitalActivitiesHandler = async (request: FastifyRequest, re
   const params = parse(partnershipTrackerPartnershipParamsSchema, request.params, reply)
   const body = parse(createPartnershipCashFlowsBodySchema, request.body, reply); if (!params || !body) return
   return run(reply, async () => reply.code(201).send(await partnershipTrackerRepository.createCapitalActivities(params.partnershipId, body.entries, request.authUser!.userId, request.partnershipScope!)))
+}
+export const updateCapitalActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!requireAdmin(request, reply)) return
+  const params = parse(partnershipTrackerCapitalActivityParamsSchema, request.params, reply)
+  const body = parse(updatePartnershipCashFlowBodySchema, request.body, reply); if (!params || !body) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.updateCapitalActivity(
+    params.partnershipId,
+    params.cashFlowId,
+    body,
+    request.authUser!.userId,
+    request.partnershipScope!,
+  )))
 }
 export const deleteCapitalActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   if (!requireAdmin(request, reply)) return

@@ -56,25 +56,35 @@ export const useConsolidatedHoldings = () => {
     () => consolidatedHoldingsKeys.report(queryInput),
     [queryInput],
   )
+  const currentKey = useRef(queryKey)
+  currentKey.current = queryKey
 
   const query = useQuery({
     queryKey,
-    queryFn: () =>
-      reportsClient.getConsolidatedHoldings(queryInput, { pricingMode: 'saved' }),
+    queryFn: ({ signal }) =>
+      reportsClient.getConsolidatedHoldings(queryInput, { pricingMode: 'saved', signal }),
     placeholderData: (previous) => previous,
-    staleTime: 0,
+    staleTime: 30_000,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: 'always',
   })
 
   const refreshMarketValues = useCallback(async () => {
+    const requestKey = currentKey.current
+    const before = queryClient.getQueryData(requestKey)
     setIsMarketRefreshing(true)
     try {
+      await reportsClient.refreshConsolidatedHoldings()
       const refreshed = await reportsClient.getConsolidatedHoldings(queryInput, {
-        pricingMode: 'refresh',
+        pricingMode: 'saved',
       })
-      queryClient.setQueryData(queryKey, refreshed)
+      // Do not let a request started before a server-mode change overwrite the
+      // newer CSV-only response already in the query cache.
+      const current = queryClient.getQueryData<typeof refreshed>(currentKey.current)
+      if (currentKey.current !== requestKey || current !== before) return current
+      if (current?.pricingCapability?.realTimeEquitiesEnabled === false && refreshed.pricingCapability?.realTimeEquitiesEnabled === true) return current
+      queryClient.setQueryData(requestKey, refreshed)
       await queryClient.invalidateQueries({
         queryKey: ['reports', 'liquidity-performance'],
       })
@@ -85,7 +95,7 @@ export const useConsolidatedHoldings = () => {
   }, [queryClient, queryInput, queryKey])
 
   useEffect(() => {
-    if (!query.data || startedMarketRefresh.current) return
+    if (!query.data?.pricingCapability?.realTimeEquitiesEnabled || startedMarketRefresh.current) return
     startedMarketRefresh.current = true
     void refreshMarketValues().catch(() => {
       // Keep the saved values visible when the market-data provider is unavailable.
@@ -93,12 +103,13 @@ export const useConsolidatedHoldings = () => {
   }, [query.data, refreshMarketValues])
 
   const refresh = useMutation({
-    mutationFn: (input?: { force?: boolean }) =>
-      reportsClient.refreshConsolidatedHoldings(input),
+    mutationFn: async (_input?: { force?: boolean }) => {
+      if (query.data?.pricingCapability?.realTimeEquitiesEnabled) return refreshMarketValues()
+      return query.refetch()
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['reports', 'consolidated-holdings'] })
       void queryClient.invalidateQueries({ queryKey: ['reports', 'liquidity-performance'] })
-      void queryClient.invalidateQueries({ queryKey: ['plaid', 'investment-accounts'] })
     },
   })
 
@@ -110,6 +121,7 @@ export const useConsolidatedHoldings = () => {
   }
 
   const clearFilters = () => setFilters(DEFAULT_FILTERS)
+  const setPage = (page: number) => setFilters(previous => ({ ...previous, page: Math.max(1, page) }))
 
   return {
     filters,
@@ -120,5 +132,6 @@ export const useConsolidatedHoldings = () => {
     isMarketRefreshing,
     updateFilter,
     clearFilters,
+    setPage,
   }
 }

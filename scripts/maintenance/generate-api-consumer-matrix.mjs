@@ -18,7 +18,6 @@ const moduleFor = (method, pattern) => {
     return 'apps/api/src/modules/partnerships/entities.admin.routes.ts'
   }
   if (pattern.startsWith('/v1/partnerships')) return 'apps/api/src/modules/partnerships/partnerships.routes.ts'
-  if (pattern.startsWith('/v1/plaid/')) return 'apps/api/src/modules/plaid/plaid.routes.ts'
   if (pattern.startsWith('/v1/reports/')) return 'apps/api/src/modules/reports/reports.routes.ts'
   if (pattern.startsWith('/v1/tic-registry/')) return 'apps/api/src/modules/tic-registry/tic-registry.routes.ts'
   throw new Error(`UNCLASSIFIED_ROUTE_MODULE:${method} ${pattern}`)
@@ -26,10 +25,7 @@ const moduleFor = (method, pattern) => {
 
 const consumersFor = (pattern) => {
   if (pattern === '/health') return { web: '-', system: 'ROOT-HEALTH', decision: 'RETAIN' }
-  if (pattern === '/v1/admin/plaid-refresh/run') return { web: '-', system: 'ROOT-PLAID-SCHEDULER', decision: 'RETAIN' }
-  if (pattern === '/v1/admin/plaid-refresh-status' || pattern === '/v1/admin/production-readiness') {
-    return { web: 'FLOW-LIQUIDITY', system: 'ROOT-PLAID-SCHEDULER', decision: 'RETAIN' }
-  }
+  if (pattern === '/v1/admin/production-readiness') return { web: 'FLOW-LIQUIDITY', system: 'ROOT-MARKET-SCHEDULER', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/admin/protection-controls')) return { web: '-', system: 'ROOT-AUTH-SECURITY', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/auth/')) return { web: 'FLOW-AUTH', system: 'ROOT-AUTH-SECURITY', decision: 'RETAIN' }
   if (pattern === '/v1/dashboard') return { web: 'FLOW-DASHBOARD', system: '-', decision: 'RETAIN' }
@@ -39,8 +35,7 @@ const consumersFor = (pattern) => {
   if (pattern.startsWith('/v1/partnership-tracker/')) return { web: 'FLOW-INVESTMENT, FLOW-ESTATE', system: '-', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/entities')) return { web: 'FLOW-ENTITIES, FLOW-ESTATE, FLOW-INVESTMENT', system: '-', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/partnerships')) return { web: 'FLOW-INVESTMENT, FLOW-ENTITIES, FLOW-ESTATE, FLOW-REPORTS', system: '-', decision: 'RETAIN' }
-  if (pattern.startsWith('/v1/plaid/')) return { web: 'FLOW-LIQUIDITY', system: 'ROOT-PLAID-SCHEDULER', decision: 'RETAIN' }
-  if (pattern.startsWith('/v1/reports/consolidated-holdings')) return { web: 'FLOW-LIQUIDITY, FLOW-DASHBOARD', system: 'ROOT-PLAID-SCHEDULER, ROOT-MARKET-SCHEDULER', decision: 'RETAIN' }
+  if (pattern.startsWith('/v1/reports/consolidated-holdings')) return { web: 'FLOW-LIQUIDITY, FLOW-DASHBOARD', system: 'ROOT-MARKET-SCHEDULER', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/reports/')) return { web: 'FLOW-REPORTS', system: '-', decision: 'RETAIN' }
   if (pattern.startsWith('/v1/tic-registry/')) return { web: 'FLOW-TIC', system: '-', decision: 'RETAIN' }
   throw new Error(`UNCLASSIFIED_ROUTE_CONSUMER:${pattern}`)

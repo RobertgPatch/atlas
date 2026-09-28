@@ -61,7 +61,6 @@ const FMV_SOURCES: Array<{ value: AssetFmvSource; label: string }> = [
   { value: 'valuation_409a', label: 'Valuation / appraisal' },
   { value: 'k1', label: 'K-1' },
   { value: 'imported', label: 'Imported' },
-  { value: 'plaid', label: 'Linked account' },
 ]
 
 const today = () => new Date().toISOString().slice(0, 10)

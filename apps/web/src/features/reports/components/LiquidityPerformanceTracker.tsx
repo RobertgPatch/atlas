@@ -8,6 +8,7 @@ import {
 } from '../utils/liquidityPerformanceAnalytics'
 
 interface LiquidityPerformanceTrackerProps {
+  currencyCode?: string
   points: LiquidityPerformancePoint[]
   currentPoint?: LiquidityPerformancePoint | null
   isLoading?: boolean
@@ -22,19 +23,6 @@ const rangeOptions: Array<{ value: PerformanceRange; label: string }> = [
   { value: 'ytd', label: 'YTD' },
   { value: 'custom', label: 'Custom' },
 ]
-
-const currency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  maximumFractionDigits: 0,
-})
-
-const compactCurrency = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'short',
@@ -67,11 +55,15 @@ function PerformancePlot({
   points,
   activeDate,
   onActiveDateChange,
+  currencyCode,
 }: {
   points: Array<LiquidityPerformancePoint & { totalMarketValue: number }>
+  currencyCode: string
   activeDate: string | null
   onActiveDateChange: (date: string | null) => void
 }) {
+  const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 })
+  const compactCurrency = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, notation: 'compact', maximumFractionDigits: 1 })
   const plotRef = useRef<SVGSVGElement>(null)
   const [viewport, setViewport] = useState({ width: 800, height: 260 })
 
@@ -125,8 +117,10 @@ function PerformancePlot({
   const spread = Math.max(rawMax - rawMin, Math.abs(rawMax) * 0.02, 1)
   const min = Math.max(0, rawMin - spread * 0.15)
   const max = rawMax + spread * 0.15
+  const firstTime = Date.parse(points[0]!.date)
+  const lastTime = Date.parse(points.at(-1)!.date)
   const scaleX = (index: number) =>
-    margin.left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth)
+    margin.left + (lastTime === firstTime ? plotWidth / 2 : ((Date.parse(points[index]!.date) - firstTime) / (lastTime - firstTime)) * plotWidth)
   const scaleY = (value: number) => margin.top + ((max - value) / (max - min)) * plotHeight
   const coordinates = points.map((point, index) => ({
     point,
@@ -251,7 +245,9 @@ export function LiquidityPerformanceTracker({
   isLoading = false,
   isError = false,
   onRetry,
+  currencyCode = 'USD',
 }: LiquidityPerformanceTrackerProps) {
+  const currency = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode, maximumFractionDigits: 0 })
   const [range, setRange] = useState<PerformanceRange>('1m')
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
@@ -302,7 +298,7 @@ export function LiquidityPerformanceTracker({
               </h3>
             </div>
             <p className="mt-1 text-xs text-gray-500">
-              Portfolio value change from saved daily snapshots
+              Portfolio value change between recorded account snapshots
             </p>
           </div>
 
@@ -403,7 +399,7 @@ export function LiquidityPerformanceTracker({
           <CalendarRangeIcon className="h-7 w-7 text-gray-400" aria-hidden="true" />
           <p className="mt-3 text-sm font-semibold text-gray-900">No snapshots in this range</p>
           <p className="mt-1 max-w-md text-xs leading-5 text-gray-500">
-            Choose a wider range. Performance tracking begins after the first daily snapshot is saved.
+            Choose a wider range. History begins with the first recorded snapshot. Value changes can include deposits, withdrawals, and market changes.
           </p>
         </div>
       ) : (
@@ -445,7 +441,7 @@ export function LiquidityPerformanceTracker({
           {valuedPoints.length === 1 ? (
             <div className="flex h-64 items-center justify-center rounded-xl bg-gray-50 px-6 text-center">
               <p className="max-w-md text-sm leading-6 text-gray-500">
-                One snapshot is available. The first change will appear after the next daily snapshot.
+                One snapshot is available. The first change will appear after the next recorded snapshot.
               </p>
             </div>
           ) : (
@@ -453,11 +449,12 @@ export function LiquidityPerformanceTracker({
               points={valuedPoints}
               activeDate={activeDate}
               onActiveDateChange={setActiveDate}
+              currencyCode={currencyCode}
             />
           )}
 
           <p className="mt-2 px-2 text-[11px] leading-5 text-gray-400 sm:px-0">
-            Saved once per day and finalized after each U.S. market close. Custodian snapshots fill dates without a saved market valuation. Value change includes deposits, withdrawals, and market movement; it is not a time-weighted investment return.
+            Recorded account snapshots and any saved market quotes are shown at their actual dates. Accounts without earlier evidence have incomplete history. Value change includes deposits, withdrawals, and market movement; it is not a time-weighted investment return.
           </p>
         </div>
       )}

@@ -53,7 +53,7 @@ Alarm names use the deployed `${name_prefix}-<suffix>` pattern.
 | `abuse-provider-calls`, `abuse-retry-attempts`, `abuse-cost-units` | Direct indicators of variable-cost amplification. Retries rising faster than successful operations suggest a provider outage or unknown outcomes. | Disable the named workload. Do not replay unknown operations; reconcile using existing idempotency/provider tokens. |
 | K-1 queue age/depth/DLQ, `k1-worker-errors`, `k1-extraction-failures`, `k1-apply-failures`, `k1-reconciliation-lag`, `k1-page-count` | Queue backlog, poisoned messages, reconciliation failure, or BDA page-cost growth. | Disable `k1_extraction`; disable `k1_bedrock_checkbox` separately if extraction is healthy and only model verification is increasing. Preserve the DLQ. |
 | `abuse-cleanup-failures` and `${name_prefix}-s3-put-requests` | Retention cleanup is failing or unaccepted uploads are accumulating. S3 `PutRequests` is a request-growth proxy, so correlate it with admitted K-1 file/storage units before attribution. | Disable `k1_uploads`, inspect quarantine lifecycle/cleanup, and avoid deleting accepted evidence during incident response. |
-| Scheduler target errors | A scheduled Plaid or market-data invocation failed. Repeated delivery can compound retries. | Disable `plaid_refresh` or `market_data_refresh`; leave cached observations readable. |
+| Scheduler target errors | A scheduled market-data invocation failed. Repeated delivery can compound retries. | Disable `market_data_refresh`; leave cached observations readable. |
 | Total/Bedrock actual or forecast budget, Cost Anomaly Detection | Financial backstop based on delayed billing data, not proof that traffic is still active. | Contain with runtime/edge signals immediately, then use Cost Explorer and the cost envelope to quantify impact. |
 
 ## Runtime kill switches
@@ -72,7 +72,6 @@ function Disable-AtlasWorkload {
       'k1_uploads',
       'k1_extraction',
       'k1_bedrock_checkbox',
-      'plaid_refresh',
       'market_data_refresh',
       'report_exports',
       'backfills'
@@ -110,7 +109,6 @@ The default maximum override duration is 24 hours. Use a shorter incident window
 | `k1_uploads` | `Disable-AtlasWorkload k1_uploads "$IncidentId stop new K-1 upload slots"` | New upload batches, presigned S3 slots, unaccepted object/storage growth. | Existing accepted K-1 documents, review sessions, and tracker reads remain available. |
 | `k1_extraction` | `Disable-AtlasWorkload k1_extraction "$IncidentId stop queue and BDA extraction"` | New extraction admission, queue/BDA submission, reparse/retry provider work. An already accepted provider call might finish. | Existing extraction results and accepted evidence remain readable. Preserve queued/DLQ messages for reconciliation. |
 | `k1_bedrock_checkbox` | `Disable-AtlasWorkload k1_bedrock_checkbox "$IncidentId stop Bedrock checkbox verification"` | New optional Bedrock model verification and its retries. | BDA extraction and existing reviewed evidence can continue independently. |
-| `plaid_refresh` | `Disable-AtlasWorkload plaid_refresh "$IncidentId stop Plaid calls"` | New link tokens, token exchanges, manual/scheduled holdings refreshes, and provider retries. | Durable saved holdings and reports remain readable, with normal freshness metadata. |
 | `market_data_refresh` | `Disable-AtlasWorkload market_data_refresh "$IncidentId stop market provider calls"` | Scheduled/manual market-provider refresh calls and retries. | Saved closing-price observations and Liquidity reports remain readable; production must not refresh on read. |
 | `report_exports` | `Disable-AtlasWorkload report_exports "$IncidentId stop report generation"` | New report, consolidated-holdings, and K-1 CSV exports. | Paginated/ordinary completed-data report views remain available. |
 | `backfills` | `Disable-AtlasWorkload backfills "$IncidentId stop backfill runs"` | New market-price backfill runs. | Existing observations and reports remain available. Market provider calls can be stopped independently. |
@@ -122,7 +120,6 @@ If workload attribution is not yet safe, disable all cost-producing controls:
   'k1_uploads',
   'k1_extraction',
   'k1_bedrock_checkbox',
-  'plaid_refresh',
   'market_data_refresh',
   'report_exports',
   'backfills'
@@ -131,7 +128,7 @@ If workload attribution is not yet safe, disable all cost-producing controls:
 }
 ```
 
-Environment variables with the same hard-stop authority are `K1_UPLOADS_ENABLED`, `K1_EXTRACTION_ENABLED`, `K1_BEDROCK_CHECKBOX_ENABLED`, `PLAID_REFRESH_ENABLED`, `MARKET_DATA_REFRESH_ENABLED`, `REPORT_EXPORTS_ENABLED`, and `BACKFILLS_ENABLED`. Setting one to `false` in the reviewed production Terraform inputs and deploying the exact saved plan is a durable hard disable. A runtime override cannot bypass it. Do not make an untracked console-only task definition the long-term source of truth.
+Environment variables with the same hard-stop authority are `K1_UPLOADS_ENABLED`, `K1_EXTRACTION_ENABLED`, `K1_BEDROCK_CHECKBOX_ENABLED`, `MARKET_DATA_REFRESH_ENABLED`, `REPORT_EXPORTS_ENABLED`, and `BACKFILLS_ENABLED`. Setting one to `false` in the reviewed production Terraform inputs and deploying the exact saved plan is a durable hard disable. A runtime override cannot bypass it. Do not make an untracked console-only task definition the long-term source of truth.
 
 ## Edge emergency circuit breaker
 

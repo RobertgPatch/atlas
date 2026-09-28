@@ -217,7 +217,7 @@ describe('AdmissionRepository', () => {
       async query<Row extends Record<string, unknown>>(sql: string): Promise<AdmissionQueryResult<Row>> {
         if (sql.includes('pg_advisory_xact_lock')) return result([] as Row[])
         if (sql.includes('from idempotent_operations') && sql.includes('where operation_id = $1')) {
-          return result([{ workload_key: 'plaid', state: 'queued' }] as unknown as Row[])
+          return result([{ workload_key: 'market-data', state: 'queued' }] as unknown as Row[])
         }
         if (sql.includes('from workload_leases') && sql.includes('where operation_id = $1')) {
           return result([] as Row[])
@@ -236,7 +236,7 @@ describe('AdmissionRepository', () => {
       now: at,
       capacity: {
         operationId,
-        workloadKey: 'plaid',
+        workloadKey: 'market-data',
         scopeKind: 'global',
         scopeHash: hash(8),
         concurrencyLimit: 1,

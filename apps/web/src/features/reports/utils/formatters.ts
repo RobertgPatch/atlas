@@ -29,8 +29,10 @@ export const formatCurrency = (value: number | null | undefined): string => {
 
 export const formatCurrencyWithCents = (
   value: number | null | undefined,
+  currency = 'USD',
 ): string => {
   if (value == null || !Number.isFinite(value)) return 'N/A'
+  if(currency !== 'USD')return new Intl.NumberFormat('en-US',{style:'currency',currency,minimumFractionDigits:2,maximumFractionDigits:2}).format(value)
   return CURRENCY_CENTS_FORMATTER.format(value)
 }
 

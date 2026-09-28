@@ -8,10 +8,6 @@ import {
   listApplicationLogsHandler,
   listUsersHandler,
 } from './identity-admin.handler.js'
-import {
-  getPlaidRefreshStatusHandler,
-  runPlaidRefreshHandler,
-} from './plaid-refresh-status.handler.js'
 import { getProductionReadinessHandler } from './production-readiness.handler.js'
 import {
   listProtectionControlsHandler,
@@ -32,13 +28,6 @@ export const registerAdminRoutes = async (app: FastifyInstance) => {
     config: abuseProtection('GET', '/v1/admin/application-logs'),
     preHandler: [requireSuperAdminAccess],
   }, listApplicationLogsHandler)
-  app.get('/admin/plaid-refresh-status', {
-    config: abuseProtection('GET', '/v1/admin/plaid-refresh-status'),
-    preHandler: [requireAdminAccess],
-  }, getPlaidRefreshStatusHandler)
-  app.post('/admin/plaid-refresh/run', {
-    config: abuseProtection('POST', '/v1/admin/plaid-refresh/run'),
-  }, runPlaidRefreshHandler)
   app.get('/admin/production-readiness', {
     config: abuseProtection('GET', '/v1/admin/production-readiness'),
     preHandler: [requireAdminAccess],

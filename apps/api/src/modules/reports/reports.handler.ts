@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { pool, withTransaction } from "../../infra/db/client.js";
 import { reportsExport } from "./reports.export.js";
+import { marketDataService } from "../market-data/market-data.service.js";
 import { reportsRepository } from "./reports.repository.js";
 import {
   activityDetailRowParamsSchema,
@@ -15,11 +16,6 @@ import {
   portfolioSummaryQuerySchema,
   updateActivityDetailBodySchema,
 } from "./reports.zod.js";
-import { plaidRepository } from "../plaid/plaid.repository.js";
-import {
-  plaidHoldingsSync,
-  RefreshAlreadyRunningError,
-} from "../plaid/plaid.holdings-sync.js";
 import { config } from "../../config.js";
 import {
   admitCostWorkload,
@@ -264,64 +260,12 @@ export const refreshConsolidatedHoldingsHandler = async (
     return;
   }
 
-  const userId = request.authUser.userId;
-  try {
-    const attempt = await runCostWorkload(
-      {
-        workloadKey: "plaid_holdings_refresh",
-        controlKey: "plaid_refresh",
-        method: "POST",
-        routePattern: "/v1/reports/consolidated-holdings/refresh",
-        subjectContext: authorizeCostSubjects(request.abuseProtectionSubjectContext, {
-          provider: "plaid",
-        }),
-        canonicalInputs: { forced },
-        globalDailyLimit:
-          config.abuseProtection.quotas.externalProvider
-            .plaidRefreshesGlobalDay,
-        quotas: [
-          {
-            scopeKind: "user",
-            limit:
-              config.abuseProtection.quotas.externalProvider
-                .plaidRefreshesGlobalDay,
-          },
-          ...plaidRepository.getSelectedInvestmentAccounts().map((account) => ({
-            scopeKind: "account" as const,
-            authorizedScopeValue: account.id,
-            limit:
-              config.abuseProtection.quotas.externalProvider
-                .plaidRefreshesPerAccountDay,
-          })),
-          {
-            scopeKind: "global",
-            limit:
-              config.abuseProtection.quotas.externalProvider
-                .plaidRefreshesGlobalDay,
-          },
-        ],
-        leaseTtlSeconds: Math.ceil(
-          config.abuseProtection.timeouts.plaidProviderMs / 1_000,
-        ),
-      },
-      () =>
-        plaidHoldingsSync.syncSelectedHoldings({
-          requestedByUserId: userId,
-          triggerSource: "manual",
-          force: forced,
-        }),
-    );
-    reply.status(202).send(attempt);
-  } catch (error) {
-    if (error instanceof RefreshAlreadyRunningError) {
-      reply.status(409).send({
-        error: "REFRESH_ALREADY_RUNNING",
-        activeRefreshId: error.activeRefreshId,
-      });
-      return;
-    }
-    throw error;
+  if (!config.marketData.realTimeEquitiesEnabled) {
+    reply.send({ status: 'skipped', reason: 'CSV_ONLY' });
+    return;
   }
+  try { reply.status(202).send(await marketDataService.refreshClosingPrices()); }
+  catch { reply.status(503).send({ error: 'MARKET_REFRESH_UNAVAILABLE' }); }
 };
 
 export const getReportsExportHandler = async (

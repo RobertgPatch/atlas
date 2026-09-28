@@ -3,15 +3,12 @@ import type { FastifyInstance } from 'fastify'
 
 import { buildApp } from '../../src/app.js'
 import { config } from '../../src/config.js'
-import { admissionService } from '../../src/modules/abuse-protection/admission.service.js'
 import { authRepository } from '../../src/modules/auth/auth.repository.js'
 import { lockoutService } from '../../src/modules/auth/lockout.service.js'
-import { plaidRefreshScheduler } from '../../src/modules/plaid/plaid.refresh-scheduler.js'
 import { createTestFixture, type TestFixture } from '../helpers/testApp.js'
 
 const WEB_ORIGIN = 'https://app.atlas.example'
 const CROSS_SITE_ORIGIN = 'https://attacker.example'
-const SCHEDULER_TOKEN = 'test-scheduler-token-000000000075'
 
 const securityHeaders = {
   'cache-control': 'private, no-store, max-age=0, must-revalidate',
@@ -29,7 +26,6 @@ describe('production CORS, CSRF, cookies, and response headers', () => {
     webOrigin: string
     sessionCookieSecure: boolean
     sessionCookieSameSite: 'lax' | 'strict' | 'none'
-    schedulerToken: string
   }
 
   beforeEach(() => {
@@ -38,7 +34,6 @@ describe('production CORS, CSRF, cookies, and response headers', () => {
       webOrigin: config.webOrigin,
       sessionCookieSecure: config.sessionCookieSecure,
       sessionCookieSameSite: config.sessionCookieSameSite,
-      schedulerToken: config.plaidRefresh.schedulerToken,
     }
     Object.assign(config, {
       nodeEnv: 'production',
@@ -47,7 +42,6 @@ describe('production CORS, CSRF, cookies, and response headers', () => {
       sessionCookieSameSite: 'lax',
       mfaLoginEnabled: false,
     })
-    Object.assign(config.plaidRefresh, { schedulerToken: SCHEDULER_TOKEN })
   })
 
   afterEach(async () => {
@@ -59,9 +53,6 @@ describe('production CORS, CSRF, cookies, and response headers', () => {
       sessionCookieSecure: originalConfig.sessionCookieSecure,
       sessionCookieSameSite: originalConfig.sessionCookieSameSite,
       mfaLoginEnabled: false,
-    })
-    Object.assign(config.plaidRefresh, {
-      schedulerToken: originalConfig.schedulerToken,
     })
     vi.restoreAllMocks()
   })
@@ -174,31 +165,4 @@ describe('production CORS, CSRF, cookies, and response headers', () => {
     expect.soft(revoke).toHaveBeenCalledTimes(1)
   })
 
-  it('exempts the authenticated scheduler machine request from browser CSRF checks', async () => {
-    vi.spyOn(admissionService, 'admit').mockImplementation(async (request) => ({
-      decision: 'allowed',
-      policyKey: request.policy.policyKey,
-      requestId: request.requestId,
-      reservations: [],
-    }))
-    const run = vi.spyOn(plaidRefreshScheduler, 'runScheduledRefresh')
-      .mockResolvedValue({
-        id: '00000000-0000-4000-8000-000000000075',
-        status: 'success',
-      } as never)
-    app = buildApp()
-    const response = await app.inject({
-      method: 'POST',
-      url: '/v1/admin/plaid-refresh/run',
-      headers: { 'x-atlas-scheduler-token': SCHEDULER_TOKEN },
-      payload: { scheduledFor: '2026-08-25T12:00:00.000Z' },
-    })
-
-    expect.soft(response.statusCode).toBe(202)
-    expect.soft(response.json()).toMatchObject({
-      id: '00000000-0000-4000-8000-000000000075',
-      status: 'success',
-    })
-    expect.soft(run).toHaveBeenCalledTimes(1)
-  })
 })

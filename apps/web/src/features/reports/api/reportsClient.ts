@@ -13,17 +13,6 @@ import type {
   UpdateActivityDetailRowRequest,
   UpdatePortfolioOriginalCommitmentRequest,
 } from '../../../../../../packages/types/src/reports'
-import type {
-  PlaidConnectionResponse,
-  PlaidExchangePublicTokenRequest,
-  HoldingsRefreshAttempt,
-  PlaidInvestmentAccountsResponse,
-  PlaidLinkTokenRequest,
-  PlaidLinkTokenResponse,
-  PlaidRefreshDiagnostic,
-  ProductionReadinessDiagnostic,
-  UpdatePlaidInvestmentAccountsRequest,
-} from '../../../../../../packages/types/src/plaid'
 import type { PartnershipCommitment } from '../../../../../../packages/types/src/partnership-management'
 import { authenticatedFetch } from '../../../auth/authenticatedFetch'
 
@@ -167,7 +156,7 @@ export const reportsClient = {
 
   getConsolidatedHoldings(
     query: ConsolidatedHoldingsQuery,
-    options: { pricingMode?: 'saved' | 'refresh' } = {},
+    options: { pricingMode?: 'saved' | 'refresh'; signal?: AbortSignal } = {},
   ): Promise<ConsolidatedHoldingsResponse> {
     const params = new URLSearchParams(toQueryString(query))
     if (options.pricingMode) params.set('pricingMode', options.pricingMode)
@@ -175,7 +164,7 @@ export const reportsClient = {
     const path = queryString
       ? `/reports/consolidated-holdings?${queryString}`
       : '/reports/consolidated-holdings'
-    return request<ConsolidatedHoldingsResponse>(path)
+    return request<ConsolidatedHoldingsResponse>(path, { signal: options.signal })
   },
 
   getLiquidityPerformance(
@@ -192,54 +181,9 @@ export const reportsClient = {
   },
 
   refreshConsolidatedHoldings(payload: { force?: boolean } = {}) {
-    return request<HoldingsRefreshAttempt>('/reports/consolidated-holdings/refresh', {
+    return request<{status:string;reason?:string}>('/reports/consolidated-holdings/refresh', {
       method: 'POST',
       body: JSON.stringify(payload),
-    })
-  },
-
-  getPlaidRefreshStatus(): Promise<PlaidRefreshDiagnostic> {
-    return request<PlaidRefreshDiagnostic>('/admin/plaid-refresh-status')
-  },
-
-  getProductionReadiness(): Promise<ProductionReadinessDiagnostic> {
-    return request<ProductionReadinessDiagnostic>('/admin/production-readiness')
-  },
-
-  createPlaidLinkToken(
-    payload: PlaidLinkTokenRequest = {},
-  ): Promise<PlaidLinkTokenResponse> {
-    return request<PlaidLinkTokenResponse>('/plaid/link-token', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-  },
-
-  exchangePlaidPublicToken(
-    payload: PlaidExchangePublicTokenRequest,
-  ): Promise<PlaidConnectionResponse> {
-    return request<PlaidConnectionResponse>('/plaid/exchange-public-token', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-  },
-
-  getPlaidInvestmentAccounts(): Promise<PlaidInvestmentAccountsResponse> {
-    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts')
-  },
-
-  updatePlaidInvestmentAccounts(
-    payload: UpdatePlaidInvestmentAccountsRequest,
-  ): Promise<PlaidInvestmentAccountsResponse> {
-    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts/selection', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-  },
-
-  clearPlaidInvestmentAccounts(): Promise<PlaidInvestmentAccountsResponse> {
-    return request<PlaidInvestmentAccountsResponse>('/plaid/investment-accounts', {
-      method: 'DELETE',
     })
   },
 

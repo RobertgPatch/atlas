@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { LinkIcon, RefreshCwIcon, Trash2Icon } from 'lucide-react'
+import { UploadIcon, RefreshCwIcon } from 'lucide-react'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorState } from '../../../components/ErrorState'
 import { LoadingState } from '../../../components/LoadingState'
 import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
-import { usePlaidAccounts } from '../hooks/usePlaidAccounts'
-import { usePlaidLink } from '../hooks/usePlaidLink'
+import { useSession } from '../../../auth/sessionStore'
+import { LiquidityCsvUploadDialog } from './LiquidityCsvUploadDialog'
 import { useLiquidityPerformance } from '../hooks/useLiquidityPerformance'
 import {
   EQUITY_SECTORS,
@@ -22,23 +22,23 @@ import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { CustodianBreakdown } from './CustodianBreakdown'
 import { DataQualityBanner } from './DataQualityBanner'
-import { PlaidAccountSelector } from './PlaidAccountSelector'
 import { PortfolioHero } from './PortfolioHero'
 import { LiquidityPerformanceTracker } from './LiquidityPerformanceTracker'
 import { TopHoldings } from './TopHoldings'
 
 export function ConsolidatedHoldingsReport() {
   const [isAccountSelectorOpen, setIsAccountSelectorOpen] = useState(false)
-  const [accountSelectorError, setAccountSelectorError] = useState<string | null>(null)
   const [selectedSectors, setSelectedSectors] = useState<EquitySector[]>(() => [
     ...EQUITY_SECTORS,
   ])
   const holdings = useConsolidatedHoldings()
   const performance = useLiquidityPerformance()
-  const plaidAccounts = usePlaidAccounts()
-  const plaidLink = usePlaidLink()
+  const session = useSession()
+  const isAdmin = session.session?.role === 'Admin'
 
   const data = holdings.query.data
+  const portfolioCurrency = data?.coverage?.currencies.length === 1 ? data.coverage.currencies[0] : 'USD'
+  const mixedCurrencies = (data?.coverage?.currencies.length ?? 1) > 1
   const rows = useMemo(() => data?.rows ?? [], [data?.rows])
   const totalMarketValue = data?.kpis.totalMarketValue ?? 0
   const quality = useMemo(() => getCostBasisQuality(rows), [rows])
@@ -90,17 +90,7 @@ export function ConsolidatedHoldingsReport() {
         dateStyle: 'full',
         timeStyle: 'short',
       }).format(new Date(lastUpdatedAt))
-    : 'Not synced yet'
-
-  const handleClearAccounts = () => {
-    plaidAccounts.clearAccounts.mutate(undefined, {
-      onSuccess: () => {
-        setAccountSelectorError(null)
-        setIsAccountSelectorOpen(false)
-        void holdings.query.refetch()
-      },
-    })
-  }
+    : 'No snapshot yet'
 
   if (holdings.query.isLoading) {
     return (
@@ -128,7 +118,7 @@ export function ConsolidatedHoldingsReport() {
             Portfolio Overview
           </h2>
           <p className="mt-0.5 text-sm text-gray-500">
-            Consolidated view across all connected accounts
+            Consolidated view across your included accounts
           </p>
           <p className="mt-1 text-xs text-gray-400">Last updated: {lastUpdated}</p>
           {holdings.isMarketRefreshing ? (
@@ -138,17 +128,6 @@ export function ConsolidatedHoldingsReport() {
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          {plaidAccounts.accounts.length > 0 ? (
-            <button
-              type="button"
-              onClick={handleClearAccounts}
-              disabled={plaidAccounts.clearAccounts.isPending}
-              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Trash2Icon className="h-4 w-4" />
-              {plaidAccounts.clearAccounts.isPending ? 'Clearing...' : 'Clear Accounts'}
-            </button>
-          ) : null}
           <button
             type="button"
             onClick={() => holdings.refresh.mutate(undefined)}
@@ -157,23 +136,9 @@ export function ConsolidatedHoldingsReport() {
             <RefreshCwIcon className="h-4 w-4" />
             Refresh
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setAccountSelectorError(null)
-              setIsAccountSelectorOpen(true)
-              if (plaidAccounts.accounts.length === 0) {
-                void plaidLink.open()
-              }
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover"
-          >
-            <LinkIcon className="h-4 w-4" />
-            Connect Accounts
-            <span className="ml-0.5 rounded-full bg-blue-500 px-1.5 py-0.5 text-xs font-bold text-white">
-              {data?.kpis.selectedAccountCount ?? 0}
-            </span>
-          </button>
+          {isAdmin && <button type="button" onClick={() => setIsAccountSelectorOpen(true)} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+            <UploadIcon className="h-4 w-4" /> Upload CSV / Manage accounts
+          </button>}
         </div>
       </div>
 
@@ -183,17 +148,19 @@ export function ConsolidatedHoldingsReport() {
       />
 
       <PortfolioHero
-        totalValue={totalMarketValue}
+        currencyCode={portfolioCurrency}
+        totalValue={data?.kpis.totalMarketValue ?? null}
         totalCostBasis={data?.kpis.totalCostBasis ?? null}
         costBasisIsPartial={quality.costBasisIsPartial}
         totalGainLoss={data?.kpis.totalUnrealizedGainLoss ?? null}
         totalGainLossPercent={data?.kpis.gainLossPercent ?? null}
-        totalPositions={rows.length}
+        totalPositions={data?.kpis.uniqueAssetCount ?? rows.length}
         connectedAccounts={data?.kpis.selectedAccountCount ?? 0}
       />
 
       <LiquidityPerformanceTracker
-        points={performance.data?.points ?? []}
+        currencyCode={portfolioCurrency}
+        points={mixedCurrencies ? [] : performance.data?.points ?? []}
         currentPoint={currentPerformancePoint}
         isLoading={performance.isLoading}
         isError={performance.isError}
@@ -201,27 +168,31 @@ export function ConsolidatedHoldingsReport() {
       />
 
       <ConsolidatedHoldingsSyncStatus sync={data?.sync} pricing={data?.pricing} />
+      {data?.coverage?.gain.status !== undefined && data.coverage.gain.status !== 'COMPLETE' && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Gain/loss is incomplete for {data.coverage.gain.unknownRows} holdings. {!mixedCurrencies && <>Known gain/loss subtotal: {data.coverage.gain.knownSubtotal} {portfolioCurrency}. </>} The portfolio gain/loss total is unavailable.</p>}
+      {data?.selectedAccounts.some(a => a.sourceKind === 'CSV') && <div className="flex flex-wrap gap-3 text-xs text-gray-500">{data.selectedAccounts.map(a => <span key={a.id}>{a.custodianName} · {a.name}: holdings as of {a.holdingsAsOfDate ?? 'unavailable'}{a.nextExpectedDate ? ` · next expected ${a.nextExpectedDate}` : ''}</span>)}</div>}
+      {data && data.page.total > data.page.size && <p className="text-sm text-gray-600">Charts and rankings show this page of holdings. Portfolio metrics include all matching holdings.</p>}
 
-      {rows.length > 0 ? (
+      {rows.length > 0 && (data?.coverage?.currencies.length ?? 1) <= 1 ? (
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <AllocationChart
+              currencyCode={portfolioCurrency}
               assetData={assetData}
               sectorData={sectorData}
               selectedSectors={selectedSectors}
               onSelectedSectorsChange={setSelectedSectors}
             />
-            <CustodianBreakdown custodians={custodianData} />
+            <CustodianBreakdown custodians={custodianData} currencyCode={portfolioCurrency} />
           </div>
 
-          {visibleRows.length > 0 ? <TopHoldings holdings={topHoldings} /> : null}
+          {visibleRows.length > 0 ? <TopHoldings holdings={topHoldings} currencyCode={portfolioCurrency} /> : null}
         </>
       ) : null}
 
       {rows.length === 0 && !holdings.filters.search ? (
         <EmptyState
-          title="No holdings are connected yet"
-          description="Connect Plaid investment accounts or refresh selected accounts to populate the report."
+          title="No holdings available yet"
+          description="An administrator can upload a complete holdings CSV, review it, and apply it to populate this page."
         />
       ) : (
         <ConsolidatedHoldingsTable
@@ -246,40 +217,21 @@ export function ConsolidatedHoldingsReport() {
         />
       )}
 
+      {data && data.page.total > data.page.size && <nav aria-label="Holdings pages" className="flex items-center justify-between text-sm">
+        <button type="button" disabled={data.page.offset === 0} onClick={()=>holdings.setPage(holdings.filters.page-1)}>Previous page</button>
+        <span>{data.page.offset+1}–{Math.min(data.page.offset+data.page.size,data.page.total)} of {data.page.total}</span>
+        <button type="button" disabled={data.page.offset+data.page.size>=data.page.total} onClick={()=>holdings.setPage(holdings.filters.page+1)}>Next page</button>
+      </nav>}
       <div className="space-y-0.5 text-center text-xs text-gray-400">
         <p>
-          Positions and cost basis are sourced from Plaid; public-market prices
-          refresh on view and after market close
+          {data?.pricingCapability?.realTimeEquitiesEnabled
+            ? 'Quantities and cost basis come from account snapshots. Supported equities use market quotes when available.'
+            : 'Values reflect the latest applied account snapshots. Upload a new CSV to update holdings.'}
         </p>
         <p>Not investment advice - For informational purposes only</p>
       </div>
 
-      <PlaidAccountSelector
-        isOpen={isAccountSelectorOpen}
-        accounts={plaidAccounts.accounts}
-        onClose={() => setIsAccountSelectorOpen(false)}
-        onConnect={() => {
-          setAccountSelectorError(null)
-          void plaidLink.open()
-        }}
-        isConnecting={plaidLink.isLoading}
-        isSaving={plaidAccounts.updateSelection.isPending}
-        errorMessage={accountSelectorError}
-        onConfirm={(selectedAccountIds) => {
-          setAccountSelectorError(null)
-          plaidAccounts.updateSelection.mutate(selectedAccountIds, {
-            onSuccess: () => {
-              setIsAccountSelectorOpen(false)
-              void holdings.refresh.mutate(undefined)
-            },
-            onError: () => {
-              setAccountSelectorError(
-                'Unable to apply account selection. Please try again after the API redeploy finishes.',
-              )
-            },
-          })
-        }}
-      />
+      {isAccountSelectorOpen && isAdmin && <LiquidityCsvUploadDialog onClose={() => setIsAccountSelectorOpen(false)}/>}
     </div>
   )
 }

@@ -56,10 +56,8 @@ describe('abuse-protection configuration', () => {
     expect(protection.quotas.monthlyCost).toMatchObject({
       maximumCents: 2_500,
       k1BdaProviderCalls: 1,
-      plaidRefreshes: 2,
     })
     expect(Object.values(protection.killSwitches)).toEqual([
-      false,
       false,
       false,
       false,

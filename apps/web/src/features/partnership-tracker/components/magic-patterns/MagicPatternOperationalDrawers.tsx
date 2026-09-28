@@ -5,11 +5,11 @@ import type {
   CreatePartnershipNavEntryRequest,
   PartnershipNavEntry,
 } from '../../../../../../../packages/types/src/partnership-tracker'
-import type { K1TrackerCashFlowKind } from '../../../../../../../packages/types/src/k1-tracker'
+import type { K1TrackerCashFlowEvent, K1TrackerCashFlowKind } from '../../../../../../../packages/types/src/k1-tracker'
 import { normalizeCurrencyInput } from '../../../../components/shared/currencyInput'
 import { PartnershipTrackerApiError } from '../../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions } from '../../hooks/usePartnershipTracker'
-import { formatInKindActivityNote } from './MagicPatternOperationalUtils'
+import { extractActivitySource, formatInKindActivityNote, parseInKindActivityNote } from './MagicPatternOperationalUtils'
 import {
   MagicButton,
   MagicDrawer,
@@ -68,6 +68,28 @@ const cashActivityDraft = (
   valuationSource: 'manager_statement',
   note: '',
 })
+
+const cashActivityDraftFromEntry = (entry: K1TrackerCashFlowEvent): CashActivityDraft => {
+  const inKind = parseInKindActivityNote(entry.note)
+  const parsedNote = extractActivitySource(entry.note)
+  return {
+    id: ++nextCashActivityDraftId,
+    kind: entry.kind,
+    activityDate: entry.activityDate,
+    amount: entry.amount,
+    feesAndCarry: entry.feesAndCarry ?? '0',
+    isFinalLiquidation: entry.isFinalLiquidation ?? false,
+    settlement: inKind ? 'in-kind' : 'cash',
+    ticker: inKind?.ticker ?? '',
+    securityName: inKind?.hasExplicitName ? inKind.name : '',
+    shares: inKind ? String(inKind.shares) : '',
+    basisPerShare: inKind ? String(inKind.costBasisPerShare) : '',
+    fmvPerShare: inKind ? String(inKind.fmvPerShare) : '',
+    source: inKind?.source ?? (parsedNote.source === 'Source not recorded' ? '' : parsedNote.source),
+    valuationSource: 'manager_statement',
+    note: inKind?.note ?? (parsedNote.note === '—' ? '' : parsedNote.note),
+  }
+}
 
 const activityOptions: Array<{ kind: ActivityDraftKind; label: string; description: string }> = [
   { kind: 'CAPITAL_CALL', label: 'Capital call', description: 'Money paid into the fund.' },
@@ -129,20 +151,22 @@ export function MagicPatternCashActivityDrawer({
   onClose,
   partnershipId,
   fundName,
+  entry,
   onSaved,
 }: {
   open: boolean
   onClose: () => void
   partnershipId: string
   fundName: string
+  entry?: K1TrackerCashFlowEvent
   onSaved?: () => void
 }) {
   const actions = usePartnershipTrackerActions()
-  const [drafts, setDrafts] = useState<CashActivityDraft[]>(() => [cashActivityDraft()])
-  const [settlementStatus, setSettlementStatus] = useState<'ANNOUNCED' | 'SETTLED'>('SETTLED')
+  const [drafts, setDrafts] = useState<CashActivityDraft[]>(() => [entry ? cashActivityDraftFromEntry(entry) : cashActivityDraft()])
+  const [settlementStatus, setSettlementStatus] = useState<'ANNOUNCED' | 'SETTLED'>(entry?.settlementStatus ?? 'SETTLED')
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({})
   const [error, setError] = useState<string>()
-  const pending = actions.createCashFlows.isPending || actions.createNav.isPending
+  const pending = actions.createCashFlows.isPending || actions.updateCashFlow.isPending || actions.createNav.isPending
 
   const updateDraft = (id: number, changes: Partial<CashActivityDraft>) => {
     setError(undefined)
@@ -250,10 +274,24 @@ export function MagicPatternCashActivityDrawer({
       }
     }
     setRowErrors(nextErrors)
-    if (Object.keys(nextErrors).length > 0) return setError('Review the highlighted activities before recording the batch.')
+    if (Object.keys(nextErrors).length > 0) return setError(entry ? 'Review the highlighted activity before saving.' : 'Review the highlighted activities before recording the batch.')
 
     try {
-      if (cashFlowEntries.length > 0) {
+      if (entry) {
+        const body = cashFlowEntries[0]
+        if (!body) return setError('Select a capital call or distribution to save this correction.')
+        await actions.updateCashFlow.mutateAsync({
+          id: partnershipId,
+          cashFlowId: entry.id,
+          body: {
+            ...body,
+            feesAndCarry: body.feesAndCarry ?? '0',
+            isFinalLiquidation: body.isFinalLiquidation ?? false,
+            settlementStatus,
+            expectedUpdatedAt: entry.updatedAt,
+          },
+        })
+      } else if (cashFlowEntries.length > 0) {
         await actions.createCashFlows.mutateAsync({
           id: partnershipId,
           body: { entries: cashFlowEntries },
@@ -268,9 +306,17 @@ export function MagicPatternCashActivityDrawer({
       onSaved?.()
       onClose()
     } catch (caught) {
-      setError(caught instanceof PartnershipTrackerApiError && caught.code === 'DUPLICATE_NAV_DATE'
+      const apiMessage = caught instanceof PartnershipTrackerApiError
+        && caught.payload && typeof caught.payload === 'object' && 'message' in caught.payload
+        ? String((caught.payload as { message: unknown }).message)
+        : undefined
+      setError(caught instanceof PartnershipTrackerApiError && caught.isStale
+        ? 'This activity changed while you were editing. Review the refreshed ledger and try again.'
+        : caught instanceof PartnershipTrackerApiError && caught.code === 'DUPLICATE_NAV_DATE'
         ? 'A valuation already exists for this date. Edit that entry instead.'
-        : caught instanceof Error ? caught.message : 'The activity could not be recorded.')
+        : apiMessage ?? (caught instanceof PartnershipTrackerApiError
+          ? `The activity could not be ${entry ? 'saved' : 'recorded'}.`
+          : caught instanceof Error ? caught.message : `The activity could not be ${entry ? 'saved' : 'recorded'}.`))
     }
   }
 
@@ -278,15 +324,17 @@ export function MagicPatternCashActivityDrawer({
     <MagicDrawer
       open={open}
       onClose={onClose}
-      title="Record activity"
-      description={`${fundName} - add up to 20 activities and record them together`}
+      title={entry ? 'Edit capital activity' : 'Record activity'}
+      description={entry ? `${fundName} · correct the activity and save it to the audit trail` : `${fundName} - add up to 20 activities and record them together`}
       footer={
         <>
           <MagicButton type="button" variant="secondary" onClick={onClose} disabled={pending}>Cancel</MagicButton>
           <MagicButton type="submit" form="magic-cash-activity-form" disabled={pending}>
             {pending
-              ? 'Recording...'
-              : drafts.length === 1
+              ? entry ? 'Saving...' : 'Recording...'
+              : entry
+                ? 'Save changes'
+                : drafts.length === 1
                 ? 'Record activity'
                 : `Record ${drafts.length} activities`}
           </MagicButton>
@@ -295,7 +343,9 @@ export function MagicPatternCashActivityDrawer({
     >
       <form id="magic-cash-activity-form" onSubmit={submit} className="flex flex-col gap-5">
         <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-5 text-blue-950">
-          Add capital calls, distributions, and valuations from one place. Each entry is validated before it is saved to the appropriate activity history.
+          {entry
+            ? 'Correct the activity type, date, amount, fees, settlement state, source, or notes. Performance figures will be recalculated after saving.'
+            : 'Add capital calls, distributions, and valuations from one place. Each entry is validated before it is saved to the appropriate activity history.'}
         </div>
 
         {drafts.map((draft, index) => {
@@ -312,7 +362,7 @@ export function MagicPatternCashActivityDrawer({
               <header className="flex items-start justify-between gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3">
                 <div>
                   <h3 id={`cash-activity-${draft.id}`} className="text-sm font-semibold text-slate-950">
-                    Activity {index + 1}
+                    {entry ? 'Capital activity' : `Activity ${index + 1}`}
                   </h3>
                   <p className="mt-0.5 text-xs leading-4 text-slate-500">{option?.description}</p>
                 </div>
@@ -338,7 +388,7 @@ export function MagicPatternCashActivityDrawer({
                       onChange={(event) => updateDraft(draft.id, { kind: event.target.value as ActivityDraftKind })}
                       className={mpInputClass}
                     >
-                      {activityOptions.map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
+                      {activityOptions.filter((item) => !entry || item.kind !== 'VALUATION').map((item) => <option key={item.kind} value={item.kind}>{item.label}</option>)}
                     </select>
                   </label>
                   <label className={mpLabelClass}>
@@ -412,7 +462,7 @@ export function MagicPatternCashActivityDrawer({
           )
         })}
 
-        <MagicButton
+        {!entry ? <MagicButton
           type="button"
           variant="secondary"
           disabled={drafts.length >= 20}
@@ -425,7 +475,7 @@ export function MagicPatternCashActivityDrawer({
         >
           <Plus aria-hidden="true" className="h-4 w-4" />
           Add another activity
-        </MagicButton>
+        </MagicButton> : null}
         {drafts.some((draft) => draft.kind !== 'VALUATION') ? <fieldset>
           <legend className="text-sm font-semibold text-slate-950">Settlement state</legend>
           <p className="mt-1 text-sm text-slate-500">Unsettled activity is tracked separately and excluded from the position until it settles.</p>

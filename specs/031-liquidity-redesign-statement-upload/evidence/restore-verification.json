@@ -1,0 +1,53 @@
+{
+  "date": "2026-09-21",
+  "source": "atlas_csv_031_test",
+  "restored": "atlas_csv_031_restore_20260921",
+  "method": "local PostgreSQL custom-format dump and restore into a new isolated database",
+  "equal": true,
+  "tables": {
+    "liquidity_source_accounts": {
+      "rows": 43,
+      "digest": "752c60ed77681d791df8b7caa257147e"
+    },
+    "liquidity_holdings_snapshots": {
+      "rows": 50,
+      "digest": "524f1d8a93284dd2a6cae21355ffe541"
+    },
+    "liquidity_source_positions": {
+      "rows": 39,
+      "digest": "16790a9e76c87b4e1332f94ecc7d2fad"
+    },
+    "liquidity_source_valuations": {
+      "rows": 0,
+      "digest": null
+    },
+    "liquidity_csv_imports": {
+      "rows": 85,
+      "digest": "9db14f65184d071c2d0318a41a93982d"
+    },
+    "liquidity_csv_profiles": {
+      "rows": 5,
+      "digest": "280ced5d213e942919eb014bec710cfa"
+    },
+    "liquidity_csv_parse_runs": {
+      "rows": 86,
+      "digest": "ed5532b52ee7e72f727102e2020e2d72"
+    },
+    "liquidity_csv_reviews": {
+      "rows": 48,
+      "digest": "c35b54e78de7e04bb80543e5b160f057"
+    },
+    "liquidity_csv_records": {
+      "rows": 42299,
+      "digest": "cc3dc201a7091d3bc461f21092d71efe"
+    },
+    "liquidity_csv_fields": {
+      "rows": 757026,
+      "digest": "96ffdcc79f11b770f367407c81aa0e39"
+    },
+    "liquidity_csv_applications": {
+      "rows": 43,
+      "digest": "dd72d803a50f07edd78999ed4c2c6426"
+    }
+  }
+}

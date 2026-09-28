@@ -123,11 +123,6 @@ variable "rds_connections_threshold" {
   type        = number
 }
 
-variable "scheduler_schedule_name" {
-  description = "EventBridge Scheduler schedule name."
-  type        = string
-}
-
 variable "market_price_scheduler_schedule_name" {
   description = "EventBridge Scheduler market price schedule name."
   type        = string
@@ -230,7 +225,6 @@ output "alarm_names" {
       aws_cloudwatch_metric_alarm.rds_cpu.alarm_name,
       aws_cloudwatch_metric_alarm.rds_free_storage.alarm_name,
       aws_cloudwatch_metric_alarm.rds_connections.alarm_name,
-      aws_cloudwatch_metric_alarm.scheduler_target_errors.alarm_name,
       aws_cloudwatch_metric_alarm.market_price_scheduler_target_errors.alarm_name,
       aws_cloudwatch_metric_alarm.waf_blocked_requests.alarm_name,
     ],

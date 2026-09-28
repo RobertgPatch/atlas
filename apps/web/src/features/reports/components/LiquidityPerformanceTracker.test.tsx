@@ -123,6 +123,6 @@ describe('LiquidityPerformanceTracker', () => {
   it('explains when only the first snapshot is available', () => {
     render(<LiquidityPerformanceTracker points={[points[0]!]} />)
 
-    expect(screen.getByText(/first change will appear after the next daily snapshot/i)).toBeInTheDocument()
+    expect(screen.getByText(/first change will appear after the next recorded snapshot/i)).toBeInTheDocument()
   })
 })

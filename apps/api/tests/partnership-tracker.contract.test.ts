@@ -128,7 +128,7 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     })
   })
 
-  it('accepts partnership-level capital activity before any K-1 year exists', async () => {
+  it('creates and edits partnership-level capital activity before any K-1 year exists', async () => {
     const created = await app.inject({
       method: 'POST',
       url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}/cash-flows`,
@@ -143,6 +143,33 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     expect(created.statusCode).toBe(201)
     expect(created.json()).toMatchObject({ taxYear: 2024, kind: 'CAPITAL_CALL', amount: '75000.00' })
 
+    const updated = await app.inject({
+      method: 'PATCH',
+      url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}/cash-flows/${created.json().id}`,
+      headers: { cookie },
+      payload: {
+        kind: 'DISTRIBUTION',
+        activityDate: '2024-05-01',
+        amount: '70000.00',
+        feesAndCarry: '250.5000',
+        isFinalLiquidation: true,
+        settlementStatus: 'SETTLED',
+        note: 'Corrected manager notice',
+        expectedUpdatedAt: created.json().updatedAt,
+      },
+    })
+    expect(updated.statusCode).toBe(200)
+    expect(updated.json()).toMatchObject({
+      taxYear: 2024,
+      kind: 'DISTRIBUTION',
+      activityDate: '2024-05-01',
+      amount: '70000.00',
+      feesAndCarry: '250.5000',
+      isFinalLiquidation: true,
+      settlementStatus: 'SETTLED',
+      note: 'Corrected manager notice',
+    })
+
     const detail = await app.inject({
       method: 'GET',
       url: `/v1/partnership-tracker/partnerships/${fixture.partnershipId}`,
@@ -151,7 +178,8 @@ durable('Partnership Tracker list/detail contract with PostgreSQL', () => {
     expect(detail.statusCode).toBe(200)
     expect(detail.json()).toMatchObject({
       years: [],
-      cashFlowEvents: [expect.objectContaining({ kind: 'CAPITAL_CALL', amount: '75000.00' })],
+      cashFlowEvents: [expect.objectContaining({ kind: 'DISTRIBUTION', amount: '70000.00' })],
+      summary: { partnership: { finalLiquidationDate: '2024-05-01' } },
     })
   })
 

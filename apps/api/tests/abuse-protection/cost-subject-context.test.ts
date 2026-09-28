@@ -26,7 +26,7 @@ describe('validated cost subject context', () => {
       account: 'account-1',
       entity: 'entity-authorized',
       document: 'document-1',
-      provider: 'plaid',
+      provider: 'market-data',
     })
     const hashes = Object.values(context.activeHashes)
       .filter((value): value is Uint8Array => Boolean(value))

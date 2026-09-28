@@ -62,8 +62,8 @@ exercise copy.
 - Admin diagnostics remain authorized and redacted; SQL stays parameterized.
 - `MFA_LOGIN_ENABLED` is the sole login-enforcement switch. Production MFA
   remains required remediation but is not a separate deployment approval under EX-030-003.
-- Production reads use durable saved Plaid and market data; they never refresh
-  a paid provider on read.
+- Production reads use durable CSV snapshots and optional saved market data;
+  they never refresh a paid provider on read.
 - Local destructive/reset/bounded-abuse tools target loopback fixtures only and
   refuse production.
 - WAF, application rate limits, cost admission controls, kill switches, and the

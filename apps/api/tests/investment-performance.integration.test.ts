@@ -59,4 +59,46 @@ durable('Investment Performance persistence', () => {
     expect(detail.cashFlowEvents[0]?.feesAndCarry).toBe('0.0000')
     expect(detail.investmentPerformance.feesAndCarry).toBe('0.0000')
   })
+
+  it('recalculates performance and recallable commitments when capital activity is corrected', async () => {
+    const id = fixture.partnershipId
+    await repository.createCommitment(id, { amount: '100.00', effectiveDate: '2021-01-01' }, fixture.adminUserId, scope)
+    const created = await repository.createCapitalActivity(id, {
+      kind: 'RECALLABLE_DISTRIBUTION',
+      activityDate: '2022-01-01',
+      amount: '25.00',
+    }, fixture.adminUserId, scope)
+
+    let detail = await repository.getPartnership(id, scope)
+    expect(detail.commitments.find((entry) => entry.sourceCashFlowEventId === created.id)?.amount).toBe('125.00')
+
+    const announcedCall = await repository.updateCapitalActivity(id, created.id, {
+      kind: 'CAPITAL_CALL',
+      activityDate: '2022-02-01',
+      amount: '30.00',
+      feesAndCarry: '1.00',
+      settlementStatus: 'ANNOUNCED',
+      note: 'Corrected notice',
+      expectedUpdatedAt: created.updatedAt,
+    }, fixture.adminUserId, scope)
+    detail = await repository.getPartnership(id, scope)
+    expect(announcedCall).toMatchObject({ kind: 'CAPITAL_CALL', settlementStatus: 'ANNOUNCED', amount: '30.00', feesAndCarry: '1.0000' })
+    expect(detail.commitments.some((entry) => entry.sourceCashFlowEventId === created.id)).toBe(false)
+    expect(detail.investmentPerformance.paidInCapital).toBe('0.0000')
+
+    const liquidation = await repository.updateCapitalActivity(id, created.id, {
+      kind: 'DISTRIBUTION',
+      activityDate: '2022-03-01',
+      amount: '30.00',
+      feesAndCarry: '1.00',
+      settlementStatus: 'SETTLED',
+      isFinalLiquidation: true,
+      note: 'Final corrected notice',
+      expectedUpdatedAt: announcedCall.updatedAt,
+    }, fixture.adminUserId, scope)
+    detail = await repository.getPartnership(id, scope)
+    expect(liquidation).toMatchObject({ kind: 'DISTRIBUTION', isFinalLiquidation: true, activityDate: '2022-03-01' })
+    expect(detail.summary.partnership.finalLiquidationDate).toBe('2022-03-01')
+    expect(detail.investmentPerformance).toMatchObject({ grossDistributions: '30.0000', feesAndCarry: '-1.0000', netDistributions: '29.0000' })
+  })
 })
