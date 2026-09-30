@@ -16,7 +16,7 @@ import {
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
 import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 143
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 145
 
 interface AuthWafContract {
   readonly schemaVersion: string
@@ -85,6 +85,8 @@ describe('external route protection policy coverage', () => {
       { method: 'GET' as const, routePattern: '/v1/admin/protection-controls' },
       { method: 'GET' as const, routePattern: '/v1/admin/users' },
       { method: 'GET' as const, routePattern: '/v1/admin/application-logs' },
+      { method: 'GET' as const, routePattern: '/v1/liquidity-sectors' },
+      { method: 'PUT' as const, routePattern: '/v1/liquidity-sectors/:symbol' },
       { method: 'POST' as const, routePattern: '/v1/auth/password/change' },
     ]) {
       expect(routeKeys.has(canonicalRouteKey(retained.method, retained.routePattern))).toBe(true)
@@ -146,6 +148,18 @@ describe('external route protection policy coverage', () => {
     }
 
     expect(issues.sort()).toEqual([])
+  })
+
+  it('protects sector management as authenticated, bounded Admin work', async () => {
+    const app = await readyApp()
+    const routes = app.abuseProtectionRouteInventory.filter((route) =>
+      route.routePattern.startsWith('/v1/liquidity-sectors'))
+    expect(routes).toHaveLength(2)
+    for (const route of routes) {
+      expect(route.policy?.authentication).toBe('admin')
+      expect(route.policy?.owner).toBeTruthy()
+      expect(route.policy?.localRates.length).toBeGreaterThan(0)
+    }
   })
 
   it('protects every statement-ingestion route as authenticated, bounded Admin work', async () => {

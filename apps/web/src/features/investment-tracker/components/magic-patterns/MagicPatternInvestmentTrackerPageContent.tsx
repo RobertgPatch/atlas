@@ -18,6 +18,9 @@ import {
   updateInvestmentTrackerQuery,
 } from '../../investmentTrackerQueryState'
 
+// Keep the K-1-first creation flow intact while it is not ready for use.
+const K1_PARTNERSHIP_CREATION_ENABLED = false
+
 export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit: boolean }) {
   const [params, setParams] = useSearchParams()
   const [adding, setAdding] = useState<'choose' | 'manual' | 'k1' | null>(null)
@@ -107,7 +110,10 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
           </p>
         </div>
         {canEdit ? (
-          <MagicButton type="button" onClick={() => setAdding('choose')}>
+          <MagicButton
+            type="button"
+            onClick={() => setAdding(K1_PARTNERSHIP_CREATION_ENABLED ? 'choose' : 'manual')}
+          >
             <Plus className="h-4 w-4" />
             Add partnership
           </MagicButton>
@@ -156,7 +162,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
 
       <MagicPatternCapitalActivityPortfolio onOpen={openPartnership} />
 
-      {adding === 'choose' ? (
+      {K1_PARTNERSHIP_CREATION_ENABLED && adding === 'choose' ? (
         <MagicModal
           open
           size="md"
@@ -228,7 +234,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
       ) : null}
 
       <K1UploadDialog
-        open={adding === 'k1'}
+        open={K1_PARTNERSHIP_CREATION_ENABLED && adding === 'k1'}
         createPartnershipIfMissing
         onClose={() => setAdding(null)}
         onUploaded={() => undefined}

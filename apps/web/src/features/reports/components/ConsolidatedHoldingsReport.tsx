@@ -8,7 +8,7 @@ import { useConsolidatedHoldings } from '../hooks/useConsolidatedHoldings'
 import { useSession } from '../../../auth/sessionStore'
 import { useLiquidityPerformance } from '../hooks/useLiquidityPerformance'
 import {
-  EQUITY_SECTORS,
+  SECTOR_FILTER_OPTIONS,
   filterHoldingsByAccounts,
   filterHoldingsBySectors,
   getAssetAllocation,
@@ -16,7 +16,7 @@ import {
   getCustodianBreakdown,
   getSectorAllocation,
   getRankableHoldings,
-  type EquitySector,
+  type SectorFilterOption,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { AllocationChart } from './AllocationChart'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
@@ -28,8 +28,8 @@ import { LiquidityPerformanceTracker } from './LiquidityPerformanceTracker'
 import { TopHoldings } from './TopHoldings'
 
 export function ConsolidatedHoldingsReport({entities=[],entityId,defaultEntityId,entitiesLoading=false,onEntityChange=()=>undefined,onMakeDefault=()=>undefined}:{entities?:Array<{id:string;name:string}>;entityId?:string;defaultEntityId?:string;entitiesLoading?:boolean;onEntityChange?:(id:string)=>void;onMakeDefault?:()=>void}) {
-  const [selectedSectors, setSelectedSectors] = useState<EquitySector[]>(() => [
-    ...EQUITY_SECTORS,
+  const [selectedSectors, setSelectedSectors] = useState<SectorFilterOption[]>(() => [
+    ...SECTOR_FILTER_OPTIONS,
   ])
   const [accountSelections,setAccountSelections]=useState<Record<string,string[]>>({})
   const holdings = useConsolidatedHoldings(entityId)
@@ -64,7 +64,7 @@ export function ConsolidatedHoldingsReport({entities=[],entityId,defaultEntityId
     [accountScopedRows, totalMarketValue],
   )
   const sectorData = useMemo(() => getSectorAllocation(accountScopedRows), [accountScopedRows])
-  const sectorFilterIsActive = selectedSectors.length !== EQUITY_SECTORS.length
+  const sectorFilterIsActive = selectedSectors.length !== SECTOR_FILTER_OPTIONS.length
   const visibleRows = useMemo(
     () =>
       sectorFilterIsActive
@@ -222,6 +222,7 @@ export function ConsolidatedHoldingsReport({entities=[],entityId,defaultEntityId
         <>
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <AllocationChart
+              manageSectorsHref={isAdmin ? `/liquidity/sectors${entityId ? `?entityId=${encodeURIComponent(entityId)}` : ''}` : undefined}
               currencyCode={portfolioCurrency}
               assetData={assetData}
               sectorData={sectorData}
@@ -256,7 +257,7 @@ export function ConsolidatedHoldingsReport({entities=[],entityId,defaultEntityId
             sectorFilterIsActive
               ? {
                   sectors: selectedSectors,
-                  onClear: () => setSelectedSectors([...EQUITY_SECTORS]),
+                  onClear: () => setSelectedSectors([...SECTOR_FILTER_OPTIONS]),
                 }
               : undefined
           }

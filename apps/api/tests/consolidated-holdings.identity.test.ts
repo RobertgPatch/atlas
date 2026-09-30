@@ -4,12 +4,15 @@ import type { ReportSourceAccount,SourceHoldingRecord } from '../src/modules/liq
 import { buildConsolidatedHoldingsResponse,holdingIdentityKeyFor } from '../src/modules/reports/consolidatedHoldings.service.js'
 import { readLiquiditySources } from '../src/modules/liquidity-sources/liquidity-source.read.js'
 import { marketDataService } from '../src/modules/market-data/market-data.service.js'
+import { liquiditySectorRepository } from '../src/modules/liquidity-sectors/liquidity-sector.repository.js'
 
 vi.mock('../src/modules/liquidity-sources/liquidity-source.read.js',()=>({readLiquiditySources:vi.fn()}))
 vi.mock('../src/modules/market-data/market-data.service.js',()=>({marketDataService:{priceHoldingsForRead:vi.fn()}}))
+vi.mock('../src/modules/liquidity-sectors/liquidity-sector.repository.js',()=>({liquiditySectorRepository:{forSymbols:vi.fn(async()=>new Map())}}))
 
 beforeEach(()=>{
   vi.clearAllMocks()
+  vi.mocked(liquiditySectorRepository.forSymbols).mockResolvedValue(new Map())
   vi.mocked(marketDataService.priceHoldingsForRead).mockImplementation(async holdings=>({holdings,pricing:{status:'fallback',provider:null,feed:null,priceAsOf:null,refreshedAt:null,pricedHoldingCount:0,fallbackHoldingCount:holdings.length,warnings:[]}}))
 })
 
@@ -58,6 +61,17 @@ async function reportFor(holdings:SourceHoldingRecord[],custodianNames=['Merrill
 }
 
 describe('statement rollup compatibility and safe unit arithmetic',()=>{
+  it('overlays a global assignment on new cross-custodian snapshots without changing source evidence', async () => {
+    vi.mocked(liquiditySectorRepository.forSymbols).mockResolvedValue(new Map([['SPCX', { symbol: 'SPCX', sector: 'Industrials', version: 2, updatedAt: '2026-09-30T10:00:00Z' }]]))
+    const sources = [statementHolding(), statementHolding()]
+    const report = await reportFor(sources)
+    expect(report.rows[0]).toMatchObject({ symbol: 'SPCX', sectorOverride: 'Industrials', marketValue: 2200 })
+    expect(report.rows[0]!.details).toHaveLength(2)
+    expect(sources.every((source) => source.sector === null)).toBe(true)
+    expect(liquiditySectorRepository.forSymbols).toHaveBeenCalledWith(['SPCX'])
+    const nextMonth = await reportFor([statementHolding({ asOfDate: '2026-10-31' })])
+    expect(nextMonth.rows[0]?.sectorOverride).toBe('Industrials')
+  })
   it('rolls compatible symbols across descriptions, formats and custodians into one parent with two subrows',async()=>{
     const first=statementHolding()
     const second=statementHolding({description:'SPACE EX TECH SPACEX CLASS A',type:'Equity',cusip:null,fileKind:'CSV',adapterId:'charles_schwab_positions_csv',costBasis:1500,institutionPrice:16,marketValue:1600,

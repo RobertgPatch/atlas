@@ -1,4 +1,6 @@
 import { config } from '../../config.js'
+import { normalizeSectorSymbol, type SectorFilterOption } from '@jackson/types/liquidity-sectors'
+import { liquiditySectorRepository } from '../liquidity-sectors/liquidity-sector.repository.js'
 import { readLiquiditySources } from '../liquidity-sources/liquidity-source.read.js'
 import type { ReportSourceAccount,SourceHoldingRecord } from '../liquidity-sources/liquidity-source.types.js'
 import type { Coverage,PricingCapability } from '../liquidity-statements/liquidity-statement.types.js'
@@ -61,6 +63,7 @@ interface CustodianHoldingDetailRow {
 }
 
 interface ConsolidatedHoldingRow {
+  sectorOverride?: SectorFilterOption | null
   exact?: SourceHoldingRecord['exact']
   basisCoverage?: Coverage
   gainCoverage?: Coverage
@@ -498,6 +501,10 @@ export const buildConsolidatedHoldingsResponse = async (
   const page = query.page ?? 1
   const offset = (page - 1) * pageSize
   const paged = sorted.slice(offset, offset + pageSize)
+  const sectorAssignments = await liquiditySectorRepository.forSymbols(paged.map(row => row.symbol))
+  for (const row of paged) {
+    row.sectorOverride = sectorAssignments.get(normalizeSectorSymbol(row.symbol))?.sector ?? null
+  }
 
   const kpis: ConsolidatedHoldingsKpis = {
     totalMarketValue: sumKnown(gainFiltered.map((row) => row.marketValue)),

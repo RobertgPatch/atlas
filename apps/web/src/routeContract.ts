@@ -5,6 +5,7 @@ export const CURRENT_PROTECTED_ROUTE_PATTERNS = [
   '/investment-tracker',
   '/liquidity',
   '/liquidity/statements',
+  '/liquidity/sectors',
   '/entities',
   '/entities/:id',
   '/estate-maps',

@@ -62,7 +62,7 @@ export function CustodianBreakdown({ custodians, currencyCode = 'USD', selectedA
         {!allSelected?<button type="button" onClick={onShowAll} className="rounded-md px-2 py-1 text-xs font-semibold text-primary transition hover:bg-primary/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">Show all</button>:null}
       </div>
 
-      <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+      <div className="space-y-3">
         {custodians.map((custodian) => {
           const accountIds=custodian.accounts.map(account=>account.id)
           const selectedCount=accountIds.filter(accountId=>selected.has(accountId)).length

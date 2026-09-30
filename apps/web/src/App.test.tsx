@@ -34,6 +34,7 @@ const pageMocks = [
   ['./pages/EntitiesPage', 'EntitiesPage', 'Entities'],
   ['./pages/ReportsPage', 'ReportsPage', 'Reports'],
   ['./pages/LiquidityPage', 'LiquidityPage', 'Liquidity'],
+  ['./pages/LiquiditySectorsPage', 'LiquiditySectorsPage', 'Manage sectors'],
   ['./pages/TicRegistryPage', 'TicRegistryPage', 'TIC registry'],
   ['./pages/EstateMapPage', 'EstateMapPage', 'Estate maps'],
   ['./pages/InvestmentTrackerPage', 'InvestmentTrackerPage', 'Investment tracker'],
@@ -56,6 +57,7 @@ const retainedPatterns = [
   '/investment-tracker',
   '/liquidity',
   '/liquidity/statements',
+  '/liquidity/sectors',
   '/entities',
   '/entities/:id',
   '/estate-maps',
@@ -110,6 +112,7 @@ describe('top-level application routing', () => {
   it.each([
     ['/investment-tracker', 'Investment tracker'],
     ['/liquidity', 'Liquidity'],
+    ['/liquidity/sectors', 'Manage sectors'],
     ['/entities', 'Entities'],
     ['/entities/e-1', 'Entity detail'],
     ['/estate-maps', 'Estate maps'],
