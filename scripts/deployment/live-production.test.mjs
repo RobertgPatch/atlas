@@ -5,6 +5,10 @@ import { releaseEligible, requiredJobs, candidateTask, candidateDistribution, or
 const target = JSON.parse(readFileSync(new URL('../../infra/aws/live-production-target.json', import.meta.url), 'utf8'));
 const sha = 'a'.repeat(40);
 const image = `${target.accountId}.dkr.ecr.${target.region}.amazonaws.com/${target.repository}@sha256:${'b'.repeat(64)}`;
+test('production runtime image includes compiled shared workspace modules', () => {
+  const dockerfile = readFileSync(new URL('../../apps/api/Dockerfile', import.meta.url), 'utf8');
+  assert.match(dockerfile, /COPY --from=build --chown=node:node \/app\/packages\/types\/dist packages\/types\/dist/);
+});
 test('CSV storage and price flag use the live API defaults and preserve intentional overrides', () => {
   const storage = { bucket: target.liquidityCsv.bucket, kmsKeyArn: `arn:aws:kms:${target.region}:${target.accountId}:key/test` };
   for (const spec of target.services) for (const value of [undefined, 'true', 'false']) {
