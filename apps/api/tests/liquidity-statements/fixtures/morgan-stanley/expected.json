@@ -1,0 +1,27 @@
+{
+  "account": {
+    "occurrenceId": "morgan-account-2",
+    "displayName": "Synthetic Family",
+    "accountMask": "0042",
+    "identifierQuality": "MASKED",
+    "asOfDate": "2026-10-15",
+    "asOfPrecision": "INSTANT",
+    "positionCount": 8
+  },
+  "positions": [
+    { "row": 13, "symbol": "TST", "assetType": "equity", "costBasis": "900", "basisSourceField": "ADJUSTED_COST", "gainRatio": "0.22222", "priceUnit": "PER_UNIT", "quantityUnit": "SHARES" },
+    { "row": 14, "symbol": "ZBA", "assetType": "other", "costBasis": "0", "basisSourceField": "ADJUSTED_COST", "gainRatio": null, "priceUnit": "UNKNOWN", "quantityUnit": "UNKNOWN" },
+    { "row": 15, "symbol": "FBFXX", "assetType": "fund", "costBasis": "180", "basisSourceField": "TOTAL_COST", "gainRatio": "0.1111", "priceUnit": "PER_UNIT", "quantityUnit": "SHARES" },
+    { "row": 16, "symbol": "INCXX", "assetType": "fund", "costBasis": null, "basisSourceField": "ADJUSTED_COST_INCOMPLETE", "gainRatio": "0.2", "priceUnit": "PER_UNIT", "quantityUnit": "SHARES" },
+    { "row": 17, "symbol": "PVT1", "assetType": "other", "costBasis": null, "basisSourceField": null, "gainRatio": null, "priceUnit": "UNKNOWN", "quantityUnit": "UNKNOWN" },
+    { "row": 18, "symbol": null, "assetType": "bond", "costBasis": "900", "basisSourceField": "ADJUSTED_COST", "gainRatio": "0.08888", "priceUnit": "PERCENT_OF_PAR", "quantityUnit": "PRINCIPAL" },
+    { "row": 19, "symbol": "BANKNA", "assetType": "cash", "costBasis": null, "basisSourceField": null, "gainRatio": null, "priceUnit": "UNKNOWN", "quantityUnit": "CURRENCY" },
+    { "row": 20, "symbol": "INGXX", "assetType": "cash", "costBasis": null, "basisSourceField": null, "gainRatio": null, "priceUnit": "PER_UNIT", "quantityUnit": "SHARES" }
+  ],
+  "controls": [
+    { "metric": "MARKET_VALUE", "reported": "3280", "scope": "COMPLETE_ACCOUNT", "count": 8 },
+    { "metric": "ORIGINAL_COST", "reported": "2320", "scope": "EXPLICIT_SUBSET", "count": 5 },
+    { "metric": "ADJUSTED_COST", "reported": "1800", "scope": "EXPLICIT_SUBSET", "count": 3 },
+    { "metric": "GAIN", "reported": "400", "scope": "EXPLICIT_SUBSET", "count": 5 }
+  ]
+}

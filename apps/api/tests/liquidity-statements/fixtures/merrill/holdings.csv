@@ -1,0 +1,7 @@
+COB Date,Security #,Symbol,CUSIP #,Security Description,Account Nickname,Account Registration,Account #,Quantity,Price ($),Value ($),Unrealized Gain/Loss ($),Unrealized Gain/Loss (%),Cumulative Investment Return ($),Accrued Interest ($),Cost Basis ($),Asset Type,Currency,Day Change ($),Day Change (%),Synthetic Extra Column
+8/31/2026,00042,DEMO,001234567,Synthetic equity,Synthetic Primary,Trust,00001234,12.5,16,200,40,25,7777,0,,Equity,USD,1.25,0.625,supporting text
+8/31/2026,00043,,,ML Bank Deposit Program,Synthetic Primary,Trust,00001234,--,--,35,--,--,9999,--,,,USD,--,--,
+8/31/2026,00044,BLFTEST,,BLF FEDFUND,Synthetic Primary,Trust,00001234,80,1,80,0,0,8888,0,80,,USD,0,0,
+8/31/2026,00045,,,ML Bank Deposity Program,Synthetic Primary,Trust,00001234,,,5,,,,,,,USD,,,
+8/31/2026,00046,FUNDTEST,009876543,Synthetic fund,Synthetic Secondary,Trust,00005678,10,10,100,20,25,-321,2.5,80,Mutual Fund,USD,-2,-2,
+8/31/2026,00047,PENNYTEST,,Synthetic noncash at one,Synthetic Secondary,Trust,00005678,9,1,9,--,--,123,0,,Other,USD,--,--,

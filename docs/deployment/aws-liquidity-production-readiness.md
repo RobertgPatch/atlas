@@ -57,6 +57,10 @@ quarterly encrypted restore into an isolated network. Record backup success,
 restore timings, integrity checks, and retained-read results before removing the
 exercise copy.
 
+For statement adapter rollout, preserve both the active and immediately prior parser image/version. Migration 051 is additive but approved `STATEMENT` evidence cannot be served by a pre-032 binary. Disable `LIQUIDITY_CSV_APPLY_ENABLED` first on an incident; upload, parsing, and XLSX admission have independent switches. Disabling `LIQUIDITY_XLSX_ENABLED` blocks new workbook admission while retained originals and approvals remain readable. A rollback must retain object versions, recipes, parse runs, typed evidence, reviews, account selections/exclusions, applications, and snapshot pointers together.
+
+Before enabling XLSX, repeat the synthetic bounds/performance suite using the deployed CPU/memory allocation and validate S3/KMS/CORS with synthetic data. Keep XLSX disabled if the five-second ordinary-file target, total process/worker memory envelope, or concurrent request responsiveness is not demonstrated. The local 032 measurements do not prove ECS child-process peak RSS, live database duration, S3 propagation, or production restore objectives.
+
 ## Security review
 
 - Admin diagnostics remain authorized and redacted; SQL stays parameterized.
@@ -69,6 +73,7 @@ exercise copy.
 - WAF, application rate limits, cost admission controls, kill switches, and the
   incident runbook are validated before activation.
 - Production values and data are never copied into local development.
+- Statement fixtures committed to Git are synthetic. Private custodian examples may be reviewed locally but their filenames, identifiers, values, screenshots, and raw rows must not enter repository evidence or CI logs.
 
 ## Evidence record
 

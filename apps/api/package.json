@@ -4,10 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run --workspace=@jackson/types build",
     "dev": "tsx watch src/server.ts",
     "dev:k1-worker": "tsx src/workers/k1-extraction-worker.ts",
     "migrate": "tsx src/scripts/run-migrations.ts",
     "reconcile:identities": "tsx src/scripts/reconcile-bootstrap-identities.ts",
+    "prebuild": "npm run --workspace=@jackson/types build",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "start:k1-worker": "node dist/workers/k1-extraction-worker.js",
@@ -15,9 +17,11 @@
     "evaluate:k1-bda": "tsx src/scripts/evaluate-k1-bda.ts",
     "refresh-market-prices": "node dist/scripts/run-market-price-refresh.js",
     "backfill-market-prices": "tsx src/scripts/backfill-market-price-snapshots.ts",
+    "pretest": "npm run --workspace=@jackson/types build",
     "test": "vitest run"
   },
   "dependencies": {
+    "@jackson/types": "0.1.0",
     "@aws-sdk/client-bedrock-data-automation-runtime": "^3.1112.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1112.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.1121.0",
@@ -37,12 +41,15 @@
     "pdf-lib": "^1.17.1",
     "pg": "^8.13.3",
     "qrcode": "^1.5.4",
+    "saxes": "6.0.0",
+    "yauzl": "3.4.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.11",
     "@types/qrcode": "^1.5.6",
+    "@types/yauzl": "3.4.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.11"

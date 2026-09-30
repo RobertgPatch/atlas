@@ -73,8 +73,6 @@ const reportTypeSchema = z.enum([
 
 const exportFormatSchema = z.enum(['csv', 'xlsx'])
 
-const refreshReasonSchema = z.enum(['manual', 'forced'])
-
 export const activityDetailRowParamsSchema = z.object({
   rowId: uuidSchema,
 })
@@ -102,6 +100,7 @@ export const activityDetailQuerySchema = z.object({
 })
 
 export const consolidatedHoldingsQuerySchema = z.object({
+  entityId: uuidSchema.optional(),
   search: z.string().max(200).optional(),
   custodian: z.string().max(120).optional(),
   accountId: z.string().max(120).optional(),
@@ -118,6 +117,11 @@ const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const liquidityPerformanceQuerySchema = z
   .object({
+    entityId: uuidSchema.optional(),
+    accountIds: z.preprocess(
+      value => typeof value === 'string' ? value.split(',').filter(Boolean) : value,
+      z.array(uuidSchema).max(100),
+    ).optional(),
     from: isoDateSchema.optional(),
     to: isoDateSchema.optional(),
   })
@@ -125,13 +129,6 @@ export const liquidityPerformanceQuerySchema = z
     message: 'The performance start date must be on or before the end date.',
     path: ['from'],
   })
-
-export const consolidatedHoldingsRefreshBodySchema = z
-  .object({
-    force: z.coerce.boolean().optional().default(false),
-    reason: refreshReasonSchema.optional(),
-  })
-  .default({})
 
 export const schedulerRefreshBodySchema = z
   .object({
@@ -195,9 +192,6 @@ export type ConsolidatedHoldingsQuery = z.output<
 >
 export type LiquidityPerformanceQuery = z.output<
   typeof liquidityPerformanceQuerySchema
->
-export type ConsolidatedHoldingsRefreshBody = z.output<
-  typeof consolidatedHoldingsRefreshBodySchema
 >
 export type SchedulerRefreshBody = z.output<typeof schedulerRefreshBodySchema>
 export type SchedulerTokenHeaders = z.output<typeof schedulerTokenHeadersSchema>

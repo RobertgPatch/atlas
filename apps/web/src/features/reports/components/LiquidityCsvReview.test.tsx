@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen,waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 import { positionFields, type CsvDetail, type CsvField } from '../../../../../../packages/types/src/liquidity-statements'
@@ -29,19 +29,25 @@ it('offers an accessible per-holding category dropdown during review', async () 
     summary: { id: 'import', entityId: 'entity', custodian: 'Broker', version: 2, status: 'NEEDS_REVIEW', adapterId: 'merrill_holdings_v1', safeErrorCode: null, uploadedAt: '2026-09-01' },
     canonicalDraft: { schemaVersion: '2.0.0', adapter: { id: 'merrill_holdings_v1', version: '1.2.0' }, sourceHash: 'hash', recordCounts: { total: 2, positions: 1, controls: 0, metadata: 0, headers: 1, blanks: 0, unsupported: 0 }, accounts: [{ occurrenceId: 'account-1', identifierFingerprints: [], displayName: field('Account'), accountMask: field('1234'), currency: field('USD'), asOfDate: field('2026-09-01'), asOfAt: field(null), sourceZone: field('UTC'), asOfPrecision: 'DATE', reportedTotal: field(null), positions: [position] }], issues: [] },
     reviewRevision: 0,
-    issues: [{ id: 'basis-mismatch', code: 'TOTAL_MISMATCH', severity: 'BLOCKING', accountOccurrenceId: 'account-1', fieldPath: 'accounts.0.reportedBasis', sourceRecords: [], acknowledged: false }],
+    issues: [{ id: 'basis-mismatch', code: 'TOTAL_MISMATCH', severity: 'BLOCKING', accountOccurrenceId: 'account-1', fieldPath: 'accounts.0.reportedBasis', sourceRecords: [2], acknowledged: false }],
     accountBindings: [],
-    reconciliations: { 'account-1': { status: 'NOT_PROVIDED', totalValue: '10', difference: null, basisCoverage: { knownRows: 1, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '10', total: '10' }, gainCoverage: { knownRows: 1, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '0', total: '0' } } },
-    records: [],
+    reconciliations: { 'account-1': { status: 'NOT_PROVIDED', totalValue: '10', difference: null, basisCoverage: { knownRows: 1, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '10', total: '10' }, gainCoverage: { knownRows: 1, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '0', total: '0' }, controls:[{fieldPath:'accounts.0.reportedBasis',originalStatus:'MISMATCH',effectiveStatus:'MISMATCH',reported:'100',originalObserved:'90',effectiveObserved:'90'}] } },
+    records: [{ordinal:2,lineStart:2,lineEnd:2,role:'POSITION',cells:['NOTLISTED','1234.5']}],
   } as CsvDetail
   render(<LiquidityCsvReview detail={detail} accounts={[]} onChanged={vi.fn()}/>)
   const category = screen.getByLabelText('Category for NOTLISTED')
   expect(screen.getByRole('alert')).toHaveTextContent('Cost-basis control total does not match the CSV footer.')
-  expect(screen.getByText('CSV reported total').nextElementSibling).toHaveTextContent('Unavailable')
+  expect(screen.getByText('Statement reported total').nextElementSibling).toHaveTextContent('Unavailable')
   expect(screen.getByText('Calculated holdings').nextElementSibling).toHaveTextContent('$10.00')
   expect(screen.getByText('$1,234.50')).toBeInTheDocument()
   expect(screen.getByText('$1,247.00')).toBeInTheDocument()
   expect(screen.getByText('-$12.50')).toBeInTheDocument()
+  expect(screen.getByRole('heading',{name:'Review findings (1)'})).toHaveFocus()
+  expect(screen.getAllByText('$100.00').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('$90.00').length).toBeGreaterThan(0)
+  expect(screen.getAllByText('CSV line 2').length).toBeGreaterThan(0)
+  await user.click(screen.getByRole('button',{name:'View source'}))
+  await waitFor(()=>expect(screen.getByText('NOTLISTED | 1234.5').closest('tr')).toHaveFocus())
   expect(category).toHaveValue('other')
   await user.selectOptions(category, 'equity')
   expect(category).toHaveValue('equity')
@@ -49,7 +55,7 @@ it('offers an accessible per-holding category dropdown during review', async () 
 })
 it('explains historical publication and confirms removals in preview', async () => {
   const apply = vi.fn(), user = userEvent.setup()
-  render(<LiquidityCsvApplicationPreview busy={false} onApply={apply} onBack={vi.fn()} preview={{ id: 'p', expectedVersion: 4, summaryHash: 'h', expiresAt: '2026-10-01', canApply: true, accounts: [{ accountId: 'a', asOfDate: '2026-09-01', asOfAt: null, added: 0, changed: 0, removed: 3, previousValue: '1000', nextValue: '0', reconciliation: 'MATCHED', willBecomeCurrent: false, basisCoverage: { knownRows: 0, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '0', total: '0' } }] }}/>)
+  render(<LiquidityCsvApplicationPreview busy={false} onApply={apply} onBack={vi.fn()} preview={{ id: 'p', expectedVersion: 4, summaryHash: 'h', expiresAt: '2026-10-01', canApply: true, accounts: [{ accountId: 'a', asOfDate: '2026-09-01', asOfAt: null, added: 0, changed: 0, removed: 3, previousValue: '1000', nextValue: '0', reconciliation: 'MATCHED', willBecomeCurrent: false, basisCoverage: { knownRows: 0, unknownRows: 0, estimatedRows: 0, status: 'COMPLETE', knownSubtotal: '0', total: '0' },gainCoverage:{knownRows:0,unknownRows:0,estimatedRows:0,status:'COMPLETE',knownSubtotal:'0',total:'0'},controls:[] }] }}/>)
   expect(screen.getByText(/3 removed/)).toBeInTheDocument()
   expect(screen.getByText(/saved in history/)).toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Apply snapshot' })); expect(apply).toHaveBeenCalledOnce()

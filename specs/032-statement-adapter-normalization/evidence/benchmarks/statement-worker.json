@@ -1,0 +1,21 @@
+{
+  "runs": 5,
+  "positions": 2000,
+  "sourceBytes": 164906,
+  "samplesMs": [
+    745,
+    708,
+    768,
+    697,
+    716
+  ],
+  "p95Ms": 768,
+  "eventLoopMaxDelayMs": 4,
+  "rssBefore": 68870144,
+  "rssAfter": 180707328,
+  "externalBefore": 2639949,
+  "externalAfter": 2627715,
+  "arrayBuffersBefore": 202635,
+  "arrayBuffersAfter": 192169,
+  "note": "Parent-process totals include serialized worker copies; OS-level child peak RSS requires deployment telemetry."
+}

@@ -9,7 +9,7 @@ export async function saveNeutralValuations(holdings:SourceHoldingRecord[],price
   if(!pool||!config.marketData.realTimeEquitiesEnabled)return
   await withTransaction(async db=>{
     for(const h of holdings){
-      if(h.sourceKind!=='CSV'||!h.quoteEligible||!h.exact?.quantity)continue
+      if(!h.quoteEligible||!h.exact?.quantity||h.currencyCode!=='USD'||h.priceUnit!=='PER_UNIT'||h.quantityUnit!=='SHARES'||h.quoteMultiplier!=='1'||h.accruedInterestConvention!=='EXCLUDED'||!['stock','equity','fund','etf','mutual fund'].includes(h.type.toLocaleLowerCase('en-US')))continue
       const price=prices.filter(p=>p.symbol===h.providerSymbol&&p.currencyCode==='USD').sort((a,b)=>b.providerTimestamp.localeCompare(a.providerTimestamp))[0]
       if(!price||h.sourceAsOfAt&&Date.parse(price.providerTimestamp)<Date.parse(h.sourceAsOfAt)||!h.sourceAsOfAt&&h.sourceAsOfDate&&price.providerTimestamp.slice(0,10)<=h.sourceAsOfDate)continue
       const value=multiply(decimal(h.exact.quantity)!,decimal(String(price.price))!),basis=h.exact.costBasis==null?null:decimal(h.exact.costBasis)

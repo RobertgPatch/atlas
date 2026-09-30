@@ -11,26 +11,38 @@ import { csvApplicationService } from '../src/modules/liquidity-statements/csv-a
 import { liquiditySourceRepository } from '../src/modules/liquidity-sources/liquidity-source.repository.js'
 import { liquiditySourceHistory } from '../src/modules/liquidity-sources/liquidity-source-history.js'
 import { buildConsolidatedHoldingsResponse } from '../src/modules/reports/consolidatedHoldings.service.js'
+import { positionFields,type CsvField } from '../src/modules/liquidity-statements/liquidity-statement.types.js'
 
 describe.skipIf(!pool)('independent account composition and coverage', () => {
   it('uses effective dates, publishes unknown basis, isolates account filters and withholds mixed-currency totals', async () => {
     const f=await csvFixture(), processor=new CsvProcessingService(f.store),scope={...f.scope,isAdmin:false}
     const create=(name:string,currency='USD')=>liquiditySourceRepository.create({entityId:f.entityId,custodian:'Synthetic Broker',name,currency,cadence:'ON_DEMAND'},f.scope)
     const a=await create('A'),b=await create('B')
+    const field=(value:string|null):CsvField=>({value,raw:[],origin:value===null?'UNAVAILABLE':'IMPORTED',availability:value===null?'UNAVAILABLE':'COMPLETE',evidence:[],derivation:null,reason:value===null?'NOT_PROVIDED':null})
+    const legacyPosition=Object.assign({occurrenceId:'legacy-position-1',sourceRecord:1},Object.fromEntries(positionFields.map(name=>[name,field(null)])))
+    legacyPosition.description=field('Synthetic legacy holding');legacyPosition.symbol=field('DEMO');legacyPosition.assetType=field('equity');legacyPosition.currency=field('USD');legacyPosition.quantity=field('1');legacyPosition.price=field('800');legacyPosition.marketValue=field('800')
+    const legacySnapshot=randomUUID(),legacyPositionId=randomUUID()
+    await pool!.query(`insert into liquidity_holdings_snapshots(id,source_account_id,entity_id,source_kind,as_of_date,effective_key,revision,position_total,reconciliation,coverage)
+      values($1,$2,$3,'CSV','2026-09-01','2026-09-01',1,800,'NOT_PROVIDED',$4)`,[legacySnapshot,a.id,f.entityId,JSON.stringify({basis:{status:'UNAVAILABLE'},gain:{status:'UNAVAILABLE'}})])
+    await pool!.query(`insert into liquidity_source_positions(id,snapshot_id,source_account_id,source_occurrence,source_record,quantity,price,market_value,currency,canonical)
+      values($1,$2,$3,'legacy-position-1',1,1,800,800,'USD',$4)`,[legacyPositionId,legacySnapshot,a.id,JSON.stringify(legacyPosition)])
+    await pool!.query('update liquidity_source_accounts set current_snapshot_id=$2 where id=$1',[a.id,legacySnapshot])
     async function publish(accountId:string,date:string,value:string,basis:string,currency='USD'){
       const u=await f.upload(buildCsvFixture({date,total:value,rows:[['DEMO','Synthetic','1',value,value,basis,'','','','Equity']]}))
       await processor.processOne(u.id)
       const d=await csvRepository.detail(u.id,f.scope),account=await liquiditySourceRepository.get(accountId,f.scope)
-      const binding={occurrenceId:'account-1',accountId,expectedAccountVersion:account.version,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:d.issues.filter(i=>i.severity==='WARNING').map(i=>i.id)}
+      const binding={occurrenceId:d.canonicalDraft!.accounts[0]!.occurrenceId,accountId,expectedAccountVersion:account.version,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:d.issues.filter(i=>i.severity==='WARNING').map(i=>i.id)}
       const r=await csvReviewService.review(u.id,{expectedVersion:d.summary.version,changes:[{fieldPath:'accounts.0.currency',value:currency,reason:'Confirmed native account currency'}],accountBindings:[binding]},f.scope)
       const p=await csvApplicationPreviewService.preview(u.id,{expectedVersion:r.summary.version,accountBindings:[binding]},f.scope)
-      await csvApplicationService.apply(u.id,{previewId:p.id,expectedVersion:p.expectedVersion,summaryHash:p.summaryHash,idempotencyKey:randomUUID()},f.scope)
+      const applied=await csvApplicationService.apply(u.id,{previewId:p.id,expectedVersion:p.expectedVersion,summaryHash:p.summaryHash,idempotencyKey:randomUUID()},f.scope)
+      return applied.snapshotIds[0]!
     }
-    await publish(a.id,'09/01/2026','800','Incomplete')
     await publish(b.id,'09/10/2026','200','100')
     await publish(a.id,'09/15/2026','900','Incomplete')
     const history=(await liquiditySourceHistory(scope,{}))!
     expect(history.points.map(p=>[p.date,p.totalMarketValue,p.coverage.missingAccounts])).toEqual([['2026-09-01',800,1],['2026-09-10',1000,0],['2026-09-15',1100,0]])
+    expect(history.points.map(point=>point.valuationMode)).toEqual(['CSV_FALLBACK','CSV_FALLBACK','CSV_FALLBACK'])
+    expect((await pool!.query('select distinct source_kind from liquidity_holdings_snapshots where entity_id=$1 order by source_kind',[f.entityId])).rows.map(row=>row.source_kind)).toEqual(['CSV','STATEMENT'])
     expect(history.points.every(p=>!p.returnAvailable)).toBe(true)
     const context={actorUserId:f.scope.userId,scope:{isAdmin:false,entityIds:[f.entityId]}}
     const report=await buildConsolidatedHoldingsResponse({pricingMode:'saved'},context)
@@ -38,6 +50,8 @@ describe.skipIf(!pool)('independent account composition and coverage', () => {
     expect(report.coverage.gain).toMatchObject({knownSubtotal:'100',total:null,unknownRows:1})
     const selected=await buildConsolidatedHoldingsResponse({pricingMode:'saved',accountId:b.id},context)
     expect(selected.kpis).toMatchObject({selectedAccountCount:1,totalMarketValue:200,totalCostBasis:100,totalUnrealizedGainLoss:100})
+    const selectedHistory=await liquiditySourceHistory(scope,{accountIds:[b.id]})
+    expect(selectedHistory?.points.map(point=>[point.date,point.totalMarketValue,point.accountCount])).toEqual([['2026-09-10',200,1]])
     await create('Awaiting first CSV')
     const partial=await buildConsolidatedHoldingsResponse({pricingMode:'saved'},context)
     expect(partial.kpis.totalMarketValue).toBe(1100)

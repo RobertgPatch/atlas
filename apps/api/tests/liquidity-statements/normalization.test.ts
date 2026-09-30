@@ -69,6 +69,17 @@ describe('financial normalization',()=>{
     expect(p.unrealizedGainLoss).toMatchObject({value:'0',origin:'DERIVED',derivation:{rule:'GAIN_FROM_VALUE_BASIS'}})
     expect(n.issues.some(issue=>issue.code==='MISSING_BASIS')).toBe(false)
   })
+  it('uses the cash-at-par convention when a source explicitly marks value-only cash basis incomplete',async()=>{
+    const {draft}=await parseCsv(Buffer.from(buildCsvFixture({rows:[
+      ['', 'BANK DEPOSIT PROGRAM | MORGAN STANLEY PRIVATE BANK NA', '', '', '160835.80', '', '', '', '', 'Cash'],
+    ]})))
+    const source=draft!.accounts[0]!.positions[0]!
+    source.costBasis={...source.costBasis,raw:['Incomplete'],availability:'INCOMPLETE',reason:'PARTIAL_SOURCE_COVERAGE'}
+    const n=normalizeDraft(draft!),p=n.accounts[0]!.positions[0]!
+    expect(p.costBasis).toMatchObject({value:'160835.8',origin:'DERIVED',availability:'COMPLETE',derivation:{rule:'CASH_VALUE_BASIS'}})
+    expect(p.unrealizedGainLoss).toMatchObject({value:'0',derivation:{rule:'GAIN_FROM_VALUE_BASIS'}})
+    expect(n.issues.some(issue=>issue.code==='INCOMPLETE_BASIS')).toBe(false)
+  })
   it('does not compare a rounded percentage estimate against itself as independent evidence',async()=>{
     const {draft}=await parseCsv(Buffer.from(buildCsvFixture({rows:[['TINY','Example','1','0.01','0.01','','','12.3456789012%','','Equity']]})))
     const n=normalizeDraft(draft!),p=n.accounts[0]!.positions[0]!
@@ -112,5 +123,33 @@ describe('financial normalization',()=>{
     expect(n.accounts[0]!.positions[0]!.unrealizedGainLoss.value).toBe('-200')
     expect(n.accounts[0]!.positions[0]!.unrealizedGainLossRatio.value).toBe('-0.2')
     expect(n.accounts[0]!.positions[1]!.unrealizedGainLossRatio.value).toBeNull()
+  })
+  it('does not treat a one-dollar price as cash proof for a non-cash holding',async()=>{
+    const {draft}=await parseCsv(Buffer.from(buildCsvFixture({rows:[
+      ['OTHER1','Private holding priced at one','100','1','100','','','','','Other'],
+    ]})))
+    const p=normalizeDraft(draft!).accounts[0]!.positions[0]!
+    expect(p.assetType.value).toBe('other')
+    expect(p.costBasis).toMatchObject({value:null,availability:'UNAVAILABLE'})
+  })
+  it('preserves explicit non-USD currency and legitimate negative gain',async()=>{
+    const {draft}=await parseCsv(Buffer.from(buildCsvFixture({rows:[
+      ['LOSS','Foreign equity','1','80','80','100','-20','-20%','','Equity'],
+    ]})))
+    draft!.accounts[0]!.currency={...draft!.accounts[0]!.currency,value:'CAD',origin:'IMPORTED',availability:'COMPLETE',raw:['CAD']}
+    draft!.accounts[0]!.positions[0]!.currency={...draft!.accounts[0]!.positions[0]!.currency,value:'CAD',origin:'IMPORTED',availability:'COMPLETE',raw:['CAD']}
+    const p=normalizeDraft(draft!).accounts[0]!.positions[0]!
+    expect(p.currency.value).toBe('CAD')
+    expect(p.unrealizedGainLoss.value).toBe('-20')
+    expect(p.costBasis.value).toBe('100')
+  })
+  it('keeps reviewed basis ahead of source percentage estimation',async()=>{
+    const {draft}=await parseCsv(Buffer.from(buildCsvFixture({rows:[
+      ['REVIEW','Reviewed basis','1','80','80','','','-20%','','Equity'],
+    ]})))
+    draft!.accounts[0]!.positions[0]!.costBasis={...draft!.accounts[0]!.positions[0]!.costBasis,value:'90',origin:'REVIEWED',availability:'COMPLETE',reason:'Confirmed detail'}
+    const p=normalizeDraft(draft!).accounts[0]!.positions[0]!
+    expect(p.costBasis).toMatchObject({value:'90',origin:'REVIEWED',derivation:null})
+    expect(p.unrealizedGainLoss.value).toBe('-10')
   })
 })

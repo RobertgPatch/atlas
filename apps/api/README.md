@@ -76,7 +76,7 @@ Copy `.env.example` to `.env` and adjust as needed:
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `DATABASE_URL` | local Docker Postgres on `127.0.0.1:15432` in development, empty otherwise | PostgreSQL connection string. Set to an empty value only when intentionally using in-memory storage. |
-| `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted Plaid and MFA secrets. Required for production durability. |
+| `PERSISTENCE_SECRET_KEY` | _(empty)_ | Stable encryption key material for persisted MFA secrets and protected fingerprints. Required for production durability. |
 | `REQUIRE_DURABLE_PERSISTENCE` | `false` | Set to `true` in production so startup fails without PostgreSQL. |
 | `WEB_ORIGIN` | _(empty)_ | Comma-separated allowed browser origins for credentialed CORS requests. |
 | `ADMIN_EMAIL` | `tpatch@jspllc.com` | Tony Patch's canonical admin identity; legacy Atlas/Jackson admin emails are migrated while preserving the user id |
@@ -115,16 +115,12 @@ Copy `.env.example` to `.env` and adjust as needed:
 | `K1_BDA_PROJECT_STAGE` | `DEVELOPMENT` | BDA project stage: `DEVELOPMENT` or `LIVE` |
 | `K1_BEDROCK_CHECKBOX_MODEL_ID` | `us.amazon.nova-2-lite-v1:0` | Bedrock vision model used only when BDA returns an ambiguous K-1 status checkbox |
 | `K1_BEDROCK_CHECKBOX_MAX_BYTES` | `5242880` | Maximum PDF size sent to the secondary Bedrock checkbox verifier |
-| `PLAID_CLIENT_ID` | _(empty)_ | Plaid client id |
-| `PLAID_SECRET` | _(empty)_ | Plaid secret |
-| `PLAID_ENV` | `sandbox` | Plaid environment: `sandbox`, `development`, or `production` |
-| `PLAID_PRODUCTS` | `investments` | Comma-separated Plaid products requested by Link |
-| `PLAID_COUNTRY_CODES` | `US` | Comma-separated Plaid country codes |
-| `PLAID_REDIRECT_URI` | _(empty)_ | Optional Plaid OAuth redirect URI |
-| `PLAID_REFRESH_TIME_LOCAL` | `05:00` | Daily Liquidity refresh time in the configured timezone |
-| `PLAID_REFRESH_TIMEZONE` | `America/Los_Angeles` | IANA timezone for the Liquidity refresh policy |
-| `PLAID_REFRESH_SCHEDULER_ENABLED` | `false` | Whether production automatic refresh infrastructure is expected |
-| `PLAID_REFRESH_SCHEDULER_MODE` | `none` | Scheduler mode: `none`, `eventbridge`, or `manual` |
+| `LIQUIDITY_CSV_UPLOADS_ENABLED` | development on / production off unless configured | Statement admission kill switch |
+| `LIQUIDITY_CSV_PARSING_ENABLED` | development on / production off unless configured | Statement parser kill switch |
+| `LIQUIDITY_CSV_APPLY_ENABLED` | development on / production off unless configured | Reviewed snapshot publication kill switch |
+| `LIQUIDITY_XLSX_ENABLED` | `false` | Enables new XLSX admission; retained XLSX evidence remains readable while off |
+| `LIQUIDITY_CSV_MAX_BYTES` | `10485760` | Maximum immutable source bytes |
+| `LIQUIDITY_CSV_MAX_ROWS` | `5000` | Maximum CSV holding rows under the deployed allocation |
 | `PROJECT_JACKSON_SCHEDULER_TOKEN` | _(empty)_ | Shared token for the protected scheduler trigger |
 | `MARKET_DATA_PROVIDER` | `none` | Public-market provider: `none` or `alpaca` |
 | `MARKET_DATA_REFRESH_ON_READ` | `true` | Refresh stale public-market quotes while serving the Liquidity report |
@@ -159,7 +155,8 @@ migrated later through a forced password-reset policy.
 
 ## Liquidity market pricing
 
-Plaid remains authoritative for account selection, quantities, and cost basis. When
+Reviewed complete-account CSV/XLSX snapshots are authoritative for account selection,
+quantities, and cost basis. No bank-link provider participates in Liquidity ingestion. When
 `MARKET_DATA_PROVIDER=alpaca`, the consolidated holdings read path obtains a fresh
 batch quote for stale USD ticker symbols, saves the observation, and recomputes
 market value as `quantity × price`. A provider or cache failure falls back to the

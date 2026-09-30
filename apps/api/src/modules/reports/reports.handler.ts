@@ -2,7 +2,6 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 import { pool, withTransaction } from "../../infra/db/client.js";
 import { reportsExport } from "./reports.export.js";
-import { marketDataService } from "../market-data/market-data.service.js";
 import { reportsRepository } from "./reports.repository.js";
 import {
   activityDetailRowParamsSchema,
@@ -10,7 +9,6 @@ import {
   assetClassSummaryQuerySchema,
   consolidatedHoldingsExportQuerySchema,
   consolidatedHoldingsQuerySchema,
-  consolidatedHoldingsRefreshBodySchema,
   exportReportQuerySchema,
   liquidityPerformanceQuerySchema,
   portfolioSummaryQuerySchema,
@@ -194,6 +192,11 @@ export const getConsolidatedHoldingsHandler = async (
     throw error;
   }
 
+  if (query.entityId && !scope.isAdmin && !scope.entityIds.includes(query.entityId)) {
+    reply.status(403).send({ error: "FORBIDDEN_ENTITY" });
+    return;
+  }
+
   const result = await reportsRepository.getConsolidatedHoldings(query, {
     actorUserId: request.authUser.userId,
     scope,
@@ -227,45 +230,17 @@ export const getLiquidityPerformanceHandler = async (
     throw error;
   }
 
+
+  if (query.entityId && !scope.isAdmin && !scope.entityIds.includes(query.entityId)) {
+    reply.status(403).send({ error: "FORBIDDEN_ENTITY" });
+    return;
+  }
+
   const result = await reportsRepository.getLiquidityPerformance(query, {
     actorUserId: request.authUser.userId,
     scope,
   });
   reply.send(result);
-};
-
-export const refreshConsolidatedHoldingsHandler = async (
-  request: FastifyRequest,
-  reply: FastifyReply,
-): Promise<void> => {
-  if (!request.authUser) {
-    reply.status(401).send({ error: "UNAUTHORIZED" });
-    return;
-  }
-
-  let body: ReturnType<typeof consolidatedHoldingsRefreshBodySchema.parse>;
-  try {
-    body = consolidatedHoldingsRefreshBodySchema.parse(request.body ?? {});
-  } catch (error) {
-    if (error instanceof ZodError) {
-      sendValidationError(reply, error);
-      return;
-    }
-    throw error;
-  }
-
-  const forced = body.force || body.reason === "forced";
-  if (forced && request.authUser.role !== "Admin") {
-    reply.status(403).send({ error: "FORBIDDEN_ROLE" });
-    return;
-  }
-
-  if (!config.marketData.realTimeEquitiesEnabled) {
-    reply.send({ status: 'skipped', reason: 'CSV_ONLY' });
-    return;
-  }
-  try { reply.status(202).send(await marketDataService.refreshClosingPrices()); }
-  catch { reply.status(503).send({ error: 'MARKET_REFRESH_UNAVAILABLE' }); }
 };
 
 export const getReportsExportHandler = async (
@@ -366,6 +341,11 @@ export const getConsolidatedHoldingsExportHandler = async (
       return;
     }
     throw error;
+  }
+
+  if (query.entityId && !scope.isAdmin && !scope.entityIds.includes(query.entityId)) {
+    reply.status(403).send({ error: "FORBIDDEN_ENTITY" });
+    return;
   }
 
   const userId = request.authUser.userId;

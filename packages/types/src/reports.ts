@@ -28,6 +28,7 @@ export interface ReportsQueryBase {
 export type HoldingsGainLossState = 'gain' | 'loss' | 'flat' | 'unknown'
 
 export interface ConsolidatedHoldingsQuery {
+  entityId?: string
   search?: string
   custodian?: string
   accountId?: string
@@ -87,7 +88,7 @@ export interface LiquidityReportAccount {
   syncStatus: 'never_synced' | 'pending' | 'success' | 'failed' | 'needs_user_action'
   lastSyncedAt: string | null
   entityId?: string
-  sourceKind?: 'CSV'
+  sourceKind?: 'CSV' | 'STATEMENT'
   holdingsAsOfDate?: string | null
   nextExpectedDate?: string | null
 }
@@ -108,6 +109,13 @@ export type HoldingsPricingStatus =
   | 'fallback'
   | 'unavailable'
 
+export type CashDisplayMode =
+  | 'BALANCE_AT_PAR'
+  | 'STABLE_NAV_UNITS'
+  | 'FLOATING_NAV_UNITS'
+  | 'CASH_CREDIT_OR_DEBIT'
+  | 'MIXED'
+
 export interface ConsolidatedHoldingsPricingMetadata {
   status: HoldingsPricingStatus
   provider: string | null
@@ -122,11 +130,13 @@ export interface ConsolidatedHoldingsPricingMetadata {
 export interface CustodianHoldingDetailRow {
   currencyCode?: string | null
   sourceAsOfDate?: string | null
+  accountId: string
   id: string
   symbol: string | null
   securityIdentifier: string | null
   description: string
   type: string
+  cashDisplayMode?: CashDisplayMode | null
   sector: string | null
   industry: string | null
   custodian: string
@@ -151,6 +161,7 @@ export interface ConsolidatedHoldingRow {
   securityIdentifier: string | null
   description: string
   type: string
+  cashDisplayMode?: CashDisplayMode | null
   sector: string | null
   industry: string | null
   custodianSummary: string
@@ -183,6 +194,8 @@ export interface ConsolidatedHoldingsResponse {
 }
 
 export interface LiquidityPerformanceQuery {
+  entityId?: string
+  accountIds?: string[]
   from?: string
   to?: string
 }

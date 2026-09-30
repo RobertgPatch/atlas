@@ -16,6 +16,7 @@ import { InvestmentTrackerPage } from './pages/InvestmentTrackerPage'
 import { K1Dashboard } from './pages/K1Dashboard'
 import { K1ReviewWorkspace } from './pages/K1ReviewWorkspace'
 import { LiquidityPage } from './pages/LiquidityPage'
+import { LiquidityStatementsPage } from './pages/LiquidityStatementsPage'
 import { LoginPage } from './pages/LoginPage'
 import { MFAPage } from './pages/MFAPage'
 import { MFASetupPage } from './pages/MFASetupPage'
@@ -33,6 +34,7 @@ const protectedRouteElements: Record<CurrentProtectedRoutePattern, React.ReactEl
   '/dashboard': <MagicPatternDashboardPage />,
   '/investment-tracker': <InvestmentTrackerPage />,
   '/liquidity': <LiquidityPage />,
+  '/liquidity/statements': <LiquidityStatementsPage />,
   '/entities': <EntitiesPage />,
   '/entities/:id': <EntityDetail />,
   '/estate-maps': <EstateMapPage />,

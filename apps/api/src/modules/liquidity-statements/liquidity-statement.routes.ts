@@ -7,8 +7,9 @@ import { requirePartnershipScope } from '../partnerships/partnershipScope.plugin
 import { csvHandlers } from './liquidity-statement.handler.js'
 export async function registerLiquidityStatementRoutes(app:FastifyInstance){
   await app.register(async router=>{
-    router.addContentTypeParser(['text/csv','application/csv','application/octet-stream'],{parseAs:'buffer',bodyLimit:config.liquidityCsv.maxBytes},(_r,body,done)=>done(null,body))
-    const routes=[['POST','/upload-capability','upload'],['POST','/:statementId/complete','complete'],['GET','','list'],['GET','/:statementId','detail'],['DELETE','/:statementId','cancel'],['POST','/:statementId/retry','retry'],['PUT','/:statementId/mapping','mapping'],['PATCH','/:statementId/review','review'],['POST','/:statementId/application-preview','preview'],['POST','/:statementId/apply','apply'],['POST','/:statementId/source-download','download']] as const
+    router.removeContentTypeParser('text/plain')
+    router.addContentTypeParser(['text/csv','application/csv','text/plain','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/octet-stream'],{parseAs:'buffer',bodyLimit:config.liquidityCsv.maxBytes},(_r,body,done)=>done(null,body))
+    const routes=[['POST','/upload-capability','upload'],['POST','/:statementId/complete','complete'],['GET','','list'],['GET','/:statementId','detail'],['GET','/:statementId/records','records'],['DELETE','/:statementId','cancel'],['POST','/:statementId/archive','archive'],['POST','/:statementId/retry','retry'],['POST','/:statementId/reprocess','reprocess'],['PUT','/:statementId/mapping','mapping'],['PATCH','/:statementId/review','review'],['POST','/:statementId/application-preview','preview'],['POST','/:statementId/apply','apply'],['POST','/:statementId/source-download','download']] as const
     for(const [method,suffix,handler] of routes){
       const path=`/liquidity-statements${suffix}`
       const policy=defaultRouteProtectionPolicy(method,`/v1${path}`)

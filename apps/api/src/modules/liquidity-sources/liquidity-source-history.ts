@@ -5,11 +5,13 @@ import { decimal,format,sum } from '../liquidity-statements/csv/decimal.js'
 
 /** Effective account composition; neither current holdings nor future quotes are
  * projected backward. Missing earlier accounts remain explicit coverage. */
-export async function liquiditySourceHistory(scope:LiquidityScope,query:{from?:string;to?:string}){
+export async function liquiditySourceHistory(scope:LiquidityScope,query:{entityId?:string;accountIds?:string[];from?:string;to?:string}){
   if(!pool)return null
   const sources=await readLiquiditySources(scope)
-  if(!sources.neutralAccounts.length)return null
-  const ids=sources.accounts.map(a=>a.id)
+  const requestedAccounts=query.accountIds?.length?new Set(query.accountIds):null
+  const accounts=sources.accounts.filter(account=>(!query.entityId||account.entityId===query.entityId)&&(!requestedAccounts||requestedAccounts.has(account.id)))
+  if(!accounts.length)return null
+  const ids=accounts.map(a=>a.id)
   const dates=(await pool.query(`select distinct date from (
     select as_of_date as date from liquidity_holdings_snapshots where source_account_id=any($1::uuid[]) and superseded_by_snapshot_id is null and current_eligible
     union select price_at::date from liquidity_source_valuations where source_account_id=any($1::uuid[])

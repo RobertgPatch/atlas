@@ -1,6 +1,15 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect,useRef,type ReactNode } from 'react'
 export const csvInput='w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
 export const csvButton='rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50'
+export function statementFormatGuidance(status:string,fileKind:'CSV'|'XLSX'='CSV',safeErrorCode?:string|null){
+  if(status==='NEEDS_ADAPTER')return fileKind==='XLSX'
+    ?'This workbook layout is not supported yet. Provide a representative sample so a reusable, tested adapter can be added; the workbook cannot be published through one-time column mapping.'
+    :'This CSV layout matched ambiguously or needs a reusable adapter. Provide a representative sample so its structure can be added and tested.'
+  if(status==='NEEDS_MAPPING')return 'This CSV layout is not recognized. You may configure a one-time, import-only column mapping below, or provide a sample to add a reusable adapter for future statements.'
+  if(status==='FAILED'&&safeErrorCode==='TRANSIENT_FAILURE')return 'Processing was interrupted. Retry this draft; do not upload the same file again.'
+  return null
+}
 export function LiquidityCsvDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}){
   const ref=useRef<HTMLDivElement>(null)
   useEffect(()=>{

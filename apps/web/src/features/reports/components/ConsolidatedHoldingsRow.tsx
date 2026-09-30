@@ -33,15 +33,61 @@ const formatPriceDate = (value: string | null | undefined): string =>
 const truncatePositionName = (value: string): string =>
   value.length > 80 ? `${value.slice(0, 77)}...` : value
 
+type HoldingDisplayValues = Pick<
+  ConsolidatedHoldingRow,
+  'type' | 'cashDisplayMode' | 'quantity' | 'costBasis' | 'averageCostBasis' | 'marketValue'
+>
+
+const isBalanceCash = (holding: Pick<HoldingDisplayValues, 'cashDisplayMode'>): boolean =>
+  holding.cashDisplayMode === 'BALANCE_AT_PAR' ||
+  holding.cashDisplayMode === 'CASH_CREDIT_OR_DEBIT'
+
+const isUnitizedCash = (holding: Pick<HoldingDisplayValues, 'cashDisplayMode'>): boolean =>
+  holding.cashDisplayMode === 'STABLE_NAV_UNITS' ||
+  holding.cashDisplayMode === 'FLOATING_NAV_UNITS'
+
+const averageCostBasisFor = (holding: HoldingDisplayValues): number | null => {
+  if (holding.averageCostBasis != null) return holding.averageCostBasis
+  const equity=['stock','equity','equities'].includes(holding.type.trim().toLocaleLowerCase('en-US'))
+  return (equity||isUnitizedCash(holding))&&holding.quantity!=null&&holding.quantity!==0&&holding.costBasis!=null?holding.costBasis/holding.quantity:null
+}
+
+const cashBasisCaption = (holding: HoldingDisplayValues): string | null => {
+  if (holding.cashDisplayMode === 'CASH_CREDIT_OR_DEBIT') {
+    return (holding.marketValue ?? 0) < 0 ? 'Debit balance' : 'Credit balance'
+  }
+  if (holding.cashDisplayMode === 'BALANCE_AT_PAR') {
+    return (holding.marketValue ?? 0) < 0 ? 'Debit balance' : 'At par'
+  }
+  return null
+}
+
+function QuantityCell({ holding }: { holding: HoldingDisplayValues }) {
+  if (isBalanceCash(holding)) {
+    return (
+      <span
+        className="text-gray-400"
+        title="Balance-based holding; no quantity is reported."
+        aria-label="No quantity; balance-based holding"
+      >
+        &mdash;
+      </span>
+    )
+  }
+  return <>{formatNumber(holding.quantity)}</>
+}
+
 function GainLossCell({
   value,
   percent,
   status,
+  cashDisplayMode,
   currency = 'USD',
 }: {
   value: number | null
   percent: number | null
   status: 'complete' | 'partial' | 'missing'
+  cashDisplayMode?: ConsolidatedHoldingRow['cashDisplayMode']
   currency?: string
 }) {
   if (status === 'missing' || value == null) {
@@ -51,6 +97,8 @@ function GainLossCell({
   const positive = (value ?? 0) >= 0
   const color = positive ? 'text-emerald-600' : 'text-red-600'
   const bg = positive ? 'bg-emerald-50' : 'bg-red-50'
+  const atPar = cashDisplayMode === 'BALANCE_AT_PAR'
+  const cashCreditOrDebit = cashDisplayMode === 'CASH_CREDIT_OR_DEBIT'
 
   return (
     <div className="flex flex-col items-end">
@@ -62,7 +110,11 @@ function GainLossCell({
           <AlertCircleIcon className="h-3.5 w-3.5 text-amber-400" />
         )}
       </div>
-      {percent !== null && (
+      {(atPar || cashCreditOrDebit) && value === 0 ? (
+        <span className="mt-0.5 text-xs font-normal text-gray-400">
+          {atPar ? 'At par' : 'Not applicable'}
+        </span>
+      ) : percent !== null && (
         <span className={`mt-0.5 rounded px-1.5 py-0.5 text-xs font-medium ${bg} ${color}`}>
           {formatPercent(percent, 2)}
         </span>
@@ -80,6 +132,8 @@ export function ConsolidatedHoldingsRow({
   onToggle,
 }: ConsolidatedHoldingsRowProps) {
   const costBasisStatus = getCostBasisStatus(row)
+  const averageCostBasis=averageCostBasisFor(row)
+  const basisCaption=cashBasisCaption(row)
   const positionName = truncatePositionName(row.description)
   const symbolLabel = row.symbol ?? 'N/A'
   const symbolTitle = row.securityIdentifier
@@ -147,7 +201,7 @@ export function ConsolidatedHoldingsRow({
                 </div>
               ) : (
                 <div className="text-xs font-normal text-gray-400">
-                  Avg {formatCurrencyWithCents(row.averageCostBasis,row.currencyCode??'USD')}
+                  {basisCaption ?? `Avg ${formatCurrencyWithCents(averageCostBasis,row.currencyCode??'USD')}`}
                 </div>
               )}
             </div>
@@ -161,6 +215,7 @@ export function ConsolidatedHoldingsRow({
             value={row.unrealizedGainLoss}
             percent={row.gainLossPercent}
             status={costBasisStatus}
+            cashDisplayMode={row.cashDisplayMode}
           />
         </td>
         <td className="px-3 py-3.5 text-center text-sm text-gray-500">
@@ -172,19 +227,23 @@ export function ConsolidatedHoldingsRow({
           </span>
         </td>
         <td className="px-3 py-3.5 text-right text-sm font-medium text-gray-900">
-          {formatNumber(row.quantity)}
+          <QuantityCell holding={row} />
         </td>
         <td className="py-3.5 pl-3 pr-4 text-right text-sm font-semibold text-gray-900">
           <div>{formatCurrencyWithCents(row.marketValue,row.currencyCode??'USD')}</div>
           <div className="text-xs font-normal text-gray-400">
-            {formatCurrencyWithCents(row.institutionPrice,row.currencyCode??'USD')}{' '}
-            {formatPriceDate(row.priceAsOfDate)}
+            {isBalanceCash(row)
+              ? `Balance${row.priceAsOfDate ? ` ${formatPriceDate(row.priceAsOfDate)}` : ''}`
+              : `${formatCurrencyWithCents(row.institutionPrice,row.currencyCode??'USD')} ${formatPriceDate(row.priceAsOfDate)}`}
           </div>
         </td>
       </tr>
 
       {isExpanded &&
-        row.details.map((detail) => (
+        row.details.map((detail) => {
+          const detailAverageCostBasis=averageCostBasisFor(detail)
+          const detailBasisCaption=cashBasisCaption(detail)
+          return (
           <tr key={detail.id} className="border-b border-gray-50 bg-gray-50/70">
             <td className={`border-l-4 py-2.5 pl-14 pr-2 ${groupAccentClassName}`} />
             <td className="py-2.5 pl-6 pr-3 text-xs text-gray-500">
@@ -205,7 +264,7 @@ export function ConsolidatedHoldingsRow({
                 <div>
                   <div>{formatCurrencyWithCents(detail.costBasis,detail.currencyCode??'USD')}</div>
                   <div className="text-gray-400">
-                    Avg {formatCurrencyWithCents(detail.averageCostBasis,detail.currencyCode??'USD')}
+                    {detailBasisCaption ?? `Avg ${formatCurrencyWithCents(detailAverageCostBasis,detail.currencyCode??'USD')}`}
                   </div>
                 </div>
               ) : (
@@ -218,6 +277,7 @@ export function ConsolidatedHoldingsRow({
                 value={detail.unrealizedGainLoss}
                 percent={detail.gainLossPercent}
                 status={detail.costBasis == null ? 'missing' : 'complete'}
+                cashDisplayMode={detail.cashDisplayMode}
               />
             </td>
             <td className="px-3 py-2.5 text-center text-xs text-gray-500">
@@ -226,17 +286,19 @@ export function ConsolidatedHoldingsRow({
               </span>
             </td>
             <td className="px-3 py-2.5 text-right text-xs text-gray-600">
-              {formatNumber(detail.quantity)}
+              <QuantityCell holding={detail} />
             </td>
             <td className="py-2.5 pl-3 pr-4 text-right text-xs text-gray-600">
               <div>{formatCurrencyWithCents(detail.marketValue,detail.currencyCode??'USD')}</div>
               <div className="text-gray-400">
-                {formatCurrencyWithCents(detail.institutionPrice,detail.currencyCode??'USD')}{' '}
-                {formatPriceDate(detail.priceAsOfDate)}
+                {isBalanceCash(detail)
+                  ? `Balance${detail.priceAsOfDate ? ` ${formatPriceDate(detail.priceAsOfDate)}` : ''}`
+                  : `${formatCurrencyWithCents(detail.institutionPrice,detail.currencyCode??'USD')} ${formatPriceDate(detail.priceAsOfDate)}`}
               </div>
             </td>
           </tr>
-        ))}
+          )
+        })}
     </>
   )
 }

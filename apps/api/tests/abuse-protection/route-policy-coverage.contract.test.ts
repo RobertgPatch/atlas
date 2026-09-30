@@ -16,7 +16,7 @@ import {
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
 import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 138
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 143
 
 interface AuthWafContract {
   readonly schemaVersion: string
@@ -146,6 +146,20 @@ describe('external route protection policy coverage', () => {
     }
 
     expect(issues.sort()).toEqual([])
+  })
+
+  it('protects every statement-ingestion route as authenticated, bounded Admin work', async () => {
+    const app = await readyApp()
+    const routes = app.abuseProtectionRouteInventory.filter((route) =>
+      route.routePattern.startsWith('/v1/liquidity-statements'))
+
+    expect(routes.length).toBeGreaterThanOrEqual(15)
+    for (const route of routes) {
+      expect(route.policy?.authentication).toBe('admin')
+      expect(route.policy?.owner).toBeTruthy()
+      expect(route.policy?.localRates.length).toBeGreaterThan(0)
+      expect(route.policy?.payloadLimits.bodyBytes).toBeGreaterThan(0)
+    }
   })
 
   it('keeps every credential-work route synchronized with the exact WAF contract', async () => {

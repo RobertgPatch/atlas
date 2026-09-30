@@ -5,12 +5,58 @@ import { withTransaction } from '../../infra/db/client.js'
 import { auditRepository } from '../audit/audit.repository.js'
 import { CsvObjectStore,csvObjectStore } from './csv-object-store.js'
 import { CsvError } from './liquidity-statement.errors.js'
-import { hash } from './liquidity-statement.repository.js'
+import { csvRepository,hash } from './liquidity-statement.repository.js'
 import { parseCsv } from './csv/profiles.js'
 import { normalizeDraft } from './csv/normalize.js'
 import { reconcileDraft } from './csv/reconcile.js'
 import { positionFields } from './liquidity-statement.types.js'
-import { recordCsvOutcome } from './csv-observability.js'
+import { recordCsvOutcome,recordStatementOutcome } from './csv-observability.js'
+import { executeStatementWorker,StatementWorkerError } from './statement-processing.service.js'
+import { CSV_ADAPTER_VERSION } from './csv/profiles.js'
+import { accountIdentifierFingerprints,classifyAccountIdentifier } from './csv/account-identity.js'
+import type { StatementDocument } from './statement-document.types.js'
+
+const legacyRecipe={reader:{id:'legacy_csv',version:CSV_ADAPTER_VERSION},registryRevision:'legacy-hardcoded-1',limitsRevision:'032-1',adapters:[],canonicalSchemaVersion:'2.0.0',normalizerVersion:'2.0.0',reconcilerVersion:'2.0.0',classificationCatalogVersion:'1.0.0',configurationRevision:'032-1'}
+
+export const unmatchedStatementStatus=(fileKind:'CSV'|'XLSX',outcome:string|undefined)=>(
+  fileKind==='CSV'&&outcome==='NEEDS_ADAPTER'?'NEEDS_MAPPING':'NEEDS_ADAPTER'
+)
+
+function enrichAndMinimizeTrustedIdentity(workerOutput:Record<string,any>){
+  const draft=workerOutput.result?.draft
+  const document=workerOutput.document as Pick<StatementDocument,'reader'|'records'>|undefined
+  if(!draft||draft.schemaVersion!=='3.0.0'||!document)return
+  const records=new Map(document.records.map(record=>[record.ordinal,record]))
+  const secrets:Array<{value:string;mask:string}>=[]
+  for(const account of draft.accounts as Array<Record<string,any>>){
+    if(account.identifierQuality!=='FULL_RELIABLE')continue
+    const evidence=account.accountMask?.evidence?.[0]
+    const record=evidence?records.get(evidence.record??document.records.find(item=>item.location.kind==='XLSX'&&item.location.sheetName===evidence.sheetName&&item.location.row===evidence.row)?.ordinal):undefined
+    const cell=record?.location.kind==='CSV'&&typeof evidence?.column==='number'
+      ?record.cells[evidence.column]
+      :record?.cells.find(candidate=>candidate.column===evidence?.column||candidate.address===evidence?.address)
+    const source=cell?.lexical?.trim()??''
+    const adapterId=draft.adapter?.id
+    const candidate=adapterId==='charles_schwab_positions_csv'
+      ?source.match(/(?:^|\s)(\d[\d -]{4,}\d)(?=\s+as of\b)/iu)?.[1]??''
+      :source
+    const classified=classifyAccountIdentifier(candidate,cell?.type==='NUMBER'?'NUMBER':'TEXT')
+    if(classified.quality!=='FULL_RELIABLE'||!classified.normalized||!classified.displayMask)continue
+    account.identifierFingerprints=accountIdentifierFingerprints(candidate)
+    secrets.push({value:candidate,mask:classified.displayMask})
+  }
+  if(!secrets.length)return
+  const redact=(value:string)=>secrets.reduce((safe,secret)=>safe.replaceAll(secret.value,secret.mask),value)
+  for(const record of workerOutput.parsed.records as Array<{cells:string[]}>){record.cells=record.cells.map(redact)}
+  const scrub=(value:unknown):unknown=>{
+    if(typeof value==='string')return redact(value)
+    if(Array.isArray(value))return value.map(scrub)
+    if(value&&typeof value==='object')for(const [key,nested] of Object.entries(value))Reflect.set(value,key,scrub(nested))
+    return value
+  }
+  scrub(draft)
+  workerOutput.parsed.draft=draft
+}
 
 export class CsvProcessingService {
   private readonly owner=randomUUID()
@@ -28,7 +74,7 @@ export class CsvProcessingService {
   async claim(importId?:string):Promise<Record<string,any>|null>{
     if(!config.liquidityCsv.parsingEnabled)return null
     return withTransaction(async db=>{
-      const row=(await db.query(`select r.*,i.storage_key,i.sha256,i.size_bytes,i.entity_id,i.uploaded_by_user_id from liquidity_csv_imports i join liquidity_csv_parse_runs r on r.id=i.active_run_id
+      const row=(await db.query(`select r.*,i.storage_key,i.sha256,i.size_bytes,i.entity_id,i.uploaded_by_user_id,i.file_kind from liquidity_csv_imports i join liquidity_csv_parse_runs r on r.id=i.active_run_id
         where i.status in ('QUEUED','PARSING') and (r.status='QUEUED' or (r.status='PARSING' and r.lease_expires_at<now())) and ($1::uuid is null or i.id=$1)
         order by r.created_at limit 1 for update of i skip locked`,[importId??null])).rows[0]
       if(!row)return null
@@ -55,14 +101,15 @@ export class CsvProcessingService {
     try{
       const bytes=await this.store.readVerified(claim.storage_key,claim.source_version,claim.source_hash,claim.size_bytes)
       const profile=claim.profile_id?(await database().query('select profile from liquidity_csv_profiles where id=$1 and import_id=$2',[claim.profile_id,claim.import_id])).rows[0]?.profile:undefined
-      const parsed=await parseCsv(bytes,{},profile)
-      const result=parsed.draft?reconcileDraft(normalizeDraft(parsed.draft,new Date(),true),true):null
+      const workerOutput=await executeStatementWorker({source:bytes,sourceHash:claim.source_hash,recipe:claim.recipe??legacyRecipe,timeoutMs:config.liquidityCsv.parseTimeoutMs,maxOutputBytes:config.liquidityCsv.maxWorkerOutputBytes,mappingProfile:profile,config:{maxBytes:config.liquidityCsv.maxBytes,maxRows:config.liquidityCsv.maxRows,maxColumns:config.liquidityCsv.maxColumns,maxRecordBytes:config.liquidityCsv.maxRecordBytes,maxFieldBytes:config.liquidityCsv.maxFieldBytes,maxMetadataRecords:config.liquidityCsv.maxMetadataRecords,parseTimeoutMs:config.liquidityCsv.parseTimeoutMs}}) as {document?:StatementDocument;parsed:Awaited<ReturnType<typeof parseCsv>>;result:ReturnType<typeof reconcileDraft>|null;detection?:{outcome:string}}
+      enrichAndMinimizeTrustedIdentity(workerOutput)
+      const {parsed,result}=workerOutput
       if(Date.now()-started>config.liquidityCsv.parseTimeoutMs)throw new CsvError('RESOURCE_LIMIT')
       return await withTransaction(async db=>{
         const current=(await db.query('select i.status,i.active_run_id,r.generation,r.lease_owner,r.lease_expires_at from liquidity_csv_imports i join liquidity_csv_parse_runs r on r.id=i.active_run_id where i.id=$1 for update of i,r',[claim.import_id])).rows[0]
         if(!current||current.status!=='PARSING'||current.active_run_id!==claim.id||current.generation!==claim.generation||current.lease_owner!==this.owner||new Date(current.lease_expires_at).valueOf()<Date.now())return false
         if(!config.liquidityCsv.parsingEnabled)throw new CsvError('DISABLED')
-        await db.query(`insert into liquidity_csv_records(run_id,ordinal,line_start,line_end,role,raw_tokens) select $1,x.ordinal,x."lineStart",x."lineEnd",x.role,x.cells from jsonb_to_recordset($2::jsonb) as x(ordinal integer,"lineStart" integer,"lineEnd" integer,role text,cells jsonb)`,[claim.id,JSON.stringify(parsed.records)])
+        await csvRepository.persistRecords(claim.id,parsed.records,db)
         for(const [ai,a] of (result?.draft.accounts??[]).entries()){
           await db.query('insert into liquidity_csv_account_occurrences(run_id,occurrence_id,canonical) values($1,$2,$3)',[claim.id,a.occurrenceId,JSON.stringify({...a,positions:[]})])
           for(let offset=0;offset<a.positions.length;offset+=250){
@@ -73,15 +120,24 @@ export class CsvProcessingService {
             if(Date.now()-started>config.liquidityCsv.parseTimeoutMs)throw new CsvError('RESOURCE_LIMIT')
           }
         }
-        await db.query(`update liquidity_csv_parse_runs set status='SUCCEEDED',canonical_draft=$2,canonical_hash=$3,reconciliation=$4,completed_at=now(),lease_owner=null,lease_expires_at=null where id=$1`,[claim.id,result?JSON.stringify(result.draft):null,result?hash(result.draft):null,JSON.stringify(result?.accounts??{})])
-        await db.query('update liquidity_csv_imports set status=$2,version=version+1 where id=$1',[claim.import_id,result?'NEEDS_REVIEW':'NEEDS_MAPPING'])
-        await auditRepository.record({eventName:'liquidity.csv.parse',objectType:'liquidity_csv',objectId:claim.import_id,after:{status:result?'NEEDS_REVIEW':'NEEDS_MAPPING'}},db)
+        const actualRecipe=(result?.draft as any)?.recipe??claim.recipe??legacyRecipe
+        await db.query(`update liquidity_csv_parse_runs set status='SUCCEEDED',canonical_draft=$2,canonical_hash=$3,reconciliation=$4,recipe=$5,recipe_hash=$6,completed_at=now(),lease_owner=null,lease_expires_at=null where id=$1`,[claim.id,result?JSON.stringify(result.draft):null,result?hash(result.draft):null,JSON.stringify(result?.accounts??{}),JSON.stringify(actualRecipe),hash(actualRecipe)])
+        const detectionOutcome=workerOutput.detection?.outcome
+        const nextStatus=result
+          ?'NEEDS_REVIEW'
+          :unmatchedStatementStatus(claim.file_kind,detectionOutcome)
+        const detectionCode=!result&&['AMBIGUOUS_LAYOUT','CUSTODIAN_MISMATCH'].includes(detectionOutcome??'')?detectionOutcome:null
+        await db.query('update liquidity_csv_imports set status=$2,safe_error_code=$3,version=version+1 where id=$1',[claim.import_id,nextStatus,detectionCode])
+        await auditRepository.record({eventName:'liquidity.csv.parse',objectType:'liquidity_csv',objectId:claim.import_id,after:{status:nextStatus,detectionOutcome:detectionOutcome??null}},db)
+        const reader=workerOutput.document?.reader?.id??'unknown',adapter=(result?.draft as any)?.adapter?.id??'unknown',version=(result?.draft as any)?.adapter?.version??'unknown',records=parsed.records.length
+        const metricOutcome=detectionOutcome==='MATCHED'?'matched':detectionOutcome==='NEEDS_ADAPTER'?'needs_adapter':detectionOutcome==='AMBIGUOUS_LAYOUT'?'ambiguous':detectionOutcome?'blocked':'failed'
+        recordStatementOutcome({reader,adapter,version,outcome:metricOutcome,resourceBucket:records>config.liquidityCsv.maxTotalRecords?'limit':records>2000?'large':records>100?'ordinary':'small',correlationId:claim.id})
         recordCsvOutcome('parse','success',Date.now()-started)
         return true
       })
     }catch(error){
       recordCsvOutcome('parse','failed',Date.now()-started)
-      const code=error instanceof CsvError?error.code:error instanceof Error&&/^DECIMAL_/.test(error.message)?'MALFORMED_CSV':'TRANSIENT_FAILURE'
+      const code=error instanceof CsvError?error.code:error instanceof StatementWorkerError&&error.code==='WORKER_TIMEOUT'?'RESOURCE_LIMIT':error instanceof StatementWorkerError&&!error.retryable?'MALFORMED_CSV':error instanceof Error&&/^DECIMAL_/.test(error.message)?'MALFORMED_CSV':'TRANSIENT_FAILURE'
       await withTransaction(async db=>{
         const row=(await db.query('select i.id from liquidity_csv_imports i join liquidity_csv_parse_runs r on r.id=i.active_run_id where i.id=$1 and r.id=$2 and r.generation=$3 and i.status=\'PARSING\' and r.lease_owner=$4 for update of i,r',[claim.import_id,claim.id,claim.generation,this.owner])).rows[0]
         if(!row)return

@@ -5,8 +5,18 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "exports": {
     ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    "./liquidity-statements": {
+      "types": "./dist/liquidity-statements.d.ts",
+      "default": "./dist/liquidity-statements.js"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
   }
 }

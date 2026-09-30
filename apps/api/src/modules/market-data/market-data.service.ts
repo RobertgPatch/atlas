@@ -47,8 +47,7 @@ export interface ClosingPriceRefreshResult {
 const validPublicSymbol = /^[A-Z0-9][A-Z0-9./-]{0,19}$/
 
 const quoteAfterSource=(holding:SourceHoldingRecord,price:MarketPriceObservation)=>{
-  if(holding.sourceKind!=='CSV')return true
-  if(price.currencyCode && price.currencyCode!=='USD')return false
+  if(price.currencyCode!=='USD')return false
   const timestamp=Date.parse(price.providerTimestamp)
   if(!Number.isFinite(timestamp))return false
   if(holding.sourceAsOfAt)return timestamp>=Date.parse(holding.sourceAsOfAt)
@@ -56,9 +55,11 @@ const quoteAfterSource=(holding:SourceHoldingRecord,price:MarketPriceObservation
 }
 
 const normalizedSymbolFor = (holding: SourceHoldingRecord): string | null => {
-  if (holding.sourceKind === 'CSV' && (!holding.quoteEligible || !holding.providerSymbol)) return null
+  if (!holding.quoteEligible || !holding.providerSymbol) return null
   if (!holding.symbol || holding.quantity == null) return null
-  if (holding.currencyCode && holding.currencyCode.toUpperCase() !== 'USD') return null
+  if (holding.currencyCode?.toUpperCase() !== 'USD') return null
+  if (holding.priceUnit !== 'PER_UNIT' || holding.quantityUnit !== 'SHARES' || holding.quoteMultiplier !== '1' || holding.accruedInterestConvention !== 'EXCLUDED') return null
+  if (!['stock','equity','fund','etf','mutual fund'].includes(holding.type.toLocaleLowerCase('en-US'))) return null
   const symbol = (holding.providerSymbol ?? holding.symbol).trim().toUpperCase()
   return validPublicSymbol.test(symbol) ? symbol : null
 }
