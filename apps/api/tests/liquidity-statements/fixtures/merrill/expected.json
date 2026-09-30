@@ -1,0 +1,38 @@
+{
+  "canonicalSchemaVersion": "3.0.0",
+  "adapterId": "merrill_holdings_csv",
+  "positionCount": 6,
+  "controls": [],
+  "accounts": [
+    {
+      "displayName": "Synthetic Primary",
+      "accountMask": "1234",
+      "identifierQuality": "FULL_RELIABLE",
+      "currency": "USD",
+      "asOfDate": "2026-08-31",
+      "asOfAt": null,
+      "asOfPrecision": "DATE",
+      "completeness": "SUPPORTED_COMPLETE",
+      "positions": [
+        { "sourceRecord": 2, "symbol": "DEMO", "brokerSecurityId": "00042", "cusip": "001234567", "description": "Synthetic equity", "assetType": "equity", "sourceAssetType": "Equity", "currency": "USD", "quantity": "12.5", "price": "16", "marketValue": "200", "costBasis": null, "unrealizedGainLoss": "40", "unrealizedGainLossRatio": "0.25", "dayChange": "1.25", "dayChangeRatio": "0.00625", "accruedInterest": "0" },
+        { "sourceRecord": 3, "symbol": null, "brokerSecurityId": "00043", "cusip": null, "description": "ML Bank Deposit Program", "assetType": "cash", "sourceAssetType": null, "currency": "USD", "quantity": null, "price": null, "marketValue": "35", "costBasis": null, "unrealizedGainLoss": null, "unrealizedGainLossRatio": null, "dayChange": null, "dayChangeRatio": null, "accruedInterest": null },
+        { "sourceRecord": 4, "symbol": "BLFTEST", "brokerSecurityId": "00044", "cusip": null, "description": "BLF FEDFUND", "assetType": "cash", "sourceAssetType": null, "currency": "USD", "quantity": "80", "price": "1", "marketValue": "80", "costBasis": "80", "unrealizedGainLoss": "0", "unrealizedGainLossRatio": "0", "dayChange": "0", "dayChangeRatio": "0", "accruedInterest": "0" },
+        { "sourceRecord": 5, "symbol": null, "brokerSecurityId": "00045", "cusip": null, "description": "ML Bank Deposity Program", "assetType": "cash", "sourceAssetType": null, "currency": "USD", "quantity": null, "price": null, "marketValue": "5", "costBasis": null, "unrealizedGainLoss": null, "unrealizedGainLossRatio": null, "dayChange": null, "dayChangeRatio": null, "accruedInterest": null }
+      ]
+    },
+    {
+      "displayName": "Synthetic Secondary",
+      "accountMask": "5678",
+      "identifierQuality": "FULL_RELIABLE",
+      "currency": "USD",
+      "asOfDate": "2026-08-31",
+      "asOfAt": null,
+      "asOfPrecision": "DATE",
+      "completeness": "SUPPORTED_COMPLETE",
+      "positions": [
+        { "sourceRecord": 6, "symbol": "FUNDTEST", "brokerSecurityId": "00046", "cusip": "009876543", "description": "Synthetic fund", "assetType": "fund", "sourceAssetType": "Mutual Fund", "currency": "USD", "quantity": "10", "price": "10", "marketValue": "100", "costBasis": "80", "unrealizedGainLoss": "20", "unrealizedGainLossRatio": "0.25", "dayChange": "-2", "dayChangeRatio": "-0.02", "accruedInterest": "2.5" },
+        { "sourceRecord": 7, "symbol": "PENNYTEST", "brokerSecurityId": "00047", "cusip": null, "description": "Synthetic noncash at one", "assetType": "other", "sourceAssetType": "Other", "currency": "USD", "quantity": "9", "price": "1", "marketValue": "9", "costBasis": null, "unrealizedGainLoss": null, "unrealizedGainLossRatio": null, "dayChange": null, "dayChangeRatio": null, "accruedInterest": "0" }
+      ]
+    }
+  ]
+}

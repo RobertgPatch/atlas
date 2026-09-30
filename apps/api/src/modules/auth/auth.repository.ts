@@ -326,9 +326,12 @@ const ensureBootstrapUser = async (input: {
          id, email, display_name, password_hash, mfa_enabled, is_active, status,
          password_change_required, bootstrap_password_reset_pending
        )
-       values ($1, $2, $3, $4, false, true, 'Active', true, false)
+       values ($1, $2, $3, $4, false, true, 'Active', $5, false)
+       on conflict (email) do update
+         set display_name = excluded.display_name,
+             updated_at = now()
        returning id`,
-      [randomUUID(), input.email, input.displayName, passwordHash],
+      [randomUUID(), input.email, input.displayName, passwordHash, config.nodeEnv !== 'test'],
     )
     userId = inserted.rows[0]?.id
   } else if (existing.rows[0]?.bootstrap_password_reset_pending) {

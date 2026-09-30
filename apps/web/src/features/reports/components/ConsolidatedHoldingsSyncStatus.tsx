@@ -27,9 +27,6 @@ export function ConsolidatedHoldingsSyncStatus({
   const fetchedAt = sync.dataFetchedAt
     ? formatDateTime(sync.dataFetchedAt)
     : null
-  const nextRefreshAt = sync.nextRefreshAt
-    ? formatDateTime(sync.nextRefreshAt)
-    : null
   const priceAsOf = pricing?.priceAsOf ? formatDateTime(pricing.priceAsOf) : null
   const pricingLabel = getPricingLabel(pricing)
   const warnings = [...sync.warnings, ...(pricing?.warnings ?? [])]
@@ -60,9 +57,6 @@ export function ConsolidatedHoldingsSyncStatus({
             ) : null}
           </div>
         </div>
-        {nextRefreshAt ? (
-          <div className="text-xs opacity-90">Next refresh {nextRefreshAt}</div>
-        ) : null}
       </div>
 
       {warnings.length > 0 ? (

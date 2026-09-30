@@ -1,0 +1,8 @@
+{
+  "adapterId": "synthetic_fourth_positions_csv",
+  "accountCount": 1,
+  "positionCount": 2,
+  "symbols": ["FOUR", "NEXT"],
+  "values": ["400", "125.5"],
+  "totalValue": "525.5"
+}

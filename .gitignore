@@ -156,6 +156,8 @@ Thumbs.db
 .idea/
 
 .playwright-mcp
+playwright-report/
+test-results/
 
 # Terraform local state/cache
 .terraform/

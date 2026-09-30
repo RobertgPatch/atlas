@@ -22,6 +22,14 @@ export interface CustodianBreakdownDatum {
   percentage: number
   accountCount: number
   lastSyncedAt: string | null
+  accounts: Array<{
+    id: string
+    name: string
+    mask: string | null
+    totalValue: number
+    percentage: number
+    lastSyncedAt: string | null
+  }>
 }
 
 export interface TopHoldingDatum {
@@ -547,64 +555,117 @@ export function filterHoldingsBySectors(
   })
 }
 
+export const custodianIdentityKey = (value: string) =>
+  value.normalize('NFKC').trim().toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/gu,' ')
+
+const custodianDisplayScore = (value: string) => Number(/\p{Lu}/u.test(value)) + Number(/\p{Lu}/u.test(value)&&/\p{Ll}/u.test(value))
+
+const preferredCustodianDisplay = (values: readonly string[]) => [...values].sort((left,right)=>custodianDisplayScore(right)-custodianDisplayScore(left)||left.localeCompare(right,'en-US',{sensitivity:'variant'}))[0] ?? ''
+
+export function getHoldingCustodians(rows: ConsolidatedHoldingRow[]): string[] {
+  const variants=new Map<string,string[]>()
+  for(const detail of rows.flatMap(row=>row.details)){
+    const key=custodianIdentityKey(detail.custodian)
+    variants.set(key,[...(variants.get(key)??[]),detail.custodian])
+  }
+  return [...variants.values()].map(preferredCustodianDisplay).sort((left,right)=>left.localeCompare(right))
+}
+
+const completeDetailTotal = (details: ConsolidatedHoldingRow['details'], field: 'quantity'|'costBasis'|'unrealizedGainLoss'|'marketValue') =>
+  details.every(detail=>detail[field]!=null) ? details.reduce((total,detail)=>total+(detail[field]??0),0) : null
+
+const withFilteredDetails = (
+  rows: ConsolidatedHoldingRow[],
+  keep: (detail: ConsolidatedHoldingRow['details'][number]) => boolean,
+): ConsolidatedHoldingRow[] => {
+  return rows.flatMap(row=>{
+    const details=row.details.filter(keep)
+    if(!details.length)return []
+    if(details.length===row.details.length)return [row]
+    const quantity=completeDetailTotal(details,'quantity'),costBasis=completeDetailTotal(details,'costBasis'),unrealizedGainLoss=completeDetailTotal(details,'unrealizedGainLoss'),marketValue=completeDetailTotal(details,'marketValue')
+    const names=[...new Set(details.map(detail=>detail.custodian))]
+    return [{...row,details,quantity,costBasis,unrealizedGainLoss,marketValue,
+      custodianSummary:names.length===1?preferredCustodianDisplay(names):`${details.length} accounts`,
+      averageCostBasis:quantity!=null&&quantity!==0&&costBasis!=null?costBasis/quantity:null,
+      institutionPrice:details.length===1?details[0]!.institutionPrice:quantity!=null&&quantity!==0&&marketValue!=null?marketValue/quantity:row.institutionPrice,
+      gainLossPercent:costBasis!=null&&costBasis!==0&&unrealizedGainLoss!=null?unrealizedGainLoss/costBasis*100:null,
+      priceAsOfDate:details.map(detail=>detail.priceAsOfDate).filter((date):date is string=>!!date).sort().at(-1)??null,
+    }]
+  })
+}
+
+export function filterHoldingsByCustodians(rows: ConsolidatedHoldingRow[], custodians: readonly string[]): ConsolidatedHoldingRow[] {
+  if(!custodians.length)return rows
+  const selected=new Set(custodians.map(custodianIdentityKey))
+  return withFilteredDetails(rows,detail=>selected.has(custodianIdentityKey(detail.custodian)))
+}
+
+export function filterHoldingsByAccounts(rows: ConsolidatedHoldingRow[], accountIds: readonly string[]): ConsolidatedHoldingRow[] {
+  const selected=new Set(accountIds)
+  return withFilteredDetails(rows,detail=>selected.has(detail.accountId))
+}
+
 export function getCustodianBreakdown(
   response: ConsolidatedHoldingsResponse,
   totalValue: number,
 ): CustodianBreakdownDatum[] {
-  const accountByName = new Map(
-    response.selectedAccounts.map((account) => [
-      `${account.custodianName}::${account.name}`,
-      account,
-    ]),
-  )
+  const accountById = new Map(response.selectedAccounts.map(account=>[account.id,account]))
   const custodians = new Map<
     string,
-    { value: number; accounts: Set<string>; lastSyncedAt: string | null }
+    { value: number; accounts: Map<string,{id:string;name:string;mask:string|null;value:number;lastSyncedAt:string|null}>; lastSyncedAt: string | null; names: string[] }
   >()
 
   for (const account of response.selectedAccounts) {
-    const existing = custodians.get(account.custodianName) ?? {
+    const key=custodianIdentityKey(account.custodianName)
+    const existing = custodians.get(key) ?? {
       value: 0,
-      accounts: new Set<string>(),
+      accounts: new Map(),
       lastSyncedAt: null,
+      names: [] as string[],
     }
 
-    existing.accounts.add(account.id)
+    existing.names.push(account.custodianName)
+    existing.accounts.set(account.id,{id:account.id,name:account.name,mask:account.mask,value:0,lastSyncedAt:account.lastSyncedAt})
     if (
       account.lastSyncedAt &&
       (!existing.lastSyncedAt || account.lastSyncedAt > existing.lastSyncedAt)
     ) {
       existing.lastSyncedAt = account.lastSyncedAt
     }
-    custodians.set(account.custodianName, existing)
+    custodians.set(key, existing)
   }
 
   for (const row of response.rows) {
     for (const detail of row.details) {
-      const account = accountByName.get(`${detail.custodian}::${detail.accountName}`)
-      const accountId = account?.id ?? `${detail.custodian}:${detail.accountName}`
-      const existing = custodians.get(detail.custodian) ?? {
+      const key=custodianIdentityKey(detail.custodian)
+      const account = accountById.get(detail.accountId)
+      const accountId = account?.id ?? detail.accountId
+      const existing = custodians.get(key) ?? {
         value: 0,
-        accounts: new Set<string>(),
+        accounts: new Map(),
         lastSyncedAt: null,
+        names: [] as string[],
       }
 
+      existing.names.push(detail.custodian)
       existing.value += detail.marketValue ?? 0
-      existing.accounts.add(accountId)
+      const accountData=existing.accounts.get(accountId)??{id:accountId,name:account?.name??detail.accountName,mask:account?.mask??detail.accountMask,value:0,lastSyncedAt:account?.lastSyncedAt??null}
+      accountData.value+=detail.marketValue??0
+      existing.accounts.set(accountId,accountData)
       if (
         account?.lastSyncedAt &&
         (!existing.lastSyncedAt || account.lastSyncedAt > existing.lastSyncedAt)
       ) {
         existing.lastSyncedAt = account.lastSyncedAt
       }
-      custodians.set(detail.custodian, existing)
+      custodians.set(key, existing)
     }
   }
 
-  return [...custodians.entries()]
-    .map(([institution, data]) => ({
-      institution,
-      logo: institution
+  return [...custodians.values()]
+    .map((data) => ({
+      institution: preferredCustodianDisplay(data.names),
+      logo: preferredCustodianDisplay(data.names)
         .split(/\s+/)
         .map((part) => part[0])
         .join('')
@@ -614,6 +675,7 @@ export function getCustodianBreakdown(
       percentage: totalValue > 0 ? (data.value / totalValue) * 100 : 0,
       accountCount: data.accounts.size,
       lastSyncedAt: data.lastSyncedAt,
+      accounts:[...data.accounts.values()].map(account=>({id:account.id,name:account.name,mask:account.mask,totalValue:account.value,percentage:totalValue>0?account.value/totalValue*100:0,lastSyncedAt:account.lastSyncedAt})).sort((left,right)=>right.totalValue-left.totalValue||left.name.localeCompare(right.name)),
     }))
     .sort((a, b) => b.totalValue - a.totalValue)
 }

@@ -1,0 +1,37 @@
+{
+  "adapter": { "id": "charles_schwab_positions_csv", "version": "1.0.0", "fileKind": "CSV", "canonicalSchemaVersion": "3.0.0" },
+  "account": {
+    "identifierQuality": "MASKED",
+    "identifierFingerprints": [],
+    "accountMaskSuffix": "7412",
+    "asOfDate": "2026-09-21",
+    "asOfAt": "2026-09-21T20:00:00.000Z",
+    "sourceZone": "America/New_York",
+    "asOfPrecision": "INSTANT",
+    "completeness": "SUPPORTED_COMPLETE"
+  },
+  "positions": [
+    { "sourceRecord": 4, "symbol": "DEMO", "description": "Synthetic, first equity lot", "assetType": "equity", "sourceAssetType": "Equity", "quantity": "10", "price": "80", "marketValue": "800", "costBasis": "1000", "basisAvailability": "COMPLETE", "gain": "-200", "gainRatio": "-0.2", "dayChange": "-12.5", "dayChangeRatio": "-0.0154" },
+    { "sourceRecord": 5, "symbol": "DEMO", "description": "Synthetic second equity lot", "assetType": "equity", "sourceAssetType": "Equity", "quantity": "5", "price": "80", "marketValue": "400", "costBasis": "350", "basisAvailability": "COMPLETE", "gain": "50", "gainRatio": "0.1429", "dayChange": "6.25", "dayChangeRatio": "0.0159" },
+    { "sourceRecord": 6, "symbol": "INC", "description": "Synthetic incomplete basis equity", "assetType": "equity", "sourceAssetType": "Equity", "quantity": "2", "price": "50", "marketValue": "100", "costBasis": null, "basisAvailability": "INCOMPLETE", "gain": "20", "gainRatio": "0.25", "dayChange": null, "dayChangeRatio": null },
+    { "sourceRecord": 7, "symbol": "ZERO", "description": "Synthetic explicit zero basis equity", "assetType": "equity", "sourceAssetType": "Equity", "quantity": "1", "price": "25", "marketValue": "25", "costBasis": "0", "basisAvailability": "COMPLETE", "gain": "25", "gainRatio": null, "dayChange": "0", "dayChangeRatio": "0" },
+    { "sourceRecord": 8, "symbol": "SWEEP", "description": "Synthetic money market", "assetType": "cash", "sourceAssetType": "Cash and Money Market", "quantity": "75", "price": "1", "marketValue": "75", "costBasis": null, "basisAvailability": "UNAVAILABLE", "gain": null, "gainRatio": null, "dayChange": null, "dayChangeRatio": null },
+    { "sourceRecord": 9, "symbol": null, "description": "Cash & Cash Investments", "assetType": "cash", "sourceAssetType": "Cash and Money Market", "quantity": null, "price": null, "marketValue": "125", "costBasis": null, "basisAvailability": "UNAVAILABLE", "gain": null, "gainRatio": null, "dayChange": null, "dayChangeRatio": null }
+  ],
+  "marketValueControl": {
+    "metric": "MARKET_VALUE", "currency": "USD", "reported": "1525", "scopeKind": "COMPLETE_ACCOUNT",
+    "operandField": "marketValue", "sourceRecord": 10, "memberSourceRecords": [4, 5, 6, 7, 8, 9], "tolerance": "0.01"
+  },
+  "dispositions": [
+    { "recordOrdinal": 1, "role": "METADATA" },
+    { "recordOrdinal": 2, "role": "BLANK" },
+    { "recordOrdinal": 3, "role": "HEADER" },
+    { "recordOrdinal": 4, "role": "POSITION" },
+    { "recordOrdinal": 5, "role": "POSITION" },
+    { "recordOrdinal": 6, "role": "POSITION" },
+    { "recordOrdinal": 7, "role": "POSITION" },
+    { "recordOrdinal": 8, "role": "POSITION" },
+    { "recordOrdinal": 9, "role": "POSITION" },
+    { "recordOrdinal": 10, "role": "TOTAL" }
+  ]
+}

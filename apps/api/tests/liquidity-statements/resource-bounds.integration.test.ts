@@ -9,6 +9,7 @@ import { pool } from '../../src/infra/db/client.js'
 import { config } from '../../src/config.js'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { byteHash } from '../../src/modules/liquidity-statements/liquidity-statement.repository.js'
 async function record(name: string, evidence: Record<string, number | string>) {
   if (process.env.ATLAS_CSV_BENCHMARK_DIR) await writeFile(join(process.env.ATLAS_CSV_BENCHMARK_DIR, `${name}.json`), JSON.stringify(evidence, null, 2))
 }
@@ -42,13 +43,30 @@ describe('CSV resource bounds', () => {
     // Explicit opt-in diagnostic for a larger API allocation; deployment stays 5k.
     if(count===25000)config.liquidityCsv.maxRows=25000
     try {
-    const f = await csvFixture(), upload = await f.upload(fixture(count).toString()), processor = new CsvProcessingService(f.store)
+    const f = await csvFixture(), body = fixture(count), sha256 = byteHash(body)
+    const capabilityStarted = performance.now()
+    const capability = await f.service.upload({ entityId: f.entityId, custodian: 'Synthetic Broker', fileName: 'synthetic.csv', sizeBytes: body.length, sha256, contentType: 'text/csv', fileKind: 'CSV' }, f.scope)
+    const capabilityMs = performance.now() - capabilityStarted
+    const token = new URL(capability.url, 'http://localhost').searchParams.get('token')!
+    const stored = await f.service.putLocal(capability.statementId, token, body, f.scope)
+    await f.service.complete(capability.statementId, { expectedVersion: capability.version, storageVersionId: stored.storageVersionId, sha256 }, f.scope)
+    const upload = { id: capability.statementId }
+    const processor = new CsvProcessingService(f.store)
     const started = performance.now()
     const parsing = processor.processOne(upload.id)
     const readStarted = performance.now(); await pool!.query('select 1'); const readMs = performance.now() - readStarted
     expect(await parsing).toBe(true)
-    await record(count===25000?'maximum-persist-benchmark':count===5000?'deployment-limit-persist-benchmark':'persist-benchmark', { benchmark: 'liquidity_csv_persist', rows: count, elapsedMs: Math.ceil(performance.now() - started), concurrentReadMs: Math.ceil(readMs), rssBytes:process.memoryUsage().rss })
+    await record(count===25000?'maximum-persist-benchmark':count===5000?'deployment-limit-persist-benchmark':'persist-benchmark', { benchmark: 'liquidity_csv_persist', rows: count, uploadCapabilityMs: Math.ceil(capabilityMs), elapsedMs: Math.ceil(performance.now() - started), concurrentReadMs: Math.ceil(readMs), rssBytes:process.memoryUsage().rss })
     expect(readMs).toBeLessThan(count===25000?2000:1000)
     } finally {config.liquidityCsv.maxRows=priorLimit}
   }, 30000)
+  it.skipIf(!pool)('fails a stable malformed source once without partial evidence or retry looping',async()=>{
+    const f=await csvFixture(),upload=await f.upload('Header\n"unterminated'),processor=new CsvProcessingService(f.store)
+    expect(await processor.processOne(upload.id)).toBe(false)
+    const state=(await pool!.query('select status,safe_error_code,active_run_id from liquidity_csv_imports where id=$1',[upload.id])).rows[0]
+    expect(state).toMatchObject({status:'FAILED',safe_error_code:'MALFORMED_CSV'})
+    expect(await processor.processOne(upload.id)).toBe(false)
+    expect((await pool!.query('select count(*)::int as count from liquidity_csv_parse_runs where import_id=$1',[upload.id])).rows[0].count).toBe(1)
+    expect((await pool!.query('select count(*)::int as count from liquidity_csv_records where run_id=$1',[state.active_run_id])).rows[0].count).toBe(0)
+  })
 })

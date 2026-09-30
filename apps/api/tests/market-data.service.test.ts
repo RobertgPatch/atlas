@@ -34,6 +34,10 @@ const holding = (overrides: Partial<SourceHoldingRecord> = {}): SourceHoldingRec
   sourceAsOfAt: '2026-08-14T00:00:00.000Z',
   quoteEligible: true,
   providerSymbol: overrides.providerSymbol ?? overrides.symbol ?? 'AAPL',
+  priceUnit: 'PER_UNIT',
+  quantityUnit: 'SHARES',
+  quoteMultiplier: '1',
+  accruedInterestConvention: 'EXCLUDED',
   exact: {
     quantity: '10',
     costBasis: '1000',

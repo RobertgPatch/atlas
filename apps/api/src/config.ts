@@ -1012,7 +1012,12 @@ const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD
   ?? 'password123'
 
 export const config = {
-  liquidityCsv: buildLiquidityCsvConfig(nodeEnv === 'test' ? {} : process.env, runtimeBoundary.runtimeClass === 'production'),
+  liquidityCsv: buildLiquidityCsvConfig(nodeEnv === 'test' ? {
+    LIQUIDITY_XLSX_ENABLED:process.env.LIQUIDITY_XLSX_ENABLED,
+    LIQUIDITY_CSV_FILES_PER_30_DAYS:process.env.LIQUIDITY_CSV_FILES_PER_30_DAYS,
+    LIQUIDITY_CSV_CAPABILITIES_PER_HOUR:process.env.LIQUIDITY_CSV_CAPABILITIES_PER_HOUR,
+    LIQUIDITY_CSV_MAX_OUTSTANDING_CAPABILITIES:process.env.LIQUIDITY_CSV_MAX_OUTSTANDING_CAPABILITIES,
+  } : process.env, runtimeBoundary.runtimeClass === 'production'),
   nodeEnv,
   processRole,
   runtimeClass: runtimeBoundary.runtimeClass,

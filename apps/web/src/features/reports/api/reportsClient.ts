@@ -108,11 +108,11 @@ const toQueryString = (
   const params = new URLSearchParams()
 
   if (query.search) params.set('search', query.search)
-  if (query.dateRange) params.set('dateRange', String(query.dateRange))
-  if (query.entityType) params.set('entityType', query.entityType)
+  if ('dateRange' in query && query.dateRange) params.set('dateRange', String(query.dateRange))
+  if ('entityType' in query && query.entityType) params.set('entityType', query.entityType)
   if (query.entityId) params.set('entityId', query.entityId)
-  if (query.partnershipId) params.set('partnershipId', query.partnershipId)
-  if (query.taxYear != null) params.set('taxYear', String(query.taxYear))
+  if ('partnershipId' in query && query.partnershipId) params.set('partnershipId', query.partnershipId)
+  if ('taxYear' in query && query.taxYear != null) params.set('taxYear', String(query.taxYear))
   if ('custodian' in query && query.custodian) params.set('custodian', query.custodian)
   if ('accountId' in query && query.accountId) params.set('accountId', query.accountId)
   if ('type' in query && query.type) params.set('type', query.type)
@@ -171,6 +171,8 @@ export const reportsClient = {
     query: LiquidityPerformanceQuery = {},
   ): Promise<LiquidityPerformanceResponse> {
     const params = new URLSearchParams()
+    if (query.entityId) params.set('entityId', query.entityId)
+    if (query.accountIds?.length) params.set('accountIds', query.accountIds.join(','))
     if (query.from) params.set('from', query.from)
     if (query.to) params.set('to', query.to)
     const queryString = params.toString()
@@ -178,13 +180,6 @@ export const reportsClient = {
       ? `/reports/consolidated-holdings/performance?${queryString}`
       : '/reports/consolidated-holdings/performance'
     return request<LiquidityPerformanceResponse>(path)
-  },
-
-  refreshConsolidatedHoldings(payload: { force?: boolean } = {}) {
-    return request<{status:string;reason?:string}>('/reports/consolidated-holdings/refresh', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
   },
 
   exportReport(query: ReportExportRequest) {

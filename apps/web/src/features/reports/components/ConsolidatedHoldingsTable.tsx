@@ -62,7 +62,7 @@ const columns: TableColumn[] = [
   { label: 'Description', align: 'text-left' },
   { key: 'costBasis', label: 'Cost Basis', align: 'text-right' },
   { key: 'unrealizedGainLoss', label: 'Unrealized G/L', align: 'text-right' },
-  { label: 'Custodian', align: 'text-center' },
+  { label: 'Accounts', align: 'text-center' },
   { key: 'quantity', label: 'Quantity', align: 'text-right' },
   { key: 'marketValue', label: 'Market Value', align: 'text-right' },
 ]
@@ -199,7 +199,7 @@ const compareRowsBySort = (
 }
 
 export function ConsolidatedHoldingsTable({
-  rows,
+  rows: sourceRows,
   selectedAccountCount,
   search,
   sort,
@@ -210,6 +210,7 @@ export function ConsolidatedHoldingsTable({
 }: ConsolidatedHoldingsTableProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const rows=sourceRows
 
   const columnByKey = useMemo(
     () => new Set(columns.flatMap((column) => (column.key ? [column.key] : []))),
@@ -384,15 +385,11 @@ export function ConsolidatedHoldingsTable({
             </div>
           ) : null}
         </div>
-        <div className="relative">
-          <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search symbol, name, or custodian..."
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-focus sm:w-72"
-          />
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input type="text" aria-label="Search positions" placeholder="Search symbol, name, or custodian..." value={search} onChange={(event) => onSearchChange(event.target.value)} className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-focus sm:w-72"/>
+          </div>
         </div>
       </div>
 
@@ -421,7 +418,7 @@ export function ConsolidatedHoldingsTable({
                   <span>Asset Type</span>
                   <span>Positions</span>
                   <span>Total Unrealized G/L</span>
-                  <span>Custodians</span>
+                  <span>Accounts</span>
                   <span className="text-right">Market Value</span>
                 </div>
               </th>

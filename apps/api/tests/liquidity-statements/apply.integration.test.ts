@@ -6,13 +6,44 @@ import { CsvProcessingService } from '../../src/modules/liquidity-statements/csv
 import { csvRepository } from '../../src/modules/liquidity-statements/liquidity-statement.repository.js'
 import { csvReviewService } from '../../src/modules/liquidity-statements/csv-review.service.js'
 import { csvApplicationPreviewService } from '../../src/modules/liquidity-statements/csv-application-preview.service.js'
-import { csvApplicationService } from '../../src/modules/liquidity-statements/csv-application.service.js'
+import { csvApplicationService,financialContentDigest } from '../../src/modules/liquidity-statements/csv-application.service.js'
 import { liquiditySourceRepository } from '../../src/modules/liquidity-sources/liquidity-source.repository.js'
 import { csvFixture } from './testHelpers.js'
 import { buildCsvFixture } from './fixtures/buildCsvFixture.js'
 import { liquiditySourceHistory } from '../../src/modules/liquidity-sources/liquidity-source-history.js'
+import { parseCsv } from '../../src/modules/liquidity-statements/csv/profiles.js'
+import { normalizeDraft } from '../../src/modules/liquidity-statements/csv/normalize.js'
+
+describe('financial publication identity',()=>{
+  it('ignores source row order while preserving financially identical multiplicity',async()=>{
+    const parsed=await parseCsv(Buffer.from(buildCsvFixture())),position=normalizeDraft(parsed.draft!).accounts[0]!.positions[0]!,duplicate={...structuredClone(position),occurrenceId:'duplicate',sourceRecord:999}
+    expect(financialContentDigest([position,duplicate])).toBe(financialContentDigest([duplicate,position]))
+    expect(financialContentDigest([position,duplicate])).not.toBe(financialContentDigest([position]))
+  })
+})
 
 describe.skipIf(!pool)('atomic account publication',()=>{
+  it('does not republish an unchanged source after metadata-only reprocessing',async()=>{
+    const f=await csvFixture(),processor=new CsvProcessingService(f.store)
+    const account=await liquiditySourceRepository.create({entityId:f.entityId,custodian:'Synthetic Broker',name:'No-op',currency:'USD',cadence:'ON_DEMAND'},f.scope)
+    const upload=await f.upload(buildCsvFixture({format:'merrill',date:'09/21/2026'}));await processor.processOne(upload.id)
+    async function publish(){
+      const detail=await csvRepository.detail(upload.id,f.scope),state=await liquiditySourceRepository.get(account.id,f.scope)
+      const binding={occurrenceId:detail.canonicalDraft!.accounts[0]!.occurrenceId,accountId:account.id,expectedAccountVersion:state.version,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:detail.issues.filter(issue=>issue.severity==='WARNING').map(issue=>issue.id)}
+      const reviewed=await csvReviewService.review(upload.id,{expectedVersion:detail.summary.version,changes:[],accountBindings:[binding]},f.scope)
+      const preview=await csvApplicationPreviewService.preview(upload.id,{expectedVersion:reviewed.summary.version,accountBindings:[binding]},f.scope)
+      return csvApplicationService.apply(upload.id,{previewId:preview.id,expectedVersion:preview.expectedVersion,summaryHash:preview.summaryHash,idempotencyKey:randomUUID()},f.scope)
+    }
+    const first=await publish()
+    let detail=await csvRepository.detail(upload.id,f.scope)
+    await f.service.reprocess(upload.id,{expectedVersion:detail.summary.version,reason:'Exercise a metadata-only parser generation',structuralSelection:['csv:all']},f.scope)
+    await processor.processOne(upload.id)
+    const second=await publish()
+    expect(second.snapshotIds).toEqual(first.snapshotIds)
+    expect((await pool!.query('select id from liquidity_holdings_snapshots where import_id=$1',[upload.id])).rows).toHaveLength(1)
+    expect((await pool!.query('select id from liquidity_source_outbox where entity_id=$1',[f.entityId])).rows).toHaveLength(1)
+    expect((await liquiditySourceRepository.get(account.id,f.scope)).version).toBe(2)
+  })
   it('automatically binds a later statement with the same full account number',async()=>{
     const f=await csvFixture(),processor=new CsvProcessingService(f.store)
     const account=await liquiditySourceRepository.create({entityId:f.entityId,custodian:'Synthetic Broker',name:'Merrill account',currency:'USD',cadence:'ON_DEMAND'},f.scope)
@@ -44,6 +75,7 @@ describe.skipIf(!pool)('atomic account publication',()=>{
       const input={previewId:preview.id,expectedVersion:preview.expectedVersion,summaryHash:preview.summaryHash,idempotencyKey:randomUUID()}
       const applied=await csvApplicationService.apply(u.id,input,f.scope)
       expect(await csvApplicationService.apply(u.id,input,f.scope)).toEqual(applied)
+      await expect(csvApplicationService.apply(u.id,{...input,summaryHash:'0'.repeat(64)},f.scope)).rejects.toMatchObject({code:'STALE_VERSION'})
       return {preview,applied}
     }
     await publish('09/01/2026')
@@ -61,7 +93,7 @@ describe.skipIf(!pool)('atomic account publication',()=>{
   it('rolls back publication on audit failure and rejects stale account previews',async()=>{
     const f=await csvFixture(),u=await f.upload(buildCsvFixture({total:'800'}));await new CsvProcessingService(f.store).processOne(u.id)
     const account=await liquiditySourceRepository.create({entityId:f.entityId,custodian:'Synthetic Broker',name:'Rollback',currency:'USD',cadence:'ON_DEMAND'},f.scope)
-    const d=await csvRepository.detail(u.id,f.scope),binding={occurrenceId:'account-1',accountId:account.id,expectedAccountVersion:1,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:[]}
+    const d=await csvRepository.detail(u.id,f.scope),binding={occurrenceId:d.canonicalDraft!.accounts[0]!.occurrenceId,accountId:account.id,expectedAccountVersion:1,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:[]}
     const r=await csvReviewService.review(u.id,{expectedVersion:d.summary.version,changes:[{fieldPath:'accounts.0.currency',value:'USD',reason:'Confirmed'}],accountBindings:[binding]},f.scope)
     const preview=await csvApplicationPreviewService.preview(u.id,{expectedVersion:r.summary.version,accountBindings:[binding]},f.scope)
     const input={previewId:preview.id,expectedVersion:preview.expectedVersion,summaryHash:preview.summaryHash,idempotencyKey:randomUUID()}
@@ -79,7 +111,7 @@ describe.skipIf(!pool)('atomic account publication',()=>{
       const u=await f.upload(buildCsvFixture({total:value,rows:[['DEMO','Synthetic','1',value,value,value,'0','0%','','Equity']]}))
       await processor.processOne(u.id)
       const d=await csvRepository.detail(u.id,f.scope),a=await liquiditySourceRepository.get(account.id,f.scope)
-      const binding={occurrenceId:'account-1',accountId:account.id,expectedAccountVersion:a.version,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:[],...(historicalOnly?{effectiveOrderDecision:{kind:'HISTORICAL_ONLY' as const,reason:'Alternative evidence, not an approved replacement'}}:{})}
+      const binding={occurrenceId:d.canonicalDraft!.accounts[0]!.occurrenceId,accountId:account.id,expectedAccountVersion:a.version,completeAccount:true as const,emptyAccountConfirmed:false,acknowledgedIssueIds:[],...(historicalOnly?{effectiveOrderDecision:{kind:'HISTORICAL_ONLY' as const,reason:'Alternative evidence, not an approved replacement'}}:{})}
       const r=await csvReviewService.review(u.id,{expectedVersion:d.summary.version,changes:[{fieldPath:'accounts.0.currency',value:'USD',reason:'Confirmed'}],accountBindings:[binding]},f.scope)
       const preview=await csvApplicationPreviewService.preview(u.id,{expectedVersion:r.summary.version,accountBindings:[binding]},f.scope)
       return csvApplicationService.apply(u.id,{previewId:preview.id,expectedVersion:preview.expectedVersion,summaryHash:preview.summaryHash,idempotencyKey:randomUUID()},f.scope)

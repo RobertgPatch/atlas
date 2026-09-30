@@ -30,6 +30,7 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
       identityConfidence: 'high',
       details: [
         {
+          accountId: '11111111-1111-4111-8111-111111111111',
           id: '33333333-3333-4333-8333-333333333333',
           symbol: 'GOOGL',
           securityIdentifier: 'CUSIP 02079K305',
@@ -50,6 +51,7 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
           marketValue: 3_500,
         },
         {
+          accountId: '22222222-2222-4222-8222-222222222222',
           id: '44444444-4444-4444-8444-444444444444',
           symbol: 'GOOGL',
           securityIdentifier: 'CUSIP 02079K305',
@@ -80,7 +82,6 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
   selectedAccounts: [
     {
       id: '11111111-1111-4111-8111-111111111111',
-      connectionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       custodianName: 'Brokerage A',
       name: 'Taxable',
       officialName: 'Taxable Brokerage',
@@ -93,7 +94,6 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
-      connectionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       custodianName: 'Brokerage B',
       name: 'IRA',
       officialName: 'IRA Brokerage',
@@ -121,21 +121,14 @@ export const consolidatedHoldingsFixture: ConsolidatedHoldingsResponse = {
     dataAsOfDate: '2026-05-11',
     dataFetchedAt: '2026-05-11T08:00:00.000Z',
     lastSuccessfulSyncAt: '2026-05-11T08:00:00.000Z',
-    nextRefreshAt: '2026-05-12T12:00:00.000Z',
+    nextRefreshAt: null,
     activeRefreshId: null,
     refreshing: false,
     warnings: [],
     refreshPolicy: {
-      id: '00000000-0000-4000-8000-000000000014',
-      name: 'liquidity_default',
-      cadence: 'daily',
-      refreshTimeLocal: '05:00',
-      timezone: 'America/Los_Angeles',
-      staleAfterCutoff: true,
-      manualRefreshEnabled: true,
-      automaticRefreshEnabled: true,
-      createdAt: '2026-05-11T08:00:00.000Z',
-      updatedAt: '2026-05-11T08:00:00.000Z',
+      cadence: 'on_demand',
+      manualRefreshEnabled: false,
+      automaticRefreshEnabled: false,
     },
   },
 }

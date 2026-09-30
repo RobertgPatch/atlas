@@ -67,7 +67,7 @@ describe('sensitive and expensive route security', () => {
     expect.soft(exportReport).not.toHaveBeenCalled()
   })
 
-  it('rejects wrong-role Admin and forced-provider requests before business work', async () => {
+  it('rejects wrong-role Admin requests and exposes no manual holdings-refresh endpoint', async () => {
     const listControls = await fixture.app.inject({
       method: 'GET',
       url: '/v1/admin/protection-controls',
@@ -84,8 +84,7 @@ describe('sensitive and expensive route security', () => {
       payload: { force: true, reason: 'forced' },
     })
 
-    expect.soft(forceRefresh.statusCode).toBe(403)
-    expect.soft(forceRefresh.json()).toMatchObject({ error: 'FORBIDDEN_ROLE' })
+    expect.soft(forceRefresh.statusCode).toBe(404)
     expect.soft(admitSpy).not.toHaveBeenCalled()
   })
 

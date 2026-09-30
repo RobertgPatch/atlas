@@ -3,13 +3,23 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { consolidatedHoldingsFixture } from '../fixtures/consolidatedHoldingsFixture'
 import {
+  filterHoldingsByAccounts,
   getAssetAllocation,
   getCustodianBreakdown,
 } from '../utils/consolidatedHoldingsAnalytics'
 import { ConsolidatedHoldingsTable } from './ConsolidatedHoldingsTable'
 import { ConsolidatedHoldingsSyncStatus } from './ConsolidatedHoldingsSyncStatus'
+import { CustodianBreakdown } from './CustodianBreakdown'
 
 describe('ConsolidatedHoldingsReport table behavior', () => {
+  it('recalculates an aggregated position from the selected source accounts',()=>{
+    const rows=filterHoldingsByAccounts(consolidatedHoldingsFixture.rows,['11111111-1111-4111-8111-111111111111'])
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({quantity:20,costBasis:2000,unrealizedGainLoss:1500,marketValue:3500,averageCostBasis:100})
+    expect(rows[0]?.details).toHaveLength(1)
+    expect(rows[0]?.details[0]?.accountName).toBe('Taxable')
+  })
+
   it('renders parent rows and expands custodian detail rows', async () => {
     const user = userEvent.setup()
 
@@ -75,6 +85,34 @@ describe('ConsolidatedHoldingsReport table behavior', () => {
     expect(screen.getByText('Avg $114.29')).toBeInTheDocument()
     expect(screen.getAllByText('$12,250.34')).toHaveLength(2)
     expect(screen.getByText(/\$175\.01/)).toBeInTheDocument()
+  })
+
+  it('derives a missing equity average basis from total basis and quantity',async()=>{
+    const user=userEvent.setup(),[baseRow]=consolidatedHoldingsFixture.rows
+    render(<ConsolidatedHoldingsTable rows={[{...baseRow,symbol:'SPCX',description:'SPACE EXPL TECHNOLOGIES',quantity:22223,costBasis:3000105,averageCostBasis:null,details:[]}]} selectedAccountCount={1} search="" sort="marketValue" direction="desc" onSearchChange={vi.fn()} onSortChange={vi.fn()}/>)
+    await user.click(screen.getByText('Equities'))
+    expect(screen.getByText('Avg $135.00')).toBeInTheDocument()
+  })
+
+  it('labels balance cash separately from stable-NAV money-market units',async()=>{
+    const user=userEvent.setup(),[baseRow]=consolidatedHoldingsFixture.rows
+    const bankDeposit={
+      ...baseRow,id:'MSPBNA',symbol:'MSPBNA',description:'BANK DEPOSIT PROGRAM | MORGAN STANLEY PRIVATE BANK NA',type:'Cash',cashDisplayMode:'BALANCE_AT_PAR' as const,
+      quantity:null,institutionPrice:null,priceAsOfDate:'2026-09-22',costBasis:160835.8,averageCostBasis:null,unrealizedGainLoss:0,gainLossPercent:0,marketValue:160835.8,details:[],
+    }
+    const moneyFund={
+      ...baseRow,id:'TFDXX',symbol:'TFDXX',description:'BLF FEDFUND',type:'Cash',cashDisplayMode:'STABLE_NAV_UNITS' as const,
+      quantity:35802268,institutionPrice:1,priceAsOfDate:'2026-09-18',costBasis:35802268,averageCostBasis:1,unrealizedGainLoss:0,gainLossPercent:0,marketValue:35802268,details:[],
+    }
+    render(<ConsolidatedHoldingsTable rows={[bankDeposit,moneyFund]} selectedAccountCount={2} search="" sort="marketValue" direction="desc" onSearchChange={vi.fn()} onSortChange={vi.fn()}/>)
+    await user.click(screen.getByText('Cash & Equivalents'))
+    expect(screen.getAllByText('At par')).toHaveLength(2)
+    expect(screen.getByText('Avg $1.00')).toBeInTheDocument()
+    expect(screen.getByTitle('Balance-based holding; no quantity is reported.')).toHaveTextContent('—')
+    expect(screen.getByText('Balance Sep 22')).toBeInTheDocument()
+    expect(screen.queryByText('Avg N/A')).not.toBeInTheDocument()
+    expect(screen.queryByText('N/A Sep 22')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Accounts').length).toBeGreaterThan(0)
   })
 
   it('expands the only asset class for active sector filters and still allows collapse', async () => {
@@ -240,7 +278,6 @@ describe('Consolidated holdings analytics', () => {
           ...consolidatedHoldingsFixture.selectedAccounts,
           {
             id: '55555555-5555-4555-8555-555555555555',
-            connectionId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
             custodianName: 'Brokerage C',
             name: 'Trust Account',
             officialName: 'Trust Account',
@@ -265,6 +302,31 @@ describe('Consolidated holdings analytics', () => {
       percentage: 0,
     })
   })
+
+  it('collapses custodian casing variants into the readable display name',()=>{
+    const original=consolidatedHoldingsFixture.selectedAccounts[0]!
+    const custodians=getCustodianBreakdown({...consolidatedHoldingsFixture,selectedAccounts:[...consolidatedHoldingsFixture.selectedAccounts,{...original,id:'66666666-6666-4666-8666-666666666666',custodianName:'brokerage a',name:'Legacy empty account',mask:'6666'}]},consolidatedHoldingsFixture.kpis.totalMarketValue??0)
+    expect(custodians.filter(custodian=>custodian.institution.toLocaleLowerCase()==='brokerage a')).toEqual([expect.objectContaining({institution:'Brokerage A',accountCount:2,totalValue:3_500})])
+  })
+})
+
+describe('CustodianBreakdown account filter',()=>{
+  it('supports whole-institution, individual-account, and reset actions',async()=>{
+    const user=userEvent.setup()
+    const custodians=getCustodianBreakdown(consolidatedHoldingsFixture,consolidatedHoldingsFixture.kpis.totalMarketValue??0)
+    const onToggleInstitution=vi.fn(),onToggleAccount=vi.fn(),onShowAll=vi.fn()
+    const {rerender}=render(<CustodianBreakdown custodians={custodians} selectedAccountIds={consolidatedHoldingsFixture.selectedAccounts.map(account=>account.id)} onToggleInstitution={onToggleInstitution} onToggleAccount={onToggleAccount} onShowAll={onShowAll}/>)
+
+    await user.click(screen.getByRole('checkbox',{name:'Hide all Brokerage A accounts'}))
+    expect(onToggleInstitution).toHaveBeenCalledWith(['11111111-1111-4111-8111-111111111111'])
+    await user.click(screen.getByRole('checkbox',{name:'Hide Brokerage A Taxable ending 1111'}))
+    expect(onToggleAccount).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111')
+
+    rerender(<CustodianBreakdown custodians={custodians} selectedAccountIds={['11111111-1111-4111-8111-111111111111']} onToggleInstitution={onToggleInstitution} onToggleAccount={onToggleAccount} onShowAll={onShowAll}/>)
+    expect(screen.getByText('Viewing 1 of 2 accounts')).toBeInTheDocument()
+    await user.click(screen.getByRole('button',{name:'Show all'}))
+    expect(onShowAll).toHaveBeenCalledOnce()
+  })
 })
 
 describe('ConsolidatedHoldingsSyncStatus', () => {
@@ -278,21 +340,14 @@ describe('ConsolidatedHoldingsSyncStatus', () => {
           dataAsOfDate: '2026-05-11',
           dataFetchedAt: '2026-05-11T12:00:00.000Z',
           lastSuccessfulSyncAt: '2026-05-11T12:00:00.000Z',
-          nextRefreshAt: '2026-05-12T12:00:00.000Z',
+          nextRefreshAt: null,
           activeRefreshId: null,
           refreshing: false,
           warnings: [],
           refreshPolicy: {
-            id: '00000000-0000-4000-8000-000000000014',
-            name: 'liquidity_default',
-            cadence: 'daily',
-            refreshTimeLocal: '05:00',
-            timezone: 'America/Los_Angeles',
-            staleAfterCutoff: true,
-            manualRefreshEnabled: true,
-            automaticRefreshEnabled: true,
-            createdAt: '2026-05-11T12:00:00.000Z',
-            updatedAt: '2026-05-11T12:00:00.000Z',
+            cadence: 'on_demand',
+            manualRefreshEnabled: false,
+            automaticRefreshEnabled: false,
           },
         }}
       />,
@@ -301,7 +356,7 @@ describe('ConsolidatedHoldingsSyncStatus', () => {
     expect(screen.getByText('Fresh')).toBeInTheDocument()
     expect(screen.getByText(/Holdings as of May 11, 2026/i)).toBeInTheDocument()
     expect(screen.getByText(/Live SIP prices via Alpaca/i)).toBeInTheDocument()
-    expect(screen.getByText(/Next refresh/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Next refresh/i)).not.toBeInTheDocument()
   })
 
   it('names both pricing sources when OTC fallback prices are used', () => {
@@ -331,21 +386,14 @@ describe('ConsolidatedHoldingsSyncStatus', () => {
           dataAsOfDate: '2026-05-11',
           dataFetchedAt: '2026-05-11T08:00:00.000Z',
           lastSuccessfulSyncAt: '2026-05-11T08:00:00.000Z',
-          nextRefreshAt: '2026-05-12T12:00:00.000Z',
+          nextRefreshAt: null,
           activeRefreshId: null,
           refreshing: false,
           warnings: ['Brokerage B IRA failed to sync.'],
           refreshPolicy: {
-            id: '00000000-0000-4000-8000-000000000014',
-            name: 'liquidity_default',
-            cadence: 'daily',
-            refreshTimeLocal: '05:00',
-            timezone: 'America/Los_Angeles',
-            staleAfterCutoff: true,
-            manualRefreshEnabled: true,
-            automaticRefreshEnabled: true,
-            createdAt: '2026-05-11T08:00:00.000Z',
-            updatedAt: '2026-05-11T08:00:00.000Z',
+            cadence: 'on_demand',
+            manualRefreshEnabled: false,
+            automaticRefreshEnabled: false,
           },
         }}
       />,

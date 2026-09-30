@@ -1,0 +1,10 @@
+"Positions for account Synthetic Living Trust ...7412 as of 09/21/2026 04:00 PM ET"
+
+Symbol,Description,Qty (Quantity),Price,Mkt Val (Market Value),Cost Basis,Gain $ (Gain/Loss $),Gain % (Gain/Loss %),Day Chng $ (Day Change $),Day Chng % (Day Change %),Asset Type
+DEMO,"Synthetic, first equity lot",10,$80.00,$800.00,"$1,000.00",($200.00),-20.00%,($12.50),-1.54%,Equity
+DEMO,Synthetic second equity lot,5,$80.00,$400.00,$350.00,$50.00,14.29%,$6.25,1.59%,Equity
+INC,Synthetic incomplete basis equity,2,$50.00,$100.00,Incomplete,$20.00,25.00%,N/A,N/A,Equity
+ZERO,Synthetic explicit zero basis equity,1,$25.00,$25.00,$0.00,$25.00,N/A,$0.00,0.00%,Equity
+SWEEP,Synthetic money market,75,$1.00,$75.00,N/A,N/A,N/A,N/A,N/A,Cash and Money Market
+Cash & Cash Investments,,,,$125.00,N/A,N/A,N/A,N/A,N/A,Cash and Money Market
+Positions Total,,,,"$1,525.00",Incomplete,Incomplete,,,,

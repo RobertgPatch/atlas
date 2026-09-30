@@ -1,0 +1,8 @@
+{
+  "benchmark": "liquidity_csv_persist",
+  "rows": 2000,
+  "uploadCapabilityMs": 16,
+  "elapsedMs": 2645,
+  "concurrentReadMs": 11,
+  "rssBytes": 398516224
+}

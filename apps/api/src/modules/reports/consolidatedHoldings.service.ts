@@ -38,11 +38,13 @@ interface CustodianHoldingDetailRow {
   exact?: SourceHoldingRecord['exact']
   currencyCode?: string | null
   sourceAsOfDate?: string | null
+  accountId: string
   id: string
   symbol: string | null
   securityIdentifier: string | null
   description: string
   type: string
+  cashDisplayMode: CashDisplayMode | null
   sector: string | null
   industry: string | null
   custodian: string
@@ -68,6 +70,7 @@ interface ConsolidatedHoldingRow {
   securityIdentifier: string | null
   description: string
   type: string
+  cashDisplayMode: CashDisplayMode | null
   sector: string | null
   industry: string | null
   custodianSummary: string
@@ -115,8 +118,63 @@ interface ConsolidatedHoldingsContext {
   scope: ReportsScope
 }
 
+type CashDisplayMode =
+  | 'BALANCE_AT_PAR'
+  | 'STABLE_NAV_UNITS'
+  | 'FLOATING_NAV_UNITS'
+  | 'CASH_CREDIT_OR_DEBIT'
+  | 'MIXED'
+
 const normalizeText = (value: string | null | undefined): string =>
   value?.trim().toUpperCase() ?? ''
+
+const cashDisplayModeFor = (holding: SourceHoldingRecord): CashDisplayMode | null => {
+  if (holding.type.trim().toLocaleLowerCase('en-US') !== 'cash') return null
+
+  const label = normalizeText(`${holding.symbol ?? ''} ${holding.description}`)
+  if (label.includes('SHORT CREDIT') || label.includes('SHORT PROCEEDS')) {
+    return 'CASH_CREDIT_OR_DEBIT'
+  }
+
+  const balanceLabel =
+    label.includes('BANK DEPOSIT') ||
+    label.includes('CASH & CASH INVESTMENTS') ||
+    label === 'CASH' ||
+    label.endsWith(' CASH')
+  if (balanceLabel) return 'BALANCE_AT_PAR'
+
+  if (holding.quantity != null && holding.institutionPrice != null) {
+    return Math.abs(holding.institutionPrice - 1) < 0.00000001
+      ? 'STABLE_NAV_UNITS'
+      : 'FLOATING_NAV_UNITS'
+  }
+
+  return 'BALANCE_AT_PAR'
+}
+
+const applyCashReportingConvention = (holding: SourceHoldingRecord): SourceHoldingRecord => {
+  const cashDisplayMode = cashDisplayModeFor(holding)
+  const carriedAtPar = cashDisplayMode === 'BALANCE_AT_PAR' ||
+    cashDisplayMode === 'CASH_CREDIT_OR_DEBIT' ||
+    cashDisplayMode === 'STABLE_NAV_UNITS'
+  if (!carriedAtPar || holding.marketValue == null || holding.costBasis != null || holding.unrealizedGainLoss != null) {
+    return holding
+  }
+
+  const exactMarketValue = holding.exact?.marketValue ?? String(holding.marketValue)
+  return {
+    ...holding,
+    costBasis: holding.marketValue,
+    unrealizedGainLoss: 0,
+    exact: {
+      quantity: holding.exact?.quantity ?? (holding.quantity == null ? null : String(holding.quantity)),
+      institutionPrice: holding.exact?.institutionPrice ?? (holding.institutionPrice == null ? null : String(holding.institutionPrice)),
+      marketValue: exactMarketValue,
+      costBasis: exactMarketValue,
+      unrealizedGainLoss: '0',
+    },
+  }
+}
 
 const isGenericUnknownDescription = (value: string | null | undefined): boolean => {
   const normalized = normalizeText(value)
@@ -275,7 +333,7 @@ export const buildConsolidatedHoldingsResponse = async (
     isAdmin: context.scope.isAdmin,
   }
   const sources = holdingsVisible ? await readLiquiditySources({userId:context.actorUserId,...context.scope}) : {accounts:[],holdings:[],neutralAccounts:[]}
-  const accounts = sources.accounts.filter(a=>(!query.accountId||a.id===query.accountId)&&(!query.custodian||a.custodianName===query.custodian))
+  const accounts = sources.accounts.filter(a=>(!query.entityId||a.entityId===query.entityId)&&(!query.accountId||a.id===query.accountId)&&(!query.custodian||a.custodianName===query.custodian))
   const accountById = new Map(accounts.map((account) => [account.id, account]))
   const selectedAccountIds = accounts.map((account) => account.id)
   const filteredHoldings = sources.holdings
@@ -294,7 +352,7 @@ export const buildConsolidatedHoldingsResponse = async (
       }
       return true
     })
-  const { holdings: filteredSource, pricing } =
+  const { holdings: pricedHoldings, pricing } =
     await marketDataService.priceHoldingsForRead(filteredHoldings, {
       refreshStale:
         config.nodeEnv !== 'production' && query.pricingMode !== 'saved',
@@ -307,35 +365,47 @@ export const buildConsolidatedHoldingsResponse = async (
         !query.gainLossState,
       selectedAccountIds,
     })
+  const filteredSource = pricedHoldings.map(applyCashReportingConvention)
 
-  const groups = new Map<
-    string,
-    { confidence: 'high' | 'medium' | 'low'; holdings: SourceHoldingRecord[] }
-  >()
+  const groups: Array<{ key:string;baseKey:string;confidence:'high'|'medium'|'low';holdings:SourceHoldingRecord[] }> = []
+  const isEquityType=(type:string)=>['stock','equity','equities'].includes(type.trim().toLocaleLowerCase('en-US'))
+  const isSymbolEquity=(holding:SourceHoldingRecord)=>Boolean(normalizeText(holding.symbol))&&['stock','equity','equities'].includes(holding.type.trim().toLocaleLowerCase('en-US'))
+  const compatibleIdentity=(left:SourceHoldingRecord,right:SourceHoldingRecord)=>{
+    const lCusip=normalizeText(left.cusip),rCusip=normalizeText(right.cusip),lIsin=normalizeText(left.isin),rIsin=normalizeText(right.isin)
+    return (!lCusip||!rCusip||lCusip===rCusip)&&(!lIsin||!rIsin||lIsin===rIsin)
+  }
 
   for (const holding of filteredSource) {
     const identity = holdingIdentityKeyFor(holding)
-    identity.key += `:${holding.currencyCode ?? 'UNKNOWN'}`
-    const group = groups.get(identity.key)
+    // A listed equity ticker is the user-facing security identity. Custodians
+    // frequently disagree on descriptions, CUSIPs, or optional quote metadata;
+    // those differences belong on the source subrows, not duplicate parents.
+    const symbolEquity=isSymbolEquity(holding)
+    const baseKey=symbolEquity?identity.key:[identity.key,holding.currencyCode??'UNKNOWN',holding.priceUnit??'UNKNOWN',holding.quantityUnit??'UNKNOWN',holding.quoteMultiplier??'UNKNOWN',holding.accruedInterestConvention??'UNKNOWN'].join(':')
+    const group = groups.find(candidate=>candidate.baseKey===baseKey&&candidate.holdings.every(existing=>symbolEquity?isSymbolEquity(existing):compatibleIdentity(existing,holding)))
     if (group) {
       group.holdings.push(holding)
       if (group.confidence !== 'low') group.confidence = identity.confidence
     } else {
-      groups.set(identity.key, { confidence: identity.confidence, holdings: [holding] })
+      groups.push({key:`${baseKey}:${groups.filter(candidate=>candidate.baseKey===baseKey).length}`,baseKey,confidence:identity.confidence,holdings:[holding]})
     }
   }
 
-  const rows: ConsolidatedHoldingRow[] = [...groups.entries()].map(([key, group]) => {
+  const rows: ConsolidatedHoldingRow[] = groups.map(({key,...group}) => {
     const first = group.holdings[0]!
     const firstAccount = accountById.get(first.accountId)
     const exact={quantity:exactTotal(group.holdings,'quantity',true),costBasis:exactTotal(group.holdings,'costBasis',true),marketValue:exactTotal(group.holdings,'marketValue',true),unrealizedGainLoss:exactTotal(group.holdings,'unrealizedGainLoss',true),institutionPrice:null as string|null}
     const quantity=exact.quantity==null?null:Number(exact.quantity),costBasis=exact.costBasis==null?null:Number(exact.costBasis),marketValue=exact.marketValue==null?null:Number(exact.marketValue),unrealizedGainLoss=exact.unrealizedGainLoss==null?null:Number(exact.unrealizedGainLoss)
-    const simpleUnits=group.holdings.every(h=>h.sourceKind!=='CSV'||['stock','equity','fund','cash','etf','mutual fund'].includes(h.type.toLowerCase()))
-    exact.institutionPrice=simpleUnits&&exact.marketValue!=null&&exact.quantity!=null&&decimal(exact.quantity)!==0n?format(divide(decimal(exact.marketValue)!,decimal(exact.quantity)!)):group.holdings.length===1?first.exact?.institutionPrice??null:null
+    const cashDisplayModes = new Set(group.holdings.map(cashDisplayModeFor).filter((mode): mode is CashDisplayMode => mode != null))
+    const cashDisplayMode: CashDisplayMode | null = cashDisplayModes.size === 0 ? null : cashDisplayModes.size === 1 ? [...cashDisplayModes][0]! : 'MIXED'
+    const unitizedCash = cashDisplayMode === 'STABLE_NAV_UNITS' || cashDisplayMode === 'FLOATING_NAV_UNITS'
+    const simpleUnits=group.holdings.every(h=>h.priceUnit==='PER_UNIT'&&h.quantityUnit==='SHARES'&&h.quoteMultiplier==='1'&&h.accruedInterestConvention==='EXCLUDED'&&['stock','equity','fund','etf','mutual fund'].includes(h.type.toLowerCase()))
+    const equityAverageBasis=group.holdings.every(holding=>isEquityType(holding.type))
+    exact.institutionPrice=(simpleUnits||unitizedCash)&&exact.marketValue!=null&&exact.quantity!=null&&decimal(exact.quantity)!==0n?format(divide(decimal(exact.marketValue)!,decimal(exact.quantity)!)):group.holdings.length===1?first.exact?.institutionPrice??null:null
     const institutionPrice=exact.institutionPrice==null?first.institutionPrice:Number(exact.institutionPrice)
     const priceAsOfDate = latestDate(group.holdings.map((holding) => holding.asOfDate))
     const averageCostBasis =
-      simpleUnits && quantity != null && quantity !== 0 && costBasis != null ? Number(format(divide(decimal(exact.costBasis!)!,decimal(exact.quantity!)!))) : null
+      (equityAverageBasis||simpleUnits||unitizedCash) && quantity != null && quantity !== 0 && costBasis != null ? Number(format(divide(decimal(exact.costBasis!)!,decimal(exact.quantity!)!))) : null
     const gainLossPercent =
       costBasis != null && costBasis !== 0 && unrealizedGainLoss != null
         ? (unrealizedGainLoss / costBasis) * 100
@@ -343,8 +413,9 @@ export const buildConsolidatedHoldingsResponse = async (
 
     const details: CustodianHoldingDetailRow[] = group.holdings.map((holding) => {
       const account = accountById.get(holding.accountId)
+      const detailCashDisplayMode = cashDisplayModeFor(holding)
       const detailAverage =
-        simpleUnits && holding.quantity != null && holding.quantity !== 0 && holding.costBasis != null
+        (isEquityType(holding.type)||detailCashDisplayMode==='STABLE_NAV_UNITS'||detailCashDisplayMode==='FLOATING_NAV_UNITS'||simpleUnits&&holding.priceUnit==='PER_UNIT'&&holding.quantityUnit==='SHARES'&&holding.quoteMultiplier==='1'&&holding.accruedInterestConvention==='EXCLUDED')&&holding.quantity != null && holding.quantity !== 0 && holding.costBasis != null
           ? holding.costBasis / holding.quantity
           : null
       const detailGainLossPercent =
@@ -355,6 +426,7 @@ export const buildConsolidatedHoldingsResponse = async (
           : null
 
       return {
+        accountId: holding.accountId,
         id: holding.id,
         exact:holding.exact,
         currencyCode:holding.currencyCode,
@@ -363,6 +435,7 @@ export const buildConsolidatedHoldingsResponse = async (
         securityIdentifier: securityIdentifierFor(holding),
         description: displayDescriptionFor(holding, account),
         type: holding.type,
+        cashDisplayMode: detailCashDisplayMode,
         sector: holding.sector,
         industry: holding.industry,
         custodian: account?.custodianName ?? 'Unknown',
@@ -391,6 +464,7 @@ export const buildConsolidatedHoldingsResponse = async (
       securityIdentifier: securityIdentifierFor(first),
       description: displayDescriptionFor(first, firstAccount),
       type: first.type,
+      cashDisplayMode,
       sector: firstKnownText(group.holdings.map((holding) => holding.sector)),
       industry: firstKnownText(group.holdings.map((holding) => holding.industry)),
       custodianSummary:

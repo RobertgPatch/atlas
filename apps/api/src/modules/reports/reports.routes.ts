@@ -11,7 +11,6 @@ import {
   getLiquidityPerformanceHandler,
   getPortfolioSummaryHandler,
   getReportsExportHandler,
-  refreshConsolidatedHoldingsHandler,
   undoActivityDetailHandler,
   updateActivityDetailHandler,
 } from './reports.handler.js'
@@ -53,11 +52,6 @@ export const registerReportsRoutes = async (app: FastifyInstance): Promise<void>
     '/reports/consolidated-holdings/export',
     gated('GET', '/reports/consolidated-holdings/export'),
     getConsolidatedHoldingsExportHandler,
-  )
-  app.post(
-    '/reports/consolidated-holdings/refresh',
-    gated('POST', '/reports/consolidated-holdings/refresh'),
-    refreshConsolidatedHoldingsHandler,
   )
   app.patch(
     '/reports/activity-detail/:rowId',

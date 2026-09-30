@@ -8,6 +8,7 @@
     { "route": "/dashboard", "decision": "dashboard-read" },
     { "route": "/investment-tracker", "decision": "investment-aggregation-read" },
     { "route": "/liquidity", "decision": "liquidity-holdings-read" },
+    { "route": "/liquidity/statements", "decision": "current-surface-contract" },
     { "route": "/entities", "decision": "entities-list-read" },
     { "route": "/entities/:id", "decision": "entity-detail-read" },
     { "route": "/estate-maps", "decision": "current-surface-contract" },

@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import type { ConsolidatedHoldingsQuery } from '../../../../../../packages/types/src/reports'
 import { reportsClient } from '../api/reportsClient'
 
@@ -29,7 +29,8 @@ const DEFAULT_FILTERS: ConsolidatedHoldingsFilters = {
   pageSize: 1000,
 }
 
-const toQuery = (filters: ConsolidatedHoldingsFilters): ConsolidatedHoldingsQuery => ({
+const toQuery = (filters: ConsolidatedHoldingsFilters,entityId?:string): ConsolidatedHoldingsQuery => ({
+  entityId,
   search: filters.search || undefined,
   custodian: filters.custodian || undefined,
   accountId: filters.accountId || undefined,
@@ -46,71 +47,22 @@ export const consolidatedHoldingsKeys = {
     ['reports', 'consolidated-holdings', query] as const,
 }
 
-export const useConsolidatedHoldings = () => {
-  const queryClient = useQueryClient()
-  const startedMarketRefresh = useRef(false)
-  const [isMarketRefreshing, setIsMarketRefreshing] = useState(false)
+export const useConsolidatedHoldings = (entityId?:string) => {
   const [filters, setFilters] = useState<ConsolidatedHoldingsFilters>(DEFAULT_FILTERS)
-  const queryInput = useMemo(() => toQuery(filters), [filters])
+  const queryInput = useMemo(() => toQuery(filters,entityId), [entityId,filters])
   const queryKey = useMemo(
     () => consolidatedHoldingsKeys.report(queryInput),
     [queryInput],
   )
-  const currentKey = useRef(queryKey)
-  currentKey.current = queryKey
-
   const query = useQuery({
     queryKey,
+    enabled:!!entityId,
     queryFn: ({ signal }) =>
       reportsClient.getConsolidatedHoldings(queryInput, { pricingMode: 'saved', signal }),
-    placeholderData: (previous) => previous,
     staleTime: 30_000,
     gcTime: 30 * 60 * 1000,
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
-  })
-
-  const refreshMarketValues = useCallback(async () => {
-    const requestKey = currentKey.current
-    const before = queryClient.getQueryData(requestKey)
-    setIsMarketRefreshing(true)
-    try {
-      await reportsClient.refreshConsolidatedHoldings()
-      const refreshed = await reportsClient.getConsolidatedHoldings(queryInput, {
-        pricingMode: 'saved',
-      })
-      // Do not let a request started before a server-mode change overwrite the
-      // newer CSV-only response already in the query cache.
-      const current = queryClient.getQueryData<typeof refreshed>(currentKey.current)
-      if (currentKey.current !== requestKey || current !== before) return current
-      if (current?.pricingCapability?.realTimeEquitiesEnabled === false && refreshed.pricingCapability?.realTimeEquitiesEnabled === true) return current
-      queryClient.setQueryData(requestKey, refreshed)
-      await queryClient.invalidateQueries({
-        queryKey: ['reports', 'liquidity-performance'],
-      })
-      return refreshed
-    } finally {
-      setIsMarketRefreshing(false)
-    }
-  }, [queryClient, queryInput, queryKey])
-
-  useEffect(() => {
-    if (!query.data?.pricingCapability?.realTimeEquitiesEnabled || startedMarketRefresh.current) return
-    startedMarketRefresh.current = true
-    void refreshMarketValues().catch(() => {
-      // Keep the saved values visible when the market-data provider is unavailable.
-    })
-  }, [query.data, refreshMarketValues])
-
-  const refresh = useMutation({
-    mutationFn: async (_input?: { force?: boolean }) => {
-      if (query.data?.pricingCapability?.realTimeEquitiesEnabled) return refreshMarketValues()
-      return query.refetch()
-    },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'consolidated-holdings'] })
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'liquidity-performance'] })
-    },
   })
 
   const updateFilter = <K extends keyof ConsolidatedHoldingsFilters>(
@@ -127,9 +79,6 @@ export const useConsolidatedHoldings = () => {
     filters,
     queryInput,
     query,
-    refresh,
-    refreshMarketValues,
-    isMarketRefreshing,
     updateFilter,
     clearFilters,
     setPage,

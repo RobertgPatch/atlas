@@ -1,5 +1,6 @@
 import { decimal, format, percent } from './decimal.js'
 import { positionFields, type CsvField, type CsvPosition, type CsvRecord, type CsvAccount } from '../liquidity-statement.types.js'
+export const FIELD_RULESET_VERSION='2.0.0'
 export const unavailable=(reason='NOT_PROVIDED'):CsvField=>({value:null,raw:[],origin:'UNAVAILABLE',availability:'UNAVAILABLE',evidence:[],derivation:null,reason})
 export function field(raw:string,record:CsvRecord,column:number,header:string,numeric=false,ratio=false):CsvField {
   const base:CsvField={value:null,raw:[raw],origin:'IMPORTED',availability:'COMPLETE',evidence:[{record:record.ordinal,lineStart:record.lineStart,lineEnd:record.lineEnd,column,header}],derivation:null,reason:null}

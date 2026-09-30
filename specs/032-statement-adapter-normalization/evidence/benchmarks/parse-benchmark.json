@@ -1,0 +1,8 @@
+{
+  "benchmark": "liquidity_csv_synthetic",
+  "normalP95Ms": 187,
+  "maximumRowsMs": 2022,
+  "maximumRowsBytes": 1339114,
+  "rssGrowthBytes": 102252544,
+  "rssBytes": 259858432
+}
