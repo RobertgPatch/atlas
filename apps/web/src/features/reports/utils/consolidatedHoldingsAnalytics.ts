@@ -2,6 +2,16 @@ import type {
   ConsolidatedHoldingRow,
   ConsolidatedHoldingsResponse,
 } from '../../../../../../packages/types/src/reports'
+import {
+  additionalSectorBySymbol,
+  normalizeSectorSymbol,
+  sp500SectorBySymbol,
+  type EquitySector,
+  type SectorFilterOption,
+} from './equitySectorCatalog'
+
+export { EQUITY_SECTORS, SECTOR_FILTER_OPTIONS } from './equitySectorCatalog'
+export type { EquitySector, SectorFilterOption } from './equitySectorCatalog'
 
 export type CostBasisStatus = 'complete' | 'partial' | 'missing'
 
@@ -66,146 +76,10 @@ export const allocationColors: Record<string, string> = {
   Unclassified: '#94a3b8',
 }
 
-export const EQUITY_SECTORS = [
-  'Communication Services',
-  'Consumer Discretionary',
-  'Consumer Staples',
-  'Energy',
-  'Financials',
-  'Health Care',
-  'Industrials',
-  'Materials',
-  'Real Estate',
-  'Utilities',
-  'Technology',
-] as const
-
-export type EquitySector = (typeof EQUITY_SECTORS)[number]
-
-/**
- * Known symbol assignments cover the supplied examples and take precedence
- * over the broader provider taxonomy stored on a holding.
- */
+/** Dated sector references take precedence over broader provider labels. */
 export const knownSectorBySymbol: Readonly<Record<string, EquitySector>> = {
-  GOOGL: 'Communication Services',
-  META: 'Communication Services',
-  NFLX: 'Communication Services',
-  TMUS: 'Communication Services',
-  VZ: 'Communication Services',
-  T: 'Communication Services',
-  DIS: 'Communication Services',
-  CMCSA: 'Communication Services',
-  SPOT: 'Communication Services',
-  WBD: 'Communication Services',
-
-  AMZN: 'Consumer Discretionary',
-  TSLA: 'Consumer Discretionary',
-  HD: 'Consumer Discretionary',
-  MCD: 'Consumer Discretionary',
-  TJX: 'Consumer Discretionary',
-  LOW: 'Consumer Discretionary',
-  BKNG: 'Consumer Discretionary',
-  SBUX: 'Consumer Discretionary',
-  MAR: 'Consumer Discretionary',
-  NKE: 'Consumer Discretionary',
-
-  WMT: 'Consumer Staples',
-  COST: 'Consumer Staples',
-  PG: 'Consumer Staples',
-  KO: 'Consumer Staples',
-  PM: 'Consumer Staples',
-  PEP: 'Consumer Staples',
-  MO: 'Consumer Staples',
-  MDLZ: 'Consumer Staples',
-  MNST: 'Consumer Staples',
-  CL: 'Consumer Staples',
-
-  XOM: 'Energy',
-  CVX: 'Energy',
-  COP: 'Energy',
-  WMB: 'Energy',
-  SLB: 'Energy',
-  KMI: 'Energy',
-  EOG: 'Energy',
-  PSX: 'Energy',
-  VLO: 'Energy',
-  BKR: 'Energy',
-
-  'BRK.B': 'Financials',
-  JPM: 'Financials',
-  BAC: 'Financials',
-  GS: 'Financials',
-  MS: 'Financials',
-  WFC: 'Financials',
-  AXP: 'Financials',
-  C: 'Financials',
-  BLK: 'Financials',
-  COF: 'Financials',
-
-  LLY: 'Health Care',
-  JNJ: 'Health Care',
-  ABBV: 'Health Care',
-  MRK: 'Health Care',
-  UNH: 'Health Care',
-  ABT: 'Health Care',
-  GILD: 'Health Care',
-  TMO: 'Health Care',
-  ISRG: 'Health Care',
-
-  CAT: 'Industrials',
-  GE: 'Industrials',
-  RTX: 'Industrials',
-  GEV: 'Industrials',
-  BA: 'Industrials',
-  DE: 'Industrials',
-  UNP: 'Industrials',
-  HON: 'Industrials',
-  ETN: 'Industrials',
-  LMT: 'Industrials',
-
-  LIN: 'Materials',
-  SCCO: 'Materials',
-  NEM: 'Materials',
-  SHW: 'Materials',
-  FCX: 'Materials',
-  ECL: 'Materials',
-  CRH: 'Materials',
-  APD: 'Materials',
-  AU: 'Materials',
-  CTVA: 'Materials',
-
-  WELL: 'Real Estate',
-  PLD: 'Real Estate',
-  EQIX: 'Real Estate',
-  AMT: 'Real Estate',
-  SPG: 'Real Estate',
-  DLR: 'Real Estate',
-  O: 'Real Estate',
-  PSA: 'Real Estate',
-  CBRE: 'Real Estate',
-  VTR: 'Real Estate',
-
-  NEE: 'Utilities',
-  SO: 'Utilities',
-  DUK: 'Utilities',
-  CEG: 'Utilities',
-  AEP: 'Utilities',
-  SRE: 'Utilities',
-  VST: 'Utilities',
-  D: 'Utilities',
-  EXC: 'Utilities',
-  XEL: 'Utilities',
-
-  NVDA: 'Technology',
-  AAPL: 'Technology',
-  MSFT: 'Technology',
-  AVGO: 'Technology',
-  V: 'Financials',
-  MU: 'Technology',
-  MA: 'Financials',
-  ORCL: 'Technology',
-  AMD: 'Technology',
-  PLTR: 'Technology',
+  ...additionalSectorBySymbol,
+  ...sp500SectorBySymbol,
 }
 
 /** Provider records whose broad sector/industry labels need a known correction. */
@@ -250,7 +124,7 @@ const isFundType = (type: string): boolean =>
   type.includes('etf') || type.includes('fund')
 
 const isEquityType = (type: string): boolean =>
-  type.includes('stock') || type.includes('equity')
+  !isFundType(type) && /\b(stock|stocks|equity|equities)\b/.test(type)
 
 const isUnidentifiedHolding = (row: ConsolidatedHoldingRow): boolean => {
   const description = row.description.toLowerCase()
@@ -295,12 +169,10 @@ export function inferAssetClass(row: ConsolidatedHoldingRow): string {
   return 'Other'
 }
 
-const normalizeSymbol = (symbol: string | null): string =>
-  (symbol ?? '').trim().toUpperCase().replace('-', '.')
-
 const canonicalSectorFromProvider = (sector: string): EquitySector | null => {
   const normalized = sector.trim().toLowerCase()
   const aliases: Record<string, EquitySector> = {
+    communication: 'Communication Services',
     communications: 'Communication Services',
     'communication services': 'Communication Services',
     'consumer discretionary': 'Consumer Discretionary',
@@ -324,11 +196,11 @@ const canonicalSectorFromProvider = (sector: string): EquitySector | null => {
   return aliases[normalized] ?? null
 }
 
-export function inferEquitySector(row: ConsolidatedHoldingRow): EquitySector | null {
-  const type = row.type.toLowerCase()
-  if (!isEquityType(type) || isUnidentifiedHolding(row)) return null
+export function inferEquitySector(row: ConsolidatedHoldingRow): SectorFilterOption | null {
+  if (inferAssetClass(row) !== 'Equities') return null
+  if (row.sectorOverride != null) return row.sectorOverride
 
-  const symbol = normalizeSymbol(row.symbol)
+  const symbol = normalizeSectorSymbol(row.symbol)
   const symbolSector =
     knownSectorBySymbol[symbol] ?? providerExceptionSectorBySymbol[symbol]
   if (symbolSector) return symbolSector
@@ -472,7 +344,8 @@ export function inferEquitySector(row: ConsolidatedHoldingRow): EquitySector | n
 }
 
 export function inferSector(row: ConsolidatedHoldingRow): string {
-  return inferEquitySector(row) ?? inferAssetClass(row)
+  const assetClass = inferAssetClass(row)
+  return assetClass === 'Equities' ? inferEquitySector(row) ?? 'Unclassified' : assetClass
 }
 
 export function getCostBasisQuality(rows: ConsolidatedHoldingRow[]) {
@@ -518,13 +391,12 @@ export function getSectorAllocation(rows: ConsolidatedHoldingRow[]): SectorAlloc
   const sectorMap = new Map<string, { value: number; symbols: Set<string> }>()
 
   for (const row of rows) {
-    const type = row.type.toLowerCase()
-    if (!isEquityType(type) || isUnidentifiedHolding(row)) continue
+    if (inferAssetClass(row) !== 'Equities') continue
 
     const sector = inferEquitySector(row) ?? 'Unclassified'
     const existing = sectorMap.get(sector) ?? { value: 0, symbols: new Set<string>() }
     existing.value += row.marketValue ?? 0
-    existing.symbols.add(row.symbol?.trim().toUpperCase() || 'Unknown ticker')
+    existing.symbols.add(normalizeSectorSymbol(row.symbol) || 'Unknown ticker')
     sectorMap.set(sector, existing)
   }
 
@@ -546,12 +418,12 @@ export function getSectorAllocation(rows: ConsolidatedHoldingRow[]): SectorAlloc
 
 export function filterHoldingsBySectors(
   rows: ConsolidatedHoldingRow[],
-  sectors: readonly EquitySector[],
+  sectors: readonly SectorFilterOption[],
 ): ConsolidatedHoldingRow[] {
-  const selected = new Set<EquitySector>(sectors)
+  const selected = new Set<SectorFilterOption>(sectors)
   return rows.filter((row) => {
-    const sector = inferEquitySector(row)
-    return sector != null && selected.has(sector)
+    if (inferAssetClass(row) !== 'Equities') return false
+    return selected.has(inferEquitySector(row) ?? 'Unclassified')
   })
 }
 

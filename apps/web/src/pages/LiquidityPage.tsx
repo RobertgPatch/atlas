@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { authClient } from '../auth/authClient'
 import { sessionStore, useSession } from '../auth/sessionStore'
@@ -9,8 +10,9 @@ import { liquidityDefaultEntityKey,preferredLiquidityEntityId,savedLiquidityEnti
 
 export function LiquidityPage() {
   const { session } = useSession()
+  const [params] = useSearchParams()
   const userId=session?.user.id
-  const [requestedEntityId,setRequestedEntityId]=useState(()=>savedLiquidityEntityId(userId))
+  const [requestedEntityId,setRequestedEntityId]=useState(()=>params.get('entityId') ?? savedLiquidityEntityId(userId))
   const [savedDefaultId,setSavedDefaultId]=useState(()=>savedLiquidityEntityId(userId))
   const entities=useQuery({queryKey:['entities','liquidity-page'],queryFn:()=>entitiesClient.list()})
   const options=entities.data?.items??[]

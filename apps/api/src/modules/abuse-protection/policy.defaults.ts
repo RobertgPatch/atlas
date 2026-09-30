@@ -44,6 +44,7 @@ const isAdminManagedMutation = (
     '/v1/tic-registry',
     '/v1/liquidity-source-accounts',
     '/v1/liquidity-statements',
+    '/v1/liquidity-sectors',
   ].some((root) => routePattern === root || routePattern.startsWith(`${root}/`))
 }
 
@@ -54,6 +55,7 @@ const authenticationFor = (
   if (routePattern === '/health' || isAuthenticationWorkRoute(routePattern)) return 'public'
   if (routePattern.startsWith('/v1/admin/')) return 'admin'
   if (routePattern.startsWith('/v1/liquidity-statements')) return 'admin'
+  if (routePattern.startsWith('/v1/liquidity-sectors')) return 'admin'
   if (isReviewFinalizationRoute(routePattern)) return 'admin'
   if (isK1ApplicationAdminRoute(routePattern)) return 'admin'
   if (isAdminManagedMutation(method, routePattern)) return 'admin'

@@ -1,4 +1,5 @@
 import type { Coverage, PricingCapability } from './liquidity-statements.js'
+import type { SectorFilterOption } from './liquidity-sectors.js'
 
 export type ReportView =
   | 'portfolio_summary'
@@ -153,6 +154,7 @@ export interface CustodianHoldingDetailRow {
 }
 
 export interface ConsolidatedHoldingRow {
+  sectorOverride?: SectorFilterOption | null
   currencyCode?: string | null
   basisCoverage?: Coverage
   gainCoverage?: Coverage

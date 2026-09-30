@@ -120,23 +120,20 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
     renderTracker()
 
     await user.click(screen.getByRole('button', { name: 'Add partnership' }))
-    await user.click(screen.getByRole('button', { name: /Enter details manually/i }))
+    expect(screen.getByRole('dialog', { name: 'Add partnership' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Create partnership' }))
 
     expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveTextContent('Workspace p-new')
   })
 
-  it('offers a K-1-first partnership creation path with duplicate safeguards', async () => {
+  it('suppresses the unfinished K-1 partnership creation path', async () => {
     const user = userEvent.setup()
     renderTracker()
 
     await user.click(screen.getByRole('button', { name: 'Add partnership' }))
-    expect(screen.getByText(/Existing records are reused automatically/i)).toBeInTheDocument()
-    expect(screen.getByText(/Conflicting matches stop for review/i)).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: /Use a K-1 PDF/i }))
-    expect(screen.getByRole('dialog', { name: 'Add partnership from K-1' })).toBeInTheDocument()
-    expect(screen.getByRole('status', { name: 'K-1 partnership import' })).toHaveTextContent('true')
+    expect(screen.getByRole('dialog', { name: 'Add partnership' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Use a K-1 PDF/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Add partnership from K-1' })).not.toBeInTheDocument()
   })
 
   it('does not show partnership creation in read-only mode', () => {

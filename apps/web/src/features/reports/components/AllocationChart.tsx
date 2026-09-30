@@ -1,20 +1,22 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   AlertTriangleIcon,
   ChevronDownIcon,
 } from 'lucide-react'
 import {
-  EQUITY_SECTORS,
+  SECTOR_FILTER_OPTIONS,
   type AllocationDatum,
-  type EquitySector,
+  type SectorFilterOption,
 } from '../utils/consolidatedHoldingsAnalytics'
 
 interface AllocationChartProps {
+  manageSectorsHref?: string
   currencyCode?: string
   assetData: AllocationDatum[]
   sectorData: AllocationDatum[]
-  selectedSectors: EquitySector[]
-  onSelectedSectorsChange: (sectors: EquitySector[]) => void
+  selectedSectors: SectorFilterOption[]
+  onSelectedSectorsChange: (sectors: SectorFilterOption[]) => void
 }
 
 type AllocationView = 'asset' | 'sector'
@@ -77,6 +79,7 @@ function DonutChart({
 }
 
 export function AllocationChart({
+  manageSectorsHref,
   currencyCode = 'USD',
   assetData,
   sectorData,
@@ -87,7 +90,7 @@ export function AllocationChart({
   const isSectorView = view === 'sector'
   const selectedSectorSet = new Set(selectedSectors)
   const filteredSectorData = sectorData.filter((datum) =>
-    selectedSectorSet.has(datum.name as EquitySector),
+    selectedSectorSet.has(datum.name as SectorFilterOption),
   )
   const data = isSectorView ? filteredSectorData : assetData
   const viewLabel = isSectorView ? 'Sector allocation' : 'Asset allocation'
@@ -100,7 +103,7 @@ export function AllocationChart({
     (total, datum) => total + datum.value,
     0,
   )
-  const sectorFilterIsActive = selectedSectors.length !== EQUITY_SECTORS.length
+  const sectorFilterIsActive = selectedSectors.length !== SECTOR_FILTER_OPTIONS.length
 
   return (
     <div className="h-full rounded-xl border border-gray-200 bg-white p-6">
@@ -117,7 +120,7 @@ export function AllocationChart({
                 const nextView = event.target.value as AllocationView
                 setView(nextView)
                 if (nextView === 'asset' && sectorFilterIsActive) {
-                  onSelectedSectorsChange([...EQUITY_SECTORS])
+                  onSelectedSectorsChange([...SECTOR_FILTER_OPTIONS])
                 }
               }}
               className="min-h-11 max-w-full appearance-none rounded-lg border border-gray-200 bg-gray-50 py-2 pl-3 pr-9 text-sm font-semibold text-gray-900 outline-none transition-colors hover:border-gray-300 focus:border-focus focus:ring-2 focus:ring-focus"
@@ -138,6 +141,8 @@ export function AllocationChart({
               : `${data.length} asset classes`}
           </p>
         </div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+        {manageSectorsHref && <Link to={manageSectorsHref} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-sm font-semibold text-primary hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">Manage sectors</Link>}
         {concentrationWarning && (
           <div className="flex max-w-full items-center gap-1.5 self-start rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1">
             <AlertTriangleIcon className="h-3.5 w-3.5 text-amber-500" />
@@ -147,6 +152,7 @@ export function AllocationChart({
             </span>
           </div>
         )}
+        </div>
       </div>
 
       {isSectorView ? (
@@ -178,7 +184,7 @@ export function AllocationChart({
               <div className="flex items-center gap-1" aria-label="Sector selection actions">
                 <button
                   type="button"
-                  onClick={() => onSelectedSectorsChange([...EQUITY_SECTORS])}
+                  onClick={() => onSelectedSectorsChange([...SECTOR_FILTER_OPTIONS])}
                   disabled={!sectorFilterIsActive}
                   className="min-h-8 rounded-md px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary-subtle focus:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
                 >
@@ -195,7 +201,7 @@ export function AllocationChart({
               </div>
             </div>
             <div className="max-h-[30rem] overflow-y-auto p-1.5">
-              {EQUITY_SECTORS.map((sector) => {
+              {SECTOR_FILTER_OPTIONS.map((sector) => {
                 const sectorDatum = sectorData.find((datum) => datum.name === sector)
                 const checked = selectedSectorSet.has(sector)
                 const symbolSummary = sectorDatum?.symbols?.join(', ')
@@ -212,7 +218,7 @@ export function AllocationChart({
                       checked={checked}
                       onChange={(event) => {
                         const next = event.target.checked
-                          ? EQUITY_SECTORS.filter(
+                          ? SECTOR_FILTER_OPTIONS.filter(
                               (candidate) => candidate === sector || selectedSectorSet.has(candidate),
                             )
                           : selectedSectors.filter((candidate) => candidate !== sector)
@@ -306,7 +312,8 @@ export function AllocationChart({
       {isSectorView ? (
         <p className="mt-5 border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500">
           Sector percentages use direct stock value. Funds and ETFs are excluded because
-          their underlying sector mix is not included in connected-account data.
+          their underlying sector mix is not available in uploaded statements. Stocks without a
+          known sector appear under Unclassified.
         </p>
       ) : null}
     </div>

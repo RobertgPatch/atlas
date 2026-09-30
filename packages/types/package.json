@@ -10,6 +10,10 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./liquidity-sectors": {
+      "types": "./dist/liquidity-sectors.d.ts",
+      "default": "./dist/liquidity-sectors.js"
+    },
     "./liquidity-statements": {
       "types": "./dist/liquidity-statements.d.ts",
       "default": "./dist/liquidity-statements.js"

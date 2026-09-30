@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { registerLiquidityStatementRoutes } from '../modules/liquidity-statements/liquidity-statement.routes.js'
 import { registerLiquiditySourceRoutes } from '../modules/liquidity-sources/liquidity-source.routes.js'
+import { registerLiquiditySectorRoutes } from '../modules/liquidity-sectors/liquidity-sector.routes.js'
 import { registerAuthRoutes } from '../modules/auth/auth.routes.js'
 import { registerAdminRoutes } from '../modules/admin/admin.routes.js'
 import { registerDashboardRoutes } from '../modules/dashboard/dashboard.routes.js'
@@ -14,6 +15,7 @@ import { registerPartnershipTrackerRoutes } from '../modules/partnership-tracker
 export const registerRoutes = async (app: FastifyInstance) => {
   await registerLiquidityStatementRoutes(app)
   await registerLiquiditySourceRoutes(app)
+  await registerLiquiditySectorRoutes(app)
   await registerAuthRoutes(app)
   await registerAdminRoutes(app)
   await registerDashboardRoutes(app)

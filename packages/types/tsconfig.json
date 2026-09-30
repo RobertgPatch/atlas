@@ -12,5 +12,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/liquidity-statements.ts"]
+  "include": ["src/liquidity-statements.ts", "src/liquidity-sectors.ts"]
 }
