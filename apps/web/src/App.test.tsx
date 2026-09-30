@@ -55,6 +55,7 @@ const retainedPatterns = [
   '/dashboard',
   '/investment-tracker',
   '/liquidity',
+  '/liquidity/statements',
   '/entities',
   '/entities/:id',
   '/estate-maps',
