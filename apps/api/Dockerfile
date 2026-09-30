@@ -43,6 +43,7 @@ RUN npm ci --omit=dev --workspace=api --include-workspace-root=false
 
 COPY --from=build --chown=node:node /app/apps/api/dist apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/src/infra/db/migrations apps/api/dist/infra/db/migrations
+COPY --from=build --chown=node:node /app/packages/types/dist packages/types/dist
 
 WORKDIR /app/apps/api
 
