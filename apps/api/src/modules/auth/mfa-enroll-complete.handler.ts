@@ -45,7 +45,7 @@ export const mfaEnrollCompleteHandler = async (
     reply.status(response.statusCode).headers(response.headers).send(response.body)
     return
   }
-  if (!enrollment || !user || user.status === 'Inactive') {
+  if (!enrollment || !user || !['Active', 'Invited'].includes(user.status)) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
@@ -77,16 +77,23 @@ export const mfaEnrollCompleteHandler = async (
   }
 
   await lockoutService.clear(user.email, 'MFA', user.id)
-  const enrolledUser = authRepository.completeMfaEnrollment(user.id, enrollment.secret)
+  const currentEnrollment = authRepository.getMfaEnrollment(payload.data.enrollmentToken)
+  const currentUser = currentEnrollment
+    ? authRepository.getUserById(currentEnrollment.userId)
+    : undefined
+  if (!currentEnrollment || !currentUser || !['Active', 'Invited'].includes(currentUser.status)) {
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
+  if (currentUser.status === 'Invited') {
+    authRepository.updateUserStatus(currentUser.id, 'Active')
+  }
+  const enrolledUser = authRepository.completeMfaEnrollment(currentUser.id, currentEnrollment.secret)
   if (!enrolledUser) {
     reply.status(401).send({ error: 'SIGN_IN_FAILED' })
     return
   }
   authRepository.consumeMfaEnrollment(payload.data.enrollmentToken)
-
-  if (enrolledUser.status === 'Invited') {
-    authRepository.updateUserStatus(enrolledUser.id, 'Active')
-  }
 
   const { token, session } = authRepository.createSession(user.id)
 
@@ -116,7 +123,7 @@ export const mfaEnrollCompleteHandler = async (
       displayName: enrolledUser.displayName,
       role: enrolledUser.role,
       accessLevel: enrolledUser.accessLevel,
-      status: enrolledUser.status === 'Invited' ? 'Active' : enrolledUser.status,
+      status: enrolledUser.status,
     },
     role: enrolledUser.role,
     session: {

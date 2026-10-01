@@ -13,9 +13,10 @@ const valid = {
 describe('production identity contract', () => {
   it('does not require human credentials in a worker and prevents using that role to start the API', () => {
     const noHumanSecrets = { ...valid, adminPassword: '', superAdminPassword: '',
-      sessionSecret: '', sessionCookieSecure: true, sessionCookieName: 'atlas_session',
+      persistenceSecretKey: 'p'.repeat(32), sessionSecret: '', sessionCookieSecure: true, sessionCookieName: 'atlas_session',
       sessionCookieSameSite: 'lax', sessionIdleTimeoutSeconds: 1800,
-      sessionActivityWriteIntervalSeconds: 60, sessionAbsoluteTimeoutSeconds: 28800 }
+      sessionActivityWriteIntervalSeconds: 60, sessionAbsoluteTimeoutSeconds: 28800,
+      mfaLoginEnabled: true }
     expect(() => validateProductionProcessSettings(noHumanSecrets, 'k1-worker')).not.toThrow()
     expect(() => validateProductionProcessSettings(noHumanSecrets, 'api')).toThrow(/SESSION_SECRET/)
     expect(resolveProcessRole()).toBe('api')

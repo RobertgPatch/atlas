@@ -114,6 +114,18 @@ const cleanupMfaArtifacts = (at = now()): void => {
   }
 }
 
+const invalidateAuthArtifactsForUser = (userId: string): void => {
+  for (const [id, challenge] of challenges) {
+    if (challenge.userId === userId) challenges.delete(id)
+  }
+  for (const [id, enrollment] of enrollments) {
+    if (enrollment.userId === userId) enrollments.delete(id)
+  }
+  for (const [tokenHash, passwordChange] of passwordChanges) {
+    if (passwordChange.userId === userId) passwordChanges.delete(tokenHash)
+  }
+}
+
 const evictOldest = <T extends { createdAt: Date }>(
   records: Map<string, T>,
   maximum: number,
@@ -703,6 +715,11 @@ export const authRepository = {
   },
 
   createSession(userId: string): { token: string; session: SessionRecord } {
+    const user = users.get(userId)
+    if (!user || user.status !== 'Active') {
+      throw new Error('SESSION_USER_NOT_ACTIVE')
+    }
+
     const token = randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '')
     const issuedAt = now()
     const session: SessionRecord = {
@@ -719,13 +736,10 @@ export const authRepository = {
     persistedSessionActivity.set(session.id, new Date(session.lastActivityAt))
     persistSession(session)
 
-    const user = users.get(userId)
-    if (user) {
-      user.lastLoginAt = issuedAt
-      user.loginCount += 1
-      users.set(userId, user)
-      persistUser(user)
-    }
+    user.lastLoginAt = issuedAt
+    user.loginCount += 1
+    users.set(userId, user)
+    persistUser(user)
 
     return { token, session }
   },
@@ -809,7 +823,7 @@ export const authRepository = {
 
   completeMfaEnrollment(userId: string, secret: string): UserRecord | undefined {
     const user = users.get(userId)
-    if (!user) return undefined
+    if (!user || user.status !== 'Active') return undefined
     user.mfaSecret = secret
     user.mfaEnrollmentState = 'ENROLLED'
     users.set(userId, user)
@@ -838,6 +852,10 @@ export const authRepository = {
     user.status = status
     users.set(userId, user)
     persistUser(user)
+    if (status !== 'Active') {
+      this.revokeAllUserSessions(userId, 'USER_NOT_ACTIVE')
+      invalidateAuthArtifactsForUser(userId)
+    }
     return user
   },
 
@@ -849,6 +867,8 @@ export const authRepository = {
     users.set(userId, user)
     persistUser(user)
     persistMfaEnrollment(user)
+    this.revokeAllUserSessions(userId, 'MFA_RESET')
+    invalidateAuthArtifactsForUser(userId)
     return user
   },
 
@@ -861,6 +881,8 @@ export const authRepository = {
       existing.passwordChangeRequired = true
       users.set(existing.id, existing)
       persistUser(existing)
+      this.revokeAllUserSessions(existing.id, 'USER_REINVITED')
+      invalidateAuthArtifactsForUser(existing.id)
       return existing
     }
 

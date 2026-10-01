@@ -215,6 +215,7 @@ describe('abuse-protection configuration', () => {
 
   it('rejects unsafe or unbounded production session settings', () => {
     const safe = {
+      persistenceSecretKey: 'production-persistence-secret-material-0001',
       sessionSecret: 'production-session-secret-material-0001',
       sessionCookieSecure: true,
       sessionCookieName: 'atlas_session',
@@ -222,6 +223,7 @@ describe('abuse-protection configuration', () => {
       sessionIdleTimeoutSeconds: 1_800,
       sessionActivityWriteIntervalSeconds: 60,
       sessionAbsoluteTimeoutSeconds: 28_800,
+      mfaLoginEnabled: true,
     }
 
     expect(() => validateProductionSessionSettings(safe)).not.toThrow()
@@ -233,6 +235,18 @@ describe('abuse-protection configuration', () => {
       ...safe,
       sessionCookieSameSite: 'invalid',
     })).toThrow(/SESSION_COOKIE_SAMESITE/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      persistenceSecretKey: '',
+    })).toThrow(/PERSISTENCE_SECRET_KEY/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      persistenceSecretKey: safe.sessionSecret,
+    })).toThrow(/must be distinct/)
+    expect(() => validateProductionSessionSettings({
+      ...safe,
+      mfaLoginEnabled: false,
+    })).toThrow(/MFA_LOGIN_ENABLED/)
     expect(() => validateProductionSessionSettings({
       ...safe,
       sessionActivityWriteIntervalSeconds: 1_801,

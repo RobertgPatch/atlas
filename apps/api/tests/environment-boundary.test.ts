@@ -55,13 +55,13 @@ describe('runtime environment boundary', () => {
       ], {
         cwd: directory, encoding: 'utf8', timeout: 10000,
         env: { ...inherited, ...localBda,
-          AWS_ACCESS_KEY_ID: 'ASIAFAKELOCALBDATEST',
+          AWS_ACCESS_KEY_ID: 'TEST_FAKE_LOCAL_BDA_KEY',
           AWS_SECRET_ACCESS_KEY: 'fake-test-secret', AWS_SESSION_TOKEN: 'fake-test-session',
         },
       })
       expect(child.status, child.stderr).toBe(0)
       expect(JSON.parse(child.stdout.trim())).toEqual({
-        profile: null, defaultProfile: null, accessKeyId: 'ASIAFAKELOCALBDATEST',
+        profile: null, defaultProfile: null, accessKeyId: 'TEST_FAKE_LOCAL_BDA_KEY',
       })
     } finally {
       rmSync(directory, { recursive: true, force: true })

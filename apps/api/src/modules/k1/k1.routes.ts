@@ -39,6 +39,7 @@ import type {
 } from './k1.types.js'
 import { K1_INGESTION_ERROR_CODES } from './k1.types.js'
 import { config } from '../../config.js'
+import { escapeCsvCell } from '../../infra/csv.js'
 import {
   createK1IngestionBatch,
   getK1IngestionBatch,
@@ -608,6 +609,9 @@ const uploadHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   }
 
   if (!fileBuffer) return reply.code(400).send({ error: 'FILE_REQUIRED' })
+  if (fileBuffer.subarray(0, 5).toString('ascii') !== '%PDF-') {
+    return reply.code(415).send({ error: 'INVALID_PDF_FILE' })
+  }
 
   const parsed = uploadBodySchema.safeParse({
     entityId: fields.entityId,
@@ -711,11 +715,6 @@ const reparseHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   return reply.code(202).send({ k1DocumentId: k1.id, status: 'PROCESSING' })
 }
 
-const csvEscape = (v: string) => {
-  if (/[",\n\r]/.test(v)) return `"${v.replaceAll('"', '""')}"`
-  return v
-}
-
 const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const parsed = exportQuerySchema.safeParse(request.query)
   if (!parsed.success) return sendZodError(reply, parsed.error)
@@ -777,7 +776,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
       i.parseError?.code ?? '',
       i.parseError?.message ?? '',
     ]
-      .map((value) => csvEscape(value ?? ''))
+      .map((value) => escapeCsvCell(value ?? ''))
       .join(','),
   )
   if (items.length > config.abuseProtection.payloadLimits.exportRows) {

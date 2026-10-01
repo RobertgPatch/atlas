@@ -147,6 +147,22 @@ describe('POST /v1/k1-documents — upload contract', () => {
     expect(res.statusCode).toBe(415)
   })
 
+  it('415 when an application/pdf upload does not have a PDF signature', async () => {
+    const { entity } = uploadTarget()
+    const { body, contentType } = buildMultipart(
+      [{ name: 'entityId', value: entity.id }],
+      [{ name: 'file', filename: 'fake.pdf', contentType: 'application/pdf', data: Buffer.from('not a pdf') }],
+    )
+    const res = await f.app.inject({
+      method: 'POST',
+      url: '/v1/k1-documents',
+      headers: { cookie: f.cookie, 'content-type': contentType },
+      payload: body,
+    })
+    expect(res.statusCode).toBe(415)
+    expect(res.json()).toEqual({ error: 'INVALID_PDF_FILE' })
+  })
+
   it('400 on missing file part', async () => {
     const { entity } = uploadTarget()
     const { body, contentType } = buildMultipart(

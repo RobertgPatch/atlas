@@ -1,11 +1,14 @@
 import { parentPort } from 'node:worker_threads'
+import type { buildLiquidityCsvConfig } from './liquidity-statement.config.js'
+
+type StatementReaderConfig = ReturnType<typeof buildLiquidityCsvConfig>
 
 interface WorkerRequest {
   source: Uint8Array
   sourceHash: string
   recipe: Record<string, any>
   limits?: Record<string, string>
-  config?: Record<string, number>
+  config?: StatementReaderConfig
   mappingProfile?: unknown
   testBehavior?: 'STALL' | 'ECHO'
 }
