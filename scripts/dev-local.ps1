@@ -502,13 +502,9 @@ function Start-LocalDevelopment {
       } `
       -StartApiAction {
         Write-Host 'Starting API...'
-        $logDirectory = Join-Path $repoRoot 'logs'
-        New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
-        $script:localApiProcess = Start-Process powershell -WindowStyle Hidden -PassThru `
-          -RedirectStandardOutput (Join-Path $logDirectory 'local-api.stdout.log') `
-          -RedirectStandardError (Join-Path $logDirectory 'local-api.stderr.log') `
+        $script:localApiProcess = Start-Process powershell -WindowStyle Normal -PassThru `
           -ArgumentList @(
-          '-NoProfile', '-Command', "Set-Location '$quotedRepoRoot'; npm.cmd run dev:api"
+          '-NoProfile', '-Command', "`$Host.UI.RawUI.WindowTitle = 'Atlas API'; Set-Location '$quotedRepoRoot'; npm.cmd run dev:api"
         )
         return $script:localApiProcess
       } `
@@ -525,23 +521,19 @@ function Start-LocalDevelopment {
       } `
       -StartWorkerAction {
         Write-Host 'Starting durable local K-1 worker...'
-        $logDirectory = Join-Path $repoRoot 'logs'
-        New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
-        $script:localWorkerProcess = Start-Process powershell -WindowStyle Hidden -PassThru `
-          -RedirectStandardOutput (Join-Path $logDirectory 'local-k1-worker.stdout.log') `
-          -RedirectStandardError (Join-Path $logDirectory 'local-k1-worker.stderr.log') `
+        $script:localWorkerProcess = Start-Process powershell -WindowStyle Normal -PassThru `
           -ArgumentList @(
-            '-NoProfile', '-Command', "Set-Location '$quotedRepoRoot'; npm.cmd run --workspace=api dev:k1-worker"
+            '-NoProfile', '-Command', "`$Host.UI.RawUI.WindowTitle = 'Atlas K-1 Worker'; Set-Location '$quotedRepoRoot'; npm.cmd run --workspace=api dev:k1-worker"
           )
         Start-Sleep -Seconds 2
         if ($script:localWorkerProcess.HasExited) {
-          throw 'The local K-1 worker exited during startup. Inspect logs/local-k1-worker.stderr.log.'
+          throw 'The local K-1 worker exited during startup. Inspect its terminal output.'
         }
       } `
       -StartWebAction {
         Write-Host 'Starting web development server...'
-        Start-Process powershell -WindowStyle Hidden -ArgumentList @(
-          '-NoProfile', '-Command', "Set-Location '$quotedRepoRoot'; npm.cmd run --workspace=web dev"
+        Start-Process powershell -WindowStyle Normal -ArgumentList @(
+          '-NoProfile', '-Command', "`$Host.UI.RawUI.WindowTitle = 'Atlas Web'; Set-Location '$quotedRepoRoot'; npm.cmd run --workspace=web dev"
         ) | Out-Null
       } | Out-Null
   } catch {
@@ -561,7 +553,7 @@ function Start-LocalDevelopment {
   Write-Host '- Web:        http://localhost:5173'
   if ($K1Mode -eq 'bda') {
     Write-Host '- K-1 mode:  local PostgreSQL queue -> approved AWS S3/KMS/BDA'
-    Write-Host '- Worker log: logs/local-k1-worker.stderr.log'
+    Write-Host '- Worker log: visible K-1 worker terminal'
   } else {
     Write-Host '- Providers:  deterministic local/stub adapters; no AWS calls'
   }
