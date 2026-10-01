@@ -1,6 +1,7 @@
 variable "liquidity_csv_uploads_enabled" { default = true }
 variable "liquidity_csv_parsing_enabled" { default = true }
 variable "liquidity_csv_apply_enabled" { default = true }
+variable "liquidity_xlsx_enabled" { default = false }
 
 resource "aws_kms_key" "liquidity_csv" {
   description             = "Liquidity CSV originals"

@@ -29,6 +29,7 @@ api_task_memory   = "512"
 liquidity_csv_uploads_enabled = true
 liquidity_csv_parsing_enabled = true
 liquidity_csv_apply_enabled   = true
+liquidity_xlsx_enabled        = true
 # Production activation requires MFA; local development tests the same flow separately.
 mfa_login_enabled           = true
 ecr_force_delete            = false

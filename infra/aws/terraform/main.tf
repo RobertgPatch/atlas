@@ -145,6 +145,7 @@ locals {
     LIQUIDITY_CSV_UPLOADS_ENABLED              = tostring(var.liquidity_csv_uploads_enabled)
     LIQUIDITY_CSV_PARSING_ENABLED              = tostring(var.liquidity_csv_parsing_enabled)
     LIQUIDITY_CSV_APPLY_ENABLED                = tostring(var.liquidity_csv_apply_enabled)
+    LIQUIDITY_XLSX_ENABLED                     = tostring(var.liquidity_xlsx_enabled)
     LIQUIDITY_CSV_OBJECT_STORE                 = "s3"
     LIQUIDITY_CSV_S3_BUCKET                    = aws_s3_bucket.liquidity_csv.id
     LIQUIDITY_CSV_KMS_KEY_ARN                  = aws_kms_key.liquidity_csv.arn

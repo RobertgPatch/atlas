@@ -17,6 +17,7 @@ test('CSV storage and price flag use the live API defaults and preserve intentio
     const env = Object.fromEntries(result.containerDefinitions[0].environment.map(item => [item.name, item.value]));
     assert.equal(env.REAL_TIME_EQUITIES_ENABLED, value ?? 'false');
     assert.equal(env.LIQUIDITY_CSV_PARSING_ENABLED, spec.role === 'api' ? 'true' : 'false');
+    assert.equal(env.LIQUIDITY_XLSX_ENABLED, spec.role === 'api' ? 'true' : 'false');
     if (spec.role === 'api') { assert.equal(env.LIQUIDITY_CSV_S3_BUCKET, storage.bucket); assert.equal(env.LIQUIDITY_CSV_S3_REGION, 'us-west-1'); }
     if (value !== 'true') assert.equal(env.MARKET_PRICE_SCHEDULER_ENABLED, 'false');
   }

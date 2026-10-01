@@ -38,6 +38,7 @@ export function candidateTask(task, service, target, image, proxyCidrs, csvStora
     .map(item => [item.name, item.value]));
   const csvDefaults = csvStorage && service.role === 'api' ? {
     LIQUIDITY_CSV_UPLOADS_ENABLED: 'true', LIQUIDITY_CSV_PARSING_ENABLED: 'true', LIQUIDITY_CSV_APPLY_ENABLED: 'true',
+    LIQUIDITY_XLSX_ENABLED: 'true',
     LIQUIDITY_CSV_OBJECT_STORE: 's3', LIQUIDITY_CSV_S3_BUCKET: csvStorage.bucket,
     LIQUIDITY_CSV_KMS_KEY_ARN: csvStorage.kmsKeyArn, LIQUIDITY_CSV_S3_REGION: target.region,
   } : {};
@@ -49,6 +50,7 @@ export function candidateTask(task, service, target, image, proxyCidrs, csvStora
   if (environment.REAL_TIME_EQUITIES_ENABLED === 'false') environment.MARKET_PRICE_SCHEDULER_ENABLED = 'false';
   if (service.role !== 'api') {
     environment.LIQUIDITY_CSV_UPLOADS_ENABLED = 'false'; environment.LIQUIDITY_CSV_PARSING_ENABLED = 'false'; environment.LIQUIDITY_CSV_APPLY_ENABLED = 'false';
+    environment.LIQUIDITY_XLSX_ENABLED = 'false';
   }
   container.environment = Object.entries(environment).map(([name, value]) => ({ name, value }));
   container.secrets = (container.secrets ?? []).filter(item => !retiredProviderKey(item.name));
