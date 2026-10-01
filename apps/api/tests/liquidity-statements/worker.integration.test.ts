@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { executeStatementWorker } from '../../src/modules/liquidity-statements/statement-processing.service.js'
+import { executeStatementWorker, statementWorkerResourceLimits } from '../../src/modules/liquidity-statements/statement-processing.service.js'
 
 const source = Buffer.from('Symbol,Value\nDEMO,10')
 const sourceHash = createHash('sha256').update(source).digest('hex')
@@ -15,6 +15,12 @@ const recipe = {
 }
 
 describe('bounded statement worker orchestration', () => {
+  it('applies a finite worker heap ceiling and rejects invalid limits', () => {
+    expect(statementWorkerResourceLimits(256)).toEqual({ maxOldGenerationSizeMb: 256 })
+    expect(() => statementWorkerResourceLimits(0)).toThrow('INVALID_WORKER_MEMORY_LIMIT')
+    expect(() => statementWorkerResourceLimits(Number.POSITIVE_INFINITY)).toThrow('INVALID_WORKER_MEMORY_LIMIT')
+  })
+
   it('terminates CPU-stalled work at the parent deadline', async () => {
     const started = Date.now()
     await expect(executeStatementWorker({

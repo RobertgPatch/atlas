@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto'
 import { Worker } from 'node:worker_threads'
+import type { buildLiquidityCsvConfig } from './liquidity-statement.config.js'
 
-export type StatementWorkerErrorCode = 'WORKER_TIMEOUT' | 'WORKER_CANCELLED' | 'SOURCE_HASH_MISMATCH' | 'WORKER_OUTPUT_LIMIT' | 'RECIPE_VERSION_UNAVAILABLE' | 'WORKER_PARSE_FAILED'
+type StatementReaderConfig = ReturnType<typeof buildLiquidityCsvConfig>
+
+export type StatementWorkerErrorCode = 'WORKER_TIMEOUT' | 'WORKER_CANCELLED' | 'SOURCE_HASH_MISMATCH' | 'WORKER_OUTPUT_LIMIT' | 'INVALID_WORKER_MEMORY_LIMIT' | 'RECIPE_VERSION_UNAVAILABLE' | 'WORKER_PARSE_FAILED'
 export class StatementWorkerError extends Error {
   constructor(readonly code: StatementWorkerErrorCode | string, readonly retryable: boolean) { super(code) }
 }
@@ -14,9 +17,18 @@ export interface StatementWorkerRequest {
   maxOutputBytes: number
   signal?: AbortSignal
   limits?: Record<string, string>
-  config?: Record<string, number>
+  config?: StatementReaderConfig
+  maxOldGenerationSizeMb?: number
   mappingProfile?: unknown
   testBehavior?: 'STALL' | 'ECHO'
+}
+
+export const statementWorkerResourceLimits = (maxOldGenerationSizeMb?: number) => {
+  if (maxOldGenerationSizeMb === undefined) return undefined
+  if (!Number.isSafeInteger(maxOldGenerationSizeMb) || maxOldGenerationSizeMb < 1 || maxOldGenerationSizeMb > 1_024) {
+    throw new StatementWorkerError('INVALID_WORKER_MEMORY_LIMIT', false)
+  }
+  return { maxOldGenerationSizeMb }
 }
 
 /** Parent-owned worker lifecycle. Only immutable bytes, a validated/pinned
@@ -26,7 +38,11 @@ export async function executeStatementWorker(request: StatementWorkerRequest): P
   if (actualHash !== request.sourceHash) throw new StatementWorkerError('SOURCE_HASH_MISMATCH', false)
   if (request.signal?.aborted) throw new StatementWorkerError('WORKER_CANCELLED', false)
   const workerUrl = new URL(import.meta.url.endsWith('.ts') ? './statement-processing.worker.ts' : './statement-processing.worker.js', import.meta.url)
-  const worker = new Worker(workerUrl, { execArgv: ['--import', 'tsx'] })
+  const resourceLimits = statementWorkerResourceLimits(request.maxOldGenerationSizeMb)
+  const worker = new Worker(workerUrl, {
+    execArgv: ['--import', 'tsx'],
+    ...(resourceLimits ? { resourceLimits } : {}),
+  })
   return new Promise((resolve, reject) => {
     let settled = false
     const finish = async (error?: unknown, result?: unknown) => {

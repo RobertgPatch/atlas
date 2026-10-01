@@ -237,6 +237,38 @@ describe('feature-flagged login', () => {
     expect(invited.passwordHash).toMatch(/^\$argon2id\$v=19\$/)
   })
 
+  it('revokes an existing session when the user is deactivated', async () => {
+    authRepository.updateUserStatus(fixture.user.id, 'Inactive')
+
+    try {
+      const response = await fixture.app.inject({
+        method: 'GET',
+        url: '/v1/auth/session',
+        headers: { cookie: fixture.userCookie },
+      })
+      expect(response.statusCode).toBe(401)
+      expect(response.headers['set-cookie']).toContain(`${config.sessionCookieName}=;`)
+    } finally {
+      authRepository.updateUserStatus(fixture.user.id, 'Active')
+    }
+
+    const reactivatedResponse = await fixture.app.inject({
+      method: 'GET',
+      url: '/v1/auth/session',
+      headers: { cookie: fixture.userCookie },
+    })
+    expect(reactivatedResponse.statusCode).toBe(401)
+  })
+
+  it('refuses to create a session for a non-active user', () => {
+    authRepository.updateUserStatus(fixture.user.id, 'Inactive')
+    try {
+      expect(() => authRepository.createSession(fixture.user.id)).toThrow('SESSION_USER_NOT_ACTIVE')
+    } finally {
+      authRepository.updateUserStatus(fixture.user.id, 'Active')
+    }
+  })
+
   it('rejects a session extension without a valid session cookie', async () => {
     const response = await fixture.app.inject({
       method: 'POST',

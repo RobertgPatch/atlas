@@ -48,7 +48,7 @@ export const mfaVerifyHandler = async (
   if (
     !challenge
     || !user
-    || user.status === 'Inactive'
+    || user.status !== 'Active'
     || authRepository.isMfaEnrollmentRequired(user)
     || !user.mfaSecret
   ) {
@@ -83,8 +83,15 @@ export const mfaVerifyHandler = async (
   }
 
   await lockoutService.clear(user.email, 'MFA', user.id)
-  authRepository.consumeChallenge(payload.data.challengeId)
-  const { token, session } = authRepository.createSession(user.id)
+  const consumedChallenge = authRepository.consumeChallenge(payload.data.challengeId)
+  const currentUser = consumedChallenge
+    ? authRepository.getUserById(consumedChallenge.userId)
+    : undefined
+  if (!consumedChallenge || !currentUser || currentUser.status !== 'Active') {
+    reply.status(401).send({ error: 'SIGN_IN_FAILED' })
+    return
+  }
+  const { token, session } = authRepository.createSession(currentUser.id)
 
   await auditRepository.record({
     actorUserId: user.id,

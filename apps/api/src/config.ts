@@ -1164,6 +1164,7 @@ export const config = {
 }
 
 export interface ProductionSessionSettings {
+  persistenceSecretKey: string
   sessionSecret: string
   sessionCookieSecure: boolean
   sessionCookieName: string
@@ -1171,6 +1172,7 @@ export interface ProductionSessionSettings {
   sessionIdleTimeoutSeconds: number
   sessionActivityWriteIntervalSeconds: number
   sessionAbsoluteTimeoutSeconds: number
+  mfaLoginEnabled: boolean
 }
 
 export interface ProductionIdentitySettings {
@@ -1210,8 +1212,14 @@ export const validateProductionIdentitySettings = (
 export const validateProductionSessionSettings = (
   settings: ProductionSessionSettings,
 ): void => {
+  if (settings.persistenceSecretKey.length < 32 || settings.persistenceSecretKey.length > 4_096) {
+    throw new Error('PERSISTENCE_SECRET_KEY must contain 32 through 4096 characters in production.')
+  }
   if (settings.sessionSecret.length < 32 || settings.sessionSecret.length > 4_096) {
     throw new Error('SESSION_SECRET must contain 32 through 4096 characters in production.')
+  }
+  if (settings.persistenceSecretKey === settings.sessionSecret) {
+    throw new Error('PERSISTENCE_SECRET_KEY and SESSION_SECRET must be distinct in production.')
   }
   if (!settings.sessionCookieSecure) {
     throw new Error('SESSION_COOKIE_SECURE must be true in production.')
@@ -1221,6 +1229,9 @@ export const validateProductionSessionSettings = (
   }
   if (!['lax', 'strict', 'none'].includes(settings.sessionCookieSameSite)) {
     throw new Error('SESSION_COOKIE_SAMESITE must be lax, strict, or none in production.')
+  }
+  if (!settings.mfaLoginEnabled) {
+    throw new Error('MFA_LOGIN_ENABLED must be true in production.')
   }
   if (
     !Number.isSafeInteger(settings.sessionIdleTimeoutSeconds)

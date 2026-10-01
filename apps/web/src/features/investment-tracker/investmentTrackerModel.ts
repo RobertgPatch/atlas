@@ -258,7 +258,10 @@ export function formatDate(value: string | null) {
 
 const csvCell = (value: string | number | null) => {
   if (value == null) return ''
-  const text = String(value)
+  let text = String(value)
+  if (typeof value === 'string' && (/^[\t\r\n ]*[=+\-@]/u.test(text) || /^[\t\r\n]/u.test(text))) {
+    text = `'${text}`
+  }
   return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 

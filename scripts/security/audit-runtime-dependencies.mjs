@@ -4,10 +4,13 @@ import process from 'node:process'
 const audit = (workspace, omitDevelopment) => {
   const args = ['audit', '--json', `--workspace=${workspace}`]
   if (omitDevelopment) args.splice(1, 0, '--omit=dev')
-  const result = spawnSync('npm', args, {
+  const npmCli = process.env.npm_execpath
+  const command = npmCli ? process.execPath : 'npm'
+  const commandArgs = npmCli ? [npmCli, ...args] : args
+  const result = spawnSync(command, commandArgs, {
     cwd: process.cwd(),
     encoding: 'utf8',
-    shell: process.platform === 'win32',
+    shell: !npmCli && process.platform === 'win32',
     maxBuffer: 16 * 1024 * 1024,
   })
   const raw = result.stdout?.trim()

@@ -81,7 +81,7 @@ describe('LoginPage current flow', () => {
 
     await waitFor(() => expect(authClient.login).toHaveBeenCalledWith('advisor@example.com', 'Password123!'))
     expect(sessionStore.setAuthenticated).toHaveBeenCalledWith(session)
-    expect(screen.getByTestId('current-location')).toHaveTextContent('/dashboard')
+    await waitFor(() => expect(screen.getByTestId('current-location')).toHaveTextContent('/dashboard'))
   })
 
   it('stores enrollment state and opens MFA setup without authenticating', async () => {
