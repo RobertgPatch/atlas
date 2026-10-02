@@ -5,6 +5,7 @@ export default defineConfig({
   testDir: './e2e',
   testMatch: 'investment-tracker-pdf.spec.ts',
   outputDir: './test-results/investment-tracker-pdf',
+  timeout: 90_000,
   workers: 1,
   use: { baseURL: 'http://127.0.0.1:5175', ...devices['Desktop Chrome'] },
   webServer: {

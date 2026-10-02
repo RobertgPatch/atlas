@@ -103,7 +103,7 @@ test('downloads all charts and a multi-page ledger without changing the current 
   expect(layout.badges).toHaveLength(3)
   expect(layout.badges.every((badge) => badge.bottom <= badge.rowBottom + 2)).toBe(true)
   const download = await downloadPromise
-  expect(download.suggestedFilename()).toMatch(/^investment-tracker-all-partnerships-\d{4}-\d{2}-\d{2}\.pdf$/)
+  expect(download.suggestedFilename()).toMatch(/^investment-tracker-\d{4}-\d{2}-\d{2}\.pdf$/)
   const output = testInfo.outputPath('current-view.pdf')
   await download.saveAs(output)
   const pdf = await readFile(output)

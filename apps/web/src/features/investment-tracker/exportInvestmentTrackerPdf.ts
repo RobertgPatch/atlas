@@ -103,7 +103,7 @@ export async function exportInvestmentTrackerPdf(source: HTMLElement) {
       width: table.getBoundingClientRect().width,
     }))
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3', compress: true })
-    pdf.setProperties({ title: 'Investment tracker - All partnerships', subject: 'Current investment tracker view', creator: 'Atlas' })
+    pdf.setProperties({ title: 'Investment tracker', subject: 'Current investment tracker view', creator: 'Atlas' })
     const pageWidth = pdf.internal.pageSize.getWidth()
     const pageHeight = pdf.internal.pageSize.getHeight()
     const imageWidth = pageWidth - PAGE_MARGIN * 2
@@ -151,12 +151,12 @@ export async function exportInvestmentTrackerPdf(source: HTMLElement) {
       pdf.setPage(index)
       pdf.setFontSize(9)
       pdf.setTextColor(71, 85, 105)
-      pdf.text('Investment tracker - All partnerships', PAGE_MARGIN, pageHeight - PAGE_MARGIN)
+      pdf.text('Investment tracker', PAGE_MARGIN, pageHeight - PAGE_MARGIN)
       pdf.text(`${index} / ${page}`, pageWidth - PAGE_MARGIN, pageHeight - PAGE_MARGIN, { align: 'right' })
     }
     const date = new Date()
     const stamp = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
-    await pdf.save(`investment-tracker-all-partnerships-${stamp}.pdf`, { returnPromise: true })
+    await pdf.save(`investment-tracker-${stamp}.pdf`, { returnPromise: true })
   } finally {
     host.remove()
   }
