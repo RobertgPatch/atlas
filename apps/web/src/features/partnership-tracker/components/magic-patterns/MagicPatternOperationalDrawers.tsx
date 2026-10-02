@@ -210,6 +210,9 @@ export function MagicPatternCashActivityDrawer({
       }
     }
 
+    const feesAndCarry = draft.feesAndCarry.trim().replace(/[$,\s]/g, '') || '0'
+    if (!/^\d{1,16}(\.\d{1,4})?$/.test(feesAndCarry)) return 'Enter nonnegative fees and carry with at most four decimal places.'
+
     let resolvedAmount: string
     let activityNote = draft.note.trim()
     if (draft.settlement === 'in-kind') {
@@ -228,10 +231,13 @@ export function MagicPatternCashActivityDrawer({
       })
     } else {
       const parsed = normalizeCurrencyInput(draft.amount, false)
-      if (parsed.error || parsed.value == null || Number(parsed.value) <= 0) {
-        return parsed.error ?? 'Enter an amount greater than zero.'
+      const amount = parsed.value ?? (draft.kind === 'CAPITAL_CALL' && draft.amount.trim() === '' && Number(feesAndCarry) > 0 ? '0.00' : null)
+      if (parsed.error || amount == null || (Number(amount) === 0 && (draft.kind !== 'CAPITAL_CALL' || Number(feesAndCarry) === 0))) {
+        return parsed.error ?? (draft.kind === 'CAPITAL_CALL'
+          ? 'Enter an amount greater than zero, or enter fees and carry for a zero capital call.'
+          : 'Enter an amount greater than zero.')
       }
-      resolvedAmount = parsed.value
+      resolvedAmount = amount
       if (draft.source.trim()) {
         activityNote = activityNote
           ? `Source: ${draft.source.trim()} — ${activityNote}`
@@ -239,9 +245,6 @@ export function MagicPatternCashActivityDrawer({
       }
     }
 
-    const feesAndCarry = draft.feesAndCarry.trim().replace(/[$,\s]/g, '') || '0'
-    if (!/^\d{1,16}(\.\d{1,4})?$/.test(feesAndCarry)) return 'Enter nonnegative fees and carry with at most four decimal places.'
-    if (draft.kind === 'CAPITAL_CALL' && Number(feesAndCarry) > Number(resolvedAmount)) return 'Contribution fees cannot exceed the cash paid.'
     return {
       type: 'cash-flow',
       body: {
@@ -406,12 +409,12 @@ export function MagicPatternCashActivityDrawer({
                   ) : null}
                   {draft.settlement === 'cash' ? (
                     <label className={mpLabelClass}>
-                      {draft.kind === 'VALUATION' ? 'NAV / FMV (USD)' : 'Amount (USD)'} <span className="text-red-700">*</span>
+                      {draft.kind === 'VALUATION' ? 'NAV / FMV (USD)' : 'Amount (USD)'} {draft.kind !== 'CAPITAL_CALL' ? <span className="text-red-700">*</span> : null}
                       <span className="relative block">
                         <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-sm text-slate-500">$</span>
-                        <input required inputMode="decimal" value={draft.amount} onChange={(event) => updateDraft(draft.id, { amount: event.target.value })} className={`${mpInputClass} pl-7`} />
+                        <input required={draft.kind !== 'CAPITAL_CALL'} inputMode="decimal" value={draft.amount} onChange={(event) => updateDraft(draft.id, { amount: event.target.value })} className={`${mpInputClass} pl-7`} />
                       </span>
-                      <span className="mt-1 block text-xs font-normal leading-4 text-slate-500">{draft.kind === 'VALUATION' ? 'The newest valuation drives TVPI and IRR.' : draft.kind === 'CAPITAL_CALL' ? 'Enter the gross capital contribution before fees; direction comes from the activity type.' : 'Enter the gross distribution before fees and carry. Net returns subtract the fees below.'}</span>
+                      <span className="mt-1 block text-xs font-normal leading-4 text-slate-500">{draft.kind === 'VALUATION' ? 'The newest valuation drives TVPI and IRR.' : draft.kind === 'CAPITAL_CALL' ? 'Enter the gross capital contribution before fees. Leave blank to record only fees and carry.' : 'Enter the gross distribution before fees and carry. Net returns subtract the fees below.'}</span>
                     </label>
                   ) : null}
                 </div>
@@ -419,7 +422,7 @@ export function MagicPatternCashActivityDrawer({
                 {draft.kind !== 'VALUATION' ? <label className={mpLabelClass}>
                   Fees &amp; carry (USD)
                   <input inputMode="decimal" value={draft.feesAndCarry} onChange={(event) => updateDraft(draft.id, { feesAndCarry: event.target.value })} placeholder="0" className={mpInputClass} />
-                  <span className="mt-1 block text-xs font-normal text-slate-500">Enter actual fees and carry as a positive deduction from the gross amount above. Blank means zero.</span>
+                  <span className="mt-1 block text-xs font-normal text-slate-500">Enter actual fees and carry as a positive deduction from net performance. Blank means zero.</span>
                 </label> : null}
 
                 {draft.kind === 'DISTRIBUTION' ? <label className="flex items-start gap-3 rounded-md border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-900">

@@ -60,6 +60,22 @@ durable('Investment Performance persistence', () => {
     expect(detail.investmentPerformance.feesAndCarry).toBe('0.0000')
   })
 
+  it('creates and corrects a fee-only capital call without increasing paid-in capital', async () => {
+    const id = fixture.partnershipId
+    const created = await repository.createCapitalActivity(id, {
+      kind: 'CAPITAL_CALL', activityDate: '2026-01-01', amount: '0.00', feesAndCarry: '12.3450',
+    }, fixture.adminUserId, scope)
+    expect(created).toMatchObject({ amount: '0.00', feesAndCarry: '12.3450' })
+
+    const corrected = await repository.updateCapitalActivity(id, created.id, {
+      kind: 'CAPITAL_CALL', activityDate: '2026-01-01', amount: '0.00', feesAndCarry: '15.0000',
+      expectedUpdatedAt: created.updatedAt,
+    }, fixture.adminUserId, scope)
+    expect(corrected.feesAndCarry).toBe('15.0000')
+    const detail = await repository.getPartnership(id, scope)
+    expect(detail.investmentPerformance).toMatchObject({ paidInCapital: '0.0000', feesAndCarry: '-15.0000', netDistributions: '-15.0000' })
+  })
+
   it('recalculates performance and recallable commitments when capital activity is corrected', async () => {
     const id = fixture.partnershipId
     await repository.createCommitment(id, { amount: '100.00', effectiveDate: '2021-01-01' }, fixture.adminUserId, scope)

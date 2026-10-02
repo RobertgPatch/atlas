@@ -135,9 +135,35 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(within(table).getByRole('row', { name: 'Open Fund Alpha, LP partnership management' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fund' }), 'fund-b')
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
     expect(screen.getByText('1 fund · 1 owner record')).toBeInTheDocument()
     expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
+  })
+
+  it('allows several funds to be selected and keeps them combined with other filters', async () => {
+    const user = userEvent.setup()
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    const table = screen.getByRole('table', { name: 'Capital activity fund investment summary' })
+
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Alpha, LP' }))
+    expect(screen.getByText('1 fund · 2 owner records')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
+    expect(screen.getByRole('button', { name: 'Fund filter: 2 funds selected' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
+    expect(within(table).getByText('Fund Alpha, LP')).toBeInTheDocument()
+    expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Real Estate')
+    expect(screen.getByText('1 fund · 2 owner records')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByRole('button', { name: 'Fund filter: All funds' })).toBeInTheDocument()
+    expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
   })
 })

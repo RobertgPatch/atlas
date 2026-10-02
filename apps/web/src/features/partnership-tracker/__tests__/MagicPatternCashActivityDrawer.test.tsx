@@ -96,6 +96,38 @@ describe('MagicPatternCashActivityDrawer', () => {
     expect(mutations.createYear).not.toHaveBeenCalled()
   })
 
+  it('records a fee-only capital call with a zero gross amount', async () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    fireEvent.change(screen.getByLabelText(/Amount \(USD\)/), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText(/Fees & carry \(USD\)/), { target: { value: '25.1250' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+
+    await waitFor(() => expect(mutations.createCashFlows).toHaveBeenCalledWith({
+      id: 'partnership-1',
+      body: { entries: [{ kind: 'CAPITAL_CALL', activityDate: expect.any(String), amount: '0.00', feesAndCarry: '25.1250', note: null }] },
+    }))
+  })
+
+  it('defaults an empty capital call amount to zero when fees and carry are entered', async () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    expect(screen.getByLabelText(/Amount \(USD\)/)).not.toBeRequired()
+    fireEvent.change(screen.getByLabelText(/Fees & carry \(USD\)/), { target: { value: '25.1250' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+
+    await waitFor(() => expect(mutations.createCashFlows).toHaveBeenCalledWith({
+      id: 'partnership-1',
+      body: { entries: [{ kind: 'CAPITAL_CALL', activityDate: expect.any(String), amount: '0.00', feesAndCarry: '25.1250', note: null }] },
+    }))
+  })
+
+  it('still requires an amount when a capital call has no fees and carry', () => {
+    render(<MagicPatternCashActivityDrawer open onClose={vi.fn()} partnershipId="partnership-1" fundName="Workbook" />)
+    fireEvent.click(screen.getByRole('button', { name: 'Record activity' }))
+
+    expect(screen.getByText('Enter an amount greater than zero, or enter fees and carry for a zero capital call.')).toBeInTheDocument()
+    expect(mutations.createCashFlows).not.toHaveBeenCalled()
+  })
+
   it('loads and updates every editable field for an existing capital activity', async () => {
     const entry: K1TrackerCashFlowEvent = {
       id: 'cash-flow-1',

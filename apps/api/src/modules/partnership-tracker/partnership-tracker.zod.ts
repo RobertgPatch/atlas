@@ -181,7 +181,7 @@ const partnershipCashFlowBodySchema = z.object({
   feesAndCarry: z.string().regex(/^\d{1,16}(\.\d{1,4})?$/, 'Fees must be nonnegative with at most four decimal places').optional(),
   kind: z.enum(['CAPITAL_CALL', 'DISTRIBUTION', 'RECALLABLE_DISTRIBUTION']),
   activityDate: partnershipTrackerDateSchema,
-  amount: partnershipTrackerNonnegativeMoneySchema.refine((value) => Number(value) > 0, 'Amount must be greater than zero'),
+  amount: partnershipTrackerNonnegativeMoneySchema,
   settlementStatus: z.enum(['ANNOUNCED', 'SETTLED']).default('SETTLED'),
   note: z.string().trim().max(2_000).nullable().optional(),
 })
@@ -190,8 +190,8 @@ const validatePartnershipCashFlow = (
   body: z.infer<typeof partnershipCashFlowBodySchema>,
   context: z.RefinementCtx,
 ) => {
-  if (body.kind === 'CAPITAL_CALL' && Number(body.feesAndCarry ?? 0) > Number(body.amount)) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['feesAndCarry'], message: 'Contribution fees cannot exceed the cash paid' })
+  if (Number(body.amount) === 0 && (body.kind !== 'CAPITAL_CALL' || Number(body.feesAndCarry ?? 0) === 0)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['amount'], message: 'Amount must be greater than zero unless a capital call has positive fees and carry' })
   }
   if (body.isFinalLiquidation && (body.kind !== 'DISTRIBUTION' || body.settlementStatus !== 'SETTLED')) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['isFinalLiquidation'], message: 'Final liquidation must be a settled, non-recallable distribution' })
