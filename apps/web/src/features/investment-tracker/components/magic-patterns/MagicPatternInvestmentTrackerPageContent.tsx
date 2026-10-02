@@ -1,5 +1,5 @@
 import { AlertTriangle, FileText, Keyboard, Loader2, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { K1UploadDialog } from '../../../k1/components/K1UploadDialog'
 import { useK1Batch } from '../../../k1/hooks/useK1Queries'
@@ -23,6 +23,7 @@ const K1_PARTNERSHIP_CREATION_ENABLED = false
 
 export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit: boolean }) {
   const [params, setParams] = useSearchParams()
+  const exportTarget = useRef<HTMLDivElement>(null)
   const [adding, setAdding] = useState<'choose' | 'manual' | 'k1' | null>(null)
   const [pendingImportBatchId, setPendingImportBatchId] = useState<string | null>(null)
   const selectedId = params.get('partnership') ?? undefined
@@ -99,6 +100,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
 
   return (
     <div
+      ref={exportTarget}
       className="-m-4 min-h-[calc(100vh-4rem)] bg-[#e7edf4] p-4 pb-10 sm:-m-6 sm:p-6 lg:-m-8 lg:p-8"
       data-design-variant="magic-patterns-investment-tracker"
     >
@@ -111,6 +113,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
         </div>
         {canEdit ? (
           <MagicButton
+            data-pdf-exclude
             type="button"
             onClick={() => setAdding(K1_PARTNERSHIP_CREATION_ENABLED ? 'choose' : 'manual')}
           >
@@ -160,7 +163,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
         )
       ) : null}
 
-      <MagicPatternCapitalActivityPortfolio onOpen={openPartnership} />
+      <MagicPatternCapitalActivityPortfolio onOpen={openPartnership} exportTarget={exportTarget} />
 
       {K1_PARTNERSHIP_CREATION_ENABLED && adding === 'choose' ? (
         <MagicModal

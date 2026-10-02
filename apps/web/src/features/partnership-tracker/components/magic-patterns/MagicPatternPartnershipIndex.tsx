@@ -91,11 +91,6 @@ export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: Par
       value: formatMoney(rollup.unfundedCommitment.amount) ?? 'Not available',
       basis: coverage(rollup.unfundedCommitment.knownCount, rollup.unfundedCommitment.totalCount),
     },
-    {
-      label: 'Unsettled activity',
-      value: formatMoney(rollup.unsettledActivity.amount) ?? '$0.00',
-      basis: `${coverage(rollup.unsettledActivity.knownCount, rollup.unsettledActivity.totalCount)} · manager-announced activity`,
-    },
   ]
   const performanceRows = [
     {

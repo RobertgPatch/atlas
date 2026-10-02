@@ -10,7 +10,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-md border font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-disabled-background disabled:bg-disabled-background disabled:text-disabled-foreground disabled:shadow-none'
+  'inline-flex items-center justify-center gap-2 rounded-md border text-center font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-disabled-background disabled:bg-disabled-background disabled:text-disabled-foreground disabled:shadow-none'
 
 const variants: Record<ButtonVariant, string> = {
   primary:
@@ -26,8 +26,9 @@ const variants: Record<ButtonVariant, string> = {
 }
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'min-h-9 px-3 py-1.5 text-xs',
-  md: 'min-h-11 px-4 py-2 text-sm',
+  // Leading icons keep the size's normal left inset; only the label end gets extra room.
+  sm: 'min-h-9 px-3 py-1.5 text-xs has-[>svg:first-child]:pr-5',
+  md: 'min-h-11 px-4 py-2 text-sm has-[>svg:first-child]:pr-5',
   lg: 'min-h-12 px-5 py-2.5 text-base',
   icon: 'min-h-11 min-w-11 p-2.5 text-sm',
 }
@@ -54,6 +55,7 @@ export function Button({
   disabled,
   className,
   type = 'button',
+  children,
   ...props
 }: ButtonProps) {
   return (
@@ -64,6 +66,8 @@ export function Button({
       aria-busy={pending || undefined}
       data-pending={pending || undefined}
       className={buttonClassName({ variant, size, className })}
-    />
+    >
+      {children}
+    </button>
   )
 }

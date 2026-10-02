@@ -634,8 +634,7 @@ export function MagicPatternDashboardPage() {
             </button>
           </div>
           <Link to="/reports" className={buttonClassName({ variant: 'inverse', size: 'sm', className: 'relative shrink-0' })}>
-            <FileBarChart className="h-4 w-4" aria-hidden="true" />
-            Run report
+            <FileBarChart className="h-4 w-4" aria-hidden="true" />Run report
           </Link>
         </header>
 
