@@ -95,15 +95,15 @@ export function PortfolioDistributionPie({ data }: { data: PortfolioChartData })
 
 export function PortfolioCashRecovery({ data }: { data: PortfolioChartData }) {
   const { paid, returned, eventCount } = data.cash
-  const positiveReturned = returned > 0n ? returned : 0n
-  const scale = paid > positiveReturned ? paid : positiveReturned
+  const returnedMagnitude = returned < 0n ? -returned : returned
+  const scale = [paid, returnedMagnitude, 1n].reduce((largest, value) => value > largest ? value : largest)
   return <ChartCard title="Cash recovery" description="Cash received compared with cash paid across selected partnerships.">
-    {eventCount === 0 || scale === 0n ? <EmptyChart>No settled cash activity is available for this selection.</EmptyChart> : <div className="space-y-5 p-5">
+    {eventCount === 0 ? <EmptyChart>No settled cash activity is available for this selection.</EmptyChart> : <div className="space-y-5 p-5">
       <div role="img" aria-label={`Cash paid ${portfolioMoney(paid)}; net cash returned ${portfolioMoney(returned)}`} className="space-y-5">
         <div><div className="mb-2 flex justify-between gap-3 text-sm"><span className="text-slate-600">Cash paid (calls + call fees)</span><strong className="font-mono tabular-nums text-slate-950">{portfolioMoney(paid)}</strong></div><div className="h-4 rounded-sm bg-slate-200"><div className="h-4 rounded-sm bg-blue-600" style={{ width: `${Number(paid) / Number(scale) * 100}%` }} /></div></div>
-        <div><div className="mb-2 flex justify-between gap-3 text-sm"><span className="text-slate-600">Net cash returned</span><strong className="font-mono tabular-nums text-slate-950">{portfolioMoney(returned)}</strong></div><div className="h-4 rounded-sm bg-slate-200"><div className="h-4 rounded-sm bg-emerald-700" style={{ width: `${Number(positiveReturned) / Number(scale) * 100}%` }} /></div></div>
+        <div><div className="mb-2 flex justify-between gap-3 text-sm"><span className="text-slate-600">Net cash returned</span><strong className="font-mono tabular-nums text-slate-950">{portfolioMoney(returned)}</strong></div><div className="h-4 rounded-sm bg-slate-200"><div className={`h-4 rounded-sm ${returned < 0n ? 'bg-red-700' : 'bg-emerald-700'}`} style={{ width: `${Number(returnedMagnitude) / Number(scale) * 100}%` }} /></div></div>
       </div>
-      <p className="border-t border-slate-200 pt-3 text-xs text-slate-600">{paid > 0n ? `${(Number(positiveReturned) / Number(paid) * 100).toFixed(1)}% of cash paid has been returned.` : 'No settled cash paid has been recorded.'}</p>
+      <p className="border-t border-slate-200 pt-3 text-xs text-slate-600">{paid > 0n ? `${(Number(returned) / Number(paid) * 100).toFixed(1)}% of cash paid has been returned.` : 'No settled cash paid has been recorded.'}</p>
     </div>}
   </ChartCard>
 }

@@ -95,6 +95,7 @@ export function CashMovementChart({ events }: { events: K1TrackerCashFlowEvent[]
       gross: fromUnits(amounts.gross),
       fees: fromUnits(amounts.feesAndCarry),
       grossLabel: formatLedgerMoney(amounts.gross),
+      feesLabel: formatLedgerMoney(amounts.feesAndCarry),
     }
   })
 
@@ -116,6 +117,12 @@ export function CashMovementChart({ events }: { events: K1TrackerCashFlowEvent[]
     Math.abs(Math.min(0, point.gross) + point.fees),
   )))
   const barY = (value: number) => barZero - value / maxBar * barHalfHeight
+  const activityAriaLabel = `Cash activity bars by activity date: ${points.map((point) => {
+    const kind = point.event.kind === 'CAPITAL_CALL' ? 'Capital call' : point.event.kind === 'RECALLABLE_DISTRIBUTION' ? 'Recallable distribution' : 'Distribution'
+    const fees = point.fees !== 0 ? `; fees and carry ${point.feesLabel}` : ''
+    const status = point.event.settlementStatus === 'ANNOUNCED' ? ' (announced)' : ''
+    return `${shortDate(point.event.activityDate)} ${kind} ${point.grossLabel}${fees}${status}`
+  }).join('; ')}`
   return <ChartCard title="Cash activity" description="Capital calls, distributions, and fees by date. Announced amounts are outlined.">
     <div className="p-4">
       <section className="min-w-0" aria-label="Activity graphic">
@@ -127,7 +134,7 @@ export function CashMovementChart({ events }: { events: K1TrackerCashFlowEvent[]
           <span><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-sm border border-dashed border-slate-600" />Announced</span>
         </div>
         <div ref={activityPlotRef} className="overflow-x-auto">
-          <svg width={width} height="220" viewBox={`0 0 ${width} 220`} role="img" aria-label="Cash activity bars by activity date" className="max-w-none">
+          <svg width={width} height="220" viewBox={`0 0 ${width} 220`} role="img" aria-label={activityAriaLabel} className="max-w-none">
             {[barTop + 13, barZero, barBottom - 13].map((y) => <line key={y} x1={left} x2={right} y1={y} y2={y} stroke={GRID} strokeDasharray={y === barZero ? undefined : '3 4'} />)}
             <text x={left - 9} y={barTop + 17} textAnchor="end" fontSize="10" fill="#64748b">{compactMoney(maxBar)}</text>
             <text x={left - 9} y={barZero + 4} textAnchor="end" fontSize="10" fill="#64748b">$0</text>
@@ -220,17 +227,17 @@ export function InvestmentValueBridge({ performance: p }: { performance: Investm
           const upper = Math.min(y(step.start), y(step.end))
           const barHeight = Math.max(2, Math.abs(y(step.end) - y(step.start)))
           return <g key={step.label}>
-            <rect x={centers[index]! - width / 2} y={upper} width={width} height={barHeight} rx="3" fill={step.color}>
+            {step.change !== 0n ? <rect x={centers[index]! - width / 2} y={upper} width={width} height={barHeight} rx="3" fill={step.color}>
               <title>{step.label}: {exactMoney(step.change)}</title>
-            </rect>
+            </rect> : null}
             {index < steps.length - 1 ? <line x1={centers[index]! + width / 2} x2={centers[index + 1]! - width / 2} y1={y(step.end)} y2={y(step.end)} stroke="#94a3b8" strokeDasharray="3 3" /> : null}
             <text x={centers[index]} y="250" textAnchor="middle" fontSize="11" fill="#475569">{step.label}</text>
             <text x={centers[index]} y="268" textAnchor="middle" fontSize="11" fontWeight="600" fill="#17263a">{compactMoney(fromUnits(step.change))}</text>
           </g>
         })}
-        <rect x={centers[4]! - width / 2} y={Math.min(y(0n), y(total))} width={width} height={Math.max(2, Math.abs(y(total) - y(0n)))} rx="3" fill={total >= 0n ? CHART_BLUE : CHART_RED}>
+        {total !== 0n ? <rect x={centers[4]! - width / 2} y={Math.min(y(0n), y(total))} width={width} height={Math.max(2, Math.abs(y(total) - y(0n)))} rx="3" fill={total >= 0n ? CHART_BLUE : CHART_RED}>
           <title>Net position: {exactMoney(total)}</title>
-        </rect>
+        </rect> : null}
         <text x={centers[4]} y="250" textAnchor="middle" fontSize="11" fill="#475569">Net position</text>
         <text x={centers[4]} y="268" textAnchor="middle" fontSize="11" fontWeight="600" fill="#17263a">{compactMoney(fromUnits(total))}</text>
       </svg>

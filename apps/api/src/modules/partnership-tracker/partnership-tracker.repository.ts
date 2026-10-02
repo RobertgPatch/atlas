@@ -247,7 +247,9 @@ const summaryRows = async (
         'amount', abs(amount)::text,
         'feesAndCarry', fees_and_carry::text
       ) order by activity_date, created_at, id) filter (where settlement_status = 'SETTLED') as events,
-        coalesce(sum(abs(amount)) filter (where settlement_status = 'ANNOUNCED'), 0)::text as unsettled_activity
+        coalesce(sum(
+          abs(amount) + case when event_type = 'funded_contribution' then fees_and_carry else 0 end
+        ) filter (where settlement_status = 'ANNOUNCED'), 0)::text as unsettled_activity
       from capital_activity_events
       where partnership_id = p.id and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
     ) cash_flows on true

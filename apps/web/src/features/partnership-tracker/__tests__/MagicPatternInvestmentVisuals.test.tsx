@@ -49,7 +49,7 @@ describe('Investment visual summary', () => {
     />)
 
     expect(screen.getByRole('region', { name: 'Investment visual summary' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /Cash activity bars by activity date/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cash activity bars by activity date: 1\/1\/26 Capital call \(\$100\.00\).*2\/1\/26 Capital call \$0\.00; fees and carry \(\$10\.00\).*3\/1\/26 Distribution \$1,000\.00 \(announced\)/ })).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Cumulative net cash by activity date/ })).not.toBeInTheDocument()
     const svgTitles = Array.from(document.querySelectorAll('svg title'), (node) => node.textContent ?? '')
     expect(svgTitles).toContainEqual(expect.stringMatching(/Fees and carry -\$10.0000 USD/))
@@ -69,6 +69,17 @@ describe('Investment visual summary', () => {
     expect(screen.getByText('Record a capital call or distribution to see cash activity.')).toBeInTheDocument()
     expect(screen.getByText(/Record a NAV \/ FMV valuation to show the current value bridge/)).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Investment value bridge:/ })).not.toBeInTheDocument()
+  })
+
+  it('omits zero-change bridge bars while retaining nonzero changes and totals', () => {
+    render(<MagicPatternInvestmentVisuals
+      events={[]}
+      performance={{ ...investmentPerformanceFixture, paidInCapital: '100.0000', grossDistributions: '0.0000', feesAndCarry: '0.0000', residualValue: '0.0000', residualValueDate: '2026-04-30' }}
+    />)
+
+    const bridge = screen.getByRole('img', { name: /Investment value bridge:/ })
+    expect(bridge.querySelectorAll('rect')).toHaveLength(2)
+    expect(bridge.querySelector('title')?.textContent).toBe('Paid in: -$100.0000')
   })
 
   it('keeps distribution type mix on the individual page while other cash charts move', () => {

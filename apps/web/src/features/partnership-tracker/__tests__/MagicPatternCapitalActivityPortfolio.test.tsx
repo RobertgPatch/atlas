@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipAggregateRow, PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
 import { MagicPatternCapitalActivityPortfolio } from '../components/magic-patterns/MagicPatternCapitalActivityPortfolio'
+import { PortfolioCashRecovery } from '../components/magic-patterns/MagicPatternPortfolioCharts'
+import { buildPortfolioChartData } from '../components/magic-patterns/portfolioChartData'
 
 const member = ({
   id,
@@ -87,6 +89,22 @@ vi.mock('../../investment-tracker/hooks/useInvestmentTrackerData', () => ({
 }))
 
 describe('MagicPatternCapitalActivityPortfolio', () => {
+  it('renders settled zero and negative net returns instead of an empty cash state', () => {
+    const negative = member({ id: 'negative', fundName: 'Negative Return', ownerId: 'entity-a', ownerName: 'Owner', assetClass: 'Real Estate' })
+    negative.cashFlowEvents = [
+      { id: 'negative-distribution', kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '5.0000', feesAndCarry: '10.0000' },
+    ]
+    const { rerender } = render(<PortfolioCashRecovery data={buildPortfolioChartData([negative as unknown as PartnershipAggregateRow])} />)
+    expect(screen.getByRole('img', { name: /net cash returned -\$5\.00/ })).toBeInTheDocument()
+    expect(screen.queryByText('No settled cash activity is available for this selection.')).not.toBeInTheDocument()
+
+    negative.cashFlowEvents = [
+      { id: 'zero-distribution', kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '10.0000', feesAndCarry: '10.0000' },
+    ]
+    rerender(<PortfolioCashRecovery data={buildPortfolioChartData([negative as unknown as PartnershipAggregateRow])} />)
+    expect(screen.getByRole('img', { name: /net cash returned \$0\.00/ })).toBeInTheDocument()
+  })
+
   it('rolls owner records into expandable fund totals', async () => {
     const user = userEvent.setup()
     const onOpen = vi.fn()

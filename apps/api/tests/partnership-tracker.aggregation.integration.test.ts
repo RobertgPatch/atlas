@@ -64,7 +64,7 @@ durable('Partnership aggregation PostgreSQL integration', () => {
     )
     const announced = await partnershipTrackerRepository.createCapitalActivity(
       fixture.partnershipIds.alpha,
-      { kind: 'DISTRIBUTION', activityDate: '2026-03-01', amount: '1000.0000', settlementStatus: 'ANNOUNCED' },
+      { kind: 'CAPITAL_CALL', activityDate: '2026-03-01', amount: '0.0000', feesAndCarry: '7.8750', settlementStatus: 'ANNOUNCED' },
       fixture.base.adminUserId,
       { isAdmin: true, entityIds: [] },
     )
@@ -74,12 +74,13 @@ durable('Partnership aggregation PostgreSQL integration', () => {
       headers: { cookie: fixture.adminCookie },
     })
     expect(response.statusCode).toBe(200)
-    const alpha = response.json().items.flatMap((group: { members: Array<{ partnership: { id: string }; cashFlowEvents: Array<{ id: string; amount: string; feesAndCarry: string }> }> }) => group.members)
+    const alpha = response.json().items.flatMap((group: { members: Array<{ partnership: { id: string }; cashFlowEvents: Array<{ id: string; amount: string; feesAndCarry: string }>; unsettledActivityAmount: string }> }) => group.members)
       .find((member: { partnership: { id: string } }) => member.partnership.id === fixture.partnershipIds.alpha)
     expect(alpha?.cashFlowEvents).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: settled.id, amount: '0.0000', feesAndCarry: '10.1250' }),
     ]))
     expect(alpha?.cashFlowEvents).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: announced.id })]))
+    expect(alpha?.unsettledActivityAmount).toBe('7.8750')
   })
 
   it('uses one set-based candidate projection in the repository', async () => {

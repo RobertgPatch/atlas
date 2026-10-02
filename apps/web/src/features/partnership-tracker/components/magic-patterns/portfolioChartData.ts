@@ -76,12 +76,10 @@ export function buildPortfolioChartData(members: PartnershipAggregateRow[]): Por
       eventCount += 1
       if (fundingCommitment > 0n) {
         const year = Number(event.activityDate.slice(0, 4))
-        if (Number.isInteger(year)) {
+        if (Number.isInteger(year) && isCall) {
+          firstFundingYear = Math.min(firstFundingYear, year)
           lastFundingYear = Math.max(lastFundingYear, year)
-          if (isCall) {
-            firstFundingYear = Math.min(firstFundingYear, year)
-            annualCalls.set(year, (annualCalls.get(year) ?? 0n) + gross)
-          }
+          annualCalls.set(year, (annualCalls.get(year) ?? 0n) + gross)
         }
       }
     }

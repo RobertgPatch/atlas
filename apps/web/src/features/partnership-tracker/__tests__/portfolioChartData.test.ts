@@ -53,6 +53,7 @@ describe('portfolio chart data', () => {
       event('2023-call', 'CAPITAL_CALL', '2023-04-01', '400000'),
       event('2024-call', 'CAPITAL_CALL', '2024-04-01', '500000'),
       event('2025-fee', 'CAPITAL_CALL', '2025-04-01', '0', '1000'),
+      event('2030-distribution', 'DISTRIBUTION', '2030-04-01', '100000'),
     ])
     const result = buildPortfolioChartData([record])
     expect(result.funding).toMatchObject({ committed: 15_000_000_000n, called: 9_000_000_000n })
