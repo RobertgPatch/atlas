@@ -10,6 +10,8 @@ import {
 } from '../../../investment-tracker/investmentTrackerModel'
 import { MagicButton, MagicCard } from './MagicPatternPrimitives'
 import { MagicPatternPartnershipActivitySummary } from './MagicPatternPartnershipIndex'
+import { PortfolioSecondaryCharts, PortfolioTopCharts } from './MagicPatternPortfolioCharts'
+import { buildPortfolioChartData } from './portfolioChartData'
 
 const ALL = 'all'
 
@@ -171,6 +173,10 @@ export function MagicPatternCapitalActivityPortfolio({
     && (entityId === ALL || record.ownerId === entityId)
     && (selectedFundIds.size === 0 || selectedFundIds.has(record.fundId))
   )), [assetClass, entityId, selectedFundIds, records])
+  const visibleRecordIds = useMemo(() => new Set(visibleRecords.map((record) => record.id)), [visibleRecords])
+  const chartData = useMemo(() => buildPortfolioChartData(
+    activity.data?.items.flatMap((group) => group.members.filter((member) => visibleRecordIds.has(member.partnership.id))) ?? [],
+  ), [activity.data, visibleRecordIds])
   const allFundGroups = useMemo(() => groupInvestmentRecordsByFund(records), [records])
   const visibleFundGroups = useMemo(() => groupInvestmentRecordsByFund(visibleRecords), [visibleRecords])
   const [expandedFundIds, setExpandedFundIds] = useState<Set<string>>(() => new Set())
@@ -217,8 +223,6 @@ export function MagicPatternCapitalActivityPortfolio({
 
   return (
     <div className="space-y-5">
-      {activity.data ? <MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /> : null}
-
       <MagicCard className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -244,6 +248,13 @@ export function MagicPatternCapitalActivityPortfolio({
         </div>
       </MagicCard>
 
+      {!activity.isLoading ? <>
+        <PortfolioTopCharts data={chartData} />
+        <PortfolioSecondaryCharts data={chartData} />
+      </> : null}
+
+      {activity.data ? <MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /> : null}
+
       <p className="text-sm font-semibold text-slate-950" aria-live="polite">
         {activity.isLoading
           ? 'Loading funds…'
@@ -258,7 +269,7 @@ export function MagicPatternCapitalActivityPortfolio({
           </div>
           <p className="text-xs text-slate-500">Click a single-owner fund to open it. Multi-owner funds expand so you can choose the owner record.</p>
         </div>
-        <div className="overflow-auto" style={{ maxHeight: 'min(68vh, 760px)' }}>
+        <div className="overflow-auto" style={{ height: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
           <table className="w-full min-w-[88rem] border-collapse text-left text-xs" aria-label="Capital activity fund investment summary">
             <thead>
               <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-slate-700">

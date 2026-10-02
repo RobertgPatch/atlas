@@ -36,6 +36,10 @@ const member = ({
   tvpi: '1.45',
   irr: '0.125',
   performanceAsOfDate: '2026-06-30',
+  cashFlowEvents: [
+    { id: `${id}-call`, kind: 'CAPITAL_CALL', activityDate: '2026-01-10', amount: '600000.0000', feesAndCarry: '0.0000' },
+    { id: `${id}-distribution`, kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '120000.0000', feesAndCarry: '0.0000' },
+  ],
 })
 
 const data = {
@@ -91,6 +95,14 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
 
     expect(screen.getByRole('table', { name: 'Partnership activity summary for the full permitted portfolio' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Fund investment summary' })).toBeInTheDocument()
+    const summaryHeading = screen.getByRole('heading', { name: 'Partnership activity summary' })
+    for (const chartName of ['Cash recovery', 'Funding over time', 'Commitment progress', 'Distributions by asset type']) {
+      expect(screen.getByRole('heading', { name: chartName }).compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$3,000,000\.00 committed: 2026 \$1,800,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /\$1,800,000\.00 paid in of \$3,000,000\.00 committed/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Distribution share by asset type: Real Estate \$240,000\.00; Venture Capital \$120,000\.00/ })).toBeInTheDocument()
     expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
     expect(within(table).getByText('Fund Alpha, LP')).toBeInTheDocument()
     expect(within(table).getByText('2 owner entities')).toBeInTheDocument()
@@ -122,8 +134,14 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(screen.getByRole('columnheader', { name: 'Return' })).toBeInTheDocument()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
-    expect(screen.getByText('1 fund · 1 owner record')).toBeInTheDocument()
-    expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cash paid \$600,000\.00; net cash returned \$120,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$1,000,000\.00 committed: 2026 \$600,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Distribution share by asset type: Venture Capital \$120,000\.00/ })).toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'entity-b')
+    expect(screen.getByText('No distribution amounts are available for this selection.')).toBeInTheDocument()
+    expect(screen.getByText('No settled cash activity is available for this selection.')).toBeInTheDocument()
+    expect(screen.getByText('No dated capital calls are available for partnerships with commitments in this selection.')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
@@ -154,6 +172,7 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
 
     await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
     expect(screen.getByRole('button', { name: 'Fund filter: 2 funds selected' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
     expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
     expect(within(table).getByText('Fund Alpha, LP')).toBeInTheDocument()
     expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()

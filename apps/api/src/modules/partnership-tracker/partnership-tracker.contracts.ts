@@ -138,7 +138,14 @@ export interface PartnershipAggregationQuery {
   page: number
   pageSize: PartnershipAggregationPageSize
 }
-export interface PartnershipAggregateRow extends PartnershipTrackerSummary { dataQuality: PartnershipDataQuality }
+export interface PartnershipPortfolioCashFlowEvent {
+  id: string
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+  activityDate: string
+  amount: string
+  feesAndCarry: string
+}
+export interface PartnershipAggregateRow extends PartnershipTrackerSummary { dataQuality: PartnershipDataQuality; cashFlowEvents: PartnershipPortfolioCashFlowEvent[] }
 export interface PartnershipAggregationCoveredMoney { amount: string | null; knownCount: number; totalCount: number }
 export const PARTNERSHIP_AGGREGATION_RATIO_STATUSES = ['AVAILABLE', 'PARTIAL_COVERAGE', 'NO_DATA', 'ZERO_DENOMINATOR'] as const
 export type PartnershipAggregationRatioStatus = (typeof PARTNERSHIP_AGGREGATION_RATIO_STATUSES)[number]

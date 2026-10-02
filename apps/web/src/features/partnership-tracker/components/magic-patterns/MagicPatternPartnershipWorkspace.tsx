@@ -19,6 +19,7 @@ import { usePartnershipTrackerActions } from '../../hooks/usePartnershipTracker'
 import { K1BasisWorkspace } from '../K1BasisWorkspace'
 import { MagicPatternActivitySummaryTable } from './MagicPatternActivitySummaryTable'
 import { MagicPatternInvestmentPerformance } from './MagicPatternInvestmentPerformance'
+import { MagicPatternInvestmentVisuals } from './MagicPatternInvestmentVisuals'
 import { MagicPatternInKindPositionsCard } from './MagicPatternInKindPositionsCard'
 import { MagicPatternOperationalChart } from './MagicPatternOperationalChart'
 import { MagicPatternPartnershipRecordDialog } from './MagicPatternPartnershipRecordDialog'
@@ -173,6 +174,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
 
   return <div className="space-y-6">
     <MagicPatternInvestmentPerformance performance={detail.investmentPerformance} partnershipName={detail.summary.partnership.name} cashOnCashYield={detail.summary.annualizedCashOnCashYield} cashOnCashEndDate={detail.summary.partnership.finalLiquidationDate ?? detail.summary.performanceAsOfDate} />
+    <MagicPatternInvestmentVisuals events={detail.cashFlowEvents} performance={detail.investmentPerformance} />
     <MagicCard className="overflow-hidden">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-950">Capital activity</h2><p className="mt-1 text-xs text-slate-500">Oldest first. Net amounts deduct fees and carry; valuations and pending activity are excluded from cumulative net.</p></div>{canEdit ? <MagicButton type="button" onClick={() => onDrawerOpenChange(true)}><Plus className="h-4 w-4" />Add activity</MagicButton> : null}</div>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-2.5" role="group" aria-label="Filter capital activity">{filters.map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-full border px-3 py-1 text-xs ${filter === value ? 'border-primary bg-primary-subtle text-primary' : 'border-slate-300 bg-white text-slate-700'}`}>{label} <span className="font-mono">{count}</span></button>)}</div>

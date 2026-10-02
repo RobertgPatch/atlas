@@ -124,6 +124,12 @@ describe('partnership aggregation composition', () => {
     expect(result.rollup).not.toHaveProperty('irr')
   })
 
+  it('carries dated cash activity with each owner row for filtered portfolio charts', () => {
+    const cashFlowEvents = [{ id: 'flow-1', kind: 'CAPITAL_CALL' as const, activityDate: '2026-02-01', amount: '0.0000', feesAndCarry: '10.0000' }]
+    const result = composePartnershipAggregation([{ ...alpha, cashFlowEvents }], query(), '2026-07-16')
+    expect(result.items[0]?.members[0]?.cashFlowEvents).toEqual(cashFlowEvents)
+  })
+
   it('reports zero denominators and no data without inventing ratios', () => {
     const zero = summary({ id: 'zero', name: 'Zero', totalCapitalContributions: '0.00', totalDistributions: '0.00', latestNav: { amount: '0.00', date: '2025-12-31' } })
     expect(composePartnershipAggregation([zero]).rollup.dpi).toMatchObject({ value: null, status: 'ZERO_DENOMINATOR' })

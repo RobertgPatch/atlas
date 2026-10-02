@@ -126,16 +126,6 @@ export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: Par
       status: rollup.tvpi.value == null ? humanize(rollup.tvpi.status) : 'Calculated',
       statusTone: rollup.tvpi.value == null ? 'neutral' as const : 'calculated' as const,
     },
-    {
-      label: 'Annualized cash-on-cash',
-      value: formatPercent(rollup.annualizedCashOnCashYield.value) ?? humanize(rollup.annualizedCashOnCashYield.status),
-      basis: 'Paid-in-weighted yield: called capital ÷ distributions ÷ years from inception to liquidation or today',
-      context: formatDate(rollup.asOfDate),
-      status: rollup.annualizedCashOnCashYield.value == null
-        ? humanize(rollup.annualizedCashOnCashYield.status)
-        : 'Calculated',
-      statusTone: rollup.annualizedCashOnCashYield.value == null ? 'neutral' as const : 'calculated' as const,
-    },
   ]
   const stale = rollup.navValuationRange.latest != null && new Date(rollup.navValuationRange.latest) < new Date(new Date(rollup.asOfDate).setMonth(new Date(rollup.asOfDate).getMonth() - 6))
   return (
@@ -143,6 +133,7 @@ export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: Par
       title="Partnership activity summary"
       description={`Aggregated across ${rollup.partnershipCount} funds and ${rollup.ownerRecordCount} owner records in the full permitted portfolio · USD. Operational figures only — K-1 tax data is never a source here.`}
       ariaLabel="Partnership activity summary for the full permitted portfolio"
+      basisInTooltip
       groups={[
         { label: 'Capital activity', rows: capitalRows },
         { label: 'Performance', rows: performanceRows },

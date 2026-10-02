@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import {
   MagicPatternPartnershipActivitySummary,
@@ -19,7 +20,8 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
 }))
 
 describe('Magic Patterns partnership activity summary', () => {
-  it('combines capital activity and performance aggregations for the investment tracker', () => {
+  it('combines capital activity and performance aggregations with basis details on the right', async () => {
+    const user = userEvent.setup()
     render(<MagicPatternPartnershipActivitySummary rollup={aggregationResponseFixture.rollup} />)
 
     const summary = screen.getByRole('table', {
@@ -34,7 +36,17 @@ describe('Magic Patterns partnership activity summary', () => {
     expect(within(summary).getByText('Latest NAV rollup')).toBeInTheDocument()
     expect(within(summary).getByText('DPI')).toBeInTheDocument()
     expect(within(summary).getByText('TVPI')).toBeInTheDocument()
-    expect(within(summary).getByText('Annualized cash-on-cash')).toBeInTheDocument()
+    expect(within(summary).queryByText('Annualized cash-on-cash')).not.toBeInTheDocument()
+    expect(within(summary).queryByRole('columnheader', { name: 'Coverage / calculation basis' })).not.toBeInTheDocument()
+    const basisButton = within(summary).getByRole('button', { name: 'Coverage and calculation basis for Committed capital' })
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    await user.hover(basisButton)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('3 of 4 owner records covered')
+    await user.unhover(basisButton)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    await user.tab()
+    expect(basisButton).toHaveFocus()
+    expect(screen.getByRole('tooltip')).toHaveTextContent('3 of 4 owner records covered')
     expect(screen.queryByText('Portfolio rollup')).not.toBeInTheDocument()
   })
 
