@@ -12,6 +12,7 @@
     "check:colors": "node scripts/check-color-system.mjs",
     "test": "vitest run",
     "test:e2e:liquidity": "playwright test",
+    "test:e2e:pdf": "playwright test --config playwright.pdf.config.ts",
     "test:watch": "vitest",
     "check:current-surface": "vitest run tests/current-surface-governance.spec.ts",
     "check:reachability": "node ../../scripts/pruning/find-unreachable-web.mjs --check"
@@ -21,6 +22,8 @@
     "@tanstack/react-query": "^5.59.0",
     "autoprefixer": "^10.5.0",
     "framer-motion": "^12.38.0",
+    "html-to-image": "1.11.13",
+    "jspdf": "4.2.1",
     "lucide-react": "^1.8.0",
     "postcss": "^8.5.26",
     "react": "^19.2.5",

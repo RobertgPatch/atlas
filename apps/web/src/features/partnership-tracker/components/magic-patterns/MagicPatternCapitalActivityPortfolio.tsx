@@ -1,6 +1,7 @@
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
-import { AlertTriangle, ChevronDown, Minus, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
-import { Fragment, useMemo, useState } from 'react'
+import { AlertTriangle, ChevronDown, Download, Loader2, Minus, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
+import { Fragment, useMemo, useRef, useState, type RefObject } from 'react'
+import { exportInvestmentTrackerPdf } from '../../../investment-tracker/exportInvestmentTrackerPdf'
 import { useInvestmentTrackerData } from '../../../investment-tracker/hooks/useInvestmentTrackerData'
 import {
   groupInvestmentRecordsByFund,
@@ -110,7 +111,7 @@ function FundFilter({
         <span className="min-w-0 flex-1 truncate">{selectedLabel}</span>
         <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
       </PopoverButton>
-      <PopoverPanel className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
+      <PopoverPanel data-pdf-exclude className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
         <button
           type="button"
           disabled={selectedIds.size === 0}
@@ -148,10 +149,31 @@ function uniqueOptions(
 
 export function MagicPatternCapitalActivityPortfolio({
   onOpen,
+  exportTarget,
 }: {
   onOpen: (partnershipId: string) => void
+  exportTarget?: RefObject<HTMLDivElement | null>
 }) {
   const activity = useInvestmentTrackerData()
+  const portfolioRef = useRef<HTMLDivElement>(null)
+  const exportPending = useRef(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportError, setExportError] = useState(false)
+  const exportPdf = async () => {
+    const target = exportTarget?.current ?? portfolioRef.current
+    if (!target || exportPending.current || activity.isLoading || activity.isFetching || !activity.data) return
+    exportPending.current = true
+    setExporting(true)
+    setExportError(false)
+    try {
+      await exportInvestmentTrackerPdf(target)
+    } catch {
+      setExportError(true)
+    } finally {
+      exportPending.current = false
+      setExporting(false)
+    }
+  }
   const [assetClass, setAssetClass] = useState(ALL)
   const [entityId, setEntityId] = useState(ALL)
   const [selectedFundIds, setSelectedFundIds] = useState<Set<string>>(() => new Set())
@@ -222,12 +244,13 @@ export function MagicPatternCapitalActivityPortfolio({
   }
 
   return (
-    <div className="space-y-5">
-      <MagicCard className="p-4">
+    <div ref={portfolioRef} className="space-y-5">
+      {exportError ? <p role="alert" data-pdf-exclude className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">The PDF could not be exported. Please try again.</p> : null}
+      <MagicCard className="p-4" data-pdf-keep-together>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-700">Position summary</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">Filter investments</h2>
+            <h2 className="mt-1 whitespace-nowrap text-lg font-semibold tracking-tight text-slate-950">Filter investments</h2>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <p className="text-xs font-medium text-slate-600">
@@ -235,13 +258,23 @@ export function MagicPatternCapitalActivityPortfolio({
                 ? `Showing ${visibleFundGroups.length} of ${allFundGroups.length} funds · ${visibleRecords.length} of ${records.length} owner records`
                 : 'Showing full permitted portfolio'}
             </p>
-            <MagicButton type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
+            <MagicButton data-pdf-exclude type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
               <RotateCcw className="h-4 w-4" aria-hidden="true" />
               Clear all
             </MagicButton>
+            <MagicButton
+              data-pdf-exclude
+              type="button"
+              variant="secondary"
+              disabled={exporting || activity.isLoading || activity.isFetching || !activity.data}
+              onClick={() => void exportPdf()}
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+              {exporting ? 'Exporting PDF…' : 'Export to PDF'}
+            </MagicButton>
           </div>
         </div>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
+        <div className="mt-4 grid gap-4 md:grid-cols-3" data-pdf-filter-grid>
           <FilterSelect label="Asset class" value={assetClass} options={assetClassOptions} onChange={setAssetClass} />
           <FilterSelect label="Entity" value={entityId} options={entityOptions} onChange={setEntityId} />
           <FundFilter options={fundOptions} selectedIds={selectedFundIds} onToggle={toggleSelectedFund} onClear={() => setSelectedFundIds(new Set())} />
@@ -253,7 +286,7 @@ export function MagicPatternCapitalActivityPortfolio({
         <PortfolioSecondaryCharts data={chartData} />
       </> : null}
 
-      {activity.data ? <MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /> : null}
+      {activity.data ? <div data-pdf-keep-together><MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /></div> : null}
 
       <p className="text-sm font-semibold text-slate-950" aria-live="polite">
         {activity.isLoading
@@ -262,14 +295,14 @@ export function MagicPatternCapitalActivityPortfolio({
       </p>
 
       <MagicCard className="overflow-hidden">
-        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-300 bg-white px-4 py-4">
+        <div data-pdf-keep-together className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-300 bg-white px-4 py-4">
           <div>
             <p className="text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-amber-700">Position summary</p>
-            <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-950">Fund investment summary</h2>
+            <h2 className="mt-1 whitespace-nowrap text-lg font-semibold tracking-tight text-slate-950">Fund investment summary</h2>
           </div>
-          <p className="text-xs text-slate-500">Click a single-owner fund to open it. Multi-owner funds expand so you can choose the owner record.</p>
+          <p data-pdf-exclude className="text-xs text-slate-500">Click a single-owner fund to open it. Multi-owner funds expand so you can choose the owner record.</p>
         </div>
-        <div className="overflow-auto" style={{ height: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
+        <div data-pdf-scroll className="overflow-auto" style={{ height: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
           <table className="w-full min-w-[88rem] border-collapse text-left text-xs" aria-label="Capital activity fund investment summary">
             <thead>
               <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-slate-700">

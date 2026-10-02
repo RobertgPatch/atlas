@@ -139,14 +139,14 @@ export function PortfolioFundingOverTime({ data }: { data: PortfolioChartData })
 }
 
 export function PortfolioTopCharts({ data }: { data: PortfolioChartData }) {
-  return <div className="grid gap-4 xl:grid-cols-2" aria-label="Portfolio cash charts">
+  return <div data-pdf-chart-grid data-pdf-keep-together className="grid gap-4 xl:grid-cols-2" aria-label="Portfolio cash charts">
     <PortfolioCashRecovery data={data} />
     <PortfolioFundingOverTime data={data} />
   </div>
 }
 
 export function PortfolioSecondaryCharts({ data }: { data: PortfolioChartData }) {
-  return <div className="grid gap-4 xl:grid-cols-2" aria-label="Portfolio composition charts">
+  return <div data-pdf-chart-grid data-pdf-keep-together className="grid gap-4 xl:grid-cols-2" aria-label="Portfolio composition charts">
     <PortfolioCommitmentProgress data={data} />
     <PortfolioDistributionPie data={data} />
   </div>

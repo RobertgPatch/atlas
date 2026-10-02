@@ -55,7 +55,7 @@ function BasisTooltip({ label, basis }: { label: string; basis: string }) {
       onFocus={show}
       onBlur={() => setOpen(false)}
       onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false) }}
-      className="ml-auto inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       <Info className="h-4 w-4" aria-hidden="true" />
     </button>
@@ -117,11 +117,11 @@ export function MagicPatternActivitySummaryTable({
             </tr>
           </thead>
           {groups.map((group) => (
-            <tbody key={group.label}>
+            <tbody key={group.label} className="border-b-2 border-slate-300 last:border-b-0">
               {group.rows.map((row, index) => (
                 <tr
                   key={row.label}
-                  className="border-b border-slate-200 bg-white last:border-b-0 hover:bg-slate-50/70"
+                  className="border-b border-slate-200 bg-white hover:bg-slate-50/70"
                 >
                   {index === 0 ? (
                     <th
@@ -148,13 +148,15 @@ export function MagicPatternActivitySummaryTable({
                   </td>
                   {!basisInTooltip ? <td className="px-4 py-3 text-xs leading-5 text-slate-600">{row.basis}</td> : null}
                   <td className="px-4 py-3 text-xs text-slate-600">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={row.context ? 'whitespace-nowrap font-mono' : undefined}>
-                        {row.context ?? 'Current'}
-                      </span>
-                      {row.status ? (
-                        <MagicStatusBadge tone={row.statusTone ?? 'neutral'}>{row.status}</MagicStatusBadge>
-                      ) : null}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={basisInTooltip ? 'flex min-w-max flex-1 items-center gap-2 whitespace-nowrap' : 'flex min-w-0 flex-wrap items-center gap-2'}>
+                        <span className={row.context ? 'whitespace-nowrap font-mono' : undefined}>
+                          {row.context ?? 'Current'}
+                        </span>
+                        {row.status ? (
+                          <MagicStatusBadge tone={row.statusTone ?? 'neutral'}>{row.status}</MagicStatusBadge>
+                        ) : null}
+                      </div>
                       {basisInTooltip ? <BasisTooltip label={row.label} basis={row.basis} /> : null}
                     </div>
                   </td>

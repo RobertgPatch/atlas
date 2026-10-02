@@ -1,0 +1,122 @@
+<style>
+  #atlas-no-nav-examples {
+    color-scheme: light dark;
+    --atlas-page: light-dark(#e8eef5, #111b2a);
+    --atlas-panel: light-dark(#ffffff, #1a293c);
+    --atlas-ink: light-dark(#17263a, #edf3fb);
+    --atlas-muted: light-dark(#586b82, #a9b9cb);
+    --atlas-line: light-dark(#d4deea, #3b4d61);
+    --atlas-track: light-dark(#e8eef4, #34465b);
+    --atlas-blue: light-dark(#2465b8, #69a7f7);
+    --atlas-green: light-dark(#188362, #62d7a8);
+    --atlas-orange: light-dark(#c97725, #ffb569);
+    box-sizing: border-box;
+    width: 100%;
+    padding: 16px;
+    background: var(--atlas-page);
+    color: var(--atlas-ink);
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  }
+  #atlas-no-nav-examples * { box-sizing: border-box; }
+  #atlas-no-nav-examples .mock-title { margin: 0 0 14px; font-size: 14px; font-weight: 500; color: var(--atlas-muted); }
+  #atlas-no-nav-examples .charts { display: grid; gap: 14px; }
+  #atlas-no-nav-examples .chart { background: var(--atlas-panel); border: 1px solid var(--atlas-line); border-radius: 8px; padding: 18px; }
+  #atlas-no-nav-examples .chart h2 { margin: 0 0 3px; font-size: 17px; font-weight: 500; color: var(--atlas-ink); }
+  #atlas-no-nav-examples .sub { margin: 0 0 19px; color: var(--atlas-muted); font-size: 12px; }
+  #atlas-no-nav-examples .metric-line { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; font-size: 13px; }
+  #atlas-no-nav-examples .metric-line strong, #atlas-no-nav-examples .annual-value, #atlas-no-nav-examples .funded-value { font-variant-numeric: tabular-nums; font-weight: 500; }
+  #atlas-no-nav-examples .track { width: 100%; height: 20px; background: var(--atlas-track); border-radius: 4px; overflow: hidden; }
+  #atlas-no-nav-examples .fill { display: block; height: 100%; border-radius: 4px; }
+  #atlas-no-nav-examples .paid { background: var(--atlas-blue); }
+  #atlas-no-nav-examples .returned { background: var(--atlas-green); }
+  #atlas-no-nav-examples .fees { background: var(--atlas-orange); }
+  #atlas-no-nav-examples .recovery-row + .recovery-row { margin-top: 20px; }
+  #atlas-no-nav-examples .chart-footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--atlas-line); font-size: 13px; }
+  #atlas-no-nav-examples .chart-footer strong { font-weight: 500; }
+  #atlas-no-nav-examples .legend { display: flex; flex-wrap: wrap; gap: 9px 18px; margin-bottom: 16px; color: var(--atlas-muted); font-size: 12px; }
+  #atlas-no-nav-examples .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  #atlas-no-nav-examples .swatch { width: 10px; height: 10px; border-radius: 2px; }
+  #atlas-no-nav-examples .annual-year { display: grid; grid-template-columns: 48px minmax(0,1fr); gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--atlas-line); }
+  #atlas-no-nav-examples .year-label { color: var(--atlas-muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  #atlas-no-nav-examples .annual-bars { display: grid; gap: 5px; }
+  #atlas-no-nav-examples .annual-bar { display: grid; grid-template-columns: minmax(0,1fr) 46px; gap: 8px; align-items: center; }
+  #atlas-no-nav-examples .annual-bar .track { height: 10px; }
+  #atlas-no-nav-examples .annual-value { font-size: 11px; text-align: right; }
+  #atlas-no-nav-examples .funding-list { display: grid; gap: 16px; }
+  #atlas-no-nav-examples .funding-row { display: grid; grid-template-columns: 46px minmax(0,1fr) 94px; gap: 10px; align-items: center; }
+  #atlas-no-nav-examples .funding-row .track { height: 15px; }
+  #atlas-no-nav-examples .funded-value { font-size: 12px; text-align: right; }
+  #atlas-no-nav-examples .annual-chart, #atlas-no-nav-examples .funding-chart { margin: 0; }
+  @media (max-width: 480px) {
+    #atlas-no-nav-examples { padding: 8px; }
+    #atlas-no-nav-examples .chart { padding: 14px; }
+    #atlas-no-nav-examples .funding-row { grid-template-columns: 42px minmax(0,1fr) 80px; gap: 6px; }
+  }
+</style>
+<div id="atlas-no-nav-examples">
+  <p class="mock-title">Illustrative investment · No NAV recorded · $1.5M commitment</p>
+  <div class="charts">
+    <section class="chart" aria-labelledby="recovery-title">
+      <h2 id="recovery-title">Cash recovery</h2>
+      <p class="sub">Cash received compared with cash paid</p>
+      <div role="img" aria-label="Cash paid: $1 million, including $100,000 fees and carry. Cash returned: $350,000, or 35 percent of cash paid.">
+        <div class="recovery-row">
+          <div class="metric-line"><span>Cash paid <span style="color:var(--atlas-muted)">(calls + fees)</span></span><strong>$1,000,000</strong></div>
+          <div class="track"><span class="fill paid" style="width:100%"></span></div>
+        </div>
+        <div class="recovery-row">
+          <div class="metric-line"><span>Cash returned</span><strong>$350,000</strong></div>
+          <div class="track"><span class="fill returned" style="width:35%"></span></div>
+        </div>
+      </div>
+      <div class="chart-footer"><strong>35% of cash paid has been returned</strong></div>
+    </section>
+
+    <section class="chart" aria-labelledby="annual-title">
+      <h2 id="annual-title">Annual cash activity</h2>
+      <p class="sub">What went out and came back each year</p>
+      <div class="legend" aria-hidden="true">
+        <span><i class="swatch paid"></i>Capital calls</span>
+        <span><i class="swatch returned"></i>Distributions</span>
+        <span><i class="swatch fees"></i>Fees &amp; carry</span>
+      </div>
+      <figure class="annual-chart" role="img" aria-label="2023: $400,000 capital calls, $0 distributions, $40,000 fees. 2024: $500,000 capital calls, $100,000 distributions, $60,000 fees. 2025: $0 capital calls, $250,000 distributions, $0 fees. Bars use a common $500,000 scale.">
+        <div class="annual-year">
+          <span class="year-label">2023</span>
+          <div class="annual-bars">
+            <div class="annual-bar"><div class="track"><span class="fill paid" style="width:80%"></span></div><span class="annual-value">$400k</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill returned" style="width:0%"></span></div><span class="annual-value">$0</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill fees" style="width:8%"></span></div><span class="annual-value">$40k</span></div>
+          </div>
+        </div>
+        <div class="annual-year">
+          <span class="year-label">2024</span>
+          <div class="annual-bars">
+            <div class="annual-bar"><div class="track"><span class="fill paid" style="width:100%"></span></div><span class="annual-value">$500k</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill returned" style="width:20%"></span></div><span class="annual-value">$100k</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill fees" style="width:12%"></span></div><span class="annual-value">$60k</span></div>
+          </div>
+        </div>
+        <div class="annual-year">
+          <span class="year-label">2025</span>
+          <div class="annual-bars">
+            <div class="annual-bar"><div class="track"><span class="fill paid" style="width:0%"></span></div><span class="annual-value">$0</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill returned" style="width:50%"></span></div><span class="annual-value">$250k</span></div>
+            <div class="annual-bar"><div class="track"><span class="fill fees" style="width:0%"></span></div><span class="annual-value">$0</span></div>
+          </div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="chart" aria-labelledby="funding-title">
+      <h2 id="funding-title">Funding over time</h2>
+      <p class="sub">Capital called against the $1.5M commitment</p>
+      <div class="funding-list" role="img" aria-label="Cumulative capital called: $400,000 or 27 percent in 2023; $900,000 or 60 percent in 2024 and 2025. $600,000 commitment remains.">
+        <div class="funding-row"><span class="year-label">2023</span><div class="track"><span class="fill paid" style="width:26.7%"></span></div><span class="funded-value">$400k · 27%</span></div>
+        <div class="funding-row"><span class="year-label">2024</span><div class="track"><span class="fill paid" style="width:60%"></span></div><span class="funded-value">$900k · 60%</span></div>
+        <div class="funding-row"><span class="year-label">2025</span><div class="track"><span class="fill paid" style="width:60%"></span></div><span class="funded-value">$900k · 60%</span></div>
+      </div>
+      <div class="chart-footer"><strong>$600,000 commitment remains</strong></div>
+    </section>
+  </div>
+</div>

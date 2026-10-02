@@ -22,7 +22,10 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
 describe('Magic Patterns partnership activity summary', () => {
   it('combines capital activity and performance aggregations with basis details on the right', async () => {
     const user = userEvent.setup()
-    render(<MagicPatternPartnershipActivitySummary rollup={aggregationResponseFixture.rollup} />)
+    render(<MagicPatternPartnershipActivitySummary rollup={{
+      ...aggregationResponseFixture.rollup,
+      unsettledActivity: { ...aggregationResponseFixture.rollup.unsettledActivity, amount: '123.45' },
+    }} />)
 
     const summary = screen.getByRole('table', {
       name: 'Partnership activity summary for the full permitted portfolio',
@@ -32,7 +35,8 @@ describe('Magic Patterns partnership activity summary', () => {
     expect(within(summary).getByText('Performance')).toBeInTheDocument()
     expect(within(summary).getByText('Committed capital')).toBeInTheDocument()
     expect(within(summary).getByText('$350,000.00')).toBeInTheDocument()
-    expect(within(summary).getByText('Unsettled activity')).toBeInTheDocument()
+    expect(within(summary).queryByText('Unsettled activity')).not.toBeInTheDocument()
+    expect(within(summary).queryByText('$123.45')).not.toBeInTheDocument()
     expect(within(summary).getByText('Latest NAV rollup')).toBeInTheDocument()
     expect(within(summary).getByText('DPI')).toBeInTheDocument()
     expect(within(summary).getByText('TVPI')).toBeInTheDocument()

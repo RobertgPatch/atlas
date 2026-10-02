@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { exportInvestmentTrackerPdf } from '../../investment-tracker/exportInvestmentTrackerPdf'
 import type { PartnershipAggregateRow, PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
 import { MagicPatternCapitalActivityPortfolio } from '../components/magic-patterns/MagicPatternCapitalActivityPortfolio'
 import { PortfolioCashRecovery } from '../components/magic-patterns/MagicPatternPortfolioCharts'
@@ -79,16 +80,63 @@ const data = {
   ],
 } as unknown as PartnershipAggregationResponse
 
+const queryState = vi.hoisted(() => ({ isLoading: false, isFetching: false, isError: false }))
+vi.mock('../../investment-tracker/exportInvestmentTrackerPdf', () => ({ exportInvestmentTrackerPdf: vi.fn() }))
 vi.mock('../../investment-tracker/hooks/useInvestmentTrackerData', () => ({
   useInvestmentTrackerData: () => ({
     data,
-    isLoading: false,
-    isError: false,
+    ...queryState,
     refetch: vi.fn(),
   }),
 }))
 
 describe('MagicPatternCapitalActivityPortfolio', () => {
+  beforeEach(() => {
+    Object.assign(queryState, { isLoading: false, isFetching: false, isError: false })
+    vi.mocked(exportInvestmentTrackerPdf).mockReset().mockResolvedValue(undefined)
+  })
+
+  it('exports the filtered view with graphics and expanded owner rows', async () => {
+    const user = userEvent.setup()
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Real Estate')
+    await user.click(screen.getByRole('button', { name: 'Expand Fund Alpha, LP owner details' }))
+    await user.click(screen.getByRole('button', { name: 'Export to PDF' }))
+
+    const [target] = vi.mocked(exportInvestmentTrackerPdf).mock.calls[0]
+    expect(within(target).getByRole('img', { name: /Distribution share by asset type: Real Estate/ })).toBeInTheDocument()
+    const table = within(target).getByRole('table', { name: 'Capital activity fund investment summary' })
+    expect(within(table).getByText('Gardner Descendant Trust')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Asset class' })).toHaveValue('Real Estate')
+  })
+
+  it('disables duplicate exports and allows retry after a rendering failure', async () => {
+    const user = userEvent.setup()
+    let rejectExport!: (error: Error) => void
+    vi.mocked(exportInvestmentTrackerPdf).mockImplementationOnce(() => new Promise((_, reject) => { rejectExport = reject }))
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Export to PDF' }))
+    expect(screen.getByRole('button', { name: 'Exporting PDF…' })).toBeDisabled()
+    rejectExport(new Error('Rendering failed'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('The PDF could not be exported. Please try again.')
+    await user.click(screen.getByRole('button', { name: 'Export to PDF' }))
+    expect(exportInvestmentTrackerPdf).toHaveBeenCalledTimes(2)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it.each(['isLoading', 'isFetching'] as const)('disables export while data %s', (state) => {
+    queryState[state] = true
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Export to PDF' })).toBeDisabled()
+  })
+
+  it('does not offer export when the portfolio failed to load', () => {
+    queryState.isError = true
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Export to PDF' })).not.toBeInTheDocument()
+  })
+
   it('renders settled zero and negative net returns instead of an empty cash state', () => {
     const negative = member({ id: 'negative', fundName: 'Negative Return', ownerId: 'entity-a', ownerName: 'Owner', assetClass: 'Real Estate' })
     negative.cashFlowEvents = [
