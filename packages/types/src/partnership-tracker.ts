@@ -229,8 +229,17 @@ export interface PartnershipAggregationQuery {
   pageSize: PartnershipAggregationPageSize
 }
 
+export interface PartnershipPortfolioCashFlowEvent {
+  id: string
+  kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'
+  activityDate: string
+  amount: PartnershipTrackerMoney
+  feesAndCarry: PartnershipTrackerMoney
+}
+
 export interface PartnershipAggregateRow extends PartnershipTrackerSummary {
   dataQuality: PartnershipDataQuality
+  cashFlowEvents: PartnershipPortfolioCashFlowEvent[]
 }
 
 export interface PartnershipAggregationCoveredMoney {

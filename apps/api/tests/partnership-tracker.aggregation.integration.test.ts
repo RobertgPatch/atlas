@@ -55,6 +55,34 @@ durable('Partnership aggregation PostgreSQL integration', () => {
     expect(body.rollup).not.toHaveProperty('irr')
   })
 
+  it('includes settled dated cash activity with fees for permitted owner rows', async () => {
+    const settled = await partnershipTrackerRepository.createCapitalActivity(
+      fixture.partnershipIds.alpha,
+      { kind: 'CAPITAL_CALL', activityDate: '2026-02-01', amount: '0.0000', feesAndCarry: '10.1250' },
+      fixture.base.adminUserId,
+      { isAdmin: true, entityIds: [] },
+    )
+    const announced = await partnershipTrackerRepository.createCapitalActivity(
+      fixture.partnershipIds.alpha,
+      { kind: 'CAPITAL_CALL', activityDate: '2026-03-01', amount: '0.0000', feesAndCarry: '7.8750', settlementStatus: 'ANNOUNCED' },
+      fixture.base.adminUserId,
+      { isAdmin: true, entityIds: [] },
+    )
+    const response = await app.inject({
+      method: 'GET',
+      url: `/v1/partnership-tracker/aggregation?ownerIds=${fixture.ownerIds.alder}&pageSize=25`,
+      headers: { cookie: fixture.adminCookie },
+    })
+    expect(response.statusCode).toBe(200)
+    const alpha = response.json().items.flatMap((group: { members: Array<{ partnership: { id: string }; cashFlowEvents: Array<{ id: string; amount: string; feesAndCarry: string }>; unsettledActivityAmount: string }> }) => group.members)
+      .find((member: { partnership: { id: string } }) => member.partnership.id === fixture.partnershipIds.alpha)
+    expect(alpha?.cashFlowEvents).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: settled.id, amount: '0.0000', feesAndCarry: '10.1250' }),
+    ]))
+    expect(alpha?.cashFlowEvents).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: announced.id })]))
+    expect(alpha?.unsettledActivityAmount).toBe('7.8750')
+  })
+
   it('uses one set-based candidate projection in the repository', async () => {
     const query = vi.spyOn(pool!, 'query')
     await partnershipTrackerRepository.getAggregation(

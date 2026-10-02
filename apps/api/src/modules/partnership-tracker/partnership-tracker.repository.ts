@@ -41,7 +41,7 @@ type PartnershipRow = QueryResultRow & {
   earliest_k1_year: number | null; latest_k1_year: number | null; latest_workflow_status: string | null
   latest_ending_basis: string | null; latest_section_l_capital: string | null; warning_count: string; total_count: string
   annual_performance: PartnershipAnnualPerformanceValue[] | null
-  dated_cash_flows: Array<{ kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string }> | null
+  dated_cash_flows: Array<{ id: string; kind: 'CAPITAL_CALL' | 'DISTRIBUTION' | 'RECALLABLE_DISTRIBUTION'; activityDate: string; amount: string; feesAndCarry: string }> | null
   unsettled_activity: string
 }
 type CommitmentRow = QueryResultRow & {
@@ -237,15 +237,19 @@ const summaryRows = async (
     ) years on true
     left join lateral (
       select jsonb_agg(jsonb_build_object(
+        'id', id,
         'kind', case
           when event_type = 'funded_contribution' then 'CAPITAL_CALL'
           when event_type = 'recallable_distribution' then 'RECALLABLE_DISTRIBUTION'
           else 'DISTRIBUTION'
         end,
         'activityDate', activity_date::text,
-        'amount', abs(amount)::text
+        'amount', abs(amount)::text,
+        'feesAndCarry', fees_and_carry::text
       ) order by activity_date, created_at, id) filter (where settlement_status = 'SETTLED') as events,
-        coalesce(sum(abs(amount)) filter (where settlement_status = 'ANNOUNCED'), 0)::text as unsettled_activity
+        coalesce(sum(
+          abs(amount) + case when event_type = 'funded_contribution' then fees_and_carry else 0 end
+        ) filter (where settlement_status = 'ANNOUNCED'), 0)::text as unsettled_activity
       from capital_activity_events
       where partnership_id = p.id and event_type in ('funded_contribution', 'distribution', 'recallable_distribution')
     ) cash_flows on true
@@ -298,7 +302,7 @@ const mapNav = (row: NavRow): PartnershipNavEntry => ({
 export const partnershipTrackerRepository = {
   async getAggregation(scope: PartnershipTrackerScope, query: PartnershipAggregationQuery): Promise<PartnershipAggregationResponse> {
     const rows = await summaryRows(scope, {})
-    return composePartnershipAggregation(rows.map(mapSummary), query)
+    return composePartnershipAggregation(rows.map((row) => ({ ...mapSummary(row), cashFlowEvents: row.dated_cash_flows ?? [] })), query)
   },
 
   async listPartnerships(scope: PartnershipTrackerScope, filters: { search?: string; entityId?: string; partnershipType?: PartnershipType; status?: string; limit: number; cursor?: string }): Promise<PartnershipTrackerListResponse> {

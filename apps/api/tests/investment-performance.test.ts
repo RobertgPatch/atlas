@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { calculateInvestmentPerformance } from '../src/modules/partnership-tracker/investment-performance.js'
-import { createPartnershipCashFlowBodySchema, createPartnershipCashFlowsBodySchema } from '../src/modules/partnership-tracker/partnership-tracker.zod.js'
+import { createPartnershipCashFlowBodySchema, createPartnershipCashFlowsBodySchema, updatePartnershipCashFlowBodySchema } from '../src/modules/partnership-tracker/partnership-tracker.zod.js'
 
 // No Target!A26:I32. Activity amounts are gross (column D); net = gross + signed fees (columns E/F).
 const schedule = [
@@ -87,10 +87,28 @@ describe('Investment Performance workbook parity', () => {
     expect(result.netXirrIncludingResidual).toBe(result.netXirr)
   })
 
-  it('accepts four-decimal actual fees and rejects negative, excessive precision or contribution fees', () => {
+  it('accepts four-decimal actual fees and rejects negative or excessive precision', () => {
     const base = { kind: 'CAPITAL_CALL', activityDate: '2026-09-15', amount: '100.00' }
     expect(createPartnershipCashFlowBodySchema.parse({ ...base, feesAndCarry: '1.2345' }).feesAndCarry).toBe('1.2345')
-    for (const feesAndCarry of ['-1', '1.23456', '101']) expect(createPartnershipCashFlowBodySchema.safeParse({ ...base, feesAndCarry }).success).toBe(false)
+    expect(createPartnershipCashFlowBodySchema.safeParse({ ...base, feesAndCarry: '101' }).success).toBe(true)
+    for (const feesAndCarry of ['-1', '1.23456']) expect(createPartnershipCashFlowBodySchema.safeParse({ ...base, feesAndCarry }).success).toBe(false)
+  })
+
+  it('allows a fee-only capital call and excludes its zero gross amount from paid-in capital', () => {
+    const feeOnly = { kind: 'CAPITAL_CALL' as const, activityDate: '2026-09-15', amount: '0.00', feesAndCarry: '25.1250' }
+    expect(createPartnershipCashFlowBodySchema.safeParse(feeOnly).success).toBe(true)
+    expect(updatePartnershipCashFlowBodySchema.safeParse({ ...feeOnly, expectedUpdatedAt: '2026-09-16T00:00:00Z' }).success).toBe(true)
+    for (const invalid of [
+      { ...feeOnly, feesAndCarry: '0' },
+      { kind: 'DISTRIBUTION', activityDate: feeOnly.activityDate, amount: '0.00', feesAndCarry: '25.1250' },
+      { kind: 'RECALLABLE_DISTRIBUTION', activityDate: feeOnly.activityDate, amount: '0.00', feesAndCarry: '25.1250' },
+    ]) expect(createPartnershipCashFlowBodySchema.safeParse(invalid).success).toBe(false)
+
+    expect(calculateInvestmentPerformance({ committedCapital: '100', latestNav: null, cashFlowEvents: [
+      { kind: 'CAPITAL_CALL', activityDate: '2025-01-01', amount: '100.00' },
+      feeOnly,
+      { kind: 'DISTRIBUTION', activityDate: '2026-12-31', amount: '150.00' },
+    ] })).toMatchObject({ paidInCapital: '100.0000', grossDistributions: '150.0000', feesAndCarry: '-25.1250', netDistributions: '124.8750' })
   })
 
   it('allows one settled, non-recallable final liquidation in a batch', () => {

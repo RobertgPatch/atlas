@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import type { PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipAggregateRow, PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
 import { MagicPatternCapitalActivityPortfolio } from '../components/magic-patterns/MagicPatternCapitalActivityPortfolio'
+import { PortfolioCashRecovery } from '../components/magic-patterns/MagicPatternPortfolioCharts'
+import { buildPortfolioChartData } from '../components/magic-patterns/portfolioChartData'
 
 const member = ({
   id,
@@ -36,6 +38,10 @@ const member = ({
   tvpi: '1.45',
   irr: '0.125',
   performanceAsOfDate: '2026-06-30',
+  cashFlowEvents: [
+    { id: `${id}-call`, kind: 'CAPITAL_CALL', activityDate: '2026-01-10', amount: '600000.0000', feesAndCarry: '0.0000' },
+    { id: `${id}-distribution`, kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '120000.0000', feesAndCarry: '0.0000' },
+  ],
 })
 
 const data = {
@@ -83,6 +89,22 @@ vi.mock('../../investment-tracker/hooks/useInvestmentTrackerData', () => ({
 }))
 
 describe('MagicPatternCapitalActivityPortfolio', () => {
+  it('renders settled zero and negative net returns instead of an empty cash state', () => {
+    const negative = member({ id: 'negative', fundName: 'Negative Return', ownerId: 'entity-a', ownerName: 'Owner', assetClass: 'Real Estate' })
+    negative.cashFlowEvents = [
+      { id: 'negative-distribution', kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '5.0000', feesAndCarry: '10.0000' },
+    ]
+    const { rerender } = render(<PortfolioCashRecovery data={buildPortfolioChartData([negative as unknown as PartnershipAggregateRow])} />)
+    expect(screen.getByRole('img', { name: /net cash returned -\$5\.00/ })).toBeInTheDocument()
+    expect(screen.queryByText('No settled cash activity is available for this selection.')).not.toBeInTheDocument()
+
+    negative.cashFlowEvents = [
+      { id: 'zero-distribution', kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '10.0000', feesAndCarry: '10.0000' },
+    ]
+    rerender(<PortfolioCashRecovery data={buildPortfolioChartData([negative as unknown as PartnershipAggregateRow])} />)
+    expect(screen.getByRole('img', { name: /net cash returned \$0\.00/ })).toBeInTheDocument()
+  })
+
   it('rolls owner records into expandable fund totals', async () => {
     const user = userEvent.setup()
     const onOpen = vi.fn()
@@ -91,6 +113,14 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
 
     expect(screen.getByRole('table', { name: 'Partnership activity summary for the full permitted portfolio' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Fund investment summary' })).toBeInTheDocument()
+    const summaryHeading = screen.getByRole('heading', { name: 'Partnership activity summary' })
+    for (const chartName of ['Cash recovery', 'Funding over time', 'Commitment progress', 'Distributions by asset type']) {
+      expect(screen.getByRole('heading', { name: chartName }).compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$3,000,000\.00 committed: 2026 \$1,800,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /\$1,800,000\.00 paid in of \$3,000,000\.00 committed/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Distribution share by asset type: Real Estate \$240,000\.00; Venture Capital \$120,000\.00/ })).toBeInTheDocument()
     expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
     expect(within(table).getByText('Fund Alpha, LP')).toBeInTheDocument()
     expect(within(table).getByText('2 owner entities')).toBeInTheDocument()
@@ -122,8 +152,14 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(screen.getByRole('columnheader', { name: 'Return' })).toBeInTheDocument()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
-    expect(screen.getByText('1 fund · 1 owner record')).toBeInTheDocument()
-    expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cash paid \$600,000\.00; net cash returned \$120,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$1,000,000\.00 committed: 2026 \$600,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Distribution share by asset type: Venture Capital \$120,000\.00/ })).toBeInTheDocument()
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'entity-b')
+    expect(screen.getByText('No distribution amounts are available for this selection.')).toBeInTheDocument()
+    expect(screen.getByText('No settled cash activity is available for this selection.')).toBeInTheDocument()
+    expect(screen.getByText('No dated capital calls are available for partnerships with commitments in this selection.')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
@@ -135,9 +171,36 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(within(table).getByRole('row', { name: 'Open Fund Alpha, LP partnership management' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Fund' }), 'fund-b')
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
     expect(screen.getByText('1 fund · 1 owner record')).toBeInTheDocument()
     expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
+  })
+
+  it('allows several funds to be selected and keeps them combined with other filters', async () => {
+    const user = userEvent.setup()
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    const table = screen.getByRole('table', { name: 'Capital activity fund investment summary' })
+
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Alpha, LP' }))
+    expect(screen.getByText('1 fund · 2 owner records')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
+    expect(screen.getByRole('button', { name: 'Fund filter: 2 funds selected' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
+    expect(within(table).getByText('Fund Alpha, LP')).toBeInTheDocument()
+    expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Real Estate')
+    expect(screen.getByText('1 fund · 2 owner records')).toBeInTheDocument()
+    expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByRole('button', { name: 'Fund filter: All funds' })).toBeInTheDocument()
+    expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
   })
 })

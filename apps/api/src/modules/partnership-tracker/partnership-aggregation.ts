@@ -10,6 +10,7 @@ import type {
   PartnershipAggregationWorkflow,
   PartnershipDataQuality,
   PartnershipLifecycleStatus,
+  PartnershipPortfolioCashFlowEvent,
   PartnershipTrackerSummary,
   PartnershipType,
 } from './partnership-tracker.contracts.js'
@@ -338,11 +339,11 @@ const rollupFor = (rows: PartnershipAggregateRow[], asOfDate: string, partnershi
 }
 
 export const composePartnershipAggregation = (
-  summaries: PartnershipTrackerSummary[],
+  summaries: Array<PartnershipTrackerSummary & { cashFlowEvents?: PartnershipPortfolioCashFlowEvent[] }>,
   requestedQuery: PartnershipAggregationQuery = DEFAULT_PARTNERSHIP_AGGREGATION_QUERY,
   asOfDate = summaries[0]?.performanceAsOfDate ?? new Date().toISOString().slice(0, 10),
 ): PartnershipAggregationResponse => {
-  const baseRows: PartnershipAggregateRow[] = summaries.map((summary) => ({ ...summary, dataQuality: classifyPartnershipDataQuality(summary) }))
+  const baseRows: PartnershipAggregateRow[] = summaries.map((summary) => ({ ...summary, cashFlowEvents: summary.cashFlowEvents ?? [], dataQuality: classifyPartnershipDataQuality(summary) }))
   const facets = composeFacets(baseRows)
   const query = normalizedQuery({ ...DEFAULT_PARTNERSHIP_AGGREGATION_QUERY, ...requestedQuery }, baseRows)
   const filtered = filterRows(baseRows, query)

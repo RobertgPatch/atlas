@@ -1,3 +1,4 @@
+import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react'
 import { AlertTriangle, ChevronDown, Minus, Plus, RefreshCw, RotateCcw, Search } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
 import { useInvestmentTrackerData } from '../../../investment-tracker/hooks/useInvestmentTrackerData'
@@ -9,6 +10,8 @@ import {
 } from '../../../investment-tracker/investmentTrackerModel'
 import { MagicButton, MagicCard } from './MagicPatternPrimitives'
 import { MagicPatternPartnershipActivitySummary } from './MagicPatternPartnershipIndex'
+import { PortfolioSecondaryCharts, PortfolioTopCharts } from './MagicPatternPortfolioCharts'
+import { buildPortfolioChartData } from './portfolioChartData'
 
 const ALL = 'all'
 
@@ -79,6 +82,60 @@ function FilterSelect({
   )
 }
 
+function FundFilter({
+  options,
+  selectedIds,
+  onToggle,
+  onClear,
+}: {
+  options: Array<{ value: string; label: string }>
+  selectedIds: Set<string>
+  onToggle: (id: string) => void
+  onClear: () => void
+}) {
+  const selectedLabel = selectedIds.size === 0
+    ? 'All funds'
+    : selectedIds.size === 1
+      ? options.find((option) => selectedIds.has(option.value))?.label ?? '1 fund selected'
+      : `${selectedIds.size} funds selected`
+
+  return (
+    <Popover className="relative block text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-slate-700">
+      <span>Fund</span>
+      <PopoverButton
+        aria-label={`Fund filter: ${selectedLabel}`}
+        className="mt-1.5 flex min-h-11 w-full items-center gap-3 rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-left text-sm font-normal normal-case tracking-normal text-slate-700 outline-none transition hover:bg-white focus:border-focus focus:bg-white focus:ring-2 focus:ring-focus/15"
+      >
+        <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">{selectedLabel}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden="true" />
+      </PopoverButton>
+      <PopoverPanel className="absolute left-0 right-0 z-30 mt-1 max-h-72 overflow-y-auto rounded-md border border-slate-300 bg-white py-1 shadow-lg">
+        <button
+          type="button"
+          disabled={selectedIds.size === 0}
+          onClick={onClear}
+          className="flex min-h-10 w-full items-center px-4 text-left text-sm font-medium normal-case tracking-normal text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none disabled:text-slate-400"
+        >
+          All funds
+        </button>
+        <div className="border-t border-slate-200" />
+        {options.map((option) => (
+          <label key={option.value} className="flex min-h-10 cursor-pointer items-center gap-3 px-4 text-sm font-normal normal-case tracking-normal text-slate-700 hover:bg-slate-50">
+            <input
+              type="checkbox"
+              checked={selectedIds.has(option.value)}
+              onChange={() => onToggle(option.value)}
+              className="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-focus"
+            />
+            <span>{option.label}</span>
+          </label>
+        ))}
+      </PopoverPanel>
+    </Popover>
+  )
+}
+
 function uniqueOptions(
   records: InvestmentActivityRecord[],
   valueOf: (record: InvestmentActivityRecord) => string,
@@ -97,7 +154,7 @@ export function MagicPatternCapitalActivityPortfolio({
   const activity = useInvestmentTrackerData()
   const [assetClass, setAssetClass] = useState(ALL)
   const [entityId, setEntityId] = useState(ALL)
-  const [fundId, setFundId] = useState(ALL)
+  const [selectedFundIds, setSelectedFundIds] = useState<Set<string>>(() => new Set())
   const records = useMemo(
     () => activity.data ? recordsFromAggregation(activity.data) : [],
     [activity.data],
@@ -110,23 +167,32 @@ export function MagicPatternCapitalActivityPortfolio({
     { value: ALL, label: 'All entities' },
     ...uniqueOptions(records, (record) => record.ownerId, (record) => record.ownerName),
   ], [records])
-  const fundOptions = useMemo(() => [
-    { value: ALL, label: 'All funds' },
-    ...uniqueOptions(records, (record) => record.fundId, (record) => record.fundName),
-  ], [records])
+  const fundOptions = useMemo(() => uniqueOptions(records, (record) => record.fundId, (record) => record.fundName), [records])
   const visibleRecords = useMemo(() => records.filter((record) => (
     (assetClass === ALL || record.assetClass === assetClass)
     && (entityId === ALL || record.ownerId === entityId)
-    && (fundId === ALL || record.fundId === fundId)
-  )), [assetClass, entityId, fundId, records])
+    && (selectedFundIds.size === 0 || selectedFundIds.has(record.fundId))
+  )), [assetClass, entityId, selectedFundIds, records])
+  const visibleRecordIds = useMemo(() => new Set(visibleRecords.map((record) => record.id)), [visibleRecords])
+  const chartData = useMemo(() => buildPortfolioChartData(
+    activity.data?.items.flatMap((group) => group.members.filter((member) => visibleRecordIds.has(member.partnership.id))) ?? [],
+  ), [activity.data, visibleRecordIds])
   const allFundGroups = useMemo(() => groupInvestmentRecordsByFund(records), [records])
   const visibleFundGroups = useMemo(() => groupInvestmentRecordsByFund(visibleRecords), [visibleRecords])
   const [expandedFundIds, setExpandedFundIds] = useState<Set<string>>(() => new Set())
-  const hasFilters = assetClass !== ALL || entityId !== ALL || fundId !== ALL
+  const hasFilters = assetClass !== ALL || entityId !== ALL || selectedFundIds.size > 0
   const clearFilters = () => {
     setAssetClass(ALL)
     setEntityId(ALL)
-    setFundId(ALL)
+    setSelectedFundIds(new Set())
+  }
+  const toggleSelectedFund = (id: string) => {
+    setSelectedFundIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   const toggleFund = (id: string) => {
     setExpandedFundIds((current) => {
@@ -157,8 +223,6 @@ export function MagicPatternCapitalActivityPortfolio({
 
   return (
     <div className="space-y-5">
-      {activity.data ? <MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /> : null}
-
       <MagicCard className="p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -180,9 +244,16 @@ export function MagicPatternCapitalActivityPortfolio({
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <FilterSelect label="Asset class" value={assetClass} options={assetClassOptions} onChange={setAssetClass} />
           <FilterSelect label="Entity" value={entityId} options={entityOptions} onChange={setEntityId} />
-          <FilterSelect label="Fund" value={fundId} options={fundOptions} onChange={setFundId} />
+          <FundFilter options={fundOptions} selectedIds={selectedFundIds} onToggle={toggleSelectedFund} onClear={() => setSelectedFundIds(new Set())} />
         </div>
       </MagicCard>
+
+      {!activity.isLoading ? <>
+        <PortfolioTopCharts data={chartData} />
+        <PortfolioSecondaryCharts data={chartData} />
+      </> : null}
+
+      {activity.data ? <MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /> : null}
 
       <p className="text-sm font-semibold text-slate-950" aria-live="polite">
         {activity.isLoading
@@ -198,7 +269,7 @@ export function MagicPatternCapitalActivityPortfolio({
           </div>
           <p className="text-xs text-slate-500">Click a single-owner fund to open it. Multi-owner funds expand so you can choose the owner record.</p>
         </div>
-        <div className="overflow-auto" style={{ maxHeight: 'min(68vh, 760px)' }}>
+        <div className="overflow-auto" style={{ height: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
           <table className="w-full min-w-[88rem] border-collapse text-left text-xs" aria-label="Capital activity fund investment summary">
             <thead>
               <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-slate-700">
