@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { MagicPatternInvestmentTrackerPageContent } from './MagicPatternInvestmentTrackerPageContent'
 
@@ -89,7 +89,7 @@ function CurrentLocation() {
 function renderTracker(canEdit = true, initialEntry = '/investment-tracker') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <MagicPatternInvestmentTrackerPageContent canEdit={canEdit} />
+      <Routes><Route path="/investment-tracker" element={<MagicPatternInvestmentTrackerPageContent canEdit={canEdit} />} /><Route path="/k1" element={<h1>K1 Management destination</h1>} /></Routes>
       <CurrentLocation />
     </MemoryRouter>,
   )
@@ -99,8 +99,8 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
   it('presents the combined partnership and investment register', () => {
     renderTracker()
 
-    expect(screen.getByRole('heading', { name: 'Investment tracker' })).toBeInTheDocument()
-    expect(screen.getByText(/Create and manage partnerships, review portfolio-wide activity/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'All Partnerships' })).toBeInTheDocument()
+    expect(screen.getByText(/Review investment performance and capital activity/i)).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Portfolio capital activity' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add partnership' })).toBeInTheDocument()
   })
@@ -145,7 +145,6 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
   it.each([
     ['overview', 'capital-activity'],
     ['cash-activity', 'capital-activity'],
-    ['k1', 'k1-history'],
     ['capital', 'capital-activity'],
     ['valuations', 'capital-activity'],
     ['assets', 'underlying-assets'],
@@ -158,43 +157,18 @@ describe('MagicPatternInvestmentTrackerPageContent', () => {
   })
 
   it.each([
-    ['2025', '2025'],
-    ['1899', 'unset'],
-    ['2101', 'unset'],
-    ['2025.5', 'unset'],
-    ['not-a-year', 'unset'],
-  ])('validates the selected workspace year %s', (year, expectedYear) => {
+    ['2025', '2025'], ['1899', null], ['2101', null], ['2025.5', null], ['not-a-year', null],
+  ])('moves K-1 links to K1 Management and validates year %s', (year, expectedYear) => {
     renderTracker(true, `/investment-tracker?partnership=p-1&area=k1-history&year=${year}`)
-    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
-      'data-year',
-      expectedYear,
-    )
+    expect(screen.getByRole('heading', { name: 'K1 Management destination' })).toBeInTheDocument()
+    const location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
+    expect(location.pathname).toBe('/k1')
+    expect(location.searchParams.get('partnership')).toBe('p-1')
+    expect(location.searchParams.get('year')).toBe(expectedYear)
   })
 
-  it('preserves the partnership while canonical workspace changes update area and year state', async () => {
-    const user = userEvent.setup()
+  it('redirects the legacy K-1 alias to the same annual records', () => {
     renderTracker(true, '/investment-tracker?partnership=p-1&area=k1&year=2025')
-
-    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
-      'data-area',
-      'k1-history',
-    )
-    expect(screen.getByRole('region', { name: 'Partnership management' })).toHaveAttribute(
-      'data-year',
-      '2025',
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Open capital activity' }))
-    let location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
-    expect(location.pathname).toBe('/investment-tracker')
-    expect(location.searchParams.get('partnership')).toBe('p-1')
-    expect(location.searchParams.get('area')).toBe('capital-activity')
-    expect(location.searchParams.has('year')).toBe(false)
-
-    await user.click(screen.getByRole('button', { name: 'Choose 2024' }))
-    location = new URL(`https://atlas.test${screen.getByRole('status', { name: 'Current location' }).textContent}`)
-    expect(location.searchParams.get('partnership')).toBe('p-1')
-    expect(location.searchParams.get('area')).toBe('k1-history')
-    expect(location.searchParams.get('year')).toBe('2024')
+    expect(screen.getByRole('status', { name: 'Current location' })).toHaveTextContent('/k1?partnership=p-1&year=2025')
   })
 })

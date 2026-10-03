@@ -17,7 +17,7 @@ export function formatLedgerMoney(value: bigint | null): string {
   return negative && cents !== 0n ? `(${formatted})` : formatted
 }
 
-export function capitalActivityLedger(events: K1TrackerCashFlowEvent[], residualValue: string) {
+export function capitalActivityLedger(events: K1TrackerCashFlowEvent[], residualValue: string, residualsByPartnership?: Map<string, string>) {
   const ordered = events.map((event, index) => ({ event, index }))
     .sort((left, right) => left.event.activityDate.localeCompare(right.event.activityDate) || left.index - right.index)
   const residual = units(residualValue)
@@ -37,7 +37,7 @@ export function capitalActivityLedger(events: K1TrackerCashFlowEvent[], residual
       net,
       cumulativeNet: settled ? cumulative : null,
       // Workbook column I: net flow, with residual NAV only on the final distribution.
-      netIncludingResidual: settled ? net + (event.isFinalLiquidation ? residual : 0n) : null,
+      netIncludingResidual: settled ? net + (event.isFinalLiquidation ? residualsByPartnership ? units(residualsByPartnership.get(event.partnershipId)) : residual : 0n) : null,
     })
   }
   return amounts

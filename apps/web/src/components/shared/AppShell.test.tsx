@@ -52,6 +52,7 @@ describe('AppShell current navigation', () => {
     ).toEqual([
       '/dashboard',
       '/investment-tracker',
+      '/k1',
       '/liquidity',
       '/entities',
       '/estate-maps',

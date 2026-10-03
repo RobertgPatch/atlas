@@ -653,6 +653,7 @@ export const durableK1BatchRepository = {
     isAdmin: boolean
     authorizedEntityIds: readonly string[]
     entityId?: string
+    partnershipIds?: string[]
     status?: K1IngestionBatchStatus
     attentionOnly?: boolean
     limit: number
@@ -671,6 +672,12 @@ export const durableK1BatchRepository = {
       if (args.entityId) {
         params.push(args.entityId)
         where.push(`b.entity_scope_id = $${params.length}`)
+      }
+      if (args.partnershipIds?.length) {
+        params.push(args.partnershipIds)
+        where.push(`exists (select 1 from k1_ingestion_items i
+          join k1_documents d on d.id = i.k1_document_id
+          where i.batch_id = b.id and d.partnership_id = any($${params.length}::uuid[]))`)
       }
       if (args.status) {
         params.push(args.status)
@@ -988,6 +995,7 @@ if ((process.env.SEED_DEMO_DATA ?? 'false') === 'true') {
 }
 
 export interface ListFilters {
+  partnershipIds?: string[]
   taxYear?: number
   entityId?: string
   status?: K1Status
@@ -1245,6 +1253,7 @@ export const k1Repository = {
     const all = [...k1Documents.values()]
       .filter((k) => !k.supersededByDocumentId)
       .filter((k) => allowed.includes(k.entityId))
+      .filter((k) => !filters.partnershipIds?.length || (k.partnershipId != null && filters.partnershipIds.includes(k.partnershipId)))
       // Always show docs whose tax year hasn't been resolved yet (null) so they
       // remain visible immediately after upload until async parse fills it in.
       .filter((k) => !filters.taxYear || k.taxYear === filters.taxYear || k.taxYear === null)
@@ -1278,7 +1287,7 @@ export const k1Repository = {
 
   getKpis(
     userId: string,
-    scope: { taxYear?: number; entityId?: string },
+    scope: { taxYear?: number; entityId?: string; partnershipIds?: string[] },
   ): K1Kpis {
     const allowed = scopeEntityIds(userId, scope.entityId)
     const counts: Record<K1Status, number> = {
@@ -1294,6 +1303,7 @@ export const k1Repository = {
       for (const k of k1Documents.values()) {
         if (k.supersededByDocumentId) continue
         if (!allowed.includes(k.entityId)) continue
+        if (scope.partnershipIds?.length && (!k.partnershipId || !scope.partnershipIds.includes(k.partnershipId))) continue
         // Pending docs (taxYear === null) count toward all year scopes so the
         // KPI tiles update immediately after upload.
         if (scope.taxYear && k.taxYear !== null && k.taxYear !== scope.taxYear) continue

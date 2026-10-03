@@ -30,6 +30,7 @@ export function calculateInvestmentPerformance(input: {
   committedCapital: string | null
   latestNav: { amount: string; date: string } | null
   finalLiquidationDate?: string | null
+  residualCashFlows?: { amount: string; date: string }[]
 }): InvestmentPerformance {
   const flows = input.cashFlowEvents.filter((flow) => flow.settlementStatus !== 'ANNOUNCED')
     .sort((a, b) => a.activityDate.localeCompare(b.activityDate))
@@ -51,9 +52,11 @@ export function calculateInvestmentPerformance(input: {
   const net = solveIrr(netFlows, 365)
   // Never place a terminal valuation before a later cash flow. Without a recorded
   // liquidation date, use the valuation date (or last cash flow when NAV is zero).
-  const terminalDate = [input.finalLiquidationDate ?? input.latestNav?.date, flows.at(-1)?.date]
+  const terminalDate = [input.finalLiquidationDate ?? input.latestNav?.date, flows.at(-1)?.date, ...(input.residualCashFlows ?? []).map((flow) => flow.date)]
     .filter((value): value is string => Boolean(value)).sort().at(-1) ?? null
-  const inclusive = solveIrr(terminalDate ? [...netFlows, { date: terminalDate, cents: residual }] : netFlows, 365)
+  const inclusive = solveIrr(input.residualCashFlows
+    ? [...netFlows, ...input.residualCashFlows.map((flow) => ({ date: flow.date, cents: units(flow.amount) }))]
+    : terminalDate ? [...netFlows, { date: terminalDate, cents: residual }] : netFlows, 365)
   const finalDate = input.finalLiquidationDate ?? null
   const firstDate = flows[0]?.date
   return {
@@ -79,4 +82,26 @@ export function calculateInvestmentPerformance(input: {
     xirrTerminalDate: terminalDate,
     xirrStatus: { gross: gross.status, net: net.status, includingResidual: inclusive.status },
   }
+}
+
+/** Pool dated flows, rather than averaging partnership returns. */
+export function calculatePortfolioInvestmentPerformance(items: {
+  investmentPerformance: InvestmentPerformance
+  cashFlowEvents: CashFlow[]
+}[]): InvestmentPerformance {
+  if (items.length === 1) return items[0]!.investmentPerformance
+  const performances = items.map((item) => item.investmentPerformance)
+  const sumMoney = (values: string[]) => money(sum(values.map(units)))
+  const latest = (values: (string | null)[]) => values.filter((value): value is string => value != null).sort().at(-1) ?? null
+  const residualDate = latest(performances.map((p) => p.residualValueDate))
+  return calculateInvestmentPerformance({
+    cashFlowEvents: items.flatMap((item) => item.cashFlowEvents),
+    committedCapital: performances.length && performances.every((p) => p.committedCapital != null)
+      ? sumMoney(performances.map((p) => p.committedCapital!)) : null,
+    latestNav: residualDate ? { amount: sumMoney(performances.map((p) => p.residualValue)), date: residualDate } : null,
+    finalLiquidationDate: performances.length && performances.every((p) => p.finalLiquidationDate)
+      ? latest(performances.map((p) => p.finalLiquidationDate)) : null,
+    residualCashFlows: performances.flatMap((p) => p.xirrTerminalDate
+      ? [{ amount: p.residualValue, date: p.xirrTerminalDate }] : []),
+  })
 }

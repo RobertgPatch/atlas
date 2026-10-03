@@ -12,11 +12,11 @@ const STATUS_LABEL: Record<K1IngestionBatchStatus, string> = {
 const itemLabel = (status: K1IngestionItem['status']) => status.replaceAll('_', ' ').toLowerCase()
 const reviewable = (item: K1IngestionItem) => Boolean(item.k1DocumentId && ['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY', 'APPLIED'].includes(item.status))
 
-export function K1BatchQueue({ entityId }: { entityId?: string }) {
+export function K1BatchQueue({ entityId, partnershipIds }: { entityId?: string; partnershipIds?: string[] }) {
   const navigate = useNavigate()
   const [attentionOnly, setAttentionOnly] = useState(false)
   const [status, setStatus] = useState<K1IngestionBatchStatus | ''>('')
-  const query = useK1Batches({ entityId, attentionOnly, status: status || undefined, limit: 10 })
+  const query = useK1Batches({ entityId, partnershipIds, attentionOnly, status: status || undefined, limit: 10 })
   const cancel = useCancelK1BatchItem()
   const remove = useDeleteK1BatchItem()
   const retry = useRetryK1Extraction()

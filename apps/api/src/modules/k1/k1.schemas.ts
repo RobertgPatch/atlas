@@ -25,9 +25,12 @@ const taxYearSchema = z.coerce
 
 // Query parsers ---------------------------------------------------------------
 
+const partnershipIdsSchema = z.string().max(20000).transform((value) => [...new Set(value.split(','))]).pipe(z.array(uuidSchema).min(1).max(500)).optional()
+
 export const listQuerySchema = z.object({
   tax_year: taxYearSchema.optional(),
   entity_id: uuidSchema.optional(),
+  partnership_ids: partnershipIdsSchema,
   status: k1StatusSchema.optional(),
   q: z.string().max(200).optional(),
   sort: k1SortSchema.optional().default('uploaded_at'),
@@ -40,6 +43,7 @@ export const kpiQuerySchema = z
   .object({
     tax_year: taxYearSchema.optional(),
     entity_id: uuidSchema.optional(),
+    partnership_ids: partnershipIdsSchema,
   })
   // Deliberately reject status / q so KPIs can't be distorted by finding-level filters (FR-004).
   .strict()
@@ -103,6 +107,7 @@ export const ingestionItemParamsSchema = z.object({ itemId: uuidSchema })
 
 export const ingestionBatchListSchema = z.object({
   entity_id: uuidSchema.optional(),
+  partnership_ids: partnershipIdsSchema,
   status: z.enum(['OPEN', 'PROCESSING', 'ACTION_REQUIRED', 'COMPLETED', 'PARTIAL_FAILURE', 'CANCELLED']).optional(),
   attention_only: z.string().transform((value) => value === 'true').pipe(z.boolean()).optional(),
   limit: z.coerce.number().int().min(1).max(50).optional().default(20),
@@ -138,6 +143,7 @@ export const k1IngestionErrorSchema = z.object({
 export const exportQuerySchema = z.object({
   tax_year: taxYearSchema.optional(),
   entity_id: uuidSchema.optional(),
+  partnership_ids: partnershipIdsSchema,
   status: k1StatusSchema.optional(),
   q: z.string().max(200).optional(),
 })

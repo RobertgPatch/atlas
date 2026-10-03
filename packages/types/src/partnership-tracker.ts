@@ -177,6 +177,13 @@ export interface PartnershipTrackerDetail {
   permissions: PartnershipTrackerPermissions
 }
 
+export type PartnershipActivityDetail = Pick<PartnershipTrackerDetail, 'summary' | 'investmentPerformance' | 'cashFlowEvents' | 'navEntries' | 'permissions'>
+export interface PartnershipPortfolioActivity {
+  cashOnCashYield: PartnershipAggregationCoveredRatio
+  items: PartnershipActivityDetail[]
+  investmentPerformance: InvestmentPerformance
+}
+
 export interface PartnershipTrackerListResponse {
   items: PartnershipTrackerSummary[]
   total: number

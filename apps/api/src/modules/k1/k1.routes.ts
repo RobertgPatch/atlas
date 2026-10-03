@@ -76,6 +76,7 @@ const ingestionErrorCode = (error: unknown): string => {
   const candidate = (error as { code?: unknown }).code
   if (typeof candidate === 'string' && (
     K1_INGESTION_ERROR_CODES.includes(candidate as never)
+    || ['ITEM_NOT_CANCELLABLE', 'ITEM_NOT_DELETABLE', 'ITEM_DOCUMENT_NOT_FOUND', 'APPLIED_DOCUMENT_RETAINED'].includes(candidate)
     || upstreamStorageErrorCodes.has(candidate)
   )) return candidate
   const name = (error as { name?: unknown }).name
@@ -84,7 +85,7 @@ const ingestionErrorCode = (error: unknown): string => {
 }
 
 const ingestionErrorStatus = (code: string): number => {
-  if (code === 'BATCH_NOT_FOUND' || code === 'ITEM_NOT_FOUND' || code === 'UPLOAD_NOT_FOUND') return 404
+  if (code === 'BATCH_NOT_FOUND' || code === 'ITEM_NOT_FOUND' || code === 'ITEM_DOCUMENT_NOT_FOUND' || code === 'UPLOAD_NOT_FOUND') return 404
   if (code === 'FORBIDDEN_ENTITY' || code === 'FORBIDDEN_K1_DOCUMENT') return 403
   if (code === 'UNSUPPORTED_MEDIA_TYPE') return 415
   if (code === 'WORKLOAD_DISABLED' || code === 'PROTECTION_UNAVAILABLE' || upstreamStorageErrorCodes.has(code)) return 503
@@ -548,6 +549,7 @@ const listHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const result = k1Repository.listK1s(request.authUser!.userId, {
     taxYear: q.tax_year,
     entityId: q.entity_id,
+    partnershipIds: q.partnership_ids,
     status: q.status,
     q: q.q,
     sort: q.sort,
@@ -572,6 +574,7 @@ const kpiHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const kpis = k1Repository.getKpis(request.authUser!.userId, {
     taxYear: q.tax_year,
     entityId: q.entity_id,
+    partnershipIds: q.partnership_ids,
   })
   return reply.send(kpis)
 }
@@ -733,6 +736,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     canonicalInputs: {
       taxYear: q.tax_year ?? null,
       entityId: q.entity_id ?? null,
+      partnershipIds: q.partnership_ids ?? [],
       status: q.status ?? null,
       search: q.q ?? null,
     },
@@ -743,6 +747,7 @@ const exportHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const { items } = k1Repository.listK1s(request.authUser!.userId, {
     taxYear: q.tax_year,
     entityId: q.entity_id,
+    partnershipIds: q.partnership_ids,
     status: q.status,
     q: q.q,
     sort: 'uploaded_at',
@@ -864,6 +869,7 @@ const listBatchesHandler = async (request: FastifyRequest, reply: FastifyReply) 
       isAdmin: request.authUser!.role === 'Admin',
       authorizedEntityIds: request.k1Scope?.entityIds ?? [],
       entityId: parsed.data.entity_id,
+      partnershipIds: parsed.data.partnership_ids,
       status: parsed.data.status,
       attentionOnly: parsed.data.attention_only,
       limit: parsed.data.limit,

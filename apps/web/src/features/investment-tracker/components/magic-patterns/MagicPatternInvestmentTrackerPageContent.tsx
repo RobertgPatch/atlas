@@ -1,6 +1,6 @@
 import { AlertTriangle, FileText, Keyboard, Loader2, Plus, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { K1UploadDialog } from '../../../k1/components/K1UploadDialog'
 import { useK1Batch } from '../../../k1/hooks/useK1Queries'
 import { MagicPatternCapitalActivityPortfolio } from '../../../partnership-tracker/components/magic-patterns/MagicPatternCapitalActivityPortfolio'
@@ -40,6 +40,12 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
   const openPartnership = useCallback((partnershipId: string) => {
     updateUrl({ partnership: partnershipId, area: 'capital-activity', year: undefined })
   }, [updateUrl])
+
+  if (selectedId && area === 'k1-history') {
+    const destination = new URLSearchParams({ partnership: selectedId })
+    if (selectedYear) destination.set('year', String(selectedYear))
+    return <Navigate replace to={`/k1?${destination}`} />
+  }
 
   if (selectedId && detail.isLoading) {
     return (
@@ -105,9 +111,9 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
     >
       <header className="mb-6 flex flex-wrap items-start justify-between gap-5 border-b border-[#bfcbd9] pb-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[#17263a]">Investment tracker</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[#17263a]">All Partnerships</h1>
           <p className="mt-1 max-w-3xl text-sm leading-5 text-[#3e5169]">
-            Create and manage partnerships, review portfolio-wide activity, and open any owner record from the investment register.
+            Review investment performance and capital activity across all partnerships. Filter by fund and owner, or open a partnership profile from the register.
           </p>
         </div>
         {canEdit ? (
@@ -162,7 +168,7 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
         )
       ) : null}
 
-      <MagicPatternCapitalActivityPortfolio onOpen={openPartnership} exportTarget={exportTarget} />
+      <MagicPatternCapitalActivityPortfolio canEdit={canEdit} onOpen={openPartnership} exportTarget={exportTarget} />
 
       {K1_PARTNERSHIP_CREATION_ENABLED && adding === 'choose' ? (
         <MagicModal

@@ -165,6 +165,7 @@ const putFileWithProgress = async (args: {
 // --- Filter shape -----------------------------------------------------------
 
 export interface K1Filters {
+  partnershipIds?: string[]
   taxYear?: number
   entityId?: string
   status?: K1Status
@@ -179,6 +180,7 @@ const toQuery = (f: K1Filters) => {
   const p = new URLSearchParams()
   if (f.taxYear) p.set('tax_year', String(f.taxYear))
   if (f.entityId) p.set('entity_id', f.entityId)
+  if (f.partnershipIds?.length) p.set('partnership_ids', f.partnershipIds.join(','))
   if (f.status) p.set('status', f.status)
   if (f.q) p.set('q', f.q)
   if (f.sort) p.set('sort', f.sort)
@@ -210,10 +212,11 @@ export const k1Client = {
   apply: (id: string, body: K1ApplyRequest): Promise<K1ApplyResponse> =>
     request(`/k1-documents/${id}/apply`, { method: 'POST', body: JSON.stringify(body) }),
 
-  getKpis: (scope: { taxYear?: number; entityId?: string } = {}): Promise<K1Kpis> => {
+  getKpis: (scope: { taxYear?: number; entityId?: string; partnershipIds?: string[] } = {}): Promise<K1Kpis> => {
     const p = new URLSearchParams()
     if (scope.taxYear) p.set('tax_year', String(scope.taxYear))
     if (scope.entityId) p.set('entity_id', scope.entityId)
+    if (scope.partnershipIds?.length) p.set('partnership_ids', scope.partnershipIds.join(','))
     return request(`/k1-documents/kpis?${p.toString()}`)
   },
 
@@ -260,6 +263,7 @@ export const k1Client = {
   listBatches: (filters: K1IngestionBatchFilters = {}): Promise<K1IngestionBatchCollection> => {
     const query = new URLSearchParams()
     if (filters.entityId) query.set('entity_id', filters.entityId)
+    if (filters.partnershipIds?.length) query.set('partnership_ids', filters.partnershipIds.join(','))
     if (filters.status) query.set('status', filters.status)
     if (filters.attentionOnly) query.set('attention_only', 'true')
     if (filters.limit) query.set('limit', String(filters.limit))

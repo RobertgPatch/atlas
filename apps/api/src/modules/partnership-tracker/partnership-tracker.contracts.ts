@@ -114,6 +114,13 @@ export interface PartnershipTrackerDetail {
   navEntries: PartnershipNavEntry[]
   permissions: { canEditPartnership: boolean; canEditK1: boolean; canEditCommitment: boolean; canEditNav: boolean; canSignoff: boolean }
 }
+export type PartnershipActivityDetail = Pick<PartnershipTrackerDetail, 'summary' | 'investmentPerformance' | 'cashFlowEvents' | 'navEntries' | 'permissions'>
+export interface PartnershipPortfolioActivity {
+  cashOnCashYield: PartnershipAggregationCoveredRatio
+  items: PartnershipActivityDetail[]
+  investmentPerformance: InvestmentPerformance
+}
+
 export interface PartnershipTrackerListResponse { items: PartnershipTrackerSummary[]; total: number; nextCursor: string | null }
 
 export const PARTNERSHIP_AGGREGATION_WORKFLOWS = ['NOT_STARTED', 'IN_PROGRESS', 'NEEDS_REVIEW', 'RECONCILED', 'NO_K1_YEAR'] as const

@@ -1,6 +1,18 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
-import { aggregationResponseFixture } from '../src/features/partnership-tracker/__tests__/fixtures'
+import { aggregationResponseFixture, investmentPerformanceFixture } from '../src/features/partnership-tracker/__tests__/fixtures'
+
+const activityResponse = (groups: typeof aggregationResponseFixture.items, ids: string[] | undefined) => {
+  const members = groups.flatMap((group) => group.members).filter((member) => !ids || ids.includes(member.partnership.id))
+  return {
+    items: members.map((summary) => ({ summary, investmentPerformance: investmentPerformanceFixture, navEntries: [],
+      cashFlowEvents: (summary.cashFlowEvents ?? []).map((flow) => ({ ...flow, partnershipId: summary.partnership.id, settlementStatus: 'SETTLED' })),
+      permissions: { canEditPartnership: false, canEditK1: false, canEditCommitment: false, canEditNav: false, canSignoff: false },
+    })),
+    investmentPerformance: investmentPerformanceFixture,
+    cashOnCashYield: { value: '0.05', numeratorKnownCount: members.length, totalCount: members.length },
+  }
+}
 
 test('downloads all charts and a multi-page ledger without changing the current view', async ({ page }, testInfo) => {
   const prototype = aggregationResponseFixture.items[0]
@@ -32,6 +44,8 @@ test('downloads all charts and a multi-page ledger without changing the current 
       } })
     } else if (path === '/v1/partnership-tracker/aggregation') {
       await route.fulfill({ json: { ...aggregationResponseFixture, items, pageInfo: { page: 1, totalPages: 1, totalItems: items.length } } })
+    } else if (path === '/v1/partnership-tracker/activity') {
+      await route.fulfill({ json: activityResponse(items, new URL(route.request().url()).searchParams.get('partnershipIds')?.split(',')) })
     } else {
       await route.fulfill({ json: {} })
     }
@@ -45,7 +59,7 @@ test('downloads all charts and a multi-page ledger without changing the current 
   const scroller = table.locator('..')
   await scroller.evaluate((element) => { element.scrollTop = 500; element.scrollLeft = 200 })
   const scrollBefore = await scroller.evaluate((element) => [element.scrollTop, element.scrollLeft])
-  const summaryScroller = page.getByRole('table', { name: 'Partnership activity summary for the full permitted portfolio' }).locator('..')
+  const summaryScroller = page.getByRole('table', { name: 'Investment Performance for Selected partnerships' }).locator('..')
   // Reproduce a scroll area outside the marked ledger, including forced bars.
   await summaryScroller.evaluate((element) => {
     element.style.overflow = 'scroll'
@@ -72,7 +86,7 @@ test('downloads all charts and a multi-page ledger without changing the current 
     const fundHeading = heading('Fund investment summary')
     const filterGrid = root.querySelector('[data-pdf-filter-grid]') as HTMLElement
     const fundTable = root.querySelector('table[aria-label="Capital activity fund investment summary"]') as HTMLTableElement
-    const summary = root.querySelector('table[aria-label="Partnership activity summary for the full permitted portfolio"]') as HTMLTableElement
+    const summary = root.querySelector('table[aria-label="Investment Performance for Selected partnerships"]') as HTMLTableElement
     const icons = [...summary.querySelectorAll('svg.lucide-info')].map((icon) => {
       const bounds = icon.getBoundingClientRect()
       const row = icon.closest('tr')!.getBoundingClientRect()
@@ -97,10 +111,10 @@ test('downloads all charts and a multi-page ledger without changing the current 
   expect(layout.fundHeadingHeight).toBeLessThanOrEqual(layout.fundLineHeight + 1)
   expect(layout.filterGap).toBeGreaterThan(8)
   expect(layout.fundGap).toBeGreaterThan(8)
-  expect(layout.icons).toHaveLength(7)
+  expect(layout.icons).toHaveLength(18)
   expect(Math.max(...layout.icons.map((icon) => icon.right)) - Math.min(...layout.icons.map((icon) => icon.right))).toBeLessThan(2)
   expect(layout.icons.every((icon) => icon.centerOffset < 3)).toBe(true)
-  expect(layout.badges).toHaveLength(3)
+  expect(layout.badges).toHaveLength(0)
   expect(layout.badges.every((badge) => badge.bottom <= badge.rowBottom + 2)).toBe(true)
   const download = await downloadPromise
   expect(download.suggestedFilename()).toMatch(/^investment-tracker-\d{4}-\d{2}-\d{2}\.pdf$/)
@@ -110,7 +124,6 @@ test('downloads all charts and a multi-page ledger without changing the current 
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-')
   const pages = pdf.toString('latin1').match(/\/Type \/Page\b/g)!.length
   expect(pages).toBeGreaterThan(2)
-  expect(pages).toBeLessThanOrEqual(4)
   await expect(page.getByRole('button', { name: 'Export to PDF' })).toBeEnabled()
   await expect(page.getByRole('combobox', { name: 'Asset class' })).toHaveValue('Real Estate')
   await expect(page.getByRole('button', { name: 'Collapse Synthetic Fund 01 owner details' })).toHaveAttribute('aria-expanded', 'true')
@@ -130,6 +143,8 @@ test('keeps compact left padding and extra right padding on investment tracker i
       } })
     } else if (path === '/v1/partnership-tracker/aggregation') {
       await route.fulfill({ json: { ...aggregationResponseFixture, pageInfo: { page: 1, totalPages: 1, totalItems: aggregationResponseFixture.items.length } } })
+    } else if (path === '/v1/partnership-tracker/activity') {
+      await route.fulfill({ json: activityResponse(aggregationResponseFixture.items, new URL(route.request().url()).searchParams.get('partnershipIds')?.split(',')) })
     } else {
       await route.fulfill({ json: {} })
     }

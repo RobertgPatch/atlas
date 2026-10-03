@@ -107,6 +107,39 @@ describe('GET /v1/k1-documents — list contract', () => {
     expect(res.json().error).toBe('FORBIDDEN_ENTITY')
   })
 
+  it('filters multiple partnerships before pagination and applies the same selection to KPIs and export', async () => {
+    const all = (await f.app.inject({ method: 'GET', url: '/v1/k1-documents?limit=200', headers: { cookie: f.cookie } })).json().items
+    const ids = [...new Set(all.map((item: { partnership: { id: string } }) => item.partnership.id))].slice(0, 2)
+    expect(ids).toHaveLength(2)
+    const expected = all.filter((item: { partnership: { id: string } }) => ids.includes(item.partnership.id))
+    const query = `partnership_ids=${ids.join(',')}`
+    const items = []
+    let cursor: string | null = null
+    do {
+      const response = await f.app.inject({ method: 'GET', url: `/v1/k1-documents?${query}&limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, headers: { cookie: f.cookie } })
+      expect(response.statusCode).toBe(200)
+      items.push(...response.json().items)
+      cursor = response.json().nextCursor
+    } while (cursor)
+    expect(items.map((item) => item.id)).toEqual(expected.map((item: { id: string }) => item.id))
+    const kpis = await f.app.inject({ method: 'GET', url: `/v1/k1-documents/kpis?${query}`, headers: { cookie: f.cookie } })
+    expect(kpis.statusCode).toBe(200)
+    expect(Object.values(kpis.json().counts).reduce((sum: number, value) => sum + Number(value), 0)).toBe(expected.length)
+    const exported = await f.app.inject({ method: 'GET', url: `/v1/k1-documents/export.csv?${query}`, headers: { cookie: f.cookie } })
+    expect(exported.statusCode).toBe(200)
+    for (const item of all) expect(exported.body.includes(item.id)).toBe(ids.includes(item.partnership.id))
+  })
+
+  it('keeps partnership selections inside the authorized entity scope', async () => {
+    const all = (await f.app.inject({ method: 'GET', url: '/v1/k1-documents?limit=200', headers: { cookie: f.cookie } })).json().items
+    const hidden = all.find((item: { entity: { id: string } }) => item.entity.id === f.entityIds[1])
+    k1Repository._debugSetMemberships(f.admin.id, [f.entityIds[0]!])
+    const response = await f.app.inject({ method: 'GET', url: `/v1/k1-documents?partnership_ids=${hidden.partnership.id}`, headers: { cookie: f.cookie } })
+    expect(response.json().items).toEqual([])
+    const invalid = await f.app.inject({ method: 'GET', url: '/v1/k1-documents?partnership_ids=invalid', headers: { cookie: f.cookie } })
+    expect(invalid.statusCode).toBe(400)
+  })
+
   it('returns 401 without a session cookie', async () => {
     const res = await f.app.inject({ method: 'GET', url: '/v1/k1-documents' })
     expect(res.statusCode).toBe(401)
