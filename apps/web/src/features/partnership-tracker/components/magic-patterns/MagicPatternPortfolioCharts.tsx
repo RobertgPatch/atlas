@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { PARTNERSHIP_TYPES } from '../../../../../../../packages/types/src/partnership-tracker'
 import { colorTokens } from '../../../../../design-tokens.js'
 import { MagicCard } from './MagicPatternPrimitives'
@@ -20,11 +20,14 @@ const compact = (value: number) => new Intl.NumberFormat('en-US', {
   style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1,
 }).format(value)
 
-function ChartCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function ChartCard({ title, description, children, actions }: { title: string; description: string; children: ReactNode; actions?: ReactNode }) {
   return <MagicCard className="min-w-0 overflow-hidden">
-    <div className="border-b border-slate-200 bg-slate-50 px-4 py-3">
-      <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
-      <p className="mt-0.5 text-xs leading-5 text-slate-600">{description}</p>
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold text-slate-950">{title}</h3>
+        <p className="mt-0.5 text-xs leading-5 text-slate-600">{description}</p>
+      </div>
+      {actions}
     </div>
     {children}
   </MagicCard>
@@ -109,31 +112,53 @@ export function PortfolioCashRecovery({ data }: { data: PortfolioChartData }) {
 }
 
 export function PortfolioFundingOverTime({ data }: { data: PortfolioChartData }) {
-  const { committed, called, coveredCount, years } = data.funding
-  const description = committed > 0n
-    ? `Capital called against the ${compact(Number(committed) / 10_000)} current commitment.`
-    : 'Settled capital calls against current commitments.'
-  if (years.length === 0) return <ChartCard title="Funding over time" description={description}>
-    <EmptyChart>No dated capital calls are available for partnerships with commitments in this selection.</EmptyChart>
-    <Coverage covered={coveredCount} total={data.recordCount} />
-  </ChartCard>
-  const remaining = committed > called ? committed - called : 0n
-  return <ChartCard title="Funding over time" description={description}>
-    <div role="img" aria-label={`Cumulative capital called by year against ${portfolioMoney(committed)} committed: ${years.map(({ year, cumulative }) => `${year} ${portfolioMoney(cumulative)}`).join('; ')}`} className="space-y-4 px-5 py-4">
-      {years.map(({ year, cumulative }) => {
-        const percent = Number(cumulative) / Number(committed) * 100
-        return <div key={year} className="flex items-center gap-4 text-xs">
-          <span className="w-10 shrink-0 tabular-nums text-slate-600">{year}</span>
-          <div className="h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
-            <div className="h-full rounded-sm" style={{ width: `${Math.min(100, percent)}%`, backgroundColor: BLUE }} />
+  const [view, setView] = useState<'future' | 'historic'>('future')
+  const { committed, called, coveredCount, history, future, currentYear, currentYearCalled, remaining, extendedWindowCount, assumedStartCount, assumedPaidInCount } = data.funding
+  const rows = view === 'future'
+    ? [
+      { label: String(currentYear), amount: currentYearCalled, estimated: false, detail: 'Called this year' },
+      ...future.map(({ year, amount }) => ({ label: String(year), amount, estimated: true, detail: 'Estimated annual requirement' })),
+    ]
+    : history.map(({ label, called, cumulative }) => ({ label, amount: cumulative, estimated: false, detail: `${portfolioMoney(called)} called in this period; cumulative total` }))
+  const description = view === 'future'
+    ? 'Annual funding requirements · current year actuals and estimated future calls.'
+    : `Cumulative capital called against ${compact(Number(committed) / 10_000)} committed · up to five historic periods plus the current year.`
+  const chartLabel = view === 'future'
+    ? `Annual funding requirements against ${portfolioMoney(committed)} committed: ${rows.map(({ label, amount, estimated }) => `${label} ${portfolioMoney(amount)} ${estimated ? 'estimated' : 'actual'}`).join('; ')}`
+    : `Cumulative capital called by year against ${portfolioMoney(committed)} committed: ${rows.map(({ label, amount }) => `${label} ${portfolioMoney(amount)}`).join('; ')}`
+  const toggle = <div className="ml-auto inline-flex shrink-0 overflow-hidden rounded-md border border-slate-300" role="group" aria-label="Funding view">
+    {(['future', 'historic'] as const).map((mode) => <button
+      key={mode}
+      type="button"
+      aria-pressed={view === mode}
+      onClick={() => setView(mode)}
+      className={`min-h-8 px-2.5 text-xs font-semibold capitalize focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${view === mode ? 'bg-primary text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`}
+    >{mode === 'future' ? 'Future' : 'Historic'}</button>)}
+  </div>
+  return <ChartCard title="Funding over time" description={description} actions={toggle}>
+    {coveredCount === 0 ? <EmptyChart>No commitment amounts are available for this selection.</EmptyChart> : <>
+      <div role="img" aria-label={chartLabel} className="space-y-4 px-5 py-4">
+        {rows.map(({ label, amount, estimated, detail }) => {
+          const percent = committed > 0n ? Number(amount) / Number(committed) * 100 : 0
+          return <div key={label} data-funding-bar className="flex items-center gap-3 text-xs" title={`${label}: ${portfolioMoney(amount)} · ${detail} · ${percent.toFixed(1)}% of commitment`}>
+            <span className="w-24 shrink-0 tabular-nums text-slate-600">{label}{view === 'future' ? <span className="ml-1 text-[0.62rem] text-slate-500">{estimated ? 'Est.' : 'Actual'}</span> : null}</span>
+            <div className="h-4 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-200">
+              <div className="h-full rounded-sm" style={{ width: `${Math.min(100, percent)}%`, backgroundColor: estimated ? AMBER : BLUE }} />
+            </div>
+            <span className="w-24 shrink-0 text-right font-mono font-semibold tabular-nums text-slate-950">{compact(Number(amount) / 10_000)} · {Math.round(percent)}%</span>
           </div>
-          <span className="w-24 shrink-0 text-right font-mono font-semibold tabular-nums text-slate-950">{compact(Number(cumulative) / 10_000)} · {Math.round(percent)}%</span>
-        </div>
-      })}
-    </div>
-    <p className="mx-5 border-t border-slate-200 py-3 text-xs font-semibold text-slate-950">
-      {called > committed ? `${portfolioMoney(called - committed)} called beyond current commitments` : `${portfolioMoney(remaining)} commitment remains`}
-    </p>
+        })}
+      </div>
+      <div className="mx-5 space-y-2 border-t border-slate-200 py-3 text-xs text-slate-600">
+        <p className="font-semibold text-slate-950">{view === 'historic' && called > committed ? `${portfolioMoney(called - committed)} called beyond current commitments` : `${portfolioMoney(remaining)} commitment remains`}</p>
+        {view === 'future' ? <>
+          {remaining === 0n ? <p>No uncalled commitment remains to forecast.</p> : <p>Estimates spread each partnership’s remaining commitment evenly over 5 minus its age in calendar years. A new partnership uses 20% per year. Actual calls update the remaining amount.</p>}
+          {extendedWindowCount > 0 ? <p>{extendedWindowCount} owner {extendedWindowCount === 1 ? 'record is' : 'records are'} already at least five years old; their remaining capital is spread over the next five years.</p> : null}
+          {assumedStartCount > 0 ? <p>{assumedStartCount} owner {assumedStartCount === 1 ? 'record has' : 'records have'} no inception or activity date; a five-year window is assumed.</p> : null}
+          {assumedPaidInCount > 0 ? <p>{assumedPaidInCount} owner {assumedPaidInCount === 1 ? 'record has' : 'records have'} no calls recorded; the estimate assumes the full commitment is uncalled.</p> : null}
+        </> : <p>Each bar shows capital called through the end of its year or range. Hover for the amount called within that period.</p>}
+      </div>
+    </>}
     <Coverage covered={coveredCount} total={data.recordCount} />
   </ChartCard>
 }

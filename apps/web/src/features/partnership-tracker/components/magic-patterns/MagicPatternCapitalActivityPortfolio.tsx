@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, Download, Loader2, Minus, Plus, RefreshCw, 
 import { Fragment, useMemo, useRef, useState, type RefObject } from 'react'
 import { exportInvestmentTrackerPdf } from '../../../investment-tracker/exportInvestmentTrackerPdf'
 import { useInvestmentTrackerData } from '../../../investment-tracker/hooks/useInvestmentTrackerData'
+import { buildInvestmentTrackerRollup } from '../../../investment-tracker/investmentTrackerRollup'
 import {
   groupInvestmentRecordsByFund,
   recordsFromAggregation,
@@ -196,11 +197,15 @@ export function MagicPatternCapitalActivityPortfolio({
     && (selectedFundIds.size === 0 || selectedFundIds.has(record.fundId))
   )), [assetClass, entityId, selectedFundIds, records])
   const visibleRecordIds = useMemo(() => new Set(visibleRecords.map((record) => record.id)), [visibleRecords])
-  const chartData = useMemo(() => buildPortfolioChartData(
-    activity.data?.items.flatMap((group) => group.members.filter((member) => visibleRecordIds.has(member.partnership.id))) ?? [],
+  const visibleMembers = useMemo(() => (
+    activity.data?.items.flatMap((group) => group.members.filter((member) => visibleRecordIds.has(member.partnership.id))) ?? []
   ), [activity.data, visibleRecordIds])
+  const chartData = useMemo(() => buildPortfolioChartData(visibleMembers, activity.data?.rollup.asOfDate), [visibleMembers, activity.data?.rollup.asOfDate])
   const allFundGroups = useMemo(() => groupInvestmentRecordsByFund(records), [records])
   const visibleFundGroups = useMemo(() => groupInvestmentRecordsByFund(visibleRecords), [visibleRecords])
+  const visibleRollup = useMemo(() => activity.data ? buildInvestmentTrackerRollup(
+    visibleMembers, visibleFundGroups.length, activity.data.rollup.asOfDate,
+  ) : null, [activity.data, visibleMembers, visibleFundGroups.length])
   const [expandedFundIds, setExpandedFundIds] = useState<Set<string>>(() => new Set())
   const hasFilters = assetClass !== ALL || entityId !== ALL || selectedFundIds.size > 0
   const clearFilters = () => {
@@ -286,7 +291,7 @@ export function MagicPatternCapitalActivityPortfolio({
         <PortfolioSecondaryCharts data={chartData} />
       </> : null}
 
-      {activity.data ? <div data-pdf-keep-together><MagicPatternPartnershipActivitySummary rollup={activity.data.rollup} /></div> : null}
+      {visibleRollup ? <div data-pdf-keep-together><MagicPatternPartnershipActivitySummary rollup={visibleRollup} filtered={hasFilters} /></div> : null}
 
       <p className="text-sm font-semibold text-slate-950" aria-live="polite">
         {activity.isLoading

@@ -93,7 +93,6 @@ export function MagicPatternInvestmentTrackerPageContent({ canEdit }: { canEdit:
         })}
         onYearChange={(year) => updateUrl({ area: 'k1-history', year: String(year) })}
         onBack={() => updateUrl({ partnership: undefined, area: undefined, year: undefined })}
-        onDeleted={() => updateUrl({ partnership: undefined, area: undefined, year: undefined })}
       />
     )
   }

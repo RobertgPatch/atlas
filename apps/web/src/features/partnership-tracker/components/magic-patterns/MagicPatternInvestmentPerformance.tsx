@@ -18,6 +18,7 @@ export function MagicPatternInvestmentPerformance({ performance: p, partnershipN
     title="Investment Performance"
     description="Settled activity across all dates · USD. Actual fees and carry; XIRR uses dated cash flows and a 365-day year. Announced activity is excluded."
     ariaLabel={`Investment Performance for ${partnershipName}`}
+    basisInTooltip
     groups={[
       { label: 'Inputs', rows: [
         { label: 'Final liquidation date', value: date(p.finalLiquidationDate), basis: 'From a final liquidation distribution or Edit partnership; blank for an ongoing investment', context: '' },
