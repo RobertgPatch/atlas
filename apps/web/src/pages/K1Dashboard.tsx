@@ -360,7 +360,7 @@ function K1ProcessingDashboard() {
         <KPICard label="Finalized" value={counts.FINALIZED} icon={ShieldCheck} />
       </div>
 
-      {activeBatchQuery.data && partnershipIds.length === 0 && (
+      {activeBatchQuery.data && (
         <section aria-label="Active K-1 upload batch" className="mb-4 rounded-lg border border-blue-200 bg-blue-50/70 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>

@@ -304,18 +304,7 @@ export const listK1IngestionBatches = async (args: {
 }): Promise<K1IngestionBatchCollection> => {
   const result = await durableK1BatchRepository.list({ ...args, cursor: decodeCursor(args.cursor) })
   return {
-    items: await Promise.all(result.items.map(async (batch) => {
-      const visible = await toPublicBatch(batch, false)
-      if (!args.partnershipIds?.length) return visible
-      const items = visible.items.filter((item) => item.partnershipId && args.partnershipIds!.includes(item.partnershipId))
-      return { ...visible, items, counts: {
-        total: items.length,
-        active: items.filter((item) => ['PENDING_UPLOAD', 'UPLOADED', 'VALIDATING', 'QUEUED', 'PROCESSING'].includes(item.status)).length,
-        actionRequired: items.filter((item) => ['NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY'].includes(item.status)).length,
-        failed: items.filter((item) => item.status === 'FAILED').length,
-        applied: items.filter((item) => item.status === 'APPLIED').length,
-      } }
-    })),
+    items: await Promise.all(result.items.map((batch) => toPublicBatch(batch, false))),
     counts: result.counts,
     nextCursor: result.nextCursor ? encodeCursor(result.nextCursor) : null,
   }
