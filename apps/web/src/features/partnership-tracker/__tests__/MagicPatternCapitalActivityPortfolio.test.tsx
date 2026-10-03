@@ -157,6 +157,9 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     const user = userEvent.setup()
     const onOpen = vi.fn()
     render(<MagicPatternCapitalActivityPortfolio onOpen={onOpen} />)
+    expect(screen.getByRole('button', { name: 'Future', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('img', { name: /Annual funding requirements.*2027 \$240,000\.00 estimated.*2031 \$240,000\.00 estimated/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Historic', exact: true }))
     const table = screen.getByRole('table', { name: 'Capital activity fund investment summary' })
 
     expect(screen.getByRole('table', { name: 'Partnership activity summary for the full permitted portfolio' })).toBeInTheDocument()
@@ -166,7 +169,7 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
       expect(screen.getByRole('heading', { name: chartName }).compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
     expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$3,000,000\.00 committed: 2026 \$1,800,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$3,000,000\.00 committed:.*2026 \$1,800,000\.00/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /\$1,800,000\.00 paid in of \$3,000,000\.00 committed/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Distribution share by asset type: Real Estate \$240,000\.00; Venture Capital \$120,000\.00/ })).toBeInTheDocument()
     expect(screen.getByText('2 funds · 3 owner records')).toBeInTheDocument()
@@ -200,13 +203,15 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(screen.getByRole('columnheader', { name: 'Return' })).toBeInTheDocument()
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
+    expect(screen.getByRole('img', { name: /Annual funding requirements.*2027 \$80,000\.00 estimated.*2031 \$80,000\.00 estimated/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Historic', exact: true }))
     expect(screen.getByRole('img', { name: /Cash paid \$600,000\.00; net cash returned \$120,000\.00/ })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$1,000,000\.00 committed: 2026 \$600,000\.00/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$1,000,000\.00 committed:.*2026 \$600,000\.00/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Distribution share by asset type: Venture Capital \$120,000\.00/ })).toBeInTheDocument()
     await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'entity-b')
     expect(screen.getByText('No distribution amounts are available for this selection.')).toBeInTheDocument()
     expect(screen.getByText('No settled cash activity is available for this selection.')).toBeInTheDocument()
-    expect(screen.getByText('No dated capital calls are available for partnerships with commitments in this selection.')).toBeInTheDocument()
+    expect(screen.getByText('No commitment amounts are available for this selection.')).toBeInTheDocument()
     expect(within(table).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
 
@@ -224,6 +229,51 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(screen.getByText('1 fund · 1 owner record')).toBeInTheDocument()
     expect(within(table).getByText('Fund Beta, LP')).toBeInTheDocument()
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
+  })
+
+  it('recalculates the activity summary for selected funds, owners, and asset classes', async () => {
+    const user = userEvent.setup()
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    const summary = () => screen.getByRole('table', { name: /Partnership activity summary for/ })
+    const expectValue = (label: string, value: string) => {
+      expect(within(summary()).getByRole('row', { name: new RegExp(label) })).toHaveTextContent(value)
+    }
+
+    expectValue('Committed capital', '$3,000,000.00')
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Alpha, LP' }))
+    expect(summary()).toHaveAccessibleName('Partnership activity summary for the filtered selection')
+    expect(screen.getByText(/Aggregated across 1 fund and 2 owner records in the filtered selection/)).toBeInTheDocument()
+    expectValue('Committed capital', '$2,000,000.00')
+    expectValue('Paid in to date', '$1,200,000.00')
+    expectValue('Distributions received', '$240,000.00')
+    expectValue('Unfunded commitment', '$800,000.00')
+    expectValue('Latest NAV rollup', '$1,500,000.00')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
+    expectValue('Committed capital', '$3,000,000.00')
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'entity-b')
+    expect(screen.getByText(/Aggregated across 1 fund and 1 owner record in the filtered selection/)).toBeInTheDocument()
+    expectValue('Committed capital', '$1,000,000.00')
+    expectValue('Paid in to date', '$600,000.00')
+    expectValue('Distributions received', '$120,000.00')
+    expectValue('Unfunded commitment', '$400,000.00')
+    expectValue('Latest NAV rollup', '$750,000.00')
+    expectValue('DPI', '0.20x')
+    expectValue('TVPI', '1.45x')
+    await user.hover(within(summary()).getByRole('button', { name: 'Coverage and calculation basis for Committed capital' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('1 of 1 owner records covered')
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
+    expect(screen.getByText(/Aggregated across 0 funds and 0 owner records in the filtered selection/)).toBeInTheDocument()
+    expectValue('Committed capital', 'Not available')
+    expectValue('Paid in to date', 'Not available')
+    expectValue('Latest NAV rollup', 'Not available')
+    expectValue('DPI', 'No Data')
+
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(summary()).toHaveAccessibleName('Partnership activity summary for the full permitted portfolio')
+    expectValue('Committed capital', '$3,000,000.00')
   })
 
   it('allows several funds to be selected and keeps them combined with other filters', async () => {

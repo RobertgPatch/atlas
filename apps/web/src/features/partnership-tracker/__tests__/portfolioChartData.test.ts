@@ -64,4 +64,33 @@ describe('portfolio chart data', () => {
     ])
     expect(result.cash.paid).toBe(9_010_000_000n)
   })
+
+  it('forecasts each selected partnership separately using its own remaining commitment and age', () => {
+    const newRecord = member('new', 'Real Estate', '1000', '0', '1000', '0', [])
+    newRecord.partnership.inceptionDate = '2026-01-01'
+    const started = member('started', 'Private Equity', '1000', '100', '900', '0', [
+      event('first-call', 'CAPITAL_CALL', '2024-01-01', '100'),
+    ])
+    started.partnership.inceptionDate = '2024-01-01'
+    const funded = member('funded', 'Other', '1000', '1200', '0', '0', [])
+    const result = buildPortfolioChartData([newRecord, started, funded], '2026-10-02')
+    expect(result.funding.remaining).toBe(19_000_000n)
+    expect(result.funding.future).toEqual([
+      { year: 2027, amount: 5_000_000n }, { year: 2028, amount: 5_000_000n },
+      { year: 2029, amount: 5_000_000n }, { year: 2030, amount: 2_000_000n }, { year: 2031, amount: 2_000_000n },
+    ])
+    expect(buildPortfolioChartData([started], '2026-10-02').funding.future).toEqual([
+      { year: 2027, amount: 3_000_000n }, { year: 2028, amount: 3_000_000n }, { year: 2029, amount: 3_000_000n },
+    ])
+  })
+
+  it('shows a new commitment without recorded calls and identifies missing inception and funded data assumptions', () => {
+    const record = member('no-history', 'Real Estate', '1000', '0', '1000', '0', [])
+    record.partnership.inceptionDate = null
+    record.totalCapitalContributions = null
+    const result = buildPortfolioChartData([record], '2026-10-02')
+    expect(result.funding).toMatchObject({ remaining: 10_000_000n, assumedStartCount: 1, assumedPaidInCount: 1 })
+    expect(result.funding.future).toHaveLength(5)
+    expect(result.funding.history).toEqual([{ label: '2026', startYear: 2026, endYear: 2026, called: 0n, cumulative: 0n }])
+  })
 })

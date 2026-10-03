@@ -22,10 +22,11 @@ vi.mock('../hooks/usePartnershipTracker', () => ({
 describe('Magic Patterns partnership activity summary', () => {
   it('combines capital activity and performance aggregations with basis details on the right', async () => {
     const user = userEvent.setup()
-    render(<MagicPatternPartnershipActivitySummary rollup={{
+    const rollup = {
       ...aggregationResponseFixture.rollup,
       unsettledActivity: { ...aggregationResponseFixture.rollup.unsettledActivity, amount: '123.45' },
-    }} />)
+    }
+    render(<MagicPatternPartnershipActivitySummary rollup={rollup} />)
 
     const summary = screen.getByRole('table', {
       name: 'Partnership activity summary for the full permitted portfolio',

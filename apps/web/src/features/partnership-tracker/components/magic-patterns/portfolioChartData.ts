@@ -1,5 +1,6 @@
 import type { PartnershipAggregateRow, PartnershipType } from '../../../../../../../packages/types/src/partnership-tracker'
 import { PARTNERSHIP_TYPES } from '../../../../../../../packages/types/src/partnership-tracker'
+import { estimateFutureFunding, groupHistoricFunding, type FundingHistoryBar, type FundingProjectionYear } from './fundingTimeline'
 
 export const portfolioMoneyUnits = (value: string): bigint => {
   const negative = value.startsWith('-')
@@ -20,11 +21,25 @@ export interface PortfolioChartData {
   recordCount: number
   commitment: { committed: bigint; paidIn: bigint; ringPaid: bigint; remaining: bigint; coveredCount: number }
   distributions: { byType: Array<{ type: PartnershipType; amount: bigint }>; coveredCount: number; total: bigint }
-  funding: { committed: bigint; called: bigint; coveredCount: number; years: Array<{ year: number; called: bigint; cumulative: bigint }> }
+  funding: {
+    committed: bigint
+    called: bigint
+    coveredCount: number
+    years: Array<{ year: number; called: bigint; cumulative: bigint }>
+    currentYear: number
+    currentYearCalled: bigint
+    remaining: bigint
+    history: FundingHistoryBar[]
+    future: FundingProjectionYear[]
+    assumedStartCount: number
+    assumedPaidInCount: number
+    extendedWindowCount: number
+  }
   cash: { paid: bigint; returned: bigint; eventCount: number }
 }
 
-export function buildPortfolioChartData(members: PartnershipAggregateRow[]): PortfolioChartData {
+export function buildPortfolioChartData(members: PartnershipAggregateRow[], asOfDate = new Date().toISOString().slice(0, 10)): PortfolioChartData {
+  const currentYear = Number(asOfDate.slice(0, 4))
   let committed = 0n
   let paidIn = 0n
   let ringPaid = 0n
@@ -36,10 +51,16 @@ export function buildPortfolioChartData(members: PartnershipAggregateRow[]): Por
   let eventCount = 0
   let fundingCommitted = 0n
   let fundingCovered = 0
+  let fundingRemaining = 0n
+  let historyStartYear = Infinity
+  let assumedStartCount = 0
+  let assumedPaidInCount = 0
+  let extendedWindowCount = 0
   let firstFundingYear = Infinity
   let lastFundingYear = -Infinity
   const distributions = new Map<PartnershipType, bigint>()
   const annualCalls = new Map<number, bigint>()
+  const futureCalls = new Map<number, bigint>()
 
   for (const member of members) {
     const commitmentAmount = member.currentCommittedCapital?.amount
@@ -65,6 +86,24 @@ export function buildPortfolioChartData(members: PartnershipAggregateRow[]): Por
     if (fundingCommitment > 0n) {
       fundingCommitted += fundingCommitment
       fundingCovered += 1
+      const pastEvents = (member.cashFlowEvents ?? []).filter((event) => event.activityDate <= asOfDate)
+      const firstActivityYear = pastEvents.reduce((first, event) => Math.min(first, Number(event.activityDate.slice(0, 4))), Infinity)
+      const inceptionYear = member.partnership.inceptionDate ? Number(member.partnership.inceptionDate.slice(0, 4)) : null
+      const startYear = inceptionYear ?? (Number.isFinite(firstActivityYear) ? firstActivityYear : null)
+      historyStartYear = Math.min(historyStartYear, startYear ?? currentYear)
+      const recordedCalls = pastEvents.filter((event) => event.kind === 'CAPITAL_CALL')
+        .reduce((sum, event) => sum + magnitude(portfolioMoneyUnits(event.amount)), 0n)
+      const funded = paidInAmount == null ? recordedCalls : portfolioMoneyUnits(paidInAmount)
+      const rowRemaining = fundingCommitment > funded ? fundingCommitment - funded : 0n
+      fundingRemaining += rowRemaining
+      if (rowRemaining > 0n) {
+        if (startYear == null) assumedStartCount += 1
+        if (paidInAmount == null && pastEvents.every((event) => event.kind !== 'CAPITAL_CALL')) assumedPaidInCount += 1
+        if (startYear != null && currentYear - startYear >= 5) extendedWindowCount += 1
+      }
+      for (const projected of estimateFutureFunding(rowRemaining, startYear, currentYear)) {
+        futureCalls.set(projected.year, (futureCalls.get(projected.year) ?? 0n) + projected.amount)
+      }
     }
 
     for (const event of member.cashFlowEvents ?? []) {
@@ -74,7 +113,7 @@ export function buildPortfolioChartData(members: PartnershipAggregateRow[]): Por
       if (isCall) cashPaid += gross + fees
       else cashReturned += gross - fees
       eventCount += 1
-      if (fundingCommitment > 0n) {
+      if (fundingCommitment > 0n && event.activityDate <= asOfDate) {
         const year = Number(event.activityDate.slice(0, 4))
         if (Number.isInteger(year) && isCall) {
           firstFundingYear = Math.min(firstFundingYear, year)
@@ -102,7 +141,20 @@ export function buildPortfolioChartData(members: PartnershipAggregateRow[]): Por
     recordCount: members.length,
     commitment: { committed, paidIn, ringPaid, remaining, coveredCount: commitmentCovered },
     distributions: { byType, coveredCount: distributionCovered, total: byType.reduce((sum, item) => sum + item.amount, 0n) },
-    funding: { committed: fundingCommitted, called: cumulativeCalled, coveredCount: fundingCovered, years: fundingYears },
+    funding: {
+      committed: fundingCommitted,
+      called: cumulativeCalled,
+      coveredCount: fundingCovered,
+      years: fundingYears,
+      currentYear,
+      currentYearCalled: annualCalls.get(currentYear) ?? 0n,
+      remaining: fundingRemaining,
+      history: fundingCovered > 0 ? groupHistoricFunding(fundingYears, Math.min(historyStartYear, firstFundingYear), currentYear) : [],
+      future: [...futureCalls].sort(([left], [right]) => left - right).map(([year, amount]) => ({ year, amount })),
+      assumedStartCount,
+      assumedPaidInCount,
+      extendedWindowCount,
+    },
     cash: { paid: cashPaid, returned: cashReturned, eventCount },
   }
 }

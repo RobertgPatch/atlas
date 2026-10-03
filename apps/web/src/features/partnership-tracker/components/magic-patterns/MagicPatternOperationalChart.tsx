@@ -46,6 +46,8 @@ const visiblePointsForRange = (items: PartnershipNavEntry[], range: RangeKey) =>
 export function MagicPatternOperationalChart({ items }: { items: PartnershipNavEntry[] }) {
   const [range, setRange] = useState<RangeKey>('all')
   const points = useMemo(() => visiblePointsForRange(items, range), [items, range])
+  if (items.length === 0) return null
+
   const values = points.map((point) => Number(point.amount)).filter(Number.isFinite)
   const rawMin = values.length ? Math.min(...values) : 0
   const rawMax = values.length ? Math.max(...values) : 1

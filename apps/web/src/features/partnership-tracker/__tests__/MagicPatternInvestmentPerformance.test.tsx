@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { MagicPatternInvestmentPerformance } from '../components/magic-patterns/MagicPatternInvestmentPerformance'
 import { investmentPerformanceFixture } from './fixtures'
@@ -32,10 +32,15 @@ describe('Investment Performance', () => {
     const netGainRow = screen.getByRole('rowheader', { name: 'Net gain / (loss) ($)' }).closest('tr')
     expect(netGainRow).not.toBeNull()
     expect(within(netGainRow!).getByText('$0')).toBeInTheDocument()
-    expect(screen.getByText(/minimum of zero/)).toBeInTheDocument()
+    const netGainBasis = within(netGainRow!).getByRole('button', { name: 'Coverage and calculation basis for Net gain / (loss) ($)' })
+    fireEvent.mouseEnter(netGainBasis)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('minimum of zero')
+    fireEvent.mouseLeave(netGainBasis)
     expect(screen.getByText('Not recorded')).toBeInTheDocument()
     expect(screen.getByText('No valuation; using $0')).toBeInTheDocument()
     expect(screen.getAllByText('n/a')).toHaveLength(6)
-    expect(screen.getByText(/requires both inflows and outflows/)).toBeInTheDocument()
+    const grossXirrRow = screen.getByRole('rowheader', { name: 'Gross XIRR' }).closest('tr')!
+    fireEvent.focus(within(grossXirrRow).getByRole('button', { name: 'Coverage and calculation basis for Gross XIRR' }))
+    expect(screen.getByRole('tooltip')).toHaveTextContent('requires both inflows and outflows')
   })
 })

@@ -17,9 +17,9 @@ import type {
   PartnershipAggregationDirection,
   PartnershipAggregationQuery,
   PartnershipAggregationSort,
-  PartnershipPortfolioRollup,
   PartnershipTrackerSummary,
 } from '../../../../../../../packages/types/src/partnership-tracker'
+import type { PartnershipActivityRollup } from '../../../investment-tracker/investmentTrackerRollup'
 import { PartnershipTrackerApiError } from '../../api/partnershipTrackerClient'
 import { usePartnershipAggregation, usePartnershipTrackerActions } from '../../hooks/usePartnershipTracker'
 import { MagicPatternActivitySummaryTable } from './MagicPatternActivitySummaryTable'
@@ -66,7 +66,7 @@ const formatMultiple = (value: string | null | undefined) => value == null ? nul
 const formatPercent = (value: string | null | undefined) => value == null ? null : `${(Number(value) * 100).toFixed(1)}%`
 const humanize = (value: string) => value.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
 
-export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: PartnershipPortfolioRollup }) {
+export function MagicPatternPartnershipActivitySummary({ rollup, filtered = false }: { rollup: PartnershipActivityRollup; filtered?: boolean }) {
   const excluded = rollup.latestNav.totalCount - rollup.latestNav.knownCount
   const coverage = (knownCount: number, totalCount: number) =>
     `${knownCount} of ${totalCount} owner records covered`
@@ -126,8 +126,8 @@ export function MagicPatternPartnershipActivitySummary({ rollup }: { rollup: Par
   return (
     <MagicPatternActivitySummaryTable
       title="Partnership activity summary"
-      description={`Aggregated across ${rollup.partnershipCount} funds and ${rollup.ownerRecordCount} owner records in the full permitted portfolio · USD. Operational figures only — K-1 tax data is never a source here.`}
-      ariaLabel="Partnership activity summary for the full permitted portfolio"
+      description={`Aggregated across ${rollup.partnershipCount} ${rollup.partnershipCount === 1 ? 'fund' : 'funds'} and ${rollup.ownerRecordCount} owner ${rollup.ownerRecordCount === 1 ? 'record' : 'records'} in ${filtered ? 'the filtered selection' : 'the full permitted portfolio'} · USD. Operational figures only — K-1 tax data is never a source here.`}
+      ariaLabel={`Partnership activity summary for ${filtered ? 'the filtered selection' : 'the full permitted portfolio'}`}
       basisInTooltip
       groups={[
         { label: 'Capital activity', rows: capitalRows },

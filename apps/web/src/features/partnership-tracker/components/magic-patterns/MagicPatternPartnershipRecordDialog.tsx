@@ -195,11 +195,11 @@ export function MagicPatternPartnershipRecordDialog({
           : 'Create a new fund or add another owning entity to a fund that is already on file.'
       }
       footer={
-        <>
-          <MagicButton type="button" variant="secondary" onClick={onClose} disabled={pending}>
+        <div className="grid grid-cols-2 gap-2">
+          <MagicButton className="w-full" type="button" variant="secondary" onClick={onClose} disabled={pending}>
             Cancel
           </MagicButton>
-          <MagicButton type="submit" form="magic-partnership-record-form" disabled={pending || entities.isLoading}>
+          <MagicButton className="w-full" type="submit" form="magic-partnership-record-form" disabled={pending || entities.isLoading}>
             {pending
               ? 'Saving…'
               : mode === 'edit'
@@ -208,7 +208,7 @@ export function MagicPatternPartnershipRecordDialog({
                   ? 'Add owner record'
                   : 'Create partnership'}
           </MagicButton>
-        </>
+        </div>
       }
     >
       <form id="magic-partnership-record-form" onSubmit={submit} className="flex flex-col gap-5">

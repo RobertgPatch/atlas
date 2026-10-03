@@ -37,7 +37,6 @@ describe('MagicPatternPartnershipWorkspace scrolling', () => {
         onAreaChange={vi.fn()}
         onYearChange={vi.fn()}
         onBack={vi.fn()}
-        onDeleted={vi.fn()}
       />,
     )
 
