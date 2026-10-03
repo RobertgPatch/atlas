@@ -9,6 +9,8 @@ import { getK1ObjectStore } from '../k1/storage/index.js'
 import { recomputeRecallableCommitments } from '../partnerships/capital.repository.js'
 import type { K1TrackerFieldChange, K1TrackerOfficialFormData } from '../k1-tracker/k1-tracker.contracts.js'
 import type {
+  PartnershipActivityDetail,
+  PartnershipPortfolioActivity,
   CreatePartnershipCashFlowRequest,
   PartnershipAggregationQuery,
   PartnershipAggregationResponse,
@@ -26,7 +28,7 @@ import { PARTNERSHIP_TYPES } from './partnership-tracker.contracts.js'
 import { composePartnershipAggregation } from './partnership-aggregation.js'
 import { composePartnershipPerformance, type PartnershipAnnualPerformanceValue } from './partnership-performance.js'
 import { calculateManagementFeeEstimate } from './management-fee.js'
-import { calculateInvestmentPerformance } from './investment-performance.js'
+import { calculateInvestmentPerformance, calculatePortfolioInvestmentPerformance } from './investment-performance.js'
 import { PartnershipTrackerError, type PartnershipTrackerScope } from './partnership-tracker.types.js'
 
 type PartnershipRow = QueryResultRow & {
@@ -300,6 +302,33 @@ const mapNav = (row: NavRow): PartnershipNavEntry => ({
 })
 
 export const partnershipTrackerRepository = {
+  async getPortfolioActivity(scope: PartnershipTrackerScope, partnershipIds?: string[]): Promise<PartnershipPortfolioActivity> {
+    const rows = await summaryRows(scope, {})
+    const selected = rows.filter((row) => !partnershipIds || partnershipIds.includes(row.id))
+    if (partnershipIds?.some((id) => !selected.some((row) => row.id === id))) {
+      throw new PartnershipTrackerError('FORBIDDEN', 403, 'A selected partnership is unavailable in your entity scope.')
+    }
+    const items: PartnershipActivityDetail[] = []
+    // Bound concurrent reads when displaying the entire portfolio.
+    for (let offset = 0; offset < selected.length; offset += 5) {
+      items.push(...await Promise.all(selected.slice(offset, offset + 5).map(async (row) => {
+        const summary = mapSummary(row)
+        const [cashFlowEvents, nav] = await Promise.all([
+          k1TrackerRepository.listCashFlows(row.id, scope), this.listNav(row.id, scope),
+        ])
+        return {
+          summary, cashFlowEvents, navEntries: nav.items,
+          investmentPerformance: calculateInvestmentPerformance({ cashFlowEvents,
+            committedCapital: summary.currentCommittedCapital?.amount ?? null,
+            latestNav: summary.latestNav, finalLiquidationDate: summary.partnership.finalLiquidationDate }),
+          permissions: { canEditPartnership: scope.isAdmin, canEditK1: scope.isAdmin, canEditCommitment: scope.isAdmin, canEditNav: scope.isAdmin, canSignoff: scope.isAdmin },
+        }
+      })))
+    }
+    return { items, investmentPerformance: calculatePortfolioInvestmentPerformance(items),
+      cashOnCashYield: composePartnershipAggregation(items.map((item) => item.summary)).rollup.annualizedCashOnCashYield }
+  },
+
   async getAggregation(scope: PartnershipTrackerScope, query: PartnershipAggregationQuery): Promise<PartnershipAggregationResponse> {
     const rows = await summaryRows(scope, {})
     return composePartnershipAggregation(rows.map((row) => ({ ...mapSummary(row), cashFlowEvents: row.dated_cash_flows ?? [] })), query)

@@ -580,6 +580,7 @@ const loadBatch = async (
   client: pg.PoolClient,
   batchId: string,
   lock = false,
+  partnershipIds?: readonly string[],
 ): Promise<DurableK1IngestionBatchRecord | null> => {
   const batchResult = await client.query<BatchRow>(
     `select * from k1_ingestion_batches where id = $1${lock ? ' for update' : ''}`,
@@ -587,9 +588,13 @@ const loadBatch = async (
   )
   const batch = batchResult.rows[0]
   if (!batch) return null
+  const scoped = Boolean(partnershipIds?.length)
   const itemResult = await client.query<BatchItemRow>(
-    `select * from k1_ingestion_items where batch_id = $1 order by sequence_number, id${lock ? ' for update' : ''}`,
-    [batchId],
+    `select i.* from k1_ingestion_items i where i.batch_id = $1
+      ${scoped ? `and exists (select 1 from k1_documents d where d.id = i.k1_document_id
+        and coalesce(i.partnership_intake_partnership_id, d.partnership_id) = any($2::uuid[]))` : ''}
+      order by i.sequence_number, i.id${lock ? ' for update' : ''}`,
+    scoped ? [batchId, partnershipIds] : [batchId],
   )
   const items = itemResult.rows.map(toBatchItem)
   return {
@@ -597,7 +602,7 @@ const loadBatch = async (
     createdByUserId: batch.created_by_user_id,
     entityScopeId: batch.entity_scope_id,
     createPartnershipIfMissing: batch.create_partnership_if_missing,
-    status: batch.status,
+    status: scoped ? deriveBatchStatus(items).status : batch.status,
     fileCount: batch.file_count,
     createdAt: batch.created_at,
     closedAt: batch.closed_at,
@@ -653,6 +658,7 @@ export const durableK1BatchRepository = {
     isAdmin: boolean
     authorizedEntityIds: readonly string[]
     entityId?: string
+    partnershipIds?: string[]
     status?: K1IngestionBatchStatus
     attentionOnly?: boolean
     limit: number
@@ -664,6 +670,8 @@ export const durableK1BatchRepository = {
   }> {
     return withTransaction(async (client) => {
       const params: unknown[] = [args.isAdmin, args.actorUserId, args.authorizedEntityIds]
+      let from = 'k1_ingestion_batches b'
+      let statusColumn = 'b.status'
       const where = [
         `($1::boolean or b.created_by_user_id = $2 or b.entity_scope_id = any($3::uuid[]))`,
         'b.create_partnership_if_missing = false',
@@ -672,20 +680,42 @@ export const durableK1BatchRepository = {
         params.push(args.entityId)
         where.push(`b.entity_scope_id = $${params.length}`)
       }
+      if (args.partnershipIds?.length) {
+        params.push(args.partnershipIds)
+        // Match deriveBatchStatus's precedence before filtering, counting, or
+        // paginating; another partnership's items must not affect this view.
+        from += ` join lateral (
+          select case
+            when bool_and(i.status = 'CANCELLED') then 'CANCELLED'
+            when bool_and(i.status in ('APPLIED', 'CANCELLED')) then 'COMPLETED'
+            when bool_or(i.status in ('PENDING_UPLOAD', 'UPLOADED', 'VALIDATING', 'QUEUED', 'PROCESSING'))
+              then case when bool_and(i.status = 'PENDING_UPLOAD') then 'OPEN' else 'PROCESSING' end
+            when bool_or(i.status in ('NEEDS_MATCH', 'NEEDS_REVIEW', 'READY_TO_APPLY')) then 'ACTION_REQUIRED'
+            when bool_or(i.status = 'FAILED') then 'PARTIAL_FAILURE'
+            else 'PROCESSING'
+          end as status
+          from k1_ingestion_items i
+          join k1_documents d on d.id = i.k1_document_id
+          where i.batch_id = b.id
+            and coalesce(i.partnership_intake_partnership_id, d.partnership_id) = any($${params.length}::uuid[])
+          having count(*) > 0
+        ) scoped on true`
+        statusColumn = 'scoped.status'
+      }
       if (args.status) {
         params.push(args.status)
-        where.push(`b.status = $${params.length}`)
+        where.push(`${statusColumn} = $${params.length}`)
       }
-      if (args.attentionOnly) where.push(`b.status in ('ACTION_REQUIRED', 'PARTIAL_FAILURE')`)
+      if (args.attentionOnly) where.push(`${statusColumn} in ('ACTION_REQUIRED', 'PARTIAL_FAILURE')`)
       const countResult = await client.query<{
         total: number; active: number; attention_required: number; completed: number; cancelled: number
       }>(`
         select count(*)::int as total,
-          count(*) filter (where b.status in ('OPEN', 'PROCESSING'))::int as active,
-          count(*) filter (where b.status in ('ACTION_REQUIRED', 'PARTIAL_FAILURE'))::int as attention_required,
-          count(*) filter (where b.status = 'COMPLETED')::int as completed,
-          count(*) filter (where b.status = 'CANCELLED')::int as cancelled
-        from k1_ingestion_batches b where ${where.join(' and ')}`,
+          count(*) filter (where ${statusColumn} in ('OPEN', 'PROCESSING'))::int as active,
+          count(*) filter (where ${statusColumn} in ('ACTION_REQUIRED', 'PARTIAL_FAILURE'))::int as attention_required,
+          count(*) filter (where ${statusColumn} = 'COMPLETED')::int as completed,
+          count(*) filter (where ${statusColumn} = 'CANCELLED')::int as cancelled
+        from ${from} where ${where.join(' and ')}`,
         params,
       )
       const pagedWhere = [...where]
@@ -695,14 +725,14 @@ export const durableK1BatchRepository = {
       }
       params.push(args.limit + 1)
       const page = await client.query<{ id: string; created_at: Date }>(`
-        select b.id, b.created_at from k1_ingestion_batches b
+        select b.id, b.created_at from ${from}
         where ${pagedWhere.join(' and ')}
         order by b.created_at desc, b.id desc
         limit $${params.length}`,
         params,
       )
       const visibleRows = page.rows.slice(0, args.limit)
-      const items = (await Promise.all(visibleRows.map((row) => loadBatch(client, row.id))))
+      const items = (await Promise.all(visibleRows.map((row) => loadBatch(client, row.id, false, args.partnershipIds))))
         .filter((batch): batch is DurableK1IngestionBatchRecord => batch != null)
       const last = page.rows.length > args.limit ? visibleRows.at(-1) : null
       const counts = countResult.rows[0] ?? { total: 0, active: 0, attention_required: 0, completed: 0, cancelled: 0 }
@@ -988,6 +1018,7 @@ if ((process.env.SEED_DEMO_DATA ?? 'false') === 'true') {
 }
 
 export interface ListFilters {
+  partnershipIds?: string[]
   taxYear?: number
   entityId?: string
   status?: K1Status
@@ -1245,6 +1276,7 @@ export const k1Repository = {
     const all = [...k1Documents.values()]
       .filter((k) => !k.supersededByDocumentId)
       .filter((k) => allowed.includes(k.entityId))
+      .filter((k) => !filters.partnershipIds?.length || (k.partnershipId != null && filters.partnershipIds.includes(k.partnershipId)))
       // Always show docs whose tax year hasn't been resolved yet (null) so they
       // remain visible immediately after upload until async parse fills it in.
       .filter((k) => !filters.taxYear || k.taxYear === filters.taxYear || k.taxYear === null)
@@ -1278,7 +1310,7 @@ export const k1Repository = {
 
   getKpis(
     userId: string,
-    scope: { taxYear?: number; entityId?: string },
+    scope: { taxYear?: number; entityId?: string; partnershipIds?: string[] },
   ): K1Kpis {
     const allowed = scopeEntityIds(userId, scope.entityId)
     const counts: Record<K1Status, number> = {
@@ -1294,6 +1326,7 @@ export const k1Repository = {
       for (const k of k1Documents.values()) {
         if (k.supersededByDocumentId) continue
         if (!allowed.includes(k.entityId)) continue
+        if (scope.partnershipIds?.length && (!k.partnershipId || !scope.partnershipIds.includes(k.partnershipId))) continue
         // Pending docs (taxYear === null) count toward all year scopes so the
         // KPI tiles update immediately after upload.
         if (scope.taxYear && k.taxYear !== null && k.taxYear !== scope.taxYear) continue

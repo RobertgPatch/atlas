@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { exportInvestmentTrackerPdf } from '../../investment-tracker/exportInvestmentTrackerPdf'
 import type { PartnershipAggregateRow, PartnershipAggregationResponse } from '../../../../../../packages/types/src/partnership-tracker'
 import { MagicPatternCapitalActivityPortfolio } from '../components/magic-patterns/MagicPatternCapitalActivityPortfolio'
-import { PortfolioCashRecovery } from '../components/magic-patterns/MagicPatternPortfolioCharts'
+import { investmentPerformanceFixture } from './fixtures'
+import { usePortfolioActivity } from '../hooks/usePartnershipTracker'
+import { PortfolioCashRecovery, PortfolioCashReturned } from '../components/magic-patterns/MagicPatternPortfolioCharts'
 import { buildPortfolioChartData } from '../components/magic-patterns/portfolioChartData'
 
 const member = ({
@@ -90,6 +92,22 @@ vi.mock('../../investment-tracker/hooks/useInvestmentTrackerData', () => ({
   }),
 }))
 
+vi.mock('../hooks/usePartnershipTracker', () => ({
+  usePartnershipTrackerActions: () => ({ deleteCashFlow: { isPending: false }, deleteNav: { isPending: false } }),
+  usePortfolioActivity: vi.fn((ids: string[]) => {
+    const selected = data.items.flatMap((group) => group.members).filter((member) => ids.includes(member.partnership.id))
+    return { isLoading: false, isFetching: false, isError: false, refetch: vi.fn(), data: {
+      cashOnCashYield: { value: '0.125', numeratorKnownCount: selected.length, totalCount: selected.length },
+      items: selected.map((member) => ({ summary: member, investmentPerformance: investmentPerformanceFixture, navEntries: [],
+        cashFlowEvents: member.cashFlowEvents!.map((flow) => ({ ...flow, partnershipId: member.partnership.id, settlementStatus: 'SETTLED' })) })),
+      investmentPerformance: { ...investmentPerformanceFixture,
+        committedCapital: String(selected.length * 1000000), paidInCapital: String(selected.length * 600000),
+        grossDistributions: String(selected.length * 120000), residualValue: String(selected.length * 750000),
+        netMoicDpi: '0.2', tvpi: '1.45' },
+    } }
+  }),
+}))
+
 describe('MagicPatternCapitalActivityPortfolio', () => {
   beforeEach(() => {
     Object.assign(queryState, { isLoading: false, isFetching: false, isError: false })
@@ -153,20 +171,60 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(screen.getByRole('img', { name: /net cash returned \$0\.00/ })).toBeInTheDocument()
   })
 
+  it('shows returns above 100% using cash paid including call fees and net distributions', () => {
+    const record = member({ id: 'returned', fundName: 'Returned Fund', ownerId: 'entity-a', ownerName: 'Owner', assetClass: 'Real Estate' })
+    record.cashFlowEvents = [
+      { id: 'call', kind: 'CAPITAL_CALL', activityDate: '2026-01-01', amount: '90.0000', feesAndCarry: '10.0000' },
+      { id: 'distribution', kind: 'DISTRIBUTION', activityDate: '2026-04-01', amount: '230.0000', feesAndCarry: '10.0000' },
+    ]
+    render(<PortfolioCashReturned data={buildPortfolioChartData([record as unknown as PartnershipAggregateRow])} />)
+    expect(screen.getByRole('img', { name: '220% of cash paid returned; cash paid $100.00; net cash returned $220.00' })).toBeInTheDocument()
+    expect(screen.getByText('220%')).toBeInTheDocument()
+    expect(screen.getByText('Net cash gain').nextElementSibling).toHaveTextContent('$120.00')
+    expect(screen.getByText(/Cash paid recovered in full/)).toHaveTextContent('$120.00 returned above the original cash paid.')
+  })
+
+  it('handles partial recovery and missing cash paid without an invalid percentage', () => {
+    const data = buildPortfolioChartData([])
+    const { rerender } = render(<PortfolioCashReturned data={{ ...data, cash: { paid: 1_000_000n, returned: 200_000n, eventCount: 2 } }} />)
+    expect(screen.getByText('20%')).toBeInTheDocument()
+    expect(screen.getByText('Net cash loss').nextElementSibling).toHaveTextContent('-$80.00')
+    rerender(<PortfolioCashReturned data={{ ...data, cash: { paid: 0n, returned: 200_000n, eventCount: 1 } }} />)
+    expect(screen.getByText('No settled cash paid has been recorded.')).toBeInTheDocument()
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
+
+  it('switches the pie to cash returned only for one fund selected in the dropdown', async () => {
+    const user = userEvent.setup()
+    render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
+    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Alpha, LP' }))
+    expect(screen.getByRole('heading', { name: 'Cash returned' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Distributions by asset type' })).not.toBeInTheDocument()
+    expect(screen.getByRole('img', { name: '20% of cash paid returned; cash paid $1,200,000.00; net cash returned $240,000.00' })).toBeInTheDocument()
+    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
+    expect(screen.getByRole('heading', { name: 'Distributions by asset type' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Cash returned' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Clear all' }))
+    expect(screen.getByRole('heading', { name: 'Distributions by asset type' })).toBeInTheDocument()
+  })
+
   it('rolls owner records into expandable fund totals', async () => {
     const user = userEvent.setup()
     const onOpen = vi.fn()
     render(<MagicPatternCapitalActivityPortfolio onOpen={onOpen} />)
-    expect(screen.getByRole('button', { name: 'Future', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Future' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('img', { name: /Annual funding requirements.*2027 \$240,000\.00 estimated.*2031 \$240,000\.00 estimated/ })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Historic', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Historic' }))
     const table = screen.getByRole('table', { name: 'Capital activity fund investment summary' })
 
-    expect(screen.getByRole('table', { name: 'Partnership activity summary for the full permitted portfolio' })).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Investment Performance for All Partnerships' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Fund investment summary' })).toBeInTheDocument()
-    const summaryHeading = screen.getByRole('heading', { name: 'Partnership activity summary' })
+    const summaryHeading = screen.getByRole('heading', { name: 'Investment Performance' })
+    const fundHeading = screen.getByRole('heading', { name: 'Fund investment summary' })
+    expect(fundHeading.compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     for (const chartName of ['Cash recovery', 'Funding over time', 'Commitment progress', 'Distributions by asset type']) {
-      expect(screen.getByRole('heading', { name: chartName }).compareDocumentPosition(summaryHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(screen.getByRole('heading', { name: chartName }).compareDocumentPosition(fundHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
     expect(screen.getByRole('img', { name: /Cash paid \$1,800,000\.00; net cash returned \$360,000\.00/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$3,000,000\.00 committed:.*2026 \$1,800,000\.00/ })).toBeInTheDocument()
@@ -204,7 +262,7 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
     expect(screen.getByRole('img', { name: /Annual funding requirements.*2027 \$80,000\.00 estimated.*2031 \$80,000\.00 estimated/ })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Historic', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Historic' }))
     expect(screen.getByRole('img', { name: /Cash paid \$600,000\.00; net cash returned \$120,000\.00/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Cumulative capital called by year against \$1,000,000\.00 committed:.*2026 \$600,000\.00/ })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Distribution share by asset type: Venture Capital \$120,000\.00/ })).toBeInTheDocument()
@@ -231,49 +289,25 @@ describe('MagicPatternCapitalActivityPortfolio', () => {
     expect(within(table).queryByText('Gardner Descendant Trust')).not.toBeInTheDocument()
   })
 
-  it('recalculates the activity summary for selected funds, owners, and asset classes', async () => {
+  it('uses the same selected owner IDs for performance and every capital activity row', async () => {
     const user = userEvent.setup()
     render(<MagicPatternCapitalActivityPortfolio onOpen={vi.fn()} />)
-    const summary = () => screen.getByRole('table', { name: /Partnership activity summary for/ })
-    const expectValue = (label: string, value: string) => {
-      expect(within(summary()).getByRole('row', { name: new RegExp(label) })).toHaveTextContent(value)
-    }
-
-    expectValue('Committed capital', '$3,000,000.00')
-    await user.click(screen.getByRole('button', { name: 'Fund filter: All funds' }))
-    await user.click(screen.getByRole('checkbox', { name: 'Fund Alpha, LP' }))
-    expect(summary()).toHaveAccessibleName('Partnership activity summary for the filtered selection')
-    expect(screen.getByText(/Aggregated across 1 fund and 2 owner records in the filtered selection/)).toBeInTheDocument()
-    expectValue('Committed capital', '$2,000,000.00')
-    expectValue('Paid in to date', '$1,200,000.00')
-    expectValue('Distributions received', '$240,000.00')
-    expectValue('Unfunded commitment', '$800,000.00')
-    expectValue('Latest NAV rollup', '$1,500,000.00')
-
-    await user.click(screen.getByRole('checkbox', { name: 'Fund Beta, LP' }))
-    expectValue('Committed capital', '$3,000,000.00')
+    const performance = () => screen.getByRole('table', { name: /Investment Performance for/ })
+    const ledger = () => screen.getByRole('table', { name: /Capital activity: dated capital calls/ })
+    expect(within(performance()).getByRole('row', { name: /Committed capital/ })).toHaveTextContent('$3,000,000')
+    expect(within(ledger()).getAllByRole('row')).toHaveLength(7)
     await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'entity-b')
-    expect(screen.getByText(/Aggregated across 1 fund and 1 owner record in the filtered selection/)).toBeInTheDocument()
-    expectValue('Committed capital', '$1,000,000.00')
-    expectValue('Paid in to date', '$600,000.00')
-    expectValue('Distributions received', '$120,000.00')
-    expectValue('Unfunded commitment', '$400,000.00')
-    expectValue('Latest NAV rollup', '$750,000.00')
-    expectValue('DPI', '0.20x')
-    expectValue('TVPI', '1.45x')
-    await user.hover(within(summary()).getByRole('button', { name: 'Coverage and calculation basis for Committed capital' }))
-    expect(screen.getByRole('tooltip')).toHaveTextContent('1 of 1 owner records covered')
-
+    expect(usePortfolioActivity).toHaveBeenLastCalledWith(['a-2'], false)
+    expect(performance()).toHaveAccessibleName('Investment Performance for Fund Alpha, LP')
+    expect(within(performance()).getByRole('row', { name: /Committed capital/ })).toHaveTextContent('$1,000,000')
+    expect(within(ledger()).getAllByRole('row')).toHaveLength(3)
+    expect(within(ledger()).queryByText('Fund Beta, LP')).not.toBeInTheDocument()
+    expect(within(ledger()).getAllByText('Gardner Descendant Trust')).toHaveLength(2)
     await user.selectOptions(screen.getByRole('combobox', { name: 'Asset class' }), 'Venture Capital')
-    expect(screen.getByText(/Aggregated across 0 funds and 0 owner records in the filtered selection/)).toBeInTheDocument()
-    expectValue('Committed capital', 'Not available')
-    expectValue('Paid in to date', 'Not available')
-    expectValue('Latest NAV rollup', 'Not available')
-    expectValue('DPI', 'No Data')
-
+    expect(screen.queryByRole('table', { name: /Investment Performance for/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Clear all' }))
-    expect(summary()).toHaveAccessibleName('Partnership activity summary for the full permitted portfolio')
-    expectValue('Committed capital', '$3,000,000.00')
+    expect(usePortfolioActivity).toHaveBeenLastCalledWith(['a-1', 'a-2', 'b-1'], true)
+    expect(within(ledger()).getAllByRole('row')).toHaveLength(7)
   })
 
   it('allows several funds to be selected and keeps them combined with other filters', async () => {

@@ -54,6 +54,7 @@ const navigation: NavigationSection[] = [
     label: 'Modules',
     items: [
       { name: 'Investment tracker', href: '/investment-tracker', icon: TrendingUp },
+      { name: 'K1 Management', href: '/k1', icon: FileText },
       { name: 'Liquidity', href: '/liquidity', icon: Wallet },
       { name: 'Entities & Owners', href: '/entities', icon: Users },
       { name: 'Estate Maps', href: '/estate-maps', icon: MapIcon },

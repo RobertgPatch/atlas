@@ -24,6 +24,7 @@ import {
   deleteNavHandler,
   getManualYearHandler,
   getManagementFeesHandler,
+  getPortfolioActivityHandler,
   getPartnershipAggregationHandler,
   getPartnershipTrackerHandler,
   listCommitmentsHandler,
@@ -47,6 +48,7 @@ export const registerPartnershipTrackerRoutes = async (app: FastifyInstance): Pr
   })
   const root = '/partnership-tracker/partnerships'
   const canonicalRoot = '/v1/partnership-tracker/partnerships'
+  app.get('/partnership-tracker/activity', gated('GET', '/v1/partnership-tracker/activity'), getPortfolioActivityHandler)
   app.get('/partnership-tracker/aggregation', gated('GET', '/v1/partnership-tracker/aggregation'), getPartnershipAggregationHandler)
   app.get(root, gated('GET', canonicalRoot), listPartnershipTrackerHandler)
   app.post(root, gated('POST', canonicalRoot), createPartnershipTrackerHandler)

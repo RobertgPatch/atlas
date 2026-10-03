@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 // Synthetic API responses exercise the real browser renderer without a DB.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: 'investment-tracker-pdf.spec.ts',
+  testMatch: ['investment-tracker-pdf.spec.ts', 'investment-tracker-consolidation.spec.ts'],
   outputDir: './test-results/investment-tracker-pdf',
   timeout: 90_000,
   workers: 1,

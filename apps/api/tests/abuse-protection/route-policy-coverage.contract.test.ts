@@ -16,7 +16,7 @@ import {
 } from '../../src/modules/abuse-protection/routePolicy.registry.js'
 import { defaultRouteProtectionPolicy } from '../../src/modules/abuse-protection/policy.defaults.js'
 
-const EXPECTED_DECLARED_EXTERNAL_ROUTES = 145
+const EXPECTED_DECLARED_EXTERNAL_ROUTES = 146
 
 interface AuthWafContract {
   readonly schemaVersion: string

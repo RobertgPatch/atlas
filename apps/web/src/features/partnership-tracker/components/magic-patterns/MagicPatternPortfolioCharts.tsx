@@ -111,6 +111,34 @@ export function PortfolioCashRecovery({ data }: { data: PortfolioChartData }) {
   </ChartCard>
 }
 
+export function PortfolioCashReturned({ data }: { data: PortfolioChartData }) {
+  const { paid, returned, eventCount } = data.cash
+  const recovery = paid > 0n ? Number(returned) / Number(paid) : null
+  const percent = recovery == null ? '—' : `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(recovery * 100)}%`
+  const recoveredShare = Math.max(0, Math.min(1, recovery ?? 0))
+  const circumference = 2 * Math.PI * 54
+  const netGain = returned - paid
+  const returnColor = returned < 0n ? colorTokens.semantic.danger.foreground : GREEN
+  return <ChartCard title="Cash returned" description="Net cash returned as a percentage of cash paid, after fees and carry.">
+    {eventCount === 0 ? <EmptyChart>No settled cash activity is available for this selection.</EmptyChart> : <>
+      <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 p-5">
+        <svg width="160" height="160" viewBox="0 0 160 160" role="img" aria-label={`${percent} of cash paid returned; cash paid ${portfolioMoney(paid)}; net cash returned ${portfolioMoney(returned)}`} className="shrink-0">
+          <circle cx="80" cy="80" r="54" fill="none" stroke={paid > 0n ? BLUE : colorTokens.neutral.controlBorder} strokeWidth="18" />
+          {recoveredShare > 0 ? <circle cx="80" cy="80" r="54" fill="none" stroke={GREEN} strokeWidth="18" strokeDasharray={`${recoveredShare * circumference} ${circumference}`} transform="rotate(-90 80 80)" /> : null}
+          <text x="80" y="78" textAnchor="middle" fontSize="23" fontWeight="600" fill={returnColor}>{percent}</text>
+          <text x="80" y="99" textAnchor="middle" fontSize="11" fill={colorTokens.neutral.textSecondary}>of cash paid</text>
+        </svg>
+        <dl className="min-w-[11rem] flex-1 space-y-3 text-sm">
+          <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: BLUE }} />Cash paid</dt><dd className="font-mono font-semibold tabular-nums text-slate-950">{portfolioMoney(paid)}</dd></div>
+          <div className="flex justify-between gap-3"><dt className="flex items-center gap-2 text-slate-600"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: returnColor }} />Net cash returned</dt><dd className="font-mono font-semibold tabular-nums" style={{ color: returnColor }}>{portfolioMoney(returned)}</dd></div>
+          <div className="flex justify-between gap-3 border-t border-slate-200 pt-3"><dt className="text-slate-600">{netGain < 0n ? 'Net cash loss' : 'Net cash gain'}</dt><dd className="font-mono font-semibold tabular-nums text-slate-950">{portfolioMoney(netGain)}</dd></div>
+        </dl>
+      </div>
+      <p className="mx-5 mb-4 border-t border-slate-200 pt-3 text-xs text-slate-600">{recovery == null ? 'No settled cash paid has been recorded.' : recovery >= 1 ? `Cash paid recovered in full, with ${portfolioMoney(netGain)} returned above the original cash paid.` : `${percent} of cash paid has been returned.`}</p>
+    </>}
+  </ChartCard>
+}
+
 export function PortfolioFundingOverTime({ data }: { data: PortfolioChartData }) {
   const [view, setView] = useState<'future' | 'historic'>('future')
   const { committed, called, coveredCount, history, future, currentYear, currentYearCalled, remaining, extendedWindowCount, assumedStartCount, assumedPaidInCount } = data.funding
@@ -170,9 +198,9 @@ export function PortfolioTopCharts({ data }: { data: PortfolioChartData }) {
   </div>
 }
 
-export function PortfolioSecondaryCharts({ data }: { data: PortfolioChartData }) {
+export function PortfolioSecondaryCharts({ data, singlePartnershipSelected = false }: { data: PortfolioChartData; singlePartnershipSelected?: boolean }) {
   return <div data-pdf-chart-grid data-pdf-keep-together className="grid gap-4 xl:grid-cols-2" aria-label="Portfolio composition charts">
     <PortfolioCommitmentProgress data={data} />
-    <PortfolioDistributionPie data={data} />
+    {singlePartnershipSelected ? <PortfolioCashReturned data={data} /> : <PortfolioDistributionPie data={data} />}
   </div>
 }

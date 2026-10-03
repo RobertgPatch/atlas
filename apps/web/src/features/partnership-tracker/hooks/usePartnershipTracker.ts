@@ -29,6 +29,12 @@ export const partnershipTrackerKeys = {
   year: (id: string, year: number) => ['partnership-tracker', 'year', id, year] as const,
 }
 
+export const usePortfolioActivity = (partnershipIds: string[], allPartnerships = false) => useQuery({
+  queryKey: ['partnership-tracker', 'aggregation', 'activity', allPartnerships ? 'all' : [...partnershipIds].sort()],
+  queryFn: () => partnershipTrackerClient.portfolioActivity(allPartnerships ? undefined : partnershipIds),
+  enabled: partnershipIds.length > 0,
+})
+
 export const usePartnershipTrackerList = (params: PartnershipTrackerListParams = {}) => useQuery({ queryKey: partnershipTrackerKeys.list(params), queryFn: () => partnershipTrackerClient.list(params) })
 export const usePartnershipAggregation = (params: PartnershipAggregationParams = {}) => useQuery({
   queryKey: partnershipTrackerKeys.aggregation(params),

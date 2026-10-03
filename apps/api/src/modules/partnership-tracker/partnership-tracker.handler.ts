@@ -4,6 +4,7 @@ import { K1TrackerError } from '../k1-tracker/k1-tracker.types.js'
 import { partnershipTrackerRepository } from './partnership-tracker.repository.js'
 import { PartnershipTrackerError } from './partnership-tracker.types.js'
 import {
+  portfolioActivityQuerySchema,
   calculateManualYearBodySchema,
   commitmentListQuerySchema,
   managementFeeQuerySchema,
@@ -68,6 +69,10 @@ const run = async (reply: FastifyReply, operation: () => Promise<unknown>) => {
 export const listPartnershipTrackerHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const query = parse(partnershipTrackerListQuerySchema, request.query, reply); if (!query) return
   return run(reply, async () => reply.send(await partnershipTrackerRepository.listPartnerships(request.partnershipScope!, { ...query, limit: query.limit ?? 50 })))
+}
+export const getPortfolioActivityHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const query = parse(portfolioActivityQuerySchema, request.query, reply); if (!query) return
+  return run(reply, async () => reply.send(await partnershipTrackerRepository.getPortfolioActivity(request.partnershipScope!, query.partnershipIds)))
 }
 export const getPartnershipAggregationHandler = async (request: FastifyRequest, reply: FastifyReply) => {
   const query = parse(partnershipAggregationQuerySchema, request.query, reply); if (!query) return

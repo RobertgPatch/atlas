@@ -243,6 +243,7 @@ export interface K1IngestionBatchCollection {
 }
 
 export interface K1IngestionBatchFilters {
+  partnershipIds?: string[]
   entityId?: string
   status?: K1IngestionBatchStatus
   attentionOnly?: boolean

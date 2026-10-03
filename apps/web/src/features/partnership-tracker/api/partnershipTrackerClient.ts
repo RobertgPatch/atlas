@@ -5,6 +5,7 @@ import {
   PARTNERSHIP_TYPES,
 } from '../../../../../../packages/types/src/partnership-tracker'
 import type {
+  PartnershipPortfolioActivity,
   CalculatePartnershipTrackerYearRequest,
   CreatePartnershipCashFlowRequest,
   CreatePartnershipCashFlowsRequest,
@@ -114,6 +115,11 @@ export function serializePartnershipAggregationParams(params: PartnershipAggrega
 }
 
 export const partnershipTrackerClient = {
+  portfolioActivity(partnershipIds?: string[]): Promise<PartnershipPortfolioActivity> {
+    const query = new URLSearchParams()
+    if (partnershipIds?.length) query.set('partnershipIds', [...partnershipIds].sort().join(','))
+    return request(`/partnership-tracker/activity?${query}`)
+  },
   aggregation(params: PartnershipAggregationParams = {}): Promise<PartnershipAggregationResponse> {
     const query = serializePartnershipAggregationParams(params)
     return request(`${aggregationRoot}${query ? `?${query}` : ''}`)

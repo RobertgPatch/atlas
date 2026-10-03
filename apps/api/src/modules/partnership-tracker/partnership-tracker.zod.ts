@@ -25,6 +25,10 @@ export const partnershipTrackerTypeSchema = z.enum(PARTNERSHIP_TYPES)
 export const partnershipTrackerStatusSchema = z.enum(['ACTIVE', 'PENDING', 'LIQUIDATED', 'CLOSED'])
 export const partnershipTrackerTaxYearSchema = z.coerce.number().int().min(1900).max(2100)
 
+export const portfolioActivityQuerySchema = z.object({
+  partnershipIds: z.string().max(20000).transform((value) => [...new Set(value.split(','))]).pipe(z.array(partnershipTrackerUuidSchema).min(1).max(500)).optional(),
+}).strict()
+
 export const partnershipTrackerListQuerySchema = z.object({
   search: z.string().trim().max(200).optional(),
   entityId: partnershipTrackerUuidSchema.optional(),

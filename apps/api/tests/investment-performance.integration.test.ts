@@ -51,6 +51,23 @@ durable('Investment Performance persistence', () => {
     expect((await repository.getPartnership(id, scope)).investmentPerformance.holdingPeriodYears).toBeNull()
   })
 
+  it('returns the same metrics and complete capital history through the consolidated activity report', async () => {
+    const id = fixture.partnershipId
+    await repository.createCapitalActivities(id, [
+      { kind: 'CAPITAL_CALL', amount: '100.00', activityDate: '2021-01-01' },
+      { kind: 'DISTRIBUTION', amount: '220.00', feesAndCarry: '29.9995', activityDate: '2022-01-01' },
+      { kind: 'CAPITAL_CALL', amount: '500.00', activityDate: '2022-06-01', settlementStatus: 'ANNOUNCED' },
+    ], fixture.adminUserId, scope)
+    const detail = await repository.getPartnership(id, scope)
+    const report = await repository.getPortfolioActivity(scope, [id])
+    expect(report.investmentPerformance).toEqual(detail.investmentPerformance)
+    expect(report.items[0]?.cashFlowEvents).toEqual(detail.cashFlowEvents)
+    expect(report.items[0]?.navEntries).toEqual(detail.navEntries)
+    const noAccess = { isAdmin: false, entityIds: [] }
+    expect((await repository.getPortfolioActivity(noAccess)).items).toEqual([])
+    await expect(repository.getPortfolioActivity(noAccess, [id])).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
   it('persists a final liquidation date on creation and defaults existing fee-free activity to zero', async () => {
     const created = await repository.createPartnership({ entityId: fixture.entityId, name: 'Liquidated investment', partnershipType: 'Private Equity', finalLiquidationDate: '2022-01-01' }, fixture.adminUserId, scope)
     expect(created.partnership.partnership.finalLiquidationDate).toBe('2022-01-01')

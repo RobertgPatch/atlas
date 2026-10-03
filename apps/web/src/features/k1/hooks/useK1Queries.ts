@@ -14,7 +14,7 @@ const POLL_MS = 5_000
 export const k1Keys = {
   all: ['k1'] as const,
   list: (f: K1Filters) => ['k1', 'list', f] as const,
-  kpis: (scope: { taxYear?: number; entityId?: string }) => ['k1', 'kpis', scope] as const,
+  kpis: (scope: { taxYear?: number; entityId?: string; partnershipIds?: string[] }) => ['k1', 'kpis', scope] as const,
   lookups: () => ['k1', 'lookups'] as const,
   detail: (id: string) => ['k1', 'detail', id] as const,
   batch: (id: string) => ['k1', 'batch', id] as const,
@@ -23,6 +23,14 @@ export const k1Keys = {
 
 const hasInFlightParsing = (statuses: K1Status[]) =>
   statuses.some((s) => s === 'UPLOADED' || s === 'PROCESSING')
+
+export const useK1Documents = (filters: K1Filters) => useInfiniteQuery({
+  queryKey: ['k1', 'documents', filters],
+  initialPageParam: undefined as string | undefined,
+  queryFn: ({ pageParam }) => k1Client.listDocuments({ ...filters, cursor: pageParam }),
+  getNextPageParam: (page) => page.nextCursor ?? undefined,
+  refetchInterval: (query) => query.state.data?.pages.some((page) => hasInFlightParsing(page.items.map((item) => item.status))) ? POLL_MS : false,
+})
 
 export const useK1List = (filters: K1Filters) =>
   useQuery({
@@ -36,7 +44,7 @@ export const useK1List = (filters: K1Filters) =>
     },
   })
 
-export const useK1Kpis = (scope: { taxYear?: number; entityId?: string }) =>
+export const useK1Kpis = (scope: { taxYear?: number; entityId?: string; partnershipIds?: string[] }) =>
   useQuery({
     queryKey: k1Keys.kpis(scope),
     queryFn: () => k1Client.getKpis(scope),

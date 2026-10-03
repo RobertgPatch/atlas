@@ -10,7 +10,7 @@ import {
   Download,
   RefreshCw,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { AppShell } from '../components/shared/AppShell'
 import { PageHeader } from '../components/shared/PageHeader'
 import { KPICard } from '../components/shared/KPICard'
@@ -25,7 +25,7 @@ import { authenticatedFetch } from '../auth/authenticatedFetch'
 import {
   useK1Kpis,
   useK1Batch,
-  useK1List,
+  useK1Documents,
   useK1Lookups,
   useK1Reparse,
 } from '../features/k1/hooks/useK1Queries'
@@ -36,6 +36,10 @@ import type {
   K1DocumentSummary,
   K1Status,
 } from '../../../../packages/types/src/k1-ingestion'
+
+import { PartnershipMultiSelect } from '../components/shared/PartnershipMultiSelect'
+import { useInvestmentTrackerData } from '../features/investment-tracker/hooks/useInvestmentTrackerData'
+import { K1PartnershipHistory } from '../features/k1/components/K1PartnershipHistory'
 
 const currentYear = new Date().getFullYear()
 
@@ -61,8 +65,18 @@ const STATUS_BADGE_TYPE: Record<
 type TableRow = K1DocumentSummary
 
 export function K1Dashboard() {
+  const [params] = useSearchParams()
+  const partnershipId = params.get('partnership')
+  return partnershipId ? <K1PartnershipHistory partnershipId={partnershipId} /> : <K1ProcessingDashboard />
+}
+
+function K1ProcessingDashboard() {
+  const [params, setParams] = useSearchParams()
+  const partnershipIds = (params.get('partnerships') ?? '').split(',').filter(Boolean)
+  const partnerships = useInvestmentTrackerData()
+  const options = partnerships.data?.items.flatMap((group) => group.members.map((member) => ({ id: member.partnership.id, name: member.partnership.name, owner: member.partnership.entity.name, entityId: member.partnership.entity.id }))) ?? []
   const { session } = useSession()
-  const [taxYear, setTaxYear] = useState<number>(currentYear - 1)
+  const [taxYear, setTaxYear] = useState<number>(0)
   const [entityId, setEntityId] = useState<string>('')
   const [status, setStatus] = useState<K1Status | ''>('')
   const [search, setSearch] = useState<string>('')
@@ -93,6 +107,7 @@ export function K1Dashboard() {
   }, [sortColumn])
 
   const filters = {
+    partnershipIds: partnershipIds.length ? partnershipIds : undefined,
     taxYear: taxYear || undefined,
     entityId: entityId || undefined,
     status: (status || undefined) as K1Status | undefined,
@@ -102,8 +117,9 @@ export function K1Dashboard() {
     limit: 50,
   }
 
-  const listQuery = useK1List(filters)
+  const listQuery = useK1Documents(filters)
   const kpiQuery = useK1Kpis({
+    partnershipIds: partnershipIds.length ? partnershipIds : undefined,
     taxYear: taxYear || undefined,
     entityId: entityId || undefined,
   })
@@ -116,7 +132,7 @@ export function K1Dashboard() {
     FINALIZED: 0,
   }
 
-  const tableData = listQuery.data?.items ?? []
+  const tableData = listQuery.data?.pages.flatMap((page) => page.items) ?? []
   const processingCount = tableData.filter((row) => row.status === 'PROCESSING').length
 
   // Page-level drag-and-drop: dragging a PDF anywhere on the page opens the
@@ -292,7 +308,7 @@ export function K1Dashboard() {
   }
 
   const filtersActive =
-    Boolean(search) || Boolean(entityId) || Boolean(status) || taxYear !== currentYear - 1
+    Boolean(search) || Boolean(entityId) || Boolean(status) || taxYear !== 0 || partnershipIds.length > 0
 
   return (
     <AppShell
@@ -306,7 +322,7 @@ export function K1Dashboard() {
     >
       <PageHeader
         title="K-1 Processing"
-        subtitle="Upload, parse, and review K-1 documents per entity and tax year. Tip: drag a PDF anywhere on this page to upload."
+        subtitle="Upload, process, and review K-1s across all partnerships. Select partnerships to focus the activity below, or drag a PDF here to upload."
         actions={
           <div className="flex items-center gap-2">
             <button
@@ -329,6 +345,12 @@ export function K1Dashboard() {
           </div>
         }
       />
+
+      <section aria-label="Filter K-1 partnerships" className="mb-6 flex flex-wrap items-center gap-4 rounded-lg border border-gray-200 bg-white p-4">
+        <div><h2 className="text-sm font-semibold text-slate-950">Partnerships</h2><p className="text-xs text-slate-500">Applies to processing counts, upload batches, documents, and K-1 history.</p></div>
+        <PartnershipMultiSelect options={options} selectedIds={partnershipIds} disabled={partnerships.isLoading} onChange={(ids) => { const next = new URLSearchParams(params); if (ids.length) next.set('partnerships', ids.join(',')); else next.delete('partnerships'); setParams(next, { replace: true }) }} />
+        {partnerships.isError ? <button type="button" onClick={() => void partnerships.refetch()} className="text-sm text-red-700">Partnerships could not be loaded. Try again.</button> : null}
+      </section>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <KPICard label="Uploaded" value={counts.UPLOADED} icon={FileText} />
@@ -393,7 +415,7 @@ export function K1Dashboard() {
         </div>
       )}
 
-      <K1BatchQueue entityId={entityId || undefined} />
+      <K1BatchQueue entityId={entityId || undefined} partnershipIds={partnershipIds.length ? partnershipIds : undefined} />
 
       <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 mb-4 flex flex-wrap items-center gap-3">
         <input
@@ -404,6 +426,7 @@ export function K1Dashboard() {
           className="flex-1 min-w-[220px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-focus focus:border-focus"
         />
         <select
+          aria-label="Tax year"
           value={taxYear}
           onChange={(e) => setTaxYear(Number(e.target.value))}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
@@ -414,6 +437,7 @@ export function K1Dashboard() {
           ))}
         </select>
         <select
+          aria-label="Entity"
           value={entityId}
           onChange={(e) => setEntityId(e.target.value)}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
@@ -424,6 +448,7 @@ export function K1Dashboard() {
           ))}
         </select>
         <select
+          aria-label="Document status"
           value={status}
           onChange={(e) => setStatus(e.target.value as K1Status | '')}
           className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
@@ -441,7 +466,8 @@ export function K1Dashboard() {
               setSearch('')
               setEntityId('')
               setStatus('')
-              setTaxYear(currentYear - 1)
+              setTaxYear(0)
+              const next = new URLSearchParams(params); next.delete('partnerships'); setParams(next, { replace: true })
             }}
             className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-900"
           >
@@ -475,6 +501,12 @@ export function K1Dashboard() {
             : 'No K-1 documents match the current filters.'
         }
       />
+
+      {listQuery.hasNextPage ? <div className="my-4 text-center"><button type="button" disabled={listQuery.isFetchingNextPage} onClick={() => void listQuery.fetchNextPage()} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm">{listQuery.isFetchingNextPage ? 'Loading…' : 'Load more K-1 documents'}</button></div> : null}
+      <section aria-label="Partnership K-1 history" className="my-6 overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-4 py-3"><h2 className="font-semibold text-slate-950">Partnership K-1 history</h2><p className="mt-1 text-xs text-slate-500">Open annual K-1 records and tax accounting for a partnership.</p></div>
+        {options.filter((option) => (!partnershipIds.length || partnershipIds.includes(option.id)) && (!entityId || option.entityId === entityId)).map((option) => <Link key={option.id} to={`/k1?${new URLSearchParams({ ...(params.get('partnerships') ? { partnerships: params.get('partnerships')! } : {}), partnership: option.id })}`} className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 text-sm hover:bg-gray-50"><span><span className="font-medium text-slate-950">{option.name}</span><span className="ml-3 text-slate-500">{option.owner}</span></span><span className="text-primary">Open K-1 history →</span></Link>)}
+      </section>
 
       <K1UploadDialog
         open={uploadOpen}

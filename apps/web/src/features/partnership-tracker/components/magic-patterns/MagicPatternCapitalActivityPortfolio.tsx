@@ -3,7 +3,6 @@ import { AlertTriangle, ChevronDown, Download, Loader2, Minus, Plus, RefreshCw, 
 import { Fragment, useMemo, useRef, useState, type RefObject } from 'react'
 import { exportInvestmentTrackerPdf } from '../../../investment-tracker/exportInvestmentTrackerPdf'
 import { useInvestmentTrackerData } from '../../../investment-tracker/hooks/useInvestmentTrackerData'
-import { buildInvestmentTrackerRollup } from '../../../investment-tracker/investmentTrackerRollup'
 import {
   groupInvestmentRecordsByFund,
   recordsFromAggregation,
@@ -11,7 +10,8 @@ import {
   type InvestmentPositionStatus,
 } from '../../../investment-tracker/investmentTrackerModel'
 import { MagicButton, MagicCard } from './MagicPatternPrimitives'
-import { MagicPatternPartnershipActivitySummary } from './MagicPatternPartnershipIndex'
+import { MagicPatternPartnershipCapitalActivity } from './MagicPatternPartnershipWorkspace'
+import { usePortfolioActivity } from '../../hooks/usePartnershipTracker'
 import { PortfolioSecondaryCharts, PortfolioTopCharts } from './MagicPatternPortfolioCharts'
 import { buildPortfolioChartData } from './portfolioChartData'
 
@@ -151,7 +151,9 @@ function uniqueOptions(
 export function MagicPatternCapitalActivityPortfolio({
   onOpen,
   exportTarget,
+  canEdit = false,
 }: {
+  canEdit?: boolean
   onOpen: (partnershipId: string) => void
   exportTarget?: RefObject<HTMLDivElement | null>
 }) {
@@ -162,7 +164,7 @@ export function MagicPatternCapitalActivityPortfolio({
   const [exportError, setExportError] = useState(false)
   const exportPdf = async () => {
     const target = exportTarget?.current ?? portfolioRef.current
-    if (!target || exportPending.current || activity.isLoading || activity.isFetching || !activity.data) return
+    if (!target || exportPending.current || activity.isLoading || activity.isFetching || operations.isLoading || operations.isFetching || operations.isError || !activity.data) return
     exportPending.current = true
     setExporting(true)
     setExportError(false)
@@ -203,11 +205,21 @@ export function MagicPatternCapitalActivityPortfolio({
   const chartData = useMemo(() => buildPortfolioChartData(visibleMembers, activity.data?.rollup.asOfDate), [visibleMembers, activity.data?.rollup.asOfDate])
   const allFundGroups = useMemo(() => groupInvestmentRecordsByFund(records), [records])
   const visibleFundGroups = useMemo(() => groupInvestmentRecordsByFund(visibleRecords), [visibleRecords])
-  const visibleRollup = useMemo(() => activity.data ? buildInvestmentTrackerRollup(
-    visibleMembers, visibleFundGroups.length, activity.data.rollup.asOfDate,
-  ) : null, [activity.data, visibleMembers, visibleFundGroups.length])
-  const [expandedFundIds, setExpandedFundIds] = useState<Set<string>>(() => new Set())
   const hasFilters = assetClass !== ALL || entityId !== ALL || selectedFundIds.size > 0
+  const operations = usePortfolioActivity([...visibleRecordIds], !hasFilters)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const operationItems = operations.data?.items ?? []
+  const combinedDetail = operationItems.length ? {
+    ...operationItems[0],
+    summary: { ...operationItems[0].summary,
+      partnership: { ...operationItems[0].summary.partnership, name: operationItems.length === 1 ? operationItems[0].summary.partnership.name : hasFilters ? 'Selected partnerships' : 'All Partnerships', finalLiquidationDate: operations.data!.investmentPerformance.finalLiquidationDate },
+      annualizedCashOnCashYield: operationItems.length === 1 ? operationItems[0].summary.annualizedCashOnCashYield : operations.data!.cashOnCashYield.value,
+    },
+    investmentPerformance: operations.data!.investmentPerformance,
+    cashFlowEvents: operationItems.flatMap((item) => item.cashFlowEvents),
+    navEntries: operationItems.flatMap((item) => item.navEntries),
+  } : null
+  const [expandedFundIds, setExpandedFundIds] = useState<Set<string>>(() => new Set())
   const clearFilters = () => {
     setAssetClass(ALL)
     setEntityId(ALL)
@@ -271,7 +283,7 @@ export function MagicPatternCapitalActivityPortfolio({
               data-pdf-exclude
               type="button"
               variant="secondary"
-              disabled={exporting || activity.isLoading || activity.isFetching || !activity.data}
+              disabled={exporting || activity.isLoading || activity.isFetching || operations.isLoading || operations.isFetching || operations.isError || !activity.data}
               onClick={() => void exportPdf()}
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
@@ -288,10 +300,8 @@ export function MagicPatternCapitalActivityPortfolio({
 
       {!activity.isLoading ? <>
         <PortfolioTopCharts data={chartData} />
-        <PortfolioSecondaryCharts data={chartData} />
+        <PortfolioSecondaryCharts data={chartData} singlePartnershipSelected={selectedFundIds.size === 1 && visibleFundGroups.length === 1} />
       </> : null}
-
-      {visibleRollup ? <div data-pdf-keep-together><MagicPatternPartnershipActivitySummary rollup={visibleRollup} filtered={hasFilters} /></div> : null}
 
       <p className="text-sm font-semibold text-slate-950" aria-live="polite">
         {activity.isLoading
@@ -307,7 +317,7 @@ export function MagicPatternCapitalActivityPortfolio({
           </div>
           <p data-pdf-exclude className="text-xs text-slate-500">Click a single-owner fund to open it. Multi-owner funds expand so you can choose the owner record.</p>
         </div>
-        <div data-pdf-scroll className="overflow-auto" style={{ height: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
+        <div data-pdf-scroll className="overflow-auto" style={{ maxHeight: 'min(68vh, 760px)', overflowAnchor: 'none' }}>
           <table className="w-full min-w-[88rem] border-collapse text-left text-xs" aria-label="Capital activity fund investment summary">
             <thead>
               <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-slate-700">
@@ -437,6 +447,9 @@ export function MagicPatternCapitalActivityPortfolio({
           </table>
         </div>
       </MagicCard>
+      {operations.isLoading ? <MagicCard className="p-6" role="status">Loading performance and capital activity…</MagicCard> : null}
+      {operations.isError ? <MagicCard className="border-red-200 p-6"><p role="alert">Performance and capital activity could not be loaded.</p><MagicButton variant="secondary" onClick={() => void operations.refetch()}>Try again</MagicButton></MagicCard> : null}
+      {combinedDetail ? <MagicPatternPartnershipCapitalActivity detail={combinedDetail} portfolioItems={operationItems} cashYieldCoverage={operations.data?.cashOnCashYield} canEdit={canEdit} drawerOpen={drawerOpen} onDrawerOpenChange={setDrawerOpen} /> : null}
     </div>
   )
 }

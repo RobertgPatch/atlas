@@ -296,6 +296,7 @@ export const listK1IngestionBatches = async (args: {
   isAdmin: boolean
   authorizedEntityIds: readonly string[]
   entityId?: string
+  partnershipIds?: string[]
   status?: import('../k1.types.js').K1IngestionBatchStatus
   attentionOnly?: boolean
   limit: number

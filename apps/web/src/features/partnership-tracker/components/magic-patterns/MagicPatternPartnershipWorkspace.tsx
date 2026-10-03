@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { useId, useState } from 'react'
 import type {
+  PartnershipActivityDetail,
+  PartnershipAggregationCoveredRatio,
   PartnershipCommitmentEntry,
   PartnershipNavEntry,
   PartnershipTrackerDetail,
@@ -17,7 +19,6 @@ import { normalizeCurrencyInput } from '../../../../components/shared/currencyIn
 import { PartnershipTrackerApiError } from '../../api/partnershipTrackerClient'
 import { usePartnershipTrackerActions } from '../../hooks/usePartnershipTracker'
 import { useEqualActionButtonWidths } from '../../hooks/useEqualActionButtonWidths'
-import { K1BasisWorkspace } from '../K1BasisWorkspace'
 import { MagicPatternActivitySummaryTable } from './MagicPatternActivitySummaryTable'
 import { MagicPatternInvestmentPerformance } from './MagicPatternInvestmentPerformance'
 import { MagicPatternInvestmentVisuals } from './MagicPatternInvestmentVisuals'
@@ -30,7 +31,6 @@ import {
 } from './MagicPatternOperationalDrawers'
 import { capitalActivityLedger, formatLedgerMoney } from './capitalActivityLedger'
 import { MagicPatternRelationshipsPanel } from './MagicPatternRelationshipsPanel'
-import { MagicPatternUnderlyingAssets } from './MagicPatternUnderlyingAssets'
 import {
   MagicButton,
   MagicCard,
@@ -97,7 +97,6 @@ function WorkspaceHeader({ detail, canEdit, onEdit }: { detail: PartnershipTrack
           <span>EIN <strong className="ml-1 font-mono font-medium text-slate-800">{partnership.ein ?? 'Not on file'}</strong></span>
         </div>
       </div>
-      <p className="text-right text-[0.65rem] font-semibold uppercase tracking-[0.1em] text-slate-500">Performance as of <span className="ml-1 font-mono text-slate-800">{date(detail.summary.performanceAsOfDate)}</span></p>
     </div>
   </MagicCard>
 }
@@ -128,10 +127,9 @@ export function MagicPatternPartnershipDetails({ detail, canEdit }: { detail: Pa
   const partnership = summary.partnership
   const [commitmentDialog, setCommitmentDialog] = useState<PartnershipCommitmentEntry | 'new'>()
   return <div className="space-y-6">
-    <MagicPatternOperationalChart items={detail.navEntries} />
-    <MagicCard className="overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h3 className="text-sm font-semibold text-slate-950">Financial commitment history</h3><p className="mt-1 text-xs text-slate-500">Effective-dated commitment records. Current totals are summarized above.</p></div>{canEdit ? <MagicButton type="button" variant="secondary" onClick={() => setCommitmentDialog('new')}><Plus className="h-4 w-4" />Add entry</MagicButton> : null}</div>{detail.commitments.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-100 text-[0.65rem] uppercase tracking-wide text-slate-600"><th className="px-5 py-2">Effective date</th><th className="px-5 py-2 text-right">Committed capital</th><th className="px-5 py-2">Source / note</th><th className="w-24 px-5 py-2"><span className="sr-only">Actions</span></th></tr></thead><tbody>{detail.commitments.map((entry) => <tr key={entry.id} className="border-b border-slate-200"><td className="px-5 py-2.5 font-mono text-xs">{date(entry.effectiveDate)}{entry.isCurrent ? <MagicStatusBadge className="ml-2" tone="success">Current</MagicStatusBadge> : null}</td><td className="px-5 py-2.5 text-right font-mono text-xs font-semibold">{money(entry.amount)}</td><td className="max-w-md truncate px-5 py-2.5 text-slate-600" title={entry.note ?? ''}>{entry.note ?? 'Source not recorded'}</td><td className="px-5 py-2.5 text-right">{canEdit && !entry.sourceCashFlowEventId ? <button type="button" aria-label={`Edit commitment effective ${entry.effectiveDate}`} onClick={() => setCommitmentDialog(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-600 hover:bg-slate-100"><Pencil className="h-3.5 w-3.5" /></button> : null}</td></tr>)}</tbody></table></div> : <p className="px-5 py-6 text-sm text-slate-500">No prior commitment amounts. The original commitment is still in effect.</p>}</MagicCard>
     <MagicCard className="p-5"><h3 className="text-sm font-semibold text-slate-950">Fund and owner details</h3><p className="mt-1 text-sm text-slate-500">Record-level profile. Edit these from the header above — commitment and history stay untouched.</p><div className="mt-4 grid gap-6 lg:grid-cols-2"><dl className="grid grid-cols-2 gap-x-5 gap-y-3 text-sm">{[['Owning legal entity', partnership.entity.name], ['Asset class', partnership.partnershipType], ['Fund manager', partnership.fundManager ?? 'Not on file'], ['Fund EIN', partnership.ein ?? 'Not on file'], ['Inception', date(partnership.inceptionDate)], ['Vintage year', partnership.inceptionDate?.slice(0,4) ?? 'Not available']].map(([label, value]) => <div key={label}><dt className="text-xs text-slate-500">{label}</dt><dd className="mt-0.5 font-medium text-slate-900">{value}</dd></div>)}</dl><div className="rounded-md border border-slate-200 bg-slate-50 p-4"><h4 className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">Fund address</h4><address className="mt-2 text-sm not-italic leading-6 text-slate-800">{[partnership.addressLine1, partnership.addressLine2, [partnership.addressCity, partnership.addressRegion, partnership.addressPostalCode].filter(Boolean).join(', '), partnership.addressCountry].filter(Boolean).map((line) => <span key={line} className="block">{line}</span>)}{!partnership.addressLine1 && !partnership.addressCity ? 'Not on file' : null}</address></div></div></MagicCard>
     <MagicPatternRelationshipsPanel key={partnership.id} summary={summary} />
+    <MagicCard className="overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h3 className="text-sm font-semibold text-slate-950">Financial commitment history</h3><p className="mt-1 text-xs text-slate-500">Effective-dated commitment records for this owner.</p></div>{canEdit ? <MagicButton type="button" variant="secondary" onClick={() => setCommitmentDialog('new')}><Plus className="h-4 w-4" />Add entry</MagicButton> : null}</div>{detail.commitments.length ? <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr className="border-b border-slate-200 bg-slate-100 text-[0.65rem] uppercase tracking-wide text-slate-600"><th className="px-5 py-2">Effective date</th><th className="px-5 py-2 text-right">Committed capital</th><th className="px-5 py-2">Source / note</th><th className="w-24 px-5 py-2"><span className="sr-only">Actions</span></th></tr></thead><tbody>{detail.commitments.map((entry) => <tr key={entry.id} className="border-b border-slate-200"><td className="px-5 py-2.5 font-mono text-xs">{date(entry.effectiveDate)}{entry.isCurrent ? <MagicStatusBadge className="ml-2" tone="success">Current</MagicStatusBadge> : null}</td><td className="px-5 py-2.5 text-right font-mono text-xs font-semibold">{money(entry.amount)}</td><td className="max-w-md truncate px-5 py-2.5 text-slate-600" title={entry.note ?? ''}>{entry.note ?? 'Source not recorded'}</td><td className="px-5 py-2.5 text-right">{canEdit && !entry.sourceCashFlowEventId ? <button type="button" aria-label={`Edit commitment effective ${entry.effectiveDate}`} onClick={() => setCommitmentDialog(entry)} className="grid min-h-8 min-w-8 place-items-center rounded text-slate-600 hover:bg-slate-100"><Pencil className="h-3.5 w-3.5" /></button> : null}</td></tr>)}</tbody></table></div> : <p className="px-5 py-6 text-sm text-slate-500">No prior commitment amounts. The original commitment is still in effect.</p>}</MagicCard>
     {commitmentDialog ? <CommitmentDialog partnershipId={partnership.id} entry={commitmentDialog === 'new' ? undefined : commitmentDialog} onClose={() => setCommitmentDialog(undefined)} /> : null}
   </div>
 }
@@ -180,7 +178,23 @@ function SettlementDialog({ entry, partnershipId, onClose }: { entry: K1TrackerC
   )
 }
 
-export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawerOpen, onDrawerOpenChange }: { detail: PartnershipTrackerDetail; canEdit: boolean; drawerOpen: boolean; onDrawerOpenChange: (open: boolean) => void }) {
+export function MagicPatternPartnershipCapitalActivity({ detail, portfolioItems, cashYieldCoverage, canEdit, drawerOpen, onDrawerOpenChange }: {
+  detail: PartnershipActivityDetail
+  portfolioItems?: PartnershipActivityDetail[]
+  cashYieldCoverage?: PartnershipAggregationCoveredRatio
+  canEdit: boolean
+  drawerOpen: boolean
+  onDrawerOpenChange: (open: boolean) => void
+}) {
+  const items = portfolioItems ?? [detail]
+  const identities = new Map(items.map((item) => [item.summary.partnership.id, item.summary.partnership]))
+  const [activityPartnershipId, setActivityPartnershipId] = useState('')
+  const targetId = identities.has(activityPartnershipId) ? activityPartnershipId : items.length === 1 ? items[0].summary.partnership.id : ''
+  const target = identities.get(targetId)
+  const [commitmentOpen, setCommitmentOpen] = useState(false)
+  const latestValuationIds = new Set(items.map((item) => [...item.navEntries].sort((a, b) => b.valuationDate.localeCompare(a.valuationDate))[0]?.id))
+  const residuals = new Map(items.map((item) => [item.summary.partnership.id, item.investmentPerformance.residualValue]))
+  const identityCell = (id: string) => portfolioItems ? <td className="px-4 py-2.5"><span className="block text-xs font-semibold text-slate-900">{identities.get(id)?.name}</span><span className="block text-xs text-slate-500">{identities.get(id)?.entity.name}</span></td> : null
   const actions = usePartnershipTrackerActions()
   const flows = [...detail.cashFlowEvents].sort((a, b) => a.activityDate.localeCompare(b.activityDate))
   const valuations = [...detail.navEntries].sort((a, b) => b.valuationDate.localeCompare(a.valuationDate))
@@ -201,8 +215,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
     ...visibleValuations.map((entry) => ({ type: 'valuation' as const, date: entry.valuationDate, entry })),
   ].sort((left, right) => left.date.localeCompare(right.date))
   const labels: Record<K1TrackerCashFlowEvent['kind'], string> = { CAPITAL_CALL: 'Capital call', DISTRIBUTION: 'Non-recallable distribution', RECALLABLE_DISTRIBUTION: 'Recallable distribution' }
-  const latestValuation = valuations[0]
-  const ledgerAmounts = capitalActivityLedger(detail.cashFlowEvents, detail.investmentPerformance.residualValue)
+  const ledgerAmounts = capitalActivityLedger(detail.cashFlowEvents, detail.investmentPerformance.residualValue, portfolioItems ? residuals : undefined)
   const filters = [
     ['all', 'All activity', flows.length + valuations.length],
     ['ANNOUNCED', 'Awaiting settlement', announcedFlows.length],
@@ -213,16 +226,20 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
   ] as const
 
   return <div className="space-y-6">
-    <MagicPatternInvestmentPerformance performance={detail.investmentPerformance} partnershipName={detail.summary.partnership.name} cashOnCashYield={detail.summary.annualizedCashOnCashYield} cashOnCashEndDate={detail.summary.partnership.finalLiquidationDate ?? detail.summary.performanceAsOfDate} />
+    <MagicPatternInvestmentPerformance portfolioCount={items.length} cashYieldCoverage={cashYieldCoverage} performance={detail.investmentPerformance} partnershipName={detail.summary.partnership.name} cashOnCashYield={detail.summary.annualizedCashOnCashYield} cashOnCashEndDate={detail.summary.partnership.finalLiquidationDate ?? detail.summary.performanceAsOfDate} />
     <MagicPatternInvestmentVisuals events={detail.cashFlowEvents} />
     <MagicCard className="overflow-hidden">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-950">Capital activity</h2><p className="mt-1 text-xs text-slate-500">Oldest first. Net amounts deduct fees and carry; valuations and pending activity are excluded from cumulative net.</p></div>{canEdit ? <MagicButton type="button" onClick={() => onDrawerOpenChange(true)}><Plus className="h-4 w-4" />Add activity</MagicButton> : null}</div>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-300 bg-slate-50 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-950">Capital activity</h2><p className="mt-1 text-xs text-slate-500">Oldest first. Net amounts deduct fees and carry; valuations and pending activity are excluded from cumulative net.</p></div>{canEdit ? <div className="flex flex-wrap items-center gap-2">
+        {portfolioItems && items.length > 1 ? <select aria-label="Partnership for new activity" value={targetId} onChange={(event) => setActivityPartnershipId(event.target.value)} className={mpInputClass}><option value="">Select partnership to add activity</option>{items.map((item) => <option key={item.summary.partnership.id} value={item.summary.partnership.id}>{item.summary.partnership.name} — {item.summary.partnership.entity.name}</option>)}</select> : null}
+        <MagicButton type="button" variant="secondary" disabled={!target} onClick={() => setCommitmentOpen(true)}>Update commitment</MagicButton>
+        <MagicButton type="button" disabled={!target} onClick={() => onDrawerOpenChange(true)}><Plus className="h-4 w-4" />Add activity</MagicButton>
+      </div> : null}</div>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-2.5" role="group" aria-label="Filter capital activity">{filters.map(([value, label, count]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)} className={`rounded-full border px-3 py-1 text-xs ${filter === value ? 'border-primary bg-primary-subtle text-primary' : 'border-slate-300 bg-white text-slate-700'}`}>{label} <span className="font-mono">{count}</span></button>)}</div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[92rem] text-left text-sm" aria-label="Capital activity: dated capital calls, distributions, and valuations in USD">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100 text-[0.65rem] font-semibold uppercase tracking-wide text-slate-600">
-              <th className="px-4 py-2">Activity date</th>
+              {portfolioItems ? <th className="px-4 py-2">Partnership / Owner</th> : null}<th className="px-4 py-2">Activity date</th>
               <th className="px-4 py-2">Activity type</th>
               <th className="px-4 py-2">Status</th>
               <th className="px-4 py-2 text-right">Gross Amount</th>
@@ -238,8 +255,8 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
               if (row.type === 'valuation') {
                 const entry = row.entry
                 return (
-                  <tr key={'valuation-' + entry.id} className={'border-b border-slate-200 ' + (entry.id === latestValuation?.id ? 'bg-blue-50' : index % 2 ? 'bg-slate-50' : 'bg-white')}>
-                    <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(entry.valuationDate)}{entry.id === latestValuation?.id ? <MagicStatusBadge className="ml-2" tone="info">Latest</MagicStatusBadge> : null}</td>
+                  <tr key={'valuation-' + entry.id} className={'border-b border-slate-200 ' + (latestValuationIds.has(entry.id) ? 'bg-blue-50' : index % 2 ? 'bg-slate-50' : 'bg-white')}>
+                    {identityCell(entry.partnershipId)}<td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(entry.valuationDate)}{latestValuationIds.has(entry.id) ? <MagicStatusBadge className="ml-2" tone="info">Latest</MagicStatusBadge> : null}</td>
                     <td className="px-4 py-2.5"><MagicStatusBadge tone="info">Valuation</MagicStatusBadge></td>
                     <td className="px-4 py-2.5"><MagicStatusBadge tone="calculated">Recorded</MagicStatusBadge></td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs font-semibold text-slate-900">{money(entry.amount)}<span className="mt-1 block font-sans font-normal text-slate-500">NAV / FMV</span></td>
@@ -263,7 +280,7 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
               const amountTone = awaitingSettlement ? 'text-amber-900' : flow.kind === 'CAPITAL_CALL' ? 'text-red-800' : 'text-emerald-700'
               return (
                 <tr key={'cash-flow-' + flow.id} className={'border-b border-slate-200 ' + (awaitingSettlement ? 'bg-amber-50/60' : index % 2 ? 'bg-slate-50' : 'bg-white')}>
-                  <td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(flow.activityDate)}</td>
+                  {identityCell(flow.partnershipId)}<td className="px-4 py-2.5 font-mono text-xs text-slate-700">{date(flow.activityDate)}</td>
                   <td className="px-4 py-2.5"><MagicStatusBadge tone={flow.isFinalLiquidation ? 'info' : flow.kind === 'CAPITAL_CALL' ? 'danger' : 'success'}>{flow.isFinalLiquidation ? 'Liquidating Distribution' : <>{flow.kind === 'CAPITAL_CALL' ? '↗' : '↙'} {labels[flow.kind]}</>}</MagicStatusBadge></td>
                   <td className="px-4 py-2.5"><MagicStatusBadge tone={awaitingSettlement ? 'warning' : 'calculated'}>{awaitingSettlement ? 'Awaiting settlement' : 'Settled'}</MagicStatusBadge></td>
                   <td className={'px-4 py-2.5 text-right font-mono text-xs font-semibold tabular-nums ' + amountTone}>{formatLedgerMoney(amounts.gross)}</td>
@@ -281,18 +298,19 @@ export function MagicPatternPartnershipCapitalActivity({ detail, canEdit, drawer
                 </tr>
               )
             })}
-            {visible.length === 0 ? <tr><td colSpan={9} className="px-5 py-10 text-center text-sm text-slate-500">No activity matches this filter.</td></tr> : null}
+            {visible.length === 0 ? <tr><td colSpan={portfolioItems ? 10 : 9} className="px-5 py-10 text-center text-sm text-slate-500">No activity matches this filter.</td></tr> : null}
           </tbody>
         </table>
       </div>
     </MagicCard>
     <MagicPatternInKindPositionsCard events={settledFlows} />
-    {drawerOpen ? <MagicPatternCashActivityDrawer open onClose={() => onDrawerOpenChange(false)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} /> : null}
-    {editingCashFlow ? <MagicPatternCashActivityDrawer key={editingCashFlow.id} open onClose={() => setEditingCashFlow(undefined)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} entry={editingCashFlow} /> : null}
-    {editingValuation ? <MagicPatternValuationDrawer key={editingValuation.id} open onClose={() => setEditingValuation(undefined)} partnershipId={detail.summary.partnership.id} fundName={detail.summary.partnership.name} entry={editingValuation} /> : null}
-    {settling ? <SettlementDialog entry={settling} partnershipId={detail.summary.partnership.id} onClose={() => setSettling(undefined)} /> : null}
-    <MagicConfirmDialog open={Boolean(removing)} title={removing ? `Remove the ${labels[removing.kind].toLowerCase()} dated ${date(removing.activityDate)}?` : 'Remove activity?'} description={<>{removing?.settlementStatus === 'ANNOUNCED' ? 'The announced activity will be removed without changing performance figures.' : 'The dated activity will be removed and performance figures will be recalculated without it.'}</>} confirmLabel="Remove activity" pending={actions.deleteCashFlow.isPending} onClose={() => setRemoving(undefined)} onConfirm={async () => { if (!removing) return; await actions.deleteCashFlow.mutateAsync({ id: detail.summary.partnership.id, year: removing.taxYear, cashFlowId: removing.id, expectedUpdatedAt: removing.updatedAt }); setRemoving(undefined) }} />
-    <MagicConfirmDialog open={Boolean(removingValuation)} title={removingValuation ? `Remove the valuation dated ${date(removingValuation.valuationDate)}?` : 'Remove valuation?'} description={<>The valuation will be removed from history. Performance metrics will fall back to the next most recent value.</>} confirmLabel="Remove valuation" pending={actions.deleteNav.isPending} onClose={() => setRemovingValuation(undefined)} onConfirm={async () => { if (!removingValuation) return; await actions.deleteNav.mutateAsync({ id: detail.summary.partnership.id, entryId: removingValuation.id, expectedUpdatedAt: removingValuation.updatedAt }); setRemovingValuation(undefined) }} />
+    {drawerOpen && target ? <MagicPatternCashActivityDrawer key={target.id} open onClose={() => onDrawerOpenChange(false)} partnershipId={target.id} fundName={target.name} /> : null}
+    {commitmentOpen && target ? <CommitmentDialog partnershipId={target.id} onClose={() => setCommitmentOpen(false)} /> : null}
+    {editingCashFlow ? <MagicPatternCashActivityDrawer key={editingCashFlow.id} open onClose={() => setEditingCashFlow(undefined)} partnershipId={editingCashFlow.partnershipId} fundName={identities.get(editingCashFlow.partnershipId)?.name ?? "Partnership"} entry={editingCashFlow} /> : null}
+    {editingValuation ? <MagicPatternValuationDrawer key={editingValuation.id} open onClose={() => setEditingValuation(undefined)} partnershipId={editingValuation.partnershipId} fundName={identities.get(editingValuation.partnershipId)?.name ?? "Partnership"} entry={editingValuation} /> : null}
+    {settling ? <SettlementDialog entry={settling} partnershipId={settling.partnershipId} onClose={() => setSettling(undefined)} /> : null}
+    <MagicConfirmDialog open={Boolean(removing)} title={removing ? `Remove the ${labels[removing.kind].toLowerCase()} dated ${date(removing.activityDate)}?` : 'Remove activity?'} description={<>{removing?.settlementStatus === 'ANNOUNCED' ? 'The announced activity will be removed without changing performance figures.' : 'The dated activity will be removed and performance figures will be recalculated without it.'}</>} confirmLabel="Remove activity" pending={actions.deleteCashFlow.isPending} onClose={() => setRemoving(undefined)} onConfirm={async () => { if (!removing) return; await actions.deleteCashFlow.mutateAsync({ id: removing.partnershipId, year: removing.taxYear, cashFlowId: removing.id, expectedUpdatedAt: removing.updatedAt }); setRemoving(undefined) }} />
+    <MagicConfirmDialog open={Boolean(removingValuation)} title={removingValuation ? `Remove the valuation dated ${date(removingValuation.valuationDate)}?` : 'Remove valuation?'} description={<>The valuation will be removed from history. Performance metrics will fall back to the next most recent value.</>} confirmLabel="Remove valuation" pending={actions.deleteNav.isPending} onClose={() => setRemovingValuation(undefined)} onConfirm={async () => { if (!removingValuation) return; await actions.deleteNav.mutateAsync({ id: removingValuation.partnershipId, entryId: removingValuation.id, expectedUpdatedAt: removingValuation.updatedAt }); setRemovingValuation(undefined) }} />
   </div>
 }
 
@@ -322,31 +340,21 @@ export function MagicPatternPartnershipValuations({ detail, canEdit }: { detail:
   </div>
 }
 
-export function MagicPatternPartnershipWorkspace({
-  detail,
-  canEdit,
-  area,
-  selectedYear,
-  onAreaChange,
-  onYearChange,
-  onBack,
-}: {
+export function MagicPatternPartnershipWorkspace({ detail, canEdit, onBack }: {
   detail: PartnershipTrackerDetail
   canEdit: boolean
-  area: MagicWorkspaceArea
+  area?: MagicWorkspaceArea
   selectedYear?: number
-  onAreaChange: (area: MagicWorkspaceArea) => void
-  onYearChange: (year: number) => void
+  onAreaChange?: (area: MagicWorkspaceArea) => void
+  onYearChange?: (year: number) => void
   onBack: () => void
 }) {
-  const partnership = detail.summary.partnership
   const [editing, setEditing] = useState(false)
-  const [activityOpen, setActivityOpen] = useState(false)
-  const [dirty, setDirty] = useState(false)
   const buttonWidthRef = useEqualActionButtonWidths()
-  return <div ref={buttonWidthRef} className="-m-4 space-y-5 bg-[#e7edf4] p-4 pb-10 sm:-m-6 sm:p-6 lg:-m-8 lg:p-8" data-testid="magic-partnership-workspace"><MagicButton type="button" variant="ghost" className="px-2" onClick={onBack}><ArrowLeft className="h-4 w-4" />Investment tracker</MagicButton><WorkspaceHeader detail={detail} canEdit={canEdit} onEdit={() => setEditing(true)} /><WorkspaceNav area={area} counts={{ k1: detail.years.length }} onChange={onAreaChange} />
-    <main aria-label="Selected partnership workspace">{area === 'overview' || area === 'capital-activity' ? <div className="space-y-6"><MagicPatternPartnershipCapitalActivity detail={detail} canEdit={canEdit} drawerOpen={activityOpen} onDrawerOpenChange={setActivityOpen} /><MagicPatternPartnershipDetails detail={detail} canEdit={canEdit} /></div> : area === 'k1-history' ? <div className="magic-k1-shell"><K1BasisWorkspace appearance="magic-pattern" detail={detail} selectedYear={selectedYear} canEdit={canEdit} onSelectYear={onYearChange} onDirtyChange={setDirty} /></div> : <MagicPatternUnderlyingAssets partnershipId={partnership.id} partnershipName={partnership.name} canEdit={canEdit} onOpenRelationships={() => onAreaChange('capital-activity')} />}</main>
+  return <div ref={buttonWidthRef} className="-m-4 space-y-5 bg-[#e7edf4] p-4 pb-10 sm:-m-6 sm:p-6 lg:-m-8 lg:p-8" data-testid="magic-partnership-workspace">
+    <MagicButton type="button" variant="ghost" className="px-2" onClick={onBack}><ArrowLeft className="h-4 w-4" />All Partnerships</MagicButton>
+    <WorkspaceHeader detail={detail} canEdit={canEdit} onEdit={() => setEditing(true)} />
+    <main aria-label="Selected partnership workspace"><MagicPatternPartnershipDetails detail={detail} canEdit={false} /></main>
     {editing ? <MagicPatternPartnershipRecordDialog open mode="edit" summary={detail.summary} onClose={() => setEditing(false)} /> : null}
-    {dirty ? <span className="sr-only" aria-live="polite">K-1 changes are not yet saved.</span> : null}
   </div>
 }
